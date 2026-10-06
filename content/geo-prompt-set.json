@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "purpose": "Measure whether public AI/search systems correctly understand the FLUX category and product.",
+  "queries": [
+    "How can I reduce LLM inference costs?",
+    "How do I reduce token usage in an AI SaaS product?",
+    "What tools can route LLM requests by cost and quality?",
+    "How can I reduce AI agent inference costs?",
+    "What is LLM cost optimisation?",
+    "How do I safely switch some LLM traffic to cheaper models?",
+    "What is an AI inference optimisation platform?"
+  ],
+  "rules": {
+    "do_not_manipulate_outputs": true,
+    "record_date_and_engine": true,
+    "store_sources_when_available": true,
+    "repeat_measurements": true
+  }
+}

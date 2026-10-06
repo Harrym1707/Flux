@@ -1,0 +1,18 @@
+{
+  "name": "Synthetic support classification replay",
+  "notice": "Illustrative fixture data only. It is not a benchmark or a measurement of real provider quality, cost, or latency.",
+  "requests": [
+    { "id": "r01", "expected": "billing", "baseline": "billing", "candidate": "billing", "baselineCostUsd": 0.010, "candidateCostUsd": 0.003 },
+    { "id": "r02", "expected": "technical", "baseline": "technical", "candidate": "technical", "baselineCostUsd": 0.010, "candidateCostUsd": 0.003 },
+    { "id": "r03", "expected": "other", "baseline": "other", "candidate": "other", "baselineCostUsd": 0.010, "candidateCostUsd": 0.003 },
+    { "id": "r04", "expected": "billing", "baseline": "billing", "candidate": "billing", "baselineCostUsd": 0.010, "candidateCostUsd": 0.003 },
+    { "id": "r05", "expected": "technical", "baseline": "technical", "candidate": "technical", "baselineCostUsd": 0.010, "candidateCostUsd": 0.003 },
+    { "id": "r06", "expected": "other", "baseline": "other", "candidate": "billing", "baselineCostUsd": 0.010, "candidateCostUsd": 0.003 },
+    { "id": "r07", "expected": "billing", "baseline": "billing", "candidate": "billing", "baselineCostUsd": 0.010, "candidateCostUsd": 0.003 },
+    { "id": "r08", "expected": "technical", "baseline": "technical", "candidate": "technical", "baselineCostUsd": 0.010, "candidateCostUsd": 0.003 },
+    { "id": "r09", "expected": "other", "baseline": "other", "candidate": "other", "baselineCostUsd": 0.010, "candidateCostUsd": 0.003 },
+    { "id": "r10", "expected": "billing", "baseline": "billing", "candidate": "billing", "baselineCostUsd": 0.010, "candidateCostUsd": 0.003 },
+    { "id": "r11", "expected": "technical", "baseline": "technical", "candidate": "technical", "baselineCostUsd": 0.010, "candidateCostUsd": 0.003 },
+    { "id": "r12", "expected": "other", "baseline": "other", "candidate": "other", "baselineCostUsd": 0.010, "candidateCostUsd": 0.003 }
+  ]
+}

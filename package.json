@@ -1,0 +1,35 @@
+{
+  "name": "flux",
+  "private": true,
+  "type": "module",
+  "version": "0.1.0",
+  "packageManager": "pnpm@10.15.0",
+  "scripts": {
+    "build": "tsc -b",
+    "dev:api": "node --import tsx apps/api/src/server.ts",
+    "start:api": "node apps/api/dist/src/server.js",
+    "example": "node --env-file=.env --import tsx examples/openai-drop-in.ts",
+    "example:mock": "node --import tsx examples/mock-drop-in.ts",
+    "replay:run": "node --env-file=.env --import tsx evals/run-model-replay.ts",
+    "eval:demo": "node --import tsx evals/run-replay.ts",
+    "eval:replay": "node --import tsx evals/run-replay.ts",
+    "route:demo": "node --import tsx evals/routing-mvp-demo.ts",
+    "route:policy": "node --import tsx evals/create-routing-policy.ts",
+    "context:simulate": "node --import tsx evals/context-routing-simulation.ts",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "eslint .",
+    "typecheck": "tsc -b --pretty false"
+  },
+  "dependencies": {
+    "@flux-ai/sdk": "workspace:*",
+    "openai": "^5.12.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "eslint": "^9.0.0",
+    "tsx": "^4.20.5",
+    "typescript": "^5.9.0",
+    "vitest": "^3.2.0"
+  }
+}

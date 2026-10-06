@@ -1,0 +1,8 @@
+{
+  "name": "@flux/api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/src/server.js",
+  "types": "./dist/src/server.d.ts"
+}

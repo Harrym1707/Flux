@@ -1,0 +1,8 @@
+{
+  "evaluator": "classification",
+  "minimumSamples": 10,
+  "minimumCandidateAccuracy": 0.95,
+  "maximumAccuracyDrop": 0.02,
+  "maximumCandidateErrorRate": 0.01,
+  "minimumCostSavingsPercent": 10
+}

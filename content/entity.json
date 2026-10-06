@@ -1,0 +1,21 @@
+{
+  "name": "FLUX",
+  "category": "AI Cost Engineering",
+  "description": "FLUX is an early-stage AI Cost Engineering project for observing inference requests and evaluating saved baseline and candidate outputs against explicit quality policies.",
+  "implementedCapabilities": [
+    "OpenAI-compatible Responses API pass-through instrumentation",
+    "metadata-only request telemetry",
+    "local inference activity dashboard",
+    "saved-output replay evaluation",
+    "explicit baseline and candidate model replay"
+  ],
+  "plannedCapabilities": [
+    "production model routing",
+    "context optimisation",
+    "semantic caching",
+    "agent budgets",
+    "progressive rollout",
+    "automatic rollback"
+  ],
+  "tagline": "Make every token count."
+}

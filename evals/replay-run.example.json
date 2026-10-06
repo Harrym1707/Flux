@@ -1,0 +1,29 @@
+{
+  "name": "Synthetic support classification model replay",
+  "mode": "mock",
+  "pricingIsIllustrative": true,
+  "baseline": {
+    "provider": "mock",
+    "model": "baseline",
+    "pricing": { "inputPerMillion": 1, "outputPerMillion": 2 }
+  },
+  "candidate": {
+    "provider": "mock",
+    "model": "candidate",
+    "pricing": { "inputPerMillion": 0.3, "outputPerMillion": 0.6 }
+  },
+  "requests": [
+    { "id": "r01", "input": "Classify a customer asking about a refund.", "expected": "billing", "mockOutputs": { "baseline": "billing", "candidate": "billing", "inputTokens": 1000, "baselineOutputTokens": 100, "candidateOutputTokens": 50 } },
+    { "id": "r02", "input": "Classify a report that the application will not load.", "expected": "technical", "mockOutputs": { "baseline": "technical", "candidate": "technical", "inputTokens": 1000, "baselineOutputTokens": 100, "candidateOutputTokens": 50 } },
+    { "id": "r03", "input": "Classify a general product question.", "expected": "other", "mockOutputs": { "baseline": "other", "candidate": "other", "inputTokens": 1000, "baselineOutputTokens": 100, "candidateOutputTokens": 50 } },
+    { "id": "r04", "input": "Classify a request to update an invoice.", "expected": "billing", "mockOutputs": { "baseline": "billing", "candidate": "billing", "inputTokens": 1000, "baselineOutputTokens": 100, "candidateOutputTokens": 50 } },
+    { "id": "r05", "input": "Classify a connection timeout report.", "expected": "technical", "mockOutputs": { "baseline": "technical", "candidate": "technical", "inputTokens": 1000, "baselineOutputTokens": 100, "candidateOutputTokens": 50 } },
+    { "id": "r06", "input": "Classify a request for a business partnership.", "expected": "other", "mockOutputs": { "baseline": "other", "candidate": "billing", "inputTokens": 1000, "baselineOutputTokens": 100, "candidateOutputTokens": 50 } },
+    { "id": "r07", "input": "Classify a question about a subscription charge.", "expected": "billing", "mockOutputs": { "baseline": "billing", "candidate": "billing", "inputTokens": 1000, "baselineOutputTokens": 100, "candidateOutputTokens": 50 } },
+    { "id": "r08", "input": "Classify a bug in the mobile app.", "expected": "technical", "mockOutputs": { "baseline": "technical", "candidate": "technical", "inputTokens": 1000, "baselineOutputTokens": 100, "candidateOutputTokens": 50 } },
+    { "id": "r09", "input": "Classify a question about store locations.", "expected": "other", "mockOutputs": { "baseline": "other", "candidate": "other", "inputTokens": 1000, "baselineOutputTokens": 100, "candidateOutputTokens": 50 } },
+    { "id": "r10", "input": "Classify a request for a payment receipt.", "expected": "billing", "mockOutputs": { "baseline": "billing", "candidate": "billing", "inputTokens": 1000, "baselineOutputTokens": 100, "candidateOutputTokens": 50 } },
+    { "id": "r11", "input": "Classify a failure to save settings.", "expected": "technical", "mockOutputs": { "baseline": "technical", "candidate": "technical", "inputTokens": 1000, "baselineOutputTokens": 100, "candidateOutputTokens": 50 } },
+    { "id": "r12", "input": "Classify a request unrelated to billing or product support.", "expected": "other", "mockOutputs": { "baseline": "other", "candidate": "other", "inputTokens": 1000, "baselineOutputTokens": 100, "candidateOutputTokens": 50 } }
+  ]
+}

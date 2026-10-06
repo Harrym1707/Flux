@@ -1,0 +1,20 @@
+{
+  "taskClass": "customer_support.classification",
+  "baseline": {
+    "provider": "openai",
+    "model": "gpt-5.6"
+  },
+  "candidate": {
+    "provider": "openai",
+    "model": "gpt-5.6-luna"
+  },
+  "quality": {
+    "minimumScore": 0.99,
+    "requiredChecks": [
+      "schema_valid",
+      "label_correct"
+    ],
+    "maxErrorRate": 0.01
+  },
+  "rollout": [0.01, 0.05, 0.1, 0.25, 0.5, 1]
+}
