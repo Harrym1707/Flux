@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { compareBenchmark, normalizeFluxCaptures, partitionBenchmarkRows } from "./benchmark.js";
+import { attachRouterChoices, compareBenchmark, normalizeFluxCaptures, partitionBenchmarkRows } from "./benchmark.js";
 import type { BenchmarkCase } from "./benchmark.js";
 
 function cases(count: number, split: string): BenchmarkCase[] {
@@ -112,5 +112,26 @@ describe("offline routing benchmark", () => {
     expect(report.learned.fluxChoiceByWorkflow["support.reply"]).toBe("gpt-model::context:compact-v1");
     expect(report.learned.policies[0]!.candidates[0]!.contextProfileId).toBe("compact-v1");
     expect(report.results[2]!.costSavingsVsBestSinglePercent).toBeCloseTo(50);
+  });
+
+  it("scores imported competitor decisions on the same holdout and includes router spend", () => {
+    const train = cases(80, "train");
+    const test = cases(20, "test");
+    const decisions = test.map((row) => ({
+      id: row.id,
+      router: "external-router-fixture",
+      choice: row.workflow === "simple" ? "cheap" : "strong",
+      routingCostUsd: 0.001,
+      routingInputTokens: 5,
+      routingOutputTokens: 2,
+    }));
+    const pairedTest = attachRouterChoices(test, decisions);
+    const report = compareBenchmark(train, pairedTest, { minimumWorkflowSamples: 20, bootstrapSamples: 300 });
+    const result = report.results.find((item) => item.name === "external_router:external-router-fixture")!;
+    expect(result.meanQuality).toBeCloseTo(0.945);
+    expect(result.totalCostUsd).toBeCloseTo(0.13);
+    expect(result.routingCostUsd).toBeCloseTo(0.02);
+    expect(result.costSavingsVsBestSinglePercent).toBeCloseTo(35);
+    expect(result.routingInputTokens).toBe(100);
   });
 });

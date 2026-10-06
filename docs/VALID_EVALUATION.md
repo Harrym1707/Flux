@@ -30,6 +30,14 @@ corepack pnpm benchmark:run -- \
 
 Each model folder may contain multiple timestamped JSON files; the importer selects the lexically latest JSON file, aligns records by `index`, and rejects prompt/answer mismatches or missing paired outputs. The report contains three test-set results: the strongest full-context single model selected on train, the cheapest static choice selected on train, and FLUX's per-workflow quality-gated route. It includes mean quality, cost, input/output token counts, route counts, cost savings, and a paired bootstrap lower 95% bound for quality change. No inference calls are made.
 
+To score a router implementation's test decisions against that same output matrix, supply a JSONL file with one decision per held-out record:
+
+```json
+{"id":"mmlu_pro:42","router":"RouteLLM","choice":"model-folder-name","routingCostUsd":0.0002,"routingInputTokens":18,"routingOutputTokens":2}
+```
+
+Pass it with `--routes path/to/decisions.jsonl`. The `id` is `dataset:index`; `choice` must exactly match an imported model folder. Provide router inference cost and token overhead; use zero cost for a no-inference router. If routing cost is omitted, FLUX reports quality but marks total cost and savings unavailable. LLMRouterBench provides adapters for published routing baselines, but FLUX does not launch those implementations yet: produce their held-out per-case decisions with the chosen baseline's prescribed training split, then FLUX scores them on the shared model outputs.
+
 Scores and costs remain benchmark-specific. Before comparing results, check that all model outputs were graded by the same official task scorer and that the source cost fields use the same currency/pricing basis. Public benchmark results establish generic routing behavior; they cannot prove savings on a team's app workload.
 
 ## Evaluate your own workload

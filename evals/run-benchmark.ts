@@ -1,6 +1,6 @@
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
-import { compareBenchmark, loadLLMRouterBenchPartition, partitionBenchmarkRows } from "./benchmark.js";
+import { attachRouterChoices, compareBenchmark, loadLLMRouterBenchPartition, partitionBenchmarkRows } from "./benchmark.js";
 
 type Args = {
   root: string;
@@ -9,6 +9,7 @@ type Args = {
   trainSplit?: string;
   testSplit?: string;
   models?: string[];
+  routes?: string;
   trainFraction: number;
   seed: string;
   maximumQualityDrop: number;
@@ -20,13 +21,13 @@ type Args = {
 function parse(argv: string[]): Args {
   const values: Record<string, string> = {};
   const allowed = new Set([
-    "root", "dataset", "split", "train-split", "test-split", "models", "train-fraction",
+    "root", "dataset", "split", "train-split", "test-split", "models", "routes", "train-fraction",
     "seed", "maximum-quality-drop", "minimum-workflow-samples", "bootstrap-samples", "out",
   ]);
   for (let index = 0; index < argv.length; index += 1) {
     const key = argv[index]!;
     if (key === "--help" || key === "-h") {
-      console.log("Usage: pnpm benchmark:run -- --root path/to/results/bench --dataset mmlu_pro [--split test | --train-split validation --test-split test] [--models model-a,model-b] [--out reports/mmlu_pro.json]");
+      console.log("Usage: pnpm benchmark:run -- --root path/to/results/bench --dataset mmlu_pro [--split test | --train-split validation --test-split test] [--models model-a,model-b] [--routes competitor-decisions.jsonl] [--out reports/mmlu_pro.json]");
       process.exit(0);
     }
     if (!key.startsWith("--") || index + 1 >= argv.length) throw new Error(`Unexpected argument: ${key}`);
@@ -52,6 +53,7 @@ function parse(argv: string[]): Args {
     trainSplit: values["train-split"],
     testSplit: values["test-split"],
     models: values.models?.split(",").map((model) => model.trim()).filter(Boolean),
+    routes: values.routes ? resolve(values.routes) : undefined,
     trainFraction: numberOption("train-fraction", 0.7),
     seed: values.seed ?? "flux-benchmark-v1",
     maximumQualityDrop: numberOption("maximum-quality-drop", 0.02),
@@ -73,9 +75,20 @@ function usd(value: number | null): string {
   return value === null ? "n/a" : `$${value.toFixed(6)}`;
 }
 
+async function readJsonl(path: string): Promise<unknown[]> {
+  const text = await readFile(path, "utf8");
+  return text.split(/\r?\n/).filter((line) => line.trim() !== "").map((line, index) => {
+    try {
+      return JSON.parse(line) as unknown;
+    } catch {
+      throw new Error(`${path}:${index + 1} is not valid JSON.`);
+    }
+  });
+}
+
 function renderMarkdown(report: ReturnType<typeof compareBenchmark>, source: string): string {
   const strategyRows = report.results.map((result) =>
-    `| ${result.name} | ${result.meanQuality.toFixed(4)} | ${usd(result.meanCostUsd)} | ${usd(result.totalCostUsd)} | ${percent(result.costSavingsVsBestSinglePercent)} | ${result.totalTokens ?? "n/a"} | ${qualityDelta(result.qualityDeltaLower95)} |`,
+    `| ${result.name} | ${result.meanQuality.toFixed(4)} | ${usd(result.meanCostUsd)} | ${usd(result.routingCostUsd)} | ${usd(result.totalCostUsd)} | ${percent(result.costSavingsVsBestSinglePercent)} | ${result.totalTokens ?? "n/a"} | ${qualityDelta(result.qualityDeltaLower95)} | ${Object.entries(result.selectedModels).map(([choice, count]) => `\`${choice}\`: ${count}`).join(", ")} |`,
   );
   const routeLines = Object.entries(report.learned.fluxChoiceByWorkflow).map(([workflow, choice]) => {
     const target = report.learned.targetByChoice[choice]!;
@@ -92,8 +105,8 @@ function renderMarkdown(report: ReturnType<typeof compareBenchmark>, source: str
     "",
     "## Test results",
     "",
-    "| Strategy | Mean quality | Mean cost/request | Total cost | Savings vs best single | Total tokens | Quality delta lower 95% |",
-    "|---|---:|---:|---:|---:|---:|---:|",
+    "| Strategy | Mean quality | Mean cost/request | Router cost | Total cost | Savings vs best single | Total tokens | Quality delta lower 95% | Choices selected |",
+    "|---|---:|---:|---:|---:|---:|---:|---:|---|",
     ...strategyRows,
     "",
     "## Learned choices",
@@ -134,6 +147,10 @@ if (args.trainSplit && args.testSplit) {
   test = partition.test;
   source = `LLMRouterBench extracted ${args.split} results for ${args.dataset}, deterministically partitioned ${Math.round(args.trainFraction * 100)}/${Math.round((1 - args.trainFraction) * 100)} by exact prompt group`;
 }
+if (args.routes) {
+  test = attachRouterChoices(test, await readJsonl(args.routes));
+  source += "; includes imported per-case router decisions with explicit router overhead accounting";
+}
 const report = compareBenchmark(train, test, {
   maximumQualityDrop: args.maximumQualityDrop,
   minimumWorkflowSamples: args.minimumWorkflowSamples,
@@ -149,6 +166,6 @@ await writeFile(markdownPath, renderMarkdown(report, source));
 console.log(`${report.dataset}: ${report.trainSamples} train / ${report.testSamples} test records`);
 console.log(`Train-selected best single model: ${report.learned.bestSingleModel}`);
 for (const result of report.results) {
-  console.log(`${result.name}: quality ${result.meanQuality.toFixed(4)}, cost ${usd(result.totalCostUsd)}, savings ${percent(result.costSavingsVsBestSinglePercent)}, test quality delta lower 95% ${qualityDelta(result.qualityDeltaLower95)}`);
+  console.log(`${result.name}: quality ${result.meanQuality.toFixed(4)}, cost ${usd(result.totalCostUsd)}, router cost ${usd(result.routingCostUsd)}, savings ${percent(result.costSavingsVsBestSinglePercent)}, test quality delta lower 95% ${qualityDelta(result.qualityDeltaLower95)}`);
 }
 console.log(`Reports saved to ${reportPath} and ${markdownPath}`);

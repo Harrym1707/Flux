@@ -26,10 +26,19 @@ export type BenchmarkCase = {
   input?: string;
   expected?: unknown;
   predictions: Record<string, BenchmarkPrediction>;
+  routerChoices?: Record<string, BenchmarkRouteChoice>;
+};
+
+export type BenchmarkRouteChoice = {
+  choice: string;
+  /** Include per-request router inference cost; use 0 for a no-inference router. */
+  routingCostUsd?: number;
+  routingInputTokens?: number;
+  routingOutputTokens?: number;
 };
 
 export type BenchmarkStrategyResult = {
-  name: "best_single_model" | "cheapest_static" | "flux_quality_gated";
+  name: string;
   sampleSize: number;
   meanQuality: number;
   meanCostUsd: number | null;
@@ -37,6 +46,9 @@ export type BenchmarkStrategyResult = {
   meanInputTokens: number | null;
   meanOutputTokens: number | null;
   totalTokens: number | null;
+  routingCostUsd: number | null;
+  routingInputTokens: number | null;
+  routingOutputTokens: number | null;
   qualityDeltaFromBestSingle: number;
   qualityDeltaLower95: number;
   costSavingsVsBestSinglePercent: number | null;
@@ -56,6 +68,7 @@ export type BenchmarkComparison = {
   testSamples: number;
   models: string[];
   excludedModels: Record<string, string>;
+  externalRouters: string[];
   settings: {
     maximumQualityDrop: number;
     minimumWorkflowSamples: number;
@@ -315,6 +328,48 @@ export function normalizeFluxCaptures(
   return normalized;
 }
 
+/** Attach per-case choices emitted by another router so its route can be scored on the same outputs. */
+export function attachRouterChoices(rows: BenchmarkCase[], rawChoices: unknown[]): BenchmarkCase[] {
+  if (rows.length === 0) throw new Error("Cannot attach router choices to an empty test set.");
+  const rowsById = new Map(rows.map((row) => [row.id, { ...row, routerChoices: { ...row.routerChoices } }]));
+  const coverage = new Map<string, number>();
+  for (const [index, raw] of rawChoices.entries()) {
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+      throw new Error(`Router decision ${index} must be a JSON object.`);
+    }
+    const decision = raw as Record<string, unknown>;
+    const id = typeof decision.id === "string" ? decision.id : "";
+    const name = typeof decision.router === "string" ? decision.router : "";
+    const choice = typeof decision.choice === "string" ? decision.choice :
+      typeof decision.model === "string" ? decision.model : "";
+    if (!id || !name || !choice) throw new Error(`Router decision ${index} needs id, router, and choice/model.`);
+    const row = rowsById.get(id);
+    if (!row) throw new Error(`Router ${name} selected unknown test record ${id}.`);
+    if (!row.predictions[choice]) throw new Error(`Router ${name} selected ${choice}, which has no paired output for ${id}.`);
+    for (const field of ["routingCostUsd", "routingInputTokens", "routingOutputTokens"] as const) {
+      const value = decision[field];
+      if (value !== undefined && (typeof value !== "number" || !Number.isFinite(value) || value < 0)) {
+        throw new Error(`Router decision ${index} has invalid ${field}.`);
+      }
+    }
+    if (row.routerChoices?.[name]) throw new Error(`Router ${name} has duplicate decisions for ${id}.`);
+    row.routerChoices = {
+      ...row.routerChoices,
+      [name]: {
+        choice,
+        routingCostUsd: decision.routingCostUsd as number | undefined,
+        routingInputTokens: decision.routingInputTokens as number | undefined,
+        routingOutputTokens: decision.routingOutputTokens as number | undefined,
+      },
+    };
+    coverage.set(name, (coverage.get(name) ?? 0) + 1);
+  }
+  for (const [name, count] of coverage) {
+    if (count !== rows.length) throw new Error(`Router ${name} has decisions for ${count}/${rows.length} test cases; complete paired coverage is required.`);
+  }
+  return [...rowsById.values()];
+}
+
 type ResolvedOptions = Required<BenchmarkOptions>;
 
 function mean(values: number[]): number {
@@ -413,6 +468,7 @@ function summarize(
   routeReasons: Record<string, number>,
   bootstrapSamples: number,
   seed: string,
+  routingChoices?: Array<BenchmarkRouteChoice | undefined>,
 ): BenchmarkStrategyResult {
   const scores: number[] = [];
   const modelCounts: Record<string, number> = {};
@@ -429,13 +485,30 @@ function summarize(
     workflowRows.set(workflow, group);
   });
   const costs = selectedModels.map((model, index) => rows[index]!.predictions[model]!.costUsd);
-  const totalCostUsd = costs.every((value) => Number.isFinite(value))
+  const modelCostUsd = costs.every((value) => Number.isFinite(value))
     ? costs.reduce<number>((total, value) => total + value!, 0)
     : null;
+  const routingCosts = routingChoices?.map((decision) => decision?.routingCostUsd);
+  const routingCostUsd = routingCosts === undefined
+    ? 0
+    : routingCosts.every((value) => Number.isFinite(value))
+      ? routingCosts.reduce<number>((total, value) => total + value!, 0)
+      : null;
+  const totalCostUsd = modelCostUsd === null || routingCostUsd === null ? null : modelCostUsd + routingCostUsd;
   const inputs = selectedModels.map((model, index) => rows[index]!.predictions[model]!.inputTokens);
   const outputs = selectedModels.map((model, index) => rows[index]!.predictions[model]!.outputTokens);
   const totalInput = inputs.every((value) => Number.isFinite(value)) ? inputs.reduce<number>((sum, value) => sum + value!, 0) : null;
   const totalOutput = outputs.every((value) => Number.isFinite(value)) ? outputs.reduce<number>((sum, value) => sum + value!, 0) : null;
+  const routingInput = routingChoices === undefined
+    ? 0
+    : routingChoices.every((decision) => Number.isFinite(decision?.routingInputTokens))
+      ? routingChoices.reduce<number>((sum, decision) => sum + decision!.routingInputTokens!, 0)
+      : null;
+  const routingOutput = routingChoices === undefined
+    ? 0
+    : routingChoices.every((decision) => Number.isFinite(decision?.routingOutputTokens))
+      ? routingChoices.reduce<number>((sum, decision) => sum + decision!.routingOutputTokens!, 0)
+      : null;
   const perWorkflow = Object.fromEntries([...workflowRows].map(([workflow, group]) => [workflow, {
     sampleSize: group.scores.length,
     meanQuality: mean(group.scores),
@@ -451,7 +524,12 @@ function summarize(
     totalCostUsd,
     meanInputTokens: totalInput === null ? null : totalInput / rows.length,
     meanOutputTokens: totalOutput === null ? null : totalOutput / rows.length,
-    totalTokens: totalInput === null || totalOutput === null ? null : totalInput + totalOutput,
+    totalTokens: totalInput === null || totalOutput === null || routingInput === null || routingOutput === null
+      ? null
+      : totalInput + totalOutput + routingInput + routingOutput,
+    routingCostUsd,
+    routingInputTokens: routingInput,
+    routingOutputTokens: routingOutput,
     qualityDeltaFromBestSingle: difference,
     qualityDeltaLower95: bootstrapLowerBound(deltas, bootstrapSamples, `${seed}:test-${name}`),
     costSavingsVsBestSinglePercent: totalCostUsd === null || baselineCost === null || baselineCost <= 0
@@ -631,6 +709,32 @@ export function compareBenchmark(
     fluxReasons[route.reason] = (fluxReasons[route.reason] ?? 0) + 1;
   }
   const flux = summarize("flux_quality_gated", testRows, fluxChoices, baselineScores, baselineCost, fluxRoutes, fluxReasons, resolved.bootstrapSamples, resolved.seed);
+  const externalRouters = [...new Set(testRows.flatMap((row) => Object.keys(row.routerChoices ?? {})))].sort();
+  const externalResults = externalRouters.map((routerName) => {
+    const decisions = testRows.map((row) => row.routerChoices?.[routerName]);
+    if (decisions.some((decision) => decision === undefined)) {
+      throw new Error(`External router ${routerName} is missing test decisions.`);
+    }
+    const choices = decisions.map((decision) => decision!.choice);
+    const workflowRoutes = Object.fromEntries(workflows.map((workflow) => {
+      const workflowChoices = [...new Set(testRows
+        .filter((row) => workflowFor(row) === workflow)
+        .map((row) => row.routerChoices?.[routerName]?.choice))];
+      return [workflow, workflowChoices.length === 1 ? workflowChoices[0]! : "per_request_decision"];
+    }));
+    return summarize(
+      `external_router:${routerName}`,
+      testRows,
+      choices,
+      baselineScores,
+      baselineCost,
+      workflowRoutes,
+      { imported_router_decision: testRows.length },
+      resolved.bootstrapSamples,
+      resolved.seed,
+      decisions,
+    );
+  });
   const first = trainRows[0]!;
   const last = testRows[0]!;
   const reviewPolicies = policies.map((policy) => ({
@@ -647,6 +751,7 @@ export function compareBenchmark(
     testSamples: testRows.length,
     models,
     excludedModels,
+    externalRouters,
     settings: resolved,
     learned: {
       bestSingleChoice,
@@ -659,8 +764,8 @@ export function compareBenchmark(
       trainingQualityDeltaLower95ByWorkflow,
       policies: reviewPolicies,
     },
-    results: [bestSingle, cheapest, flux],
-    notice: "Offline comparison of already-computed model outputs. The route is learned on train records and measured only on test records. Results are workload- and scorer-specific; this does not establish production savings or future quality.",
+    results: [bestSingle, cheapest, flux, ...externalResults],
+    notice: "Offline comparison of already-computed model outputs. FLUX choices are learned on train records and measured only on test records. Imported external-router decisions are evaluated as provided; their training provenance is not verified by FLUX. Results are workload- and scorer-specific and do not establish production savings or future quality.",
   };
 }
 

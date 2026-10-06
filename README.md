@@ -41,7 +41,7 @@ Run `corepack pnpm context:simulate` for a local simulation across 3 model tiers
 
 ## Measure cost and quality on held-out data
 
-Run `corepack pnpm benchmark:run -- --root /path/to/results/bench --dataset mmlu_pro --split test` to import already-computed LLMRouterBench outputs and compare the strongest single model, cheapest static choice, and FLUX's quality-gated workflow route. The importer makes no provider calls and writes JSON plus Markdown reports. For application-specific evidence, explicitly enable the redacted SDK capture and run `corepack pnpm benchmark:captures -- --capture .flux-captures/replay.jsonl --dataset my-workflow`. See [`docs/VALID_EVALUATION.md`](docs/VALID_EVALUATION.md) for data setup, capture privacy, holdout rules, and interpretation.
+Run `corepack pnpm benchmark:run -- --root /path/to/results/bench --dataset mmlu_pro --split test` to import already-computed LLMRouterBench outputs and compare the strongest single model, cheapest static choice, and FLUX's quality-gated workflow route. Add `--routes decisions.jsonl` to score per-case choices from another router on the same holdout, including its inference overhead. The importer makes no provider calls and writes JSON plus Markdown reports. For application-specific evidence, explicitly enable the redacted SDK capture and run `corepack pnpm benchmark:captures -- --capture .flux-captures/replay.jsonl --dataset my-workflow`. See [`docs/VALID_EVALUATION.md`](docs/VALID_EVALUATION.md) for data setup, capture privacy, holdout rules, and interpretation.
 
 ## Current scope and limits
 
