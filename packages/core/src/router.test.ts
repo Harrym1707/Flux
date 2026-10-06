@@ -28,7 +28,11 @@ describe("SafeRouter", () => {
   });
 
   it("falls back to baseline when rollout does not select it", () => {
-    const result = new SafeRouter().decide(policy, {
+    const belowFullRolloutPolicy: RoutingPolicy = {
+      ...policy,
+      candidates: policy.candidates.map((candidate) => ({ ...candidate, rolloutPercentage: 0.5 })),
+    };
+    const result = new SafeRouter().decide(belowFullRolloutPolicy, {
       taskClass: "classification",
       random: () => 0.99,
     });

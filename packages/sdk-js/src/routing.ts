@@ -29,11 +29,12 @@ function validPolicy(policy: FluxRoutingPolicy): boolean {
   )) return false;
   const shares = policy.candidates.reduce((total, candidate) => total + candidate.trafficShare, 0);
   if (shares > 1 || policy.candidates.some((candidate) =>
-    !candidate.model || candidate.model === policy.baselineModel ||
+    !candidate.model ||
+    (candidate.model === policy.baselineModel && candidate.maxOutputTokens === undefined && !candidate.contextProfileId) ||
     !Number.isFinite(candidate.trafficShare) || candidate.trafficShare < 0 || candidate.trafficShare > 1 ||
     (candidate.maxOutputTokens !== undefined &&
       (!Number.isInteger(candidate.maxOutputTokens) || candidate.maxOutputTokens < 1)) ||
-    (candidate.contextProfileId !== undefined && typeof candidate.contextProfileId !== "string")
+    (candidate.contextProfileId !== undefined && (typeof candidate.contextProfileId !== "string" || candidate.contextProfileId.trim() === ""))
   )) return false;
   return true;
 }

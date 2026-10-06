@@ -2,7 +2,14 @@ import { randomUUID } from "node:crypto";
 import { TelemetryClient } from "./telemetry.js";
 import { chooseRoute } from "./routing.js";
 import { ExactResponseCache } from "./exact-cache.js";
-import type { FluxContextProfile, FluxOptions, FluxRequestContext, FluxRequestEvent } from "./types.js";
+import type {
+  FluxContextProfile,
+  FluxEvaluationCaptureAttempt,
+  FluxEvaluationCaptureRecord,
+  FluxOptions,
+  FluxRequestContext,
+  FluxRequestEvent,
+} from "./types.js";
 
 type AnyObject = Record<PropertyKey, any>;
 type Pricing = NonNullable<FluxOptions["pricing"]>;
@@ -107,7 +114,7 @@ export function withFlux<T extends AnyObject>(client: T, options: FluxOptions): 
         context = { ...context, taskClass };
         const model = typeof request?.model === "string" ? request.model : "unknown";
         const route = chooseRoute(options.routing, request, taskClass, context);
-        const candidateSelected = route.model !== model;
+        const candidateSelected = route.reason === "candidate_quality_and_cost_gates_passed";
         let fallbackReason: FluxRequestEvent["fallbackReason"];
         let routedRequest: AnyObject = candidateSelected ? { ...request, model: route.model } : request;
         const contextProfile = candidateSelected && route.contextProfileId
@@ -156,18 +163,31 @@ export function withFlux<T extends AnyObject>(client: T, options: FluxOptions): 
         let response: unknown;
         let finalModel = cached?.model ?? route.model;
         let qualityCheckPassed: boolean | undefined;
-        const attempts: Array<{ model: string; response?: AnyObject }> = [];
+        const attempts: Array<{
+          model: string;
+          request: AnyObject;
+          contextProfileId?: string;
+          maxOutputTokens?: number;
+          response?: AnyObject;
+          error?: string;
+        }> = [];
         const create = Reflect.get(target, "create", target);
 
         try {
           if (cacheHit) {
             response = cached.response;
           } else if (fallbackReason === undefined) {
-            attempts.push({ model: route.model });
+            attempts.push({
+              model: route.model,
+              request: routedRequest,
+              contextProfileId: candidateSelected ? route.contextProfileId : undefined,
+              maxOutputTokens: candidateSelected ? route.maxOutputTokens : undefined,
+            });
             try {
               response = await create.call(target, routedRequest, ...rest);
               attempts[attempts.length - 1].response = response as AnyObject;
             } catch (cause) {
+              attempts[attempts.length - 1].error = cause instanceof Error ? cause.message : String(cause);
               if (!candidateSelected) throw cause;
               fallbackReason = "candidate_error";
             }
@@ -191,7 +211,7 @@ export function withFlux<T extends AnyObject>(client: T, options: FluxOptions): 
 
           if (candidateSelected && fallbackReason !== undefined) {
             finalModel = model;
-            attempts.push({ model });
+            attempts.push({ model, request });
             response = await create.call(target, request, ...rest);
             attempts[attempts.length - 1].response = response as AnyObject;
           }
@@ -282,6 +302,89 @@ export function withFlux<T extends AnyObject>(client: T, options: FluxOptions): 
               // Observability callbacks must never change application behavior.
             });
           void telemetry.emit(event);
+
+          const capture = options.evaluationCapture;
+          if (capture) {
+            void Promise.resolve()
+              .then(() => {
+                let caseId: string = requestId;
+                let groupId: string | undefined;
+                try {
+                  const supplied = capture.getCaseId?.(request);
+                  if (typeof supplied === "string" && supplied.trim() !== "") caseId = supplied;
+                } catch {
+                  // Capture metadata is best-effort and never changes inference.
+                }
+                try {
+                  const supplied = capture.getGroupId?.(request);
+                  if (typeof supplied === "string" && supplied.trim() !== "") groupId = supplied;
+                } catch {
+                  // A missing group key falls back to the case ID downstream.
+                }
+                let expected: unknown;
+                try {
+                  expected = capture.getExpected?.(request);
+                } catch {
+                  expected = undefined;
+                }
+                const captureAttempts: FluxEvaluationCaptureAttempt[] = (attempts.length > 0 ? attempts : cacheHit
+                  ? [{ model: finalModel, request: routedRequest, response: response as AnyObject, contextProfileId: candidateSelected ? route.contextProfileId : undefined, maxOutputTokens: candidateSelected ? route.maxOutputTokens : undefined }]
+                  : []).map((attempt) => {
+                  const usage = tokenUsage(attempt.response);
+                  const pricing = options.pricingByModel?.[attempt.model] ??
+                    (attempt.model === model ? options.pricing : undefined);
+                  const attemptCapture: FluxEvaluationCaptureAttempt = {
+                    model: attempt.model,
+                    contextProfileId: attempt.contextProfileId,
+                    maxOutputTokens: attempt.maxOutputTokens,
+                    request: attempt.request,
+                    response: attempt.response,
+                    error: attempt.error,
+                    inputTokens: cacheHit && attempts.length === 0 ? 0 : usage?.inputTokens,
+                    outputTokens: cacheHit && attempts.length === 0 ? 0 : usage?.outputTokens,
+                    costUsd: cacheHit && attempts.length === 0 ? 0 : usageCost(usage, pricing),
+                  };
+                  if (expected !== undefined && attempt.response !== undefined && capture.score) {
+                    try {
+                      const score = capture.score(expected, attempt.response, {
+                        model: attempt.model,
+                        workflow: context.workflow,
+                        taskClass,
+                      });
+                      if (Number.isFinite(score) && score >= 0 && score <= 1) attemptCapture.score = score;
+                    } catch {
+                      // A missing task score is preferable to changing app behavior.
+                    }
+                  }
+                  return attemptCapture;
+                });
+                const rawRecord: FluxEvaluationCaptureRecord = {
+                  schemaVersion: 1,
+                  id: requestId,
+                  caseId,
+                  ...(groupId ? { groupId } : {}),
+                  applicationId: options.applicationId,
+                  requestedModel: model,
+                  finalModel,
+                  taskClass,
+                  workflow: context.workflow,
+                  difficulty: context.difficulty,
+                  riskLevel: context.riskLevel,
+                  request,
+                  ...(expected !== undefined ? { expected } : {}),
+                  attempts: captureAttempts,
+                  cacheHit,
+                  routeReason: fallbackReason ? "fallback_to_baseline" : cacheHit ? "exact_cache_hit" : route.reason,
+                  status,
+                  timestamp: new Date().toISOString(),
+                };
+                const redacted = capture.redact(rawRecord);
+                return redacted ? capture.write(redacted) : undefined;
+              })
+              .catch(() => {
+                // Capture/redaction/storage failures never change application behavior.
+              });
+          }
         }
       };
     },

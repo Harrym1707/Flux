@@ -39,6 +39,10 @@ Run `corepack pnpm route:demo` for a no-network demonstration of replay gates, S
 
 Run `corepack pnpm context:simulate` for a local simulation across 3 model tiers, 3 workflows, 180 requests, varied 320–32,000-token prompts, versioned context profiles, risk-aware routing, quality gates and fallback costs. It makes no provider calls; fixture quality is illustrative, not a real-model benchmark. Add `-- --out /tmp/flux-context-report.json` to save the detailed model/workflow report.
 
+## Measure cost and quality on held-out data
+
+Run `corepack pnpm benchmark:run -- --root /path/to/results/bench --dataset mmlu_pro --split test` to import already-computed LLMRouterBench outputs and compare the strongest single model, cheapest static choice, and FLUX's quality-gated workflow route. The importer makes no provider calls and writes JSON plus Markdown reports. For application-specific evidence, explicitly enable the redacted SDK capture and run `corepack pnpm benchmark:captures -- --capture .flux-captures/replay.jsonl --dataset my-workflow`. See [`docs/VALID_EVALUATION.md`](docs/VALID_EVALUATION.md) for data setup, capture privacy, holdout rules, and interpretation.
+
 ## Current scope and limits
 
 - OpenAI-compatible `responses.create()` wrapper with stable, task-class-based candidate routing

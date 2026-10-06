@@ -89,6 +89,57 @@ export type FluxExactCacheConfig = {
   getScopeKey: (request: unknown) => string | undefined;
 };
 
+export type FluxEvaluationCaptureAttempt = {
+  model: string;
+  contextProfileId?: string;
+  maxOutputTokens?: number;
+  request: unknown;
+  response?: unknown;
+  error?: string;
+  inputTokens?: number;
+  outputTokens?: number;
+  costUsd?: number;
+  score?: number;
+};
+
+/** Content-bearing local evaluation record. Enable only with an explicit redactor. */
+export type FluxEvaluationCaptureRecord = {
+  schemaVersion: 1;
+  id: string;
+  caseId: string;
+  /** Optional stable, non-sensitive group ID used to keep related prompts in one split. */
+  groupId?: string;
+  applicationId: string;
+  requestedModel: string;
+  finalModel: string;
+  taskClass?: string;
+  workflow?: string;
+  difficulty?: "low" | "medium" | "high";
+  riskLevel?: "low" | "medium" | "high";
+  request: unknown;
+  expected?: unknown;
+  attempts: FluxEvaluationCaptureAttempt[];
+  cacheHit?: boolean;
+  routeReason?: string;
+  status: "succeeded" | "failed";
+  timestamp: string;
+};
+
+export type FluxEvaluationCaptureConfig = {
+  /** Stable ID across deliberate replays of the same application test case. */
+  getCaseId?: (request: unknown) => string | undefined;
+  /** Optional stable group key, ideally a one-way hash of the normalized input. */
+  getGroupId?: (request: unknown) => string | undefined;
+  /** Optional trusted answer/label from a test fixture or application outcome. */
+  getExpected?: (request: unknown) => unknown;
+  /** Task-specific scorer returning a normalized value in [0, 1]. */
+  score?: (expected: unknown, response: unknown, meta: { model: string; workflow?: string; taskClass?: string }) => number;
+  /** Required privacy boundary: return a sanitized copy, or undefined to discard the record. */
+  redact: (record: FluxEvaluationCaptureRecord) => FluxEvaluationCaptureRecord | undefined;
+  /** Write sanitized records locally or to an explicitly chosen sink. */
+  write: (record: FluxEvaluationCaptureRecord) => void | Promise<void>;
+};
+
 export type FluxRequestContext = {
   taskClass?: string;
   workflow?: string;
@@ -137,5 +188,7 @@ export type FluxOptions = {
   }) => boolean | Promise<boolean>;
   /** Opt-in, in-memory exact response cache. Tool/conversation/streaming requests are bypassed. */
   exactCache?: FluxExactCacheConfig;
+  /** Off by default. Captures request/response content only when explicitly configured. */
+  evaluationCapture?: FluxEvaluationCaptureConfig;
   onEvent?: (event: FluxRequestEvent) => void;
 };
