@@ -47,9 +47,11 @@ type ConfigurationScore = {
   meanTokens: number | null;
   qualityDeltaLower95: number;
   objectiveValue: number;
+  /** Per-record quality deltas, retained so bounds can be computed across configurations. */
+  deltas: number[];
 };
 
-function mean(values: number[]): number {
+export function mean(values: number[]): number {
   return values.reduce((sum, value) => sum + value, 0) / values.length;
 }
 
@@ -132,11 +134,11 @@ function cosine(left: Vector, right: Vector): number {
   return sum;
 }
 
-function choicesFor(rows: BenchmarkCase[]): string[] {
+export function choicesFor(rows: BenchmarkCase[]): string[] {
   return [...new Set(rows.flatMap((row) => Object.keys(row.predictions)))].sort();
 }
 
-function eligibleChoices(row: BenchmarkCase, choices: string[], requireTokens: boolean): string[] {
+export function eligibleChoices(row: BenchmarkCase, choices: string[], requireTokens: boolean): string[] {
   return choices.filter((choice) => Number.isFinite(row.predictions[choice]?.score) &&
     Number.isFinite(row.predictions[choice]?.costUsd) && (!requireTokens ||
       (Number.isFinite(row.predictions[choice]?.inputTokens) && Number.isFinite(row.predictions[choice]?.outputTokens))));
@@ -152,7 +154,7 @@ function meanTokensForChoice(rows: BenchmarkCase[], choice: string): number | nu
   return values.every((value) => value !== undefined) ? mean(values as number[]) : null;
 }
 
-function bestSingleChoice(rows: BenchmarkCase[], choices: string[]): string {
+export function bestSingleChoice(rows: BenchmarkCase[], choices: string[]): string {
   const averages = choices.map((choice) => ({
     choice,
     score: mean(rows.map((row) => row.predictions[choice]!.score)),
@@ -177,7 +179,7 @@ function nextRandom(seed: string): () => number {
 }
 
 /** Cluster bootstrap lower bound; duplicate prompt groups are resampled together. */
-function groupBootstrapLowerBound(
+export function groupBootstrapLowerBound(
   deltas: number[],
   groups: string[],
   samples: number,
@@ -209,7 +211,95 @@ function groupBootstrapLowerBound(
   return distribution[Math.floor((samples - 1) * 0.05)]!;
 }
 
-function neighborOrders(training: BenchmarkCase[], queries: BenchmarkCase[]): Array<Array<{ index: number; similarity: number }>> {
+/**
+ * Simultaneous lower confidence bounds across every candidate configuration.
+ *
+ * Scoring many configurations on one validation split and keeping the best one
+ * biases that winner upward: its per-configuration bound holds for a
+ * pre-specified configuration, not for the maximum over a search. Measured on
+ * MMLU-Pro, the uncorrected bound let configurations through that then lost up
+ * to 3.26 pp on held-out test while reporting a safe validation bound.
+ *
+ * This resamples prompt groups ONCE per draw and evaluates every configuration
+ * on the same resample, then takes the quantile of the worst-case deviation
+ * across configurations. The resulting band is wide enough to cover the whole
+ * search, so a configuration clearing it clears it as a selection, not as a
+ * lucky draw. Less conservative than a Bonferroni split of alpha, because it
+ * accounts for configurations being highly correlated with one another.
+ */
+export function simultaneousGroupBootstrapLowerBounds(
+  deltasByConfiguration: number[][],
+  groups: string[],
+  samples: number,
+  seed: string,
+  alpha = 0.05,
+): number[] {
+  const configurations = deltasByConfiguration.length;
+  if (configurations === 0) return [];
+  if (deltasByConfiguration.some((deltas) => deltas.length !== groups.length)) {
+    throw new Error("Every configuration needs one delta per validation record.");
+  }
+  const indicesByGroup = new Map<string, number[]>();
+  groups.forEach((group, index) => {
+    const list = indicesByGroup.get(group) ?? [];
+    list.push(index);
+    indicesByGroup.set(group, list);
+  });
+  const groupIndices = [...indicesByGroup.values()];
+  const pointEstimates = deltasByConfiguration.map((deltas) => mean(deltas));
+  const random = nextRandom(seed);
+
+  // Pass one: resample prompt groups once per draw and score every configuration
+  // on that same resample, so configurations stay correlated as they are in truth.
+  const resampleMeans: number[][] = new Array(samples);
+  for (let sample = 0; sample < samples; sample += 1) {
+    const totals = new Array<number>(configurations).fill(0);
+    let count = 0;
+    for (let draw = 0; draw < groupIndices.length; draw += 1) {
+      const selected = groupIndices[Math.floor(random() * groupIndices.length)]!;
+      for (const index of selected) {
+        for (let configuration = 0; configuration < configurations; configuration += 1) {
+          totals[configuration] += deltasByConfiguration[configuration]![index]!;
+        }
+        count += 1;
+      }
+    }
+    for (let configuration = 0; configuration < configurations; configuration += 1) {
+      totals[configuration] /= count;
+    }
+    resampleMeans[sample] = totals;
+  }
+
+  // Each configuration's own bootstrap standard error. Without this the band
+  // would be set by whichever configuration is noisiest, which has nothing to do
+  // with the uncertainty of the one actually selected.
+  const standardErrors = new Array<number>(configurations);
+  for (let configuration = 0; configuration < configurations; configuration += 1) {
+    let sumSquares = 0;
+    for (let sample = 0; sample < samples; sample += 1) {
+      const deviation = resampleMeans[sample]![configuration]! - pointEstimates[configuration]!;
+      sumSquares += deviation * deviation;
+    }
+    standardErrors[configuration] = Math.sqrt(sumSquares / Math.max(1, samples - 1)) || Number.EPSILON;
+  }
+
+  // Pass two: the studentised max-t statistic over configurations.
+  const errors = new Array<number>(samples);
+  for (let sample = 0; sample < samples; sample += 1) {
+    let worst = Number.NEGATIVE_INFINITY;
+    for (let configuration = 0; configuration < configurations; configuration += 1) {
+      const studentised =
+        (pointEstimates[configuration]! - resampleMeans[sample]![configuration]!) / standardErrors[configuration]!;
+      if (studentised > worst) worst = studentised;
+    }
+    errors[sample] = worst;
+  }
+  errors.sort((left, right) => left - right);
+  const critical = errors[Math.min(samples - 1, Math.ceil((samples - 1) * (1 - alpha)))]!;
+  return pointEstimates.map((estimate, configuration) => estimate - critical * standardErrors[configuration]!);
+}
+
+export function neighborOrders(training: BenchmarkCase[], queries: BenchmarkCase[]): Array<Array<{ index: number; similarity: number }>> {
   const vectors = vectorize(training, queries);
   return vectors.queries.map((query) => vectors.train
     .map((candidate, index) => ({ index, similarity: cosine(query, candidate) }))
@@ -308,7 +398,6 @@ function scoreConfiguration(
       : undefined;
   });
   const deltas = scores.map((score, index) => score - baselineScores[index]!);
-  const groupIds = validationRows.map((row) => row.groupId ?? row.id);
   if (objective === "tokens" && tokens.some((value) => value === undefined)) {
     throw new Error("Token objective selected a route with incomplete token usage.");
   }
@@ -328,8 +417,10 @@ function scoreConfiguration(
     meanQuality: mean(scores),
     meanCost,
     meanTokens,
-    qualityDeltaLower95: groupBootstrapLowerBound(deltas, groupIds, bootstrapSamples, `${seed}:${objective}:${k}:${localWeight}`),
+    // Filled in jointly across configurations; see simultaneousGroupBootstrapLowerBounds.
+    qualityDeltaLower95: Number.NaN,
     objectiveValue,
+    deltas,
   };
 }
 
@@ -370,6 +461,7 @@ export function learnContextualRouter(
   const baselineChoice = bestSingleChoice(trainRows, choices);
   const validationGroups = new Set(validationRows.map((row) => row.groupId ?? row.id)).size;
   const passing: ConfigurationScore[] = [];
+  const candidates: Array<{ scored: ConfigurationScore; objectiveImproved: boolean }> = [];
   if (validationGroups >= minimumValidationGroups) {
     const validationOrders = neighborOrders(trainRows, validationRows);
     for (const k of NEIGHBOR_COUNTS) {
@@ -402,10 +494,20 @@ export function learnContextualRouter(
             ? scored.objectiveValue < baselineObjective
             : scored.meanCost !== null && scored.meanCost < baselineCost && scored.meanTokens !== null &&
               baselineMeanTokens !== null && scored.meanTokens < baselineMeanTokens;
-        if (scored.qualityDeltaLower95 >= -qualityDrop && objectiveImproved) {
-          passing.push(scored);
-        }
+        candidates.push({ scored, objectiveImproved });
       }
+    }
+    // One bound covering the whole search, so the selected configuration's
+    // guarantee survives having been chosen as the best of many.
+    const bounds = simultaneousGroupBootstrapLowerBounds(
+      candidates.map(({ scored }) => scored.deltas),
+      validationRows.map((row) => row.groupId ?? row.id),
+      bootstrapSamples,
+      `${seed}:${objective}`,
+    );
+    candidates.forEach(({ scored }, index) => { scored.qualityDeltaLower95 = bounds[index]!; });
+    for (const { scored, objectiveImproved } of candidates) {
+      if (scored.qualityDeltaLower95 >= -qualityDrop && objectiveImproved) passing.push(scored);
     }
   }
 
