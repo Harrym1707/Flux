@@ -14,6 +14,8 @@ export type BenchmarkPrediction = {
   inputTokens?: number;
   outputTokens?: number;
   output?: unknown;
+  /** Source usage fields that were absent or invalid; score data remains usable. */
+  missingMetrics?: Array<"costUsd" | "inputTokens" | "outputTokens">;
 };
 
 export type BenchmarkCase = {
@@ -52,6 +54,7 @@ export type BenchmarkStrategyResult = {
   qualityDeltaFromBestSingle: number;
   qualityDeltaLower95: number;
   costSavingsVsBestSinglePercent: number | null;
+  tokenSavingsVsBestSinglePercent: number | null;
   selectedModels: Record<string, number>;
   routesByWorkflow: Record<string, string>;
   routeReasons: Record<string, number>;
@@ -68,6 +71,8 @@ export type BenchmarkComparison = {
   testSamples: number;
   models: string[];
   excludedModels: Record<string, string>;
+  /** Models dropped because the source records no price for them; not free, just unpriced. */
+  unpricedModels: string[];
   externalRouters: string[];
   settings: {
     maximumQualityDrop: number;
@@ -110,6 +115,8 @@ type LLMRouterBenchRecord = {
 };
 
 type LLMRouterBenchFile = {
+  dataset_name?: string;
+  split?: string;
   records?: LLMRouterBenchRecord[];
 };
 
@@ -158,8 +165,9 @@ async function jsonFilesUnder(path: string): Promise<string[]> {
 }
 
 /**
- * Read one already-extracted LLMRouterBench dataset/split. This intentionally
- * never downloads or unpickles the upstream archive.
+ * Read one already-extracted LLMRouterBench dataset/split or the flat
+ * bench-release layout (dataset/model/results.json). This intentionally never
+ * downloads or unpickles the upstream archive.
  */
 export async function loadLLMRouterBenchPartition(
   root: string,
@@ -173,18 +181,54 @@ export async function loadLLMRouterBenchPartition(
   if (!split || split.includes("/") || split.includes("\\") || split === "." || split === "..") {
     throw new Error("split must be a single LLMRouterBench directory name.");
   }
+  const datasetPath = resolve(root, dataset);
   const partitionPath = resolve(root, dataset, split);
-  const modelEntries = (await readdir(partitionPath, { withFileTypes: true })).filter((entry) => entry.isDirectory());
-  const selectedNames = requestedModels?.length ? requestedModels : modelEntries.map(({ name }) => name);
+  const datasetEntries = (await readdir(datasetPath, { withFileTypes: true }))
+    .filter((entry) => entry.isDirectory());
+  let partitionEntries: { name: string; isDirectory(): boolean }[] = [];
+  try {
+    partitionEntries = await readdir(partitionPath, { withFileTypes: true });
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+  }
+
+  // The release mixes two layouts: dataset/split/model and dataset/model.
+  // Some flat datasets also contain a nested split folder for an extra model,
+  // so merge both layouts by model name instead of treating that folder as the
+  // entire partition.
+  const nestedModels = partitionEntries.filter((entry) => entry.isDirectory());
+  const nestedSplitExists = nestedModels.length > 0;
+  const modelPaths = new Map<string, string[]>();
+  for (const entry of datasetEntries) {
+    const modelPath = join(datasetPath, entry.name);
+    const children = await readdir(modelPath, { withFileTypes: true });
+    const hasDirectResults = children.some((child) => child.isFile() && child.name.endsWith(".json"));
+    if (hasDirectResults && !(entry.name === split && nestedSplitExists)) {
+      modelPaths.set(entry.name, [modelPath]);
+    }
+  }
+  for (const entry of nestedModels) {
+    const paths = modelPaths.get(entry.name) ?? [];
+    paths.push(join(partitionPath, entry.name));
+    modelPaths.set(entry.name, paths);
+  }
+
+  const selectedNames = requestedModels?.length ? requestedModels : [...modelPaths.keys()];
   const rowsById = new Map<string, BenchmarkCase>();
-  const modelNames = new Set(modelEntries.map(({ name }) => name));
   if (selectedNames.length < 2) throw new Error("Choose at least two model directories for a routing benchmark.");
   for (const model of selectedNames) {
-    if (!modelNames.has(model)) throw new Error(`Model directory ${model} is missing under ${partitionPath}.`);
-    const files = await jsonFilesUnder(join(partitionPath, model));
+    const modelPathsForName = modelPaths.get(model);
+    if (!modelPathsForName) throw new Error(`Model directory ${model} is missing under ${partitionPath}.`);
+    const files = (await Promise.all(modelPathsForName.map(jsonFilesUnder))).flat().sort();
     if (files.length === 0) throw new Error(`No JSON result files found for model ${model}.`);
     const latest = files.at(-1)!;
     const parsed = JSON.parse(await readFile(latest, "utf8")) as LLMRouterBenchFile;
+    if (parsed.dataset_name !== undefined && parsed.dataset_name !== dataset) {
+      throw new Error(`${latest} declares dataset ${parsed.dataset_name}, expected ${dataset}.`);
+    }
+    if (parsed.split !== undefined && parsed.split !== split) {
+      throw new Error(`${latest} declares split ${parsed.split}, expected ${split}.`);
+    }
     if (!Array.isArray(parsed.records) || parsed.records.length === 0) {
       throw new Error(`${latest} does not contain a non-empty records array.`);
     }
@@ -203,15 +247,14 @@ export async function loadLLMRouterBenchPartition(
       if (!Number.isFinite(record.score) || record.score! < 0 || record.score! > 1) {
         throw new Error(`${latest} record ${recordKey} score must be normalized to [0, 1].`);
       }
-      for (const [field, value] of Object.entries({
-        cost: record.cost,
-        prompt_tokens: record.prompt_tokens,
-        completion_tokens: record.completion_tokens,
-      })) {
-        if (value !== undefined && (!Number.isFinite(value) || value < 0)) {
-          throw new Error(`${latest} record ${recordKey} has invalid ${field}.`);
-        }
-      }
+      const costUsd = Number.isFinite(record.cost) && record.cost! >= 0 ? record.cost : undefined;
+      const inputTokens = Number.isFinite(record.prompt_tokens) && record.prompt_tokens! >= 0 ? record.prompt_tokens : undefined;
+      const outputTokens = Number.isFinite(record.completion_tokens) && record.completion_tokens! >= 0 ? record.completion_tokens : undefined;
+      const missingMetrics = [
+        costUsd === undefined ? "costUsd" : undefined,
+        inputTokens === undefined ? "inputTokens" : undefined,
+        outputTokens === undefined ? "outputTokens" : undefined,
+      ].filter((field): field is "costUsd" | "inputTokens" | "outputTokens" => field !== undefined);
       const existing = rowsById.get(id);
       if (existing && (existing.input !== prompt || canonical(existing.expected) !== canonical(record.ground_truth))) {
         throw new Error(`${latest} does not align with other models at record ${recordKey}; prompt or ground_truth differs.`);
@@ -230,10 +273,11 @@ export async function loadLLMRouterBenchPartition(
       row.predictions[model] = {
         score: record.score!,
         targetModel: model,
-        costUsd: record.cost,
-        inputTokens: record.prompt_tokens,
-        outputTokens: record.completion_tokens,
+        costUsd,
+        inputTokens,
+        outputTokens,
         output: record.prediction,
+        missingMetrics,
       };
       rowsById.set(id, row);
     }
@@ -431,17 +475,32 @@ function seededRandom(seed: string): () => number {
   };
 }
 
-function bootstrapLowerBound(values: number[], samples: number, seed: string): number {
+/** Resample normalized prompt groups together to preserve paired-query dependence. */
+function groupBootstrapLowerBound(values: number[], groups: string[], samples: number, seed: string): number {
+  if (values.length !== groups.length) throw new Error("Bootstrap values and group IDs must have equal length.");
   if (values.length === 0) return Number.NEGATIVE_INFINITY;
-  if (values.length === 1) return values[0]!;
+  const grouped = new Map<string, number[]>();
+  values.forEach((value, index) => {
+    const group = groups[index]!;
+    const members = grouped.get(group) ?? [];
+    members.push(value);
+    grouped.set(group, members);
+  });
+  const groupValues = [...grouped.values()];
+  if (groupValues.length === 1) return mean(values);
   const random = seededRandom(seed);
   const distribution = new Array<number>(samples);
   for (let sample = 0; sample < samples; sample += 1) {
     let total = 0;
-    for (let index = 0; index < values.length; index += 1) {
-      total += values[Math.floor(random() * values.length)]!;
+    let count = 0;
+    for (let draw = 0; draw < groupValues.length; draw += 1) {
+      const selected = groupValues[Math.floor(random() * groupValues.length)]!;
+      for (const value of selected) {
+        total += value;
+        count += 1;
+      }
     }
-    distribution[sample] = total / values.length;
+    distribution[sample] = total / count;
   }
   distribution.sort(compareNumber);
   return distribution[Math.floor((samples - 1) * 0.05)]!;
@@ -464,6 +523,7 @@ function summarize(
   selectedModels: string[],
   baselineScores: number[],
   baselineCost: number | null,
+  baselineTotalTokens: number | null,
   routesByWorkflow: Record<string, string>,
   routeReasons: Record<string, number>,
   bootstrapSamples: number,
@@ -516,6 +576,10 @@ function summarize(
   }]));
   const deltas = scores.map((score, index) => score - baselineScores[index]!);
   const difference = mean(deltas);
+  const groupIds = rows.map((row) => row.groupId ?? row.id);
+  const totalTokens = totalInput === null || totalOutput === null || routingInput === null || routingOutput === null
+    ? null
+    : totalInput + totalOutput + routingInput + routingOutput;
   return {
     name,
     sampleSize: rows.length,
@@ -524,17 +588,18 @@ function summarize(
     totalCostUsd,
     meanInputTokens: totalInput === null ? null : totalInput / rows.length,
     meanOutputTokens: totalOutput === null ? null : totalOutput / rows.length,
-    totalTokens: totalInput === null || totalOutput === null || routingInput === null || routingOutput === null
-      ? null
-      : totalInput + totalOutput + routingInput + routingOutput,
+    totalTokens,
     routingCostUsd,
     routingInputTokens: routingInput,
     routingOutputTokens: routingOutput,
     qualityDeltaFromBestSingle: difference,
-    qualityDeltaLower95: bootstrapLowerBound(deltas, bootstrapSamples, `${seed}:test-${name}`),
+    qualityDeltaLower95: groupBootstrapLowerBound(deltas, groupIds, bootstrapSamples, `${seed}:test-${name}`),
     costSavingsVsBestSinglePercent: totalCostUsd === null || baselineCost === null || baselineCost <= 0
       ? null
       : ((baselineCost - totalCostUsd) / baselineCost) * 100,
+    tokenSavingsVsBestSinglePercent: totalTokens === null || baselineTotalTokens === null || baselineTotalTokens <= 0
+      ? null
+      : ((baselineTotalTokens - totalTokens) / baselineTotalTokens) * 100,
     selectedModels: modelCounts,
     routesByWorkflow,
     routeReasons,
@@ -579,12 +644,33 @@ export function compareBenchmark(
   }
 
   const allModels = [...new Set(trainRows.flatMap((row) => Object.keys(row.predictions)))].sort();
-  const models = allModels.filter((model) => completeForModel(trainRows, model, true) && completeForModel(testRows, model, true));
-  const excludedModels = Object.fromEntries(allModels.filter((model) => !models.includes(model)).map((model) => [
-    model,
-    "Missing a quality score or cost on at least one train/test record.",
-  ]));
-  if (models.length < 2) throw new Error("At least two model/context choices need complete quality and cost data across train and test.");
+  const pricedCandidates = allModels.filter((model) => completeForModel(trainRows, model, true) && completeForModel(testRows, model, true));
+  const allRows = [...trainRows, ...testRows];
+  // A model recorded at exactly $0 on every record while still consuming tokens is unpriced in
+  // the source, not free. Leaving it in the pool makes it the cheapest static choice and reports
+  // a 100% cost saving that reflects a missing price field rather than any real economy.
+  const unpricedModels = pricedCandidates.filter((model) =>
+    allRows.every((row) => row.predictions[model]!.costUsd === 0) &&
+    allRows.some((row) => {
+      const prediction = row.predictions[model]!;
+      return (prediction.inputTokens ?? 0) + (prediction.outputTokens ?? 0) > 0;
+    }));
+  const models = pricedCandidates.filter((model) => !unpricedModels.includes(model));
+  const excludedModels = Object.fromEntries([
+    ...allModels.filter((model) => !pricedCandidates.includes(model)).map((model) => [
+      model,
+      "Missing a quality score or cost on at least one train/test record.",
+    ] as const),
+    ...unpricedModels.map((model) => [
+      model,
+      "Recorded at $0 on every train/test record despite non-zero token usage; the source does not price this model, so cost comparisons against it are not meaningful.",
+    ] as const),
+  ]);
+  if (models.length < 2) {
+    throw new Error(
+      `At least two model/context choices need complete, priced quality and cost data across train and test; ${unpricedModels.length} model(s) were excluded as unpriced.`,
+    );
+  }
 
   const targetByChoice = Object.fromEntries(models.map((choice) => {
     const prediction = trainRows[0]!.predictions[choice];
@@ -622,6 +708,11 @@ export function compareBenchmark(
   const bestSingleModel = targetByChoice[bestSingleChoice]!.model;
   const cheapestStaticModel = targetByChoice[cheapestStaticChoice]!.model;
   const baselineCost = completeSum(testRows, testRows.map(() => bestSingleChoice), "costUsd");
+  const baselineInputTokens = completeSum(testRows, testRows.map(() => bestSingleChoice), "inputTokens");
+  const baselineOutputTokens = completeSum(testRows, testRows.map(() => bestSingleChoice), "outputTokens");
+  const baselineTotalTokens = baselineInputTokens === null || baselineOutputTokens === null
+    ? null
+    : baselineInputTokens + baselineOutputTokens;
   const baselineScores = testRows.map((row) => row.predictions[bestSingleChoice]!.score);
   const workflows = [...new Set([...trainRows, ...testRows].map(workflowFor))].sort();
   const policies: FluxRoutingPolicy[] = [];
@@ -630,20 +721,21 @@ export function compareBenchmark(
 
   for (const workflow of workflows) {
     const cases = trainRows.filter((row) => workflowFor(row) === workflow);
+    const caseGroups = cases.map((row) => row.groupId ?? row.id);
     let selected = bestSingleChoice;
     let selectedLower = 0;
     let selectedDeltaLower = 0;
-    if (cases.length >= resolved.minimumWorkflowSamples) {
+    if (new Set(caseGroups).size >= resolved.minimumWorkflowSamples) {
       for (const candidate of [...models].sort((left, right) => trainCost.get(left)! - trainCost.get(right)!)) {
         if (candidate === bestSingleChoice) continue;
         const deltas = cases.map((row) => row.predictions[candidate]!.score - row.predictions[bestSingleChoice]!.score);
-        const lower = bootstrapLowerBound(deltas, resolved.bootstrapSamples, `${resolved.seed}:${workflow}:${candidate}`);
+        const lower = groupBootstrapLowerBound(deltas, caseGroups, resolved.bootstrapSamples, `${resolved.seed}:${workflow}:${candidate}`);
         const candidateCost = mean(cases.map((row) => row.predictions[candidate]!.costUsd!));
         const baselineWorkflowCost = mean(cases.map((row) => row.predictions[bestSingleChoice]!.costUsd!));
         if (lower >= -resolved.maximumQualityDrop && candidateCost < baselineWorkflowCost) {
           selected = candidate;
           selectedDeltaLower = lower;
-          selectedLower = bootstrapLowerBound(cases.map((row) => row.predictions[candidate]!.score), resolved.bootstrapSamples, `${resolved.seed}:${workflow}:${candidate}:quality`);
+          selectedLower = groupBootstrapLowerBound(cases.map((row) => row.predictions[candidate]!.score), caseGroups, resolved.bootstrapSamples, `${resolved.seed}:${workflow}:${candidate}:quality`);
           break;
         }
       }
@@ -686,10 +778,12 @@ export function compareBenchmark(
 
   const bestSingle = summarize(
     "best_single_model", testRows, testRows.map(() => bestSingleChoice), baselineScores, baselineCost,
+    baselineTotalTokens,
     Object.fromEntries(workflows.map((workflow) => [workflow, bestSingleChoice])), {}, resolved.bootstrapSamples, resolved.seed,
   );
   const cheapest = summarize(
     "cheapest_static", testRows, testRows.map(() => cheapestStaticChoice), baselineScores, baselineCost,
+    baselineTotalTokens,
     Object.fromEntries(workflows.map((workflow) => [workflow, cheapestStaticChoice])), {}, resolved.bootstrapSamples, resolved.seed,
   );
   const fluxChoices: string[] = [];
@@ -708,7 +802,7 @@ export function compareBenchmark(
     fluxChoices.push(selectedChoice);
     fluxReasons[route.reason] = (fluxReasons[route.reason] ?? 0) + 1;
   }
-  const flux = summarize("flux_quality_gated", testRows, fluxChoices, baselineScores, baselineCost, fluxRoutes, fluxReasons, resolved.bootstrapSamples, resolved.seed);
+  const flux = summarize("flux_quality_gated", testRows, fluxChoices, baselineScores, baselineCost, baselineTotalTokens, fluxRoutes, fluxReasons, resolved.bootstrapSamples, resolved.seed);
   const externalRouters = [...new Set(testRows.flatMap((row) => Object.keys(row.routerChoices ?? {})))].sort();
   const externalResults = externalRouters.map((routerName) => {
     const decisions = testRows.map((row) => row.routerChoices?.[routerName]);
@@ -728,6 +822,7 @@ export function compareBenchmark(
       choices,
       baselineScores,
       baselineCost,
+      baselineTotalTokens,
       workflowRoutes,
       { imported_router_decision: testRows.length },
       resolved.bootstrapSamples,
@@ -751,6 +846,7 @@ export function compareBenchmark(
     testSamples: testRows.length,
     models,
     excludedModels,
+    unpricedModels,
     externalRouters,
     settings: resolved,
     learned: {
@@ -790,4 +886,33 @@ export function partitionBenchmarkRows(
     throw new Error("Deterministic partition produced an empty side; add more records or change the seed/fraction.");
   }
   return { train, test };
+}
+
+/** Deterministically produce grouped train/validation/test partitions. */
+export function partitionBenchmarkRowsThreeWay(
+  rows: BenchmarkCase[],
+  trainFraction = 0.6,
+  validationFraction = 0.2,
+  seed = "flux-benchmark-v1",
+): { train: BenchmarkCase[]; validation: BenchmarkCase[]; test: BenchmarkCase[] } {
+  if (!Number.isFinite(trainFraction) || !Number.isFinite(validationFraction) ||
+      trainFraction <= 0 || validationFraction <= 0 || trainFraction + validationFraction >= 1) {
+    throw new Error("trainFraction and validationFraction must be positive and sum to less than 1.");
+  }
+  const train: BenchmarkCase[] = [];
+  const validation: BenchmarkCase[] = [];
+  const test: BenchmarkCase[] = [];
+  for (const row of rows) {
+    const groupId = row.groupId ?? row.id;
+    const digest = createHash("sha256").update(`${seed}:${row.dataset}:${groupId}`).digest().readUInt32BE(0);
+    const percentile = digest / 0x1_0000_0000;
+    const target = percentile < trainFraction ? train :
+      percentile < trainFraction + validationFraction ? validation : test;
+    const label = target === train ? "train" : target === validation ? "validation" : "test";
+    target.push({ ...row, split: `${row.split}:${label}`, groupId });
+  }
+  if (train.length === 0 || validation.length === 0 || test.length === 0) {
+    throw new Error("Three-way grouped partition produced an empty side; add more records or change the fractions/seed.");
+  }
+  return { train, validation, test };
 }

@@ -37,7 +37,7 @@ Run `corepack pnpm replay:run` for a fully local baseline/candidate replay demon
 
 Run `corepack pnpm route:demo` for a no-network demonstration of replay gates, SDK routing, and spend comparison. Turn an actual replay report into an unapproved SDK policy with `corepack pnpm route:policy -- --report replay-report.json --task-class your.task.class --traffic-share 0.05`.
 
-Run `corepack pnpm context:simulate` for a local simulation across 3 model tiers, 3 workflows, 180 requests, varied 320–32,000-token prompts, versioned context profiles, risk-aware routing, quality gates and fallback costs. It makes no provider calls; fixture quality is illustrative, not a real-model benchmark. Add `-- --out /tmp/flux-context-report.json` to save the detailed model/workflow report.
+Run `corepack pnpm context:simulate` for a local simulation across 3 model tiers, 3 workflows, 180 requests, varied 320–32,000 synthetic input units, versioned context profiles, risk-aware routing, quality gates and fallback costs. Each profile physically trims fixture text; the units are whitespace-delimited words, not provider tokenizer counts. It makes no provider calls; fixture quality is illustrative, not a real-model benchmark. Add `-- --out /tmp/flux-context-report.json` to save the detailed model/workflow report.
 
 ## Measure cost and quality on held-out data
 

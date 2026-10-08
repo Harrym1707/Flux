@@ -113,6 +113,21 @@ function inputTokensFor(inputCase: SimulationCase, profileId?: string): number {
   return Math.max(48, Math.round(inputCase.inputTokens * workflow.profile.keepInputRatio));
 }
 
+/** One whitespace-delimited fixture unit stands for one synthetic input token. */
+function syntheticInputFor(inputCase: SimulationCase): string {
+  const contextUnits = Array.from({ length: Math.max(0, inputCase.inputTokens - 2) }, (_, index) => `context${index}`);
+  return ["request", ...contextUnits, `task${inputCase.id}`].join(" ");
+}
+
+function reduceSyntheticInput(input: string, keepRatio: number): string {
+  const units = input.trim().split(/\s+/u).filter(Boolean);
+  const targetSize = Math.min(units.length, Math.max(48, Math.round(units.length * keepRatio)));
+  if (targetSize === units.length) return input;
+  const prefixSize = Math.ceil(targetSize / 2);
+  const suffixSize = targetSize - prefixSize;
+  return [...units.slice(0, prefixSize), ...units.slice(units.length - suffixSize)].join(" ");
+}
+
 function outputTokensFor(inputCase: SimulationCase, model: Model): number {
   return Math.max(8, Math.ceil(inputCase.outputTokens * model.outputLengthFactor));
 }
@@ -126,7 +141,7 @@ function contextProfiles(): FluxContextProfile[] {
       const body = request as { input?: string; metadata?: Record<string, string> };
       return {
         ...body,
-        input: `${body.input ?? ""}\n[synthetic ${workflow.profile.id} context reduction]`,
+        input: reduceSyntheticInput(body.input ?? "", workflow.profile.keepInputRatio),
         metadata: { ...body.metadata, fluxContextProfileId: workflow.profile.id },
       };
     },
@@ -233,7 +248,7 @@ const routingPolicies: FluxRoutingPolicy[] = workflows.flatMap((workflow) => {
   }];
 });
 
-const providerCalls: Array<{ caseId: string; workflow: string; model: string; contextProfileId?: string; inputTokens: number; outputTokens: number }> = [];
+const providerCalls: Array<{ caseId: string; workflow: string; model: string; contextProfileId?: string; inputTokens: number; originalInputTokens: number; outputTokens: number }> = [];
 const events: FluxRequestEvent[] = [];
 const responses = new Map<string, string>();
 const correctByCase = new Map(cases.map((inputCase) => [inputCase.id, inputCase.expected]));
@@ -247,13 +262,17 @@ const rawClient = {
       const profileId = request.metadata?.fluxContextProfileId;
       const wrongIds = simulatedErrors(inputCase.workflow, model.id, profileId);
       const output = wrongIds.has(caseId) ? "low_quality_output" : inputCase.expected;
-      const inputTokens = inputTokensFor(inputCase, profileId);
+      const inputTokens = request.input?.trim().split(/\s+/u).filter(Boolean).length ?? 0;
+      const expectedInputTokens = inputTokensFor(inputCase, profileId);
+      if (inputTokens !== expectedInputTokens) {
+        throw new Error(`Synthetic context transform produced ${inputTokens} token units; expected ${expectedInputTokens}.`);
+      }
       const outputTokens = outputTokensFor(inputCase, model);
       const cacheWriteInputTokens = inputCase.index % 17 === 0 ? Math.floor(inputTokens * 0.18) : 0;
       const cachedInputTokens = cacheWriteInputTokens > 0
         ? 0
         : inputCase.index % 3 === 0 ? Math.floor(inputTokens * (inputCase.index % 2 === 0 ? 0.45 : 0.24)) : 0;
-      providerCalls.push({ caseId, workflow: inputCase.workflow, model: model.id, contextProfileId: profileId, inputTokens, outputTokens });
+      providerCalls.push({ caseId, workflow: inputCase.workflow, model: model.id, contextProfileId: profileId, inputTokens, originalInputTokens: inputCase.inputTokens, outputTokens });
       return {
         output_text: output,
         usage: {
@@ -298,7 +317,7 @@ const client = withFlux(rawClient, {
 for (const inputCase of cases) {
   const response = await client.responses.create({
     model: models[0].id,
-    input: `Synthetic ${inputCase.workflow} request ${inputCase.id} with ${inputCase.inputTokens} input tokens.`,
+    input: syntheticInputFor(inputCase),
     metadata: {
       caseId: inputCase.id,
       workflow: inputCase.workflow,
@@ -331,10 +350,11 @@ const workflowResults = workflows.map((workflow) => {
   const finalCorrect = workflowCases.filter((inputCase) => responses.get(inputCase.id) === inputCase.expected).length;
   const highRiskEvents = workflowEvents.filter((event) => event.riskLevel === "high");
   const routedCalls = workflowCalls.filter((call) => call.model !== baseline.id);
-  const routedInputTokens = routedCalls.reduce((sum, call) => sum + call.inputTokens, 0);
-  const baselineEquivalentInputTokens = workflowCases
-    .filter((inputCase) => inputCase.riskLevel === "low")
-    .reduce((sum, inputCase) => sum + inputCase.inputTokens, 0);
+  const profiledCalls = workflowCalls.filter((call) => call.contextProfileId !== undefined);
+  const profiledInputTokens = profiledCalls.reduce((sum, call) => sum + call.inputTokens, 0);
+  const profiledInputTokensRemoved = profiledCalls.reduce((sum, call) => sum + call.originalInputTokens - call.inputTokens, 0);
+  const baselineEquivalentInputTokens = workflowCases.reduce((sum, inputCase) => sum + inputCase.inputTokens, 0);
+  const actualProviderInputTokens = workflowCalls.reduce((sum, call) => sum + call.inputTokens, 0);
   const profile = selected?.contextProfileId
     ? `${selected.contextProfileId} v${selected.contextProfileVersion}`
     : "full context";
@@ -347,9 +367,12 @@ const workflowResults = workflows.map((workflow) => {
     candidateAccuracyLower95: selected ? selected.report.candidateAccuracyLower95 : 1,
     highRiskBaselineRequests: highRiskEvents.length,
     candidateProviderCalls: routedCalls.length,
-    contextInputTokens: routedInputTokens,
-    fullContextTokensForLowRiskRequests: baselineEquivalentInputTokens,
-    inputTokensAvoidedByContext: Math.max(0, baselineEquivalentInputTokens - routedInputTokens),
+    profiledProviderCalls: profiledCalls.length,
+    profiledInputTokens,
+    inputTokensRemovedByProfileTransforms: profiledInputTokensRemoved,
+    baselineEquivalentInputTokens,
+    actualProviderInputTokens,
+    netInputTokensSavedVsOneBaselineCallPerRequest: baselineEquivalentInputTokens - actualProviderInputTokens,
     finalQuality: finalCorrect / workflowCases.length,
     fallbackCount: workflowEvents.filter((event) => event.fallbackUsed).length,
     baselineSpendUsd: baselineSpend,
@@ -391,6 +414,10 @@ const report = {
     overallFinalQuality: cases.filter((inputCase) => responses.get(inputCase.id) === inputCase.expected).length / cases.length,
     overallBaselineSpendUsd: workflowResults.reduce((sum, result) => sum + result.baselineSpendUsd, 0),
     overallSimulatedSpendUsd: workflowResults.reduce((sum, result) => sum + result.simulatedSpendUsd, 0),
+    overallBaselineInputTokens: workflowResults.reduce((sum, result) => sum + result.baselineEquivalentInputTokens, 0),
+    overallActualProviderInputTokens: workflowResults.reduce((sum, result) => sum + result.actualProviderInputTokens, 0),
+    overallInputTokensRemovedByProfileTransforms: workflowResults.reduce((sum, result) => sum + result.inputTokensRemovedByProfileTransforms, 0),
+    overallNetInputTokensSavedVsOneBaselineCallPerRequest: workflowResults.reduce((sum, result) => sum + result.netInputTokensSavedVsOneBaselineCallPerRequest, 0),
     fallbackCount: events.filter((event) => event.fallbackUsed).length,
     candidateAttempts: events.filter((event) => event.modelsAttempted?.some((model) => model !== models[0].id)).length,
     allHighRiskRequestsStayedOnBaseline: events.filter((event) => event.riskLevel === "high" && event.model === models[0].id).length ===
@@ -403,20 +430,22 @@ const overallSavings = totals.overallBaselineSpendUsd > 0
   : 0;
 
 console.log("FLUX contextual routing simulation · synthetic data · no provider calls\n");
-console.log(`${totals.requestCount} requests across ${totals.workflowCount} workflows; ${totals.modelCount} model tiers; input sizes from 320 to 32,000 tokens.`);
-console.log("Workflow                 Routed model  Context profile             Candidate quality / lower95  Final quality  Saved input tokens  Savings");
+console.log(`${totals.requestCount} requests across ${totals.workflowCount} workflows; ${totals.modelCount} model tiers; input sizes from 320 to 32,000 synthetic token units.`);
+console.log("Workflow                 Routed model  Context profile             Candidate quality / lower95  Final quality  Profile units removed  Net input saved  Savings");
 for (const result of workflowResults) {
   console.log(
     `${result.workflow.padEnd(24)} ${result.selectedModel.padEnd(13)} ${result.contextProfile.padEnd(27)} ` +
     `${(result.candidateQuality * 100).toFixed(1)}% / ${(result.candidateAccuracyLower95 * 100).toFixed(1)}%` +
     `${(result.finalQuality * 100).toFixed(1).padStart(6)}%       ` +
-    `${result.inputTokensAvoidedByContext.toLocaleString().padStart(8)}          ` +
+    `${result.inputTokensRemovedByProfileTransforms.toLocaleString().padStart(10)}          ` +
+    `${result.netInputTokensSavedVsOneBaselineCallPerRequest.toLocaleString().padStart(8)}       ` +
     `${result.simulatedSavingsPercent.toFixed(1)}%`,
   );
 }
 console.log(`\nModel/profile evaluations meeting all replay gates: ${modelEvaluations.filter((evaluation) => evaluation.eligible).length}/${modelEvaluations.length}`);
 console.log(`Quality-check fallbacks: ${totals.fallbackCount}; high-risk requests stayed on baseline: ${totals.allHighRiskRequestsStayedOnBaseline}`);
 console.log(`Overall synthetic spend: $${totals.overallSimulatedSpendUsd.toFixed(4)} vs $${totals.overallBaselineSpendUsd.toFixed(4)} baseline (${overallSavings.toFixed(1)}% lower)`);
+console.log(`Synthetic input units: ${totals.overallInputTokensRemovedByProfileTransforms.toLocaleString()} removed by context transforms; ${totals.overallNetInputTokensSavedVsOneBaselineCallPerRequest.toLocaleString()} net saved vs one full-context baseline call per request.`);
 
 const outputIndex = process.argv.indexOf("--out");
 if (outputIndex >= 0) {

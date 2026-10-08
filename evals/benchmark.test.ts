@@ -1,5 +1,9 @@
+import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { attachRouterChoices, compareBenchmark, normalizeFluxCaptures, partitionBenchmarkRows } from "./benchmark.js";
+import { attachRouterChoices, compareBenchmark, loadLLMRouterBenchPartition, normalizeFluxCaptures, partitionBenchmarkRows, partitionBenchmarkRowsThreeWay } from "./benchmark.js";
+import { learnContextualRouter } from "./contextual-router.js";
 import type { BenchmarkCase } from "./benchmark.js";
 
 function cases(count: number, split: string): BenchmarkCase[] {
@@ -33,6 +37,81 @@ function cases(count: number, split: string): BenchmarkCase[] {
 }
 
 describe("offline routing benchmark", () => {
+  it("loads mixed bench-release layouts and validates embedded dataset metadata", async () => {
+    const root = await mkdtemp(join(tmpdir(), "flux-bench-release-"));
+    try {
+      for (const model of ["strong", "cheap"]) {
+        const modelDir = join(root, "fixture", model);
+        await mkdir(modelDir, { recursive: true });
+        await writeFile(join(modelDir, "result.json"), JSON.stringify({
+          dataset_name: "fixture",
+          split: "test",
+          records: [{
+            index: 1,
+            origin_query: "fixture prompt",
+            ground_truth: "answer",
+            score: model === "strong" ? 1 : 0.9,
+            prediction: "answer",
+            cost: model === "strong" ? 0.01 : 0.001,
+            prompt_tokens: 10,
+            completion_tokens: 2,
+          }],
+        }));
+      }
+      const nestedModelDir = join(root, "fixture", "test", "nested-extra");
+      await mkdir(nestedModelDir, { recursive: true });
+      await writeFile(join(nestedModelDir, "result.json"), JSON.stringify({
+        dataset_name: "fixture",
+        split: "test",
+        records: [{
+          index: 1,
+          origin_query: "fixture prompt",
+          ground_truth: "answer",
+          score: 0.8,
+          prediction: "answer",
+          cost: 0.0005,
+          prompt_tokens: 10,
+          completion_tokens: 2,
+        }],
+      }));
+      const rows = await loadLLMRouterBenchPartition(root, "fixture", "test");
+      expect(rows).toHaveLength(1);
+      expect(Object.keys(rows[0]!.predictions).sort()).toEqual(["cheap", "nested-extra", "strong"]);
+      await expect(loadLLMRouterBenchPartition(root, "fixture", "validation")).rejects.toThrow(/declares split test, expected validation/);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it("keeps valid score/cost data while marking invalid source token usage missing", async () => {
+    const root = await mkdtemp(join(tmpdir(), "flux-bench-usage-"));
+    try {
+      for (const model of ["good", "bad-usage"]) {
+        const modelDir = join(root, "fixture", "test", model);
+        await mkdir(modelDir, { recursive: true });
+        await writeFile(join(modelDir, "result.json"), JSON.stringify({
+          dataset_name: "fixture",
+          split: "test",
+          records: [{
+            index: 1,
+            prompt: "fixture prompt",
+            score: 0.9,
+            cost: 0.001,
+            prompt_tokens: 10,
+            completion_tokens: model === "bad-usage" ? -52 : 2,
+          }],
+        }));
+      }
+      const rows = await loadLLMRouterBenchPartition(root, "fixture", "test");
+      expect(rows[0]!.predictions["bad-usage"]!.score).toBe(0.9);
+      expect(rows[0]!.predictions["bad-usage"]!.costUsd).toBe(0.001);
+      expect(rows[0]!.predictions["bad-usage"]!.outputTokens).toBeUndefined();
+      expect(rows[0]!.predictions["bad-usage"]!.missingMetrics).toEqual(["outputTokens"]);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
   it("learns only the safe cheap workflow and reports holdout cost and quality", () => {
     const report = compareBenchmark(cases(80, "train"), cases(20, "test"), {
       maximumQualityDrop: 0.02,
@@ -50,6 +129,48 @@ describe("offline routing benchmark", () => {
     expect(flux.costSavingsVsBestSinglePercent).toBeCloseTo(45);
   });
 
+  it("excludes a model recorded at $0 with real token usage as unpriced, not free", () => {
+    const withUnpriced = (count: number, split: string): BenchmarkCase[] =>
+      cases(count, split).map((row) => ({
+        ...row,
+        predictions: {
+          ...row.predictions,
+          unpriced: { score: 0.6, costUsd: 0, inputTokens: 90, outputTokens: 15 },
+        },
+      }));
+    const report = compareBenchmark(withUnpriced(80, "train"), withUnpriced(20, "test"), {
+      maximumQualityDrop: 0.02,
+      minimumWorkflowSamples: 20,
+      bootstrapSamples: 300,
+    });
+    expect(report.unpricedModels).toEqual(["unpriced"]);
+    expect(report.models).not.toContain("unpriced");
+    expect(report.excludedModels.unpriced).toMatch(/unpriced, not free|does not price/i);
+    // The cheapest priced model wins the cost comparison, so no 100% saving is reported.
+    expect(report.learned.cheapestStaticModel).toBe("cheap");
+    const cheapest = report.results.find((result) => result.name === "cheapest_static")!;
+    expect(cheapest.costSavingsVsBestSinglePercent).toBeLessThan(100);
+    expect(cheapest.totalCostUsd).toBeGreaterThan(0);
+  });
+
+  it("keeps a $0 model that genuinely consumed no tokens", () => {
+    const withFree = (count: number, split: string): BenchmarkCase[] =>
+      cases(count, split).map((row) => ({
+        ...row,
+        predictions: {
+          ...row.predictions,
+          nooutput: { score: 0.5, costUsd: 0, inputTokens: 0, outputTokens: 0 },
+        },
+      }));
+    const report = compareBenchmark(withFree(80, "train"), withFree(20, "test"), {
+      maximumQualityDrop: 0.02,
+      minimumWorkflowSamples: 20,
+      bootstrapSamples: 300,
+    });
+    expect(report.unpricedModels).toEqual([]);
+    expect(report.models).toContain("nooutput");
+  });
+
   it("rejects train/test cases that share a prompt group", () => {
     const train = cases(10, "train");
     const test = cases(10, "test");
@@ -65,6 +186,55 @@ describe("offline routing benchmark", () => {
     expect(first.train.map(({ id }) => id)).toEqual(second.train.map(({ id }) => id));
     const trainIds = new Set(first.train.map(({ groupId }) => groupId));
     expect(first.test.some(({ groupId }) => trainIds.has(groupId))).toBe(false);
+  });
+
+  it("keeps duplicate prompt groups together across three partitions", () => {
+    const rows = cases(180, "source-test");
+    rows[1]!.groupId = rows[0]!.groupId;
+    const first = partitionBenchmarkRowsThreeWay(rows, 0.6, 0.2, "three-way-seed");
+    const second = partitionBenchmarkRowsThreeWay(rows, 0.6, 0.2, "three-way-seed");
+    expect(first.train.map(({ id }) => id)).toEqual(second.train.map(({ id }) => id));
+    expect(first.validation.map(({ id }) => id)).toEqual(second.validation.map(({ id }) => id));
+    expect(first.test.map(({ id }) => id)).toEqual(second.test.map(({ id }) => id));
+    const group = rows[0]!.groupId;
+    const groupSides = [first.train, first.validation, first.test].filter((partition) => partition.some((row) => row.groupId === group));
+    expect(groupSides).toHaveLength(1);
+  });
+
+  it("learns a prompt-context route using train and validation only", () => {
+    const make = (count: number, split: string): BenchmarkCase[] => Array.from({ length: count }, (_, index) => {
+      const easy = index % 2 === 0;
+      return {
+        dataset: "context-knn-fixture",
+        split,
+        id: `${split}-${index}`,
+        groupId: `${split}-group-${index}`,
+        input: `${easy ? "simple" : "complex"} support request ${index}`,
+        predictions: {
+          strong: { score: 0.95, costUsd: 0.01, inputTokens: 100, outputTokens: 20 },
+          cheap: { score: easy ? 0.94 : 0.8, costUsd: 0.001, inputTokens: 80, outputTokens: 12 },
+        },
+      };
+    });
+    const selection = learnContextualRouter(make(80, "train"), make(40, "validation"), make(20, "test"), "cost", {
+      maximumQualityDrop: 0.02,
+      minimumValidationGroups: 20,
+      bootstrapSamples: 300,
+    });
+    expect(selection.fellBackToBestSingle).toBe(false);
+    expect(Object.values(selection.choiceByCaseId).filter((choice) => choice === "cheap").length).toBeGreaterThan(0);
+    expect(selection.validationLower95QualityDelta).toBeGreaterThanOrEqual(-0.02);
+    const joint = learnContextualRouter(make(80, "train"), make(40, "joint-validation"), make(20, "joint-test"), "cost_and_tokens", {
+      minimumValidationGroups: 20,
+      bootstrapSamples: 300,
+    });
+    expect(joint.fellBackToBestSingle).toBe(false);
+    expect(Object.values(joint.choiceByCaseId).filter((choice) => choice === "cheap").length).toBeGreaterThan(0);
+    const conservative = learnContextualRouter(make(80, "train"), make(10, "small-validation"), make(20, "test"), "cost", {
+      bootstrapSamples: 300,
+    });
+    expect(conservative.fellBackToBestSingle).toBe(true);
+    expect(conservative.fallbackReason).toBe("insufficient_validation_groups");
   });
 
   it("pairs redacted local capture records using stable case IDs", () => {

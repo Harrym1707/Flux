@@ -125,6 +125,9 @@ function renderMarkdown(report: ReturnType<typeof compareBenchmark>, source: str
     ...(Object.keys(report.excludedModels).length > 0
       ? ["", "Excluded models:", ...Object.entries(report.excludedModels).map(([model, reason]) => `- \`${model}\`: ${reason}`)]
       : []),
+    ...(report.unpricedModels.length > 0
+      ? ["", `Unpriced models are reported separately because a $0 source record is a missing price, not free inference: ${report.unpricedModels.map((model) => `\`${model}\``).join(", ")}.`]
+      : []),
     "",
     "Quality and cost results apply to this benchmark, its scorer, its recorded prices, and this split. They are not a guarantee of application-specific production outcomes.",
     "",

@@ -16,12 +16,12 @@ Run:
 corepack pnpm context:simulate
 ```
 
-The fixed-seed fixture routes 180 requests through three model price/quality tiers and three workflows: support triage, invoice extraction and long-thread replies. Input sizes vary from 320 to 32,000 tokens; output sizes vary; cache reads and writes are charged at separate illustrative rates. Low-risk traffic is eligible for workflow-specific routes. High-risk traffic stays on baseline. The simulator evaluates each model/context-profile pair on a low-risk replay cohort, enforces quality confidence and cost gates, and then runs the approved routes through the same SDK wrapper with a synthetic provider.
+The fixed-seed fixture routes 180 requests through three model price/quality tiers and three workflows: support triage, invoice extraction and long-thread replies. Input sizes vary from 320 to 32,000 synthetic token units; each whitespace-delimited fixture word is one unit, not a measurement from a provider tokenizer. Output sizes vary; cache reads and writes are charged at separate illustrative rates. Low-risk traffic is eligible for workflow-specific routes. High-risk traffic stays on baseline. The simulator evaluates each model/context-profile pair on a low-risk replay cohort, enforces quality confidence and cost gates, and then runs the approved routes through the same SDK wrapper with a synthetic provider.
 
-The console output compares candidate-only quality with delivered answer quality after fallback, reports input tokens removed by the selected context profile, and shows cost and fallbacks per workflow. To save the complete model/profile matrix and workflow report:
+Each context profile physically trims the synthetic input fixture while preserving its first and last portions; the synthetic provider checks that the resulting word count matches the simulated input usage. The console separates units removed by those transforms from net input units saved after retries, against one full-context baseline call per request. It also shows candidate-only quality, delivered answer quality after fallback, cost and fallbacks per workflow. To save the complete model/profile matrix and workflow report:
 
 ```bash
 corepack pnpm context:simulate -- --out /tmp/flux-context-report.json
 ```
 
-All rates, outputs and quality errors in this simulation are authored fixtures. It makes no model/API calls and does not establish real model quality or savings. For product decisions, replace the synthetic fixtures with labeled requests and paired outputs from each actual model, then use replay and the same quality gates before approving a route.
+All rates, outputs and quality errors in this simulation are authored fixtures. It makes no model/API calls and does not establish real model quality or savings. The synthetic word units are not provider token counts. For product decisions, replace the synthetic fixtures with labeled requests and paired outputs from each actual model, then use replay and the same quality gates before approving a route.

@@ -4,6 +4,21 @@ FLUX compares cost and task quality on the same held-out requests. The router is
 
 ## Run a public benchmark offline
 
+### Contextual train/validation/test evaluation
+
+For prompt-context routing experiments, use the contextual runner. It separates source rows into deterministic grouped train/validation/test sets, fits prompt-neighbor features on train, selects hyperparameters on validation, and reports cost, token, and joint cost-and-token objectives on the untouched test set:
+
+```bash
+corepack pnpm benchmark:contextual -- \\
+  --root /path/to/bench-release \\
+  --dataset livecodebench \\
+  --split test \\
+  --models model-a,model-b,model-c \\
+  --out reports/livecodebench-contextual.json
+```
+
+The router uses local word, bigram, character, workflow, and task-class features with model outcomes from train rows. Validation selects among a fixed grid of neighborhood sizes and local/global weights, and requires at least 100 independent prompt groups by default. The joint objective only selects a per-request model predicted to use no more cost or tokens than the best-single fallback; the validation cohort must also show an aggregate reduction in both. Each router falls back to the train-selected best single model unless the validation cluster-bootstrap lower 95% bound stays within the configured quality-drop limit and its objective improves. Test confidence bounds also resample normalized prompt groups together. Do not tune settings after reading the held-out report; reserve a new seed or dataset for the next iteration.
+
 [LLMRouterBench](https://github.com/ynulihao/LLMRouterBench) publishes per-model JSON results with prompt-level scores, token counts, costs, and outputs. Download and extract the upstream data using the authors' instructions; FLUX does not automatically download the large archive or load pickled data.
 
 If the results contain one split such as `test`, FLUX makes a deterministic 70/30 train/test partition grouped by normalized exact prompt. Selection uses the 70% side and metrics use the remaining 30%:
@@ -15,6 +30,16 @@ corepack pnpm benchmark:run -- \
   --split test \
   --models model-a,model-b,model-c \
   --out reports/mmlu-pro.json
+```
+
+The Hugging Face `bench-release.tar.gz` release also works directly after extraction. It mixes `bench-release/<dataset>/<split>/<model>/<result>.json` and `bench-release/<dataset>/<model>/<result>.json` layouts; pass the extracted `bench-release` directory as `--root`, the exact dataset folder as `--dataset`, and the source file's embedded split as `--split`. FLUX supports both layouts, merges model results when both appear, and checks each file's dataset and split metadata. For example:
+
+```bash
+corepack pnpm benchmark:run -- \
+  --root /path/to/bench-release \
+  --dataset arenahard \
+  --split test \
+  --out reports/arenahard.json
 ```
 
 If the results include independent train/validation and test folders, preserve them instead:
