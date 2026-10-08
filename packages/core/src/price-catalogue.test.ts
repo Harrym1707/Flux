@@ -1,0 +1,225 @@
+import { describe, expect, it } from "vitest";
+import { publishedModelPrices } from "./model-prices.js";
+import {
+  lookupPrice,
+  mergePriceCatalogues,
+  parsePriceCatalogue,
+  priceUsage,
+  repriceUsage,
+  validatePriceCatalogue,
+  type ModelPriceEntry,
+  type PriceCatalogue,
+} from "./price-catalogue.js";
+
+const provenance = { source: "https://example.test/pricing", capturedOn: "2026-01-01" };
+
+function priced(overrides: Partial<ModelPriceEntry> = {}): ModelPriceEntry {
+  return {
+    provider: "acme",
+    model: "big",
+    mode: "standard",
+    effectiveFrom: "2026-01-01",
+    tiers: [{ inputPerMillion: 10, outputPerMillion: 50, cachedInputPerMillion: 1 }],
+    provenance,
+    ...overrides,
+  };
+}
+
+function catalogue(entries: ModelPriceEntry[], negotiated: PriceCatalogue["negotiated"] = []): PriceCatalogue {
+  return validatePriceCatalogue({ entries, negotiated });
+}
+
+describe("price catalogue", () => {
+  it("prices recorded usage from the catalogued rate", () => {
+    const result = priceUsage(catalogue([priced()]), { provider: "acme", model: "big", at: "2026-06-01" }, {
+      inputTokens: 1_000_000,
+      outputTokens: 100_000,
+    });
+    expect(result.status).toBe("priced");
+    expect(result.status === "priced" && result.costUsd).toBeCloseTo(15);
+  });
+
+  it("charges cached input at the cached rate", () => {
+    const result = priceUsage(catalogue([priced()]), { provider: "acme", model: "big", at: "2026-06-01" }, {
+      inputTokens: 1_000_000,
+      outputTokens: 100_000,
+      cachedInputTokens: 500_000,
+    });
+    expect(result.status === "priced" && result.costUsd).toBeCloseTo(10.5);
+  });
+
+  it("reports a model with no catalogued rate as unpriced rather than free", () => {
+    const result = priceUsage(catalogue([priced()]), { provider: "acme", model: "unknown", at: "2026-06-01" }, {
+      inputTokens: 1_000,
+      outputTokens: 1_000,
+    });
+    expect(result.status).toBe("unpriced");
+    expect(result.status === "unpriced" && result.reason).toMatch(/No standard rate is catalogued/);
+  });
+
+  it("refuses to apply a current rate to a billing date the catalogue does not cover", () => {
+    const result = lookupPrice(catalogue([priced({ effectiveFrom: "2026-05-01" })]), {
+      provider: "acme",
+      model: "big",
+      at: "2026-01-15",
+    });
+    expect(result.status).toBe("unpriced");
+    expect(result.status === "unpriced" && result.reason).toMatch(/covers 2026-01-15/);
+  });
+
+  it("resolves a dated rate change to exactly one price per billing date", () => {
+    const history = catalogue([
+      priced({ effectiveFrom: "2026-01-01", effectiveTo: "2026-06-01" }),
+      priced({
+        effectiveFrom: "2026-06-01",
+        tiers: [{ inputPerMillion: 5, outputPerMillion: 25, cachedInputPerMillion: 0.5 }],
+      }),
+    ]);
+    const before = priceUsage(history, { provider: "acme", model: "big", at: "2026-03-01" }, {
+      inputTokens: 1_000_000,
+      outputTokens: 0,
+    });
+    const after = priceUsage(history, { provider: "acme", model: "big", at: "2026-07-01" }, {
+      inputTokens: 1_000_000,
+      outputTokens: 0,
+    });
+    expect(before.status === "priced" && before.costUsd).toBeCloseTo(10);
+    expect(after.status === "priced" && after.costUsd).toBeCloseTo(5);
+  });
+
+  it("rejects overlapping rates instead of picking one", () => {
+    expect(() => catalogue([priced(), priced({ effectiveFrom: "2026-03-01" })]))
+      .toThrow(/overlaps another rate/);
+  });
+
+  it("requires provenance so a cost figure can be traced to a published price", () => {
+    expect(() => catalogue([priced({ provenance: { source: "  ", capturedOn: "2026-01-01" } })]))
+      .toThrow(/provenance\.source/);
+  });
+
+  it("reports unpriced when cached tokens were billed but no cached rate is catalogued", () => {
+    const noCacheRate = catalogue([priced({ tiers: [{ inputPerMillion: 10, outputPerMillion: 50 }] })]);
+    const result = priceUsage(noCacheRate, { provider: "acme", model: "big", at: "2026-06-01" }, {
+      inputTokens: 1_000,
+      outputTokens: 1_000,
+      cachedInputTokens: 500,
+    });
+    expect(result.status).toBe("unpriced");
+    expect(result.status === "unpriced" && result.reason).toMatch(/no cached-input rate/);
+  });
+
+  it("applies a negotiated discount over the published rate", () => {
+    const withContract = catalogue([priced()], [{
+      provider: "acme",
+      model: "big",
+      effectiveFrom: "2026-01-01",
+      discountPercent: 20,
+      provenance,
+    }]);
+    const result = priceUsage(withContract, { provider: "acme", model: "big", at: "2026-06-01" }, {
+      inputTokens: 1_000_000,
+      outputTokens: 100_000,
+    });
+    expect(result.status === "priced" && result.costUsd).toBeCloseTo(12);
+    expect(result.status === "priced" && result.negotiated?.discountPercent).toBe(20);
+  });
+
+  it("requires a negotiated rate to set exactly one of discountPercent or tiers", () => {
+    expect(() => catalogue([priced()], [{
+      provider: "acme",
+      model: "big",
+      effectiveFrom: "2026-01-01",
+      discountPercent: 10,
+      tiers: [{ inputPerMillion: 1, outputPerMillion: 2 }],
+      provenance,
+    }])).toThrow(/exactly one of discountPercent or tiers/);
+  });
+
+  it("reports no saving when either side of a comparison is unpriced", () => {
+    const comparison = repriceUsage(
+      catalogue([priced()]),
+      { provider: "acme", model: "big", at: "2026-06-01" },
+      { provider: "acme", model: "unknown", at: "2026-06-01" },
+      { inputTokens: 1_000_000, outputTokens: 100_000 },
+    );
+    expect(comparison.savingsUsd).toBeUndefined();
+    expect(comparison.savingsPercent).toBeUndefined();
+    expect(comparison.candidate.status).toBe("unpriced");
+  });
+
+  it("quantifies a saving when both sides price", () => {
+    const pool = catalogue([
+      priced(),
+      priced({ model: "small", tiers: [{ inputPerMillion: 1, outputPerMillion: 5, cachedInputPerMillion: 0.1 }] }),
+    ]);
+    const comparison = repriceUsage(
+      pool,
+      { provider: "acme", model: "big", at: "2026-06-01" },
+      { provider: "acme", model: "small", at: "2026-06-01" },
+      { inputTokens: 1_000_000, outputTokens: 100_000 },
+    );
+    expect(comparison.savingsUsd).toBeCloseTo(13.5);
+    expect(comparison.savingsPercent).toBeCloseTo(90);
+  });
+
+  it("parses and merges externally supplied catalogues", () => {
+    const parsed = parsePriceCatalogue({ entries: [priced()] });
+    expect(parsed.negotiated).toEqual([]);
+    const merged = mergePriceCatalogues(parsed, catalogue([priced({ model: "small" })]));
+    expect(merged.entries).toHaveLength(2);
+  });
+
+  it("rejects a catalogue payload that is not shaped like one", () => {
+    expect(() => parsePriceCatalogue({ rates: [] })).toThrow(/needs an `entries` array/);
+  });
+});
+
+describe("published model prices", () => {
+  it("validates on load", () => {
+    expect(() => validatePriceCatalogue(publishedModelPrices)).not.toThrow();
+    expect(publishedModelPrices.entries.length).toBeGreaterThan(0);
+  });
+
+  it("carries a traceable source and capture date on every rate", () => {
+    for (const row of publishedModelPrices.entries) {
+      expect(row.provenance.source).toMatch(/^https:\/\//);
+      expect(row.provenance.capturedOn).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    }
+  });
+
+  it("prices a flagship model from published rates", () => {
+    const result = priceUsage(publishedModelPrices, { provider: "openai", model: "gpt-5", at: "2026-10-08" }, {
+      inputTokens: 2_000_000,
+      outputTokens: 500_000,
+    });
+    expect(result.status === "priced" && result.costUsd).toBeCloseTo(7.5);
+  });
+
+  it("selects the prompt-size band for a tiered model", () => {
+    const query = { provider: "anthropic", model: "Haiku 5.5", at: "2026-10-08" } as const;
+    const small = priceUsage(publishedModelPrices, query, { inputTokens: 50_000, outputTokens: 10_000 });
+    const large = priceUsage(publishedModelPrices, query, { inputTokens: 200_000, outputTokens: 10_000 });
+    expect(small.status === "priced" && small.costUsd).toBeCloseTo(0.01);
+    expect(large.status === "priced" && large.costUsd).toBeCloseTo(0.125);
+  });
+
+  it("prices batch mode separately from standard", () => {
+    const usage = { inputTokens: 1_000_000, outputTokens: 100_000 };
+    const standard = priceUsage(publishedModelPrices, { provider: "openai", model: "gpt-6-astra", at: "2026-10-08" }, usage);
+    const batch = priceUsage(
+      publishedModelPrices,
+      { provider: "openai", model: "gpt-6-astra", mode: "batch", at: "2026-10-08" },
+      usage,
+    );
+    expect(standard.status === "priced" && standard.costUsd).toBeCloseTo(15);
+    expect(batch.status === "priced" && batch.costUsd).toBeCloseTo(7.5);
+  });
+
+  it("will not price traffic from before the catalogue was captured", () => {
+    const result = priceUsage(publishedModelPrices, { provider: "openai", model: "gpt-5", at: "2026-04-01" }, {
+      inputTokens: 1_000,
+      outputTokens: 1_000,
+    });
+    expect(result.status).toBe("unpriced");
+  });
+});
