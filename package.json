@@ -19,6 +19,8 @@
     "benchmark:run": "node --import tsx evals/run-benchmark.ts",
     "benchmark:contextual": "node --import tsx evals/run-contextual-benchmark.ts",
     "benchmark:routers": "node --import tsx evals/run-router-comparison.ts",
+    "savings:model": "node --import tsx evals/run-savings-model.ts",
+    "benchmark:routers": "node --import tsx evals/run-router-comparison.ts",
     "benchmark:captures": "node --import tsx evals/run-capture-benchmark.ts",
     "typecheck:evals": "tsc --noEmit --target ES2022 --module NodeNext --moduleResolution NodeNext --strict --skipLibCheck evals/benchmark.ts evals/contextual-router.ts evals/run-benchmark.ts evals/run-contextual-benchmark.ts evals/run-capture-benchmark.ts evals/benchmark.test.ts evals/reference-routers.ts evals/run-router-comparison.ts evals/reference-routers.test.ts",
     "test": "vitest run",
