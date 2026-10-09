@@ -6,6 +6,7 @@ import {
   parsePriceCatalogue,
   priceUsage,
   repriceUsage,
+  resolveModelId,
   validatePriceCatalogue,
   type ModelPriceEntry,
   type PriceCatalogue,
@@ -221,5 +222,75 @@ describe("published model prices", () => {
       outputTokens: 1_000,
     });
     expect(result.status).toBe("unpriced");
+  });
+});
+
+describe("model identifier resolution", () => {
+  it("matches a catalogue key exactly", () => {
+    const result = resolveModelId(publishedModelPrices, "openai", "gpt-5");
+    expect(result).toMatchObject({ status: "resolved", model: "gpt-5", via: "exact" });
+  });
+
+  it("strips a trailing release date rather than failing", () => {
+    expect(resolveModelId(publishedModelPrices, "anthropic", "claude-sonnet-5-5-20260514"))
+      .toMatchObject({ status: "resolved", model: "Sonnet 5.5" });
+  });
+
+  it("prefers the longest matching key, so 5.5 beats 5", () => {
+    expect(resolveModelId(publishedModelPrices, "openai", "gpt-5.5"))
+      .toMatchObject({ status: "resolved", model: "gpt-5.5" });
+  });
+
+  it("does not let a dated gpt-5 build price as gpt-5.2", () => {
+    // Substring matching made "gpt52" a substring of "gpt520260101", billing a
+    // gpt-5 request at $1.75/M instead of $1.25/M. Segment matching cannot.
+    expect(resolveModelId(publishedModelPrices, "openai", "gpt-5-2026-01-01"))
+      .toMatchObject({ status: "resolved", model: "gpt-5" });
+    expect(resolveModelId(publishedModelPrices, "openai", "gpt-5-20260101"))
+      .toMatchObject({ status: "resolved", model: "gpt-5" });
+  });
+
+  it("resolves a release pointer through the alias table", () => {
+    expect(resolveModelId(publishedModelPrices, "openai", "chatgpt-4o-latest"))
+      .toMatchObject({ status: "resolved", model: "gpt-4o", via: "alias" });
+  });
+
+  it("resolves a prefix alias", () => {
+    expect(resolveModelId(publishedModelPrices, "openai", "gpt-4o-2024-08-06"))
+      .toMatchObject({ status: "resolved", model: "gpt-4o", via: "alias" });
+  });
+
+  it("leaves an unknown model unresolved instead of guessing", () => {
+    const result = resolveModelId(publishedModelPrices, "openai", "some-finetune-v3");
+    expect(result.status).toBe("unresolved");
+    expect(result.status === "unresolved" && result.reason).toMatch(/add an alias/);
+  });
+
+  it("refuses to choose between two equally good matches", () => {
+    const ambiguous = validatePriceCatalogue({
+      entries: [priced({ model: "turbo v2" }), priced({ model: "v2 turbo" })],
+      negotiated: [],
+    });
+    const result = resolveModelId(ambiguous, "acme", "turbo-v2-turbo");
+    expect(result.status).toBe("unresolved");
+    expect(result.status === "unresolved" && result.reason).toMatch(/equally well/);
+    expect(result.status === "unresolved" && result.candidates).toHaveLength(2);
+  });
+
+  it("reports an alias pointing at a model that is not catalogued", () => {
+    const broken = validatePriceCatalogue({
+      entries: [priced()],
+      negotiated: [],
+      aliases: [{ provider: "acme", id: "big-latest", model: "not-catalogued" }],
+    });
+    const result = resolveModelId(broken, "acme", "big-latest");
+    expect(result.status).toBe("unresolved");
+    expect(result.status === "unresolved" && result.reason).toMatch(/not catalogued/);
+  });
+
+  it("reports a provider with no catalogued models", () => {
+    const result = resolveModelId(publishedModelPrices, "nobody", "any-model");
+    expect(result.status).toBe("unresolved");
+    expect(result.status === "unresolved" && result.reason).toMatch(/No models are catalogued/);
   });
 });

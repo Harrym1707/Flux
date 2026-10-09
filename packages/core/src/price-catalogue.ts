@@ -55,6 +55,8 @@ export type NegotiatedRate = {
 export type PriceCatalogue = {
   entries: ModelPriceEntry[];
   negotiated: NegotiatedRate[];
+  /** API-identifier to catalogue-key mappings; see resolveModelId. */
+  aliases?: ModelAlias[];
 };
 
 export type PriceLookup =
@@ -339,14 +341,18 @@ export function repriceUsage(
 /** Parse an externally supplied catalogue, for example a customer's contracted rates. */
 export function parsePriceCatalogue(value: unknown): PriceCatalogue {
   if (typeof value !== "object" || value === null) throw new Error("A price catalogue must be an object.");
-  const raw = value as { entries?: unknown; negotiated?: unknown };
+  const raw = value as { entries?: unknown; negotiated?: unknown; aliases?: unknown };
   if (!Array.isArray(raw.entries)) throw new Error("A price catalogue needs an `entries` array.");
   if (raw.negotiated !== undefined && !Array.isArray(raw.negotiated)) {
     throw new Error("A price catalogue `negotiated` field must be an array when present.");
   }
+  if (raw.aliases !== undefined && !Array.isArray(raw.aliases)) {
+    throw new Error("A price catalogue `aliases` field must be an array when present.");
+  }
   return validatePriceCatalogue({
     entries: raw.entries as ModelPriceEntry[],
     negotiated: (raw.negotiated ?? []) as NegotiatedRate[],
+    aliases: (raw.aliases ?? []) as ModelAlias[],
   });
 }
 
@@ -355,5 +361,117 @@ export function mergePriceCatalogues(...catalogues: PriceCatalogue[]): PriceCata
   return validatePriceCatalogue({
     entries: catalogues.flatMap((catalogue) => catalogue.entries),
     negotiated: catalogues.flatMap((catalogue) => catalogue.negotiated),
+    aliases: catalogues.flatMap((catalogue) => catalogue.aliases ?? []),
   });
+}
+
+/** Maps an API model identifier onto a catalogue key. */
+export type ModelAlias = {
+  provider: string;
+  /** Exact API model id, or a prefix ending in "*". */
+  id: string;
+  /** Catalogue model key this resolves to. */
+  model: string;
+};
+
+export type ModelResolution =
+  | { status: "resolved"; model: string; via: "exact" | "alias" | "normalised" }
+  | { status: "unresolved"; reason: string; candidates: string[] };
+
+/**
+ * Break a model identifier into comparable segments.
+ *
+ * Segment-aligned rather than substring matching, because substrings mis-price.
+ * Normalising "gpt-5-2026-01-01" to "gpt520260101" makes the catalogue key
+ * "gpt-5.2" ("gpt52") a substring of it, so a gpt-5 request would be billed at
+ * the gpt-5.2 rate: $1.75/M instead of $1.25/M, a 40% overstatement on input.
+ * Comparing [gpt, 5, 2026, 01, 01] against [gpt, 5, 2] cannot make that mistake.
+ */
+function canonicalSegments(value: string): string[] {
+  return value
+    .toLowerCase()
+    // Release pointers and dated builds share one rate.
+    .replace(/[-_]latest$/, "")
+    .replace(/[-_]20\d{2}[-_]\d{2}[-_]\d{2}$/, "")
+    .replace(/[-_]20\d{6}$/, "")
+    .split(/[^a-z0-9]+/)
+    .filter((segment) => segment !== "");
+}
+
+/** Whether `key` appears as a contiguous run of segments inside `id`. */
+function containsSegments(id: string[], key: string[]): boolean {
+  if (key.length === 0 || key.length > id.length) return false;
+  for (let offset = 0; offset + key.length <= id.length; offset += 1) {
+    if (key.every((segment, index) => id[offset + index] === segment)) return true;
+  }
+  return false;
+}
+
+/**
+ * Resolve the model id a log carries onto a catalogue key.
+ *
+ * Catalogue keys are the names providers publish on their pricing pages
+ * ("Sonnet 5.5"); logs carry API identifiers ("claude-sonnet-5-5-20260514").
+ * Without this every real row prices as unpriced.
+ *
+ * Resolution never guesses. Exact matches win, then explicit aliases, then a
+ * normalised comparison that strips punctuation, case and a trailing release
+ * date. Where normalisation admits more than one catalogue key the longest
+ * match wins, so "sonnet 5.5" beats "sonnet 5" on `claude-sonnet-5-5`; where two
+ * keys tie, the result is unresolved and names the candidates, because pricing
+ * traffic against a coin flip is a billing error rather than a convenience.
+ */
+export function resolveModelId(
+  catalogue: PriceCatalogue,
+  provider: string,
+  rawModelId: string,
+): ModelResolution {
+  const known = [...new Set(catalogue.entries
+    .filter((entry) => entry.provider === provider)
+    .map((entry) => entry.model))];
+  if (known.length === 0) {
+    return { status: "unresolved", reason: `No models are catalogued for provider ${provider}.`, candidates: [] };
+  }
+  if (known.includes(rawModelId)) return { status: "resolved", model: rawModelId, via: "exact" };
+
+  for (const alias of catalogue.aliases ?? []) {
+    if (alias.provider !== provider) continue;
+    const matches = alias.id.endsWith("*")
+      ? rawModelId.startsWith(alias.id.slice(0, -1))
+      : alias.id === rawModelId;
+    if (!matches) continue;
+    if (!known.includes(alias.model)) {
+      return {
+        status: "unresolved",
+        reason: `Alias ${alias.id} points at ${alias.model}, which is not catalogued for ${provider}.`,
+        candidates: known,
+      };
+    }
+    return { status: "resolved", model: alias.model, via: "alias" };
+  }
+
+  const target = canonicalSegments(rawModelId);
+  const hits = known
+    .map((model) => ({ model, key: canonicalSegments(model) }))
+    .filter(({ key }) => containsSegments(target, key))
+    // Most segments wins, so "Sonnet 5.5" beats "Sonnet 5" on claude-sonnet-5-5.
+    .sort((left, right) => right.key.length - left.key.length ||
+      right.key.join("").length - left.key.join("").length);
+  if (hits.length === 0) {
+    return {
+      status: "unresolved",
+      reason: `No catalogue key for ${provider} matches ${rawModelId}; add an alias.`,
+      candidates: known,
+    };
+  }
+  const longest = hits[0]!.key.length;
+  const tied = hits.filter(({ key }) => key.length === longest);
+  if (tied.length > 1) {
+    return {
+      status: "unresolved",
+      reason: `${rawModelId} matches ${tied.length} catalogue keys equally well; add an explicit alias.`,
+      candidates: tied.map(({ model }) => model),
+    };
+  }
+  return { status: "resolved", model: hits[0]!.model, via: "normalised" };
 }

@@ -127,13 +127,27 @@ function assertFraction(value: number, label: string): void {
  * this project exists to argue against.
  */
 export const PUBLISHED_LEVERS: Record<string, Lever> = {
-  toolSchemaMinification: {
-    id: "tool-schema-minification",
+  toolSchemaCompaction: {
+    id: "tool-schema-compaction",
     description:
-      "Strip prose descriptions and docstrings from tool/MCP JSON Schema, keeping names, types and required fields. " +
-      "Agent runtimes resend the whole catalogue on every turn because the APIs are stateless, so a 20-turn task " +
-      "pays for it 20 times.",
+      "Remove JSON indentation, schema plumbing the model never reads ($schema, $id, $comment), and `title` " +
+      "fields that only restate their property name. The decoded schema is semantically identical.",
     risk: "deterministic",
+    targets: ["toolSchemas"],
+    // Measured per catalogue by auditToolCatalogue; this is a conservative stand-in.
+    reduction: 0.15,
+    evidence: {
+      source: "Measured directly from the request's own tool definitions by auditToolCatalogue",
+      claim: "Formatting and plumbing only. Tool selection cannot change because the decoded schema is unchanged.",
+    },
+  },
+  toolSchemaMinification: {
+    id: "tool-schema-description-trim",
+    description:
+      "Trim prose descriptions and docstrings in tool/MCP JSON Schema, keeping names, types and required fields. " +
+      "Agent runtimes resend the whole catalogue on every turn because the APIs are stateless, so a 20-turn task " +
+      "pays for it 20 times. Descriptions are how the model chooses between tools, so this is a behaviour change.",
+    risk: "needs-verification",
     targets: ["toolSchemas"],
     // Sources report >76% on a single schema and 30-60% across large catalogues.
     reduction: 0.6,
@@ -148,8 +162,9 @@ export const PUBLISHED_LEVERS: Record<string, Lever> = {
     id: "unused-tool-removal",
     description:
       "Drop tools the workload never calls. A typical MCP server exposes 20-30 tools at 300-500 tokens each, and " +
-      "six connected servers run to 60,000-90,000 tokens of catalogue per request.",
-    risk: "deterministic",
+      "six connected servers run to 60,000-90,000 tokens of catalogue per request. Removing a tool removes the " +
+      "model's ability to call it, so this holds only where the tool is genuinely unreachable for the workload.",
+    risk: "needs-verification",
     targets: ["toolSchemas"],
     reduction: 0.3,
     evidence: {
@@ -448,6 +463,7 @@ export const WORKLOAD_ARCHETYPES: Record<string, WorkloadProfile> = {
 /** Levers applicable to a profile, in the order they should be applied. */
 export function leversFor(profile: WorkloadProfile): Lever[] {
   const order = [
+    PUBLISHED_LEVERS.toolSchemaCompaction!,
     PUBLISHED_LEVERS.unusedToolRemoval!,
     PUBLISHED_LEVERS.toolSchemaMinification!,
     PUBLISHED_LEVERS.duplicateContextRemoval!,

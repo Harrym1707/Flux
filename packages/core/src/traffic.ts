@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
-import { lookupPrice, priceUsage, type PriceCatalogue } from "./price-catalogue.js";
+import { lookupPrice, priceUsage, resolveModelId, type PriceCatalogue } from "./price-catalogue.js";
 import { PUBLISHED_LEVERS, type Lever, type WorkloadProfile } from "./savings-model.js";
+import { auditToolCatalogue, type ToolCatalogueAudit } from "./tool-schema.js";
 import {
   analysePromptCaching,
   approximateTokenCount,
@@ -226,7 +227,10 @@ export function ingestTraffic(rows: unknown[], fallbackDate: string): IngestResu
 
 export type WorkloadMeasurement = {
   workload: string;
+  /** Model identifier exactly as the log carried it. */
   model: string;
+  /** Catalogue key the identifier resolved to, when it resolved at all. */
+  resolvedModel?: string;
   provider: string;
   requests: number;
   inputTokens: number;
@@ -234,6 +238,8 @@ export type WorkloadMeasurement = {
   /** Tokens the provider already served from cache before FLUX touched anything. */
   alreadyCachedInputTokens: number;
   meanToolSchemaTokens: number;
+  /** Measured from the request's own tool definitions; absent when none were sent. */
+  toolAudit?: ToolCatalogueAudit;
   /** Present only when the log carried prompt text. */
   caching?: CachingAnalysis;
   outputCap?: OutputCapAdvice;
@@ -300,23 +306,35 @@ export function measureTraffic(
     totalInputTokens += inputTokens;
     totalAlreadyCached += alreadyCachedInputTokens;
 
+    const resolution = resolveModelId(catalogue, first.provider, first.model);
+    const resolvedModel = resolution.status === "resolved" ? resolution.model : undefined;
+
     // Baseline cost is priced per record, because rates are dated.
     let baselineCostUsd: number | undefined = 0;
     let unpricedReason: string | undefined;
-    for (const record of group) {
-      const priced = priceUsage(catalogue, { provider: record.provider, model: record.model, at: record.at }, {
-        inputTokens: record.inputTokens,
-        outputTokens: record.outputTokens,
-        cachedInputTokens: record.cachedInputTokens,
-        cacheWriteInputTokens: record.cacheWriteInputTokens,
-      });
-      if (priced.status === "unpriced") {
-        unpricedReason = priced.reason;
-        baselineCostUsd = undefined;
-        unpricedModels.add(`${record.provider}/${record.model}`);
-        break;
+    if (resolvedModel === undefined) {
+      baselineCostUsd = undefined;
+      unpricedReason = resolution.status === "unresolved" ? resolution.reason : "Model did not resolve.";
+      unpricedModels.add(`${first.provider}/${first.model}`);
+    }
+    if (resolvedModel !== undefined) {
+      let running = 0;
+      for (const record of group) {
+        const priced = priceUsage(catalogue, { provider: record.provider, model: resolvedModel, at: record.at }, {
+          inputTokens: record.inputTokens,
+          outputTokens: record.outputTokens,
+          cachedInputTokens: record.cachedInputTokens,
+          cacheWriteInputTokens: record.cacheWriteInputTokens,
+        });
+        if (priced.status === "unpriced") {
+          unpricedReason = priced.reason;
+          baselineCostUsd = undefined;
+          unpricedModels.add(`${record.provider}/${record.model}`);
+          break;
+        }
+        running += priced.costUsd;
       }
-      baselineCostUsd += priced.costUsd;
+      if (baselineCostUsd !== undefined) baselineCostUsd = running;
     }
     if (baselineCostUsd !== undefined) totalBaselineCostUsd += baselineCostUsd;
 
@@ -330,9 +348,24 @@ export function measureTraffic(
       ? 0
       : toolSchemaTokens.reduce((sum, value) => sum + value, 0) / toolSchemaTokens.length;
 
+    // Audit the catalogue itself rather than assuming a published reduction
+    // factor, so a workload with an already-lean catalogue is credited nothing.
+    let toolAudit: ToolCatalogueAudit | undefined;
+    const withTools = group.find((record) => record.toolSchemaText !== undefined);
+    if (withTools !== undefined) {
+      try {
+        const parsed = JSON.parse(withTools.toolSchemaText!);
+        if (Array.isArray(parsed)) toolAudit = auditToolCatalogue(parsed, { countTokens });
+      } catch {
+        notes.push(`${first.workload}: tool definitions could not be parsed, so no catalogue audit was run.`);
+      }
+    }
+
     let caching: CachingAnalysis | undefined;
     if (withPrompts.length >= 2) {
-      const lookup = lookupPrice(catalogue, { provider: first.provider, model: first.model, at: first.at });
+      const lookup = resolvedModel === undefined
+        ? ({ status: "unpriced" } as const)
+        : lookupPrice(catalogue, { provider: first.provider, model: resolvedModel, at: first.at });
       const sample = withPrompts.slice(0, maximumPromptSample).map((record) => record.promptText!);
       if (sample.length < withPrompts.length) {
         notes.push(
@@ -353,12 +386,14 @@ export function measureTraffic(
     workloads.push({
       workload: first.workload,
       model: first.model,
+      ...(resolvedModel === undefined ? {} : { resolvedModel }),
       provider: first.provider,
       requests: group.length,
       inputTokens,
       outputTokens,
       alreadyCachedInputTokens,
       meanToolSchemaTokens,
+      ...(toolAudit ? { toolAudit } : {}),
       ...(caching ? { caching } : {}),
       ...(group.length >= 2
         ? { outputCap: recommendOutputCap(group.map((record) => record.outputTokens), { quantile: 0.99 }) }
@@ -377,8 +412,8 @@ export function measureTraffic(
   }
   if (unpricedModels.size > 0) {
     notes.push(
-      `${unpricedModels.size} model/date combination(s) are not in the price catalogue. Their spend is excluded ` +
-      "from the baseline rather than counted as zero; add dated entries to include them.",
+      `${unpricedModels.size} model identifier(s) did not resolve to a catalogued rate. Their spend is excluded ` +
+      "from the baseline rather than counted as zero; add a dated entry or an alias to include them.",
     );
   }
 
@@ -492,9 +527,39 @@ export function leversFromMeasurement(measurement: WorkloadMeasurement): Lever[]
   const requests = Math.max(1, measurement.requests);
   const levers: Lever[] = [];
 
-  if (measurement.meanToolSchemaTokens > 0) {
-    levers.push(PUBLISHED_LEVERS.unusedToolRemoval!, PUBLISHED_LEVERS.toolSchemaMinification!);
+  const audit = measurement.toolAudit;
+  if (audit && audit.tokens > 0) {
+    if (audit.losslessTokensSaved > 0) {
+      levers.push({
+        ...PUBLISHED_LEVERS.toolSchemaCompaction!,
+        reduction: Math.min(1, audit.losslessTokensSaved / audit.tokens),
+        evidence: {
+          source: "Measured in this sample",
+          claim:
+            `${audit.tools} tools, ${Math.round(audit.tokens)} tokens. ` +
+            `${Math.round(audit.losslessTokensSaved)} tokens are indentation, schema plumbing and titles that ` +
+            "restate their property name. The decoded schema is unchanged, so tool selection cannot change.",
+        },
+      });
+    }
+    if (audit.descriptionTokensSaved > 0) {
+      levers.push({
+        ...PUBLISHED_LEVERS.toolSchemaMinification!,
+        reduction: Math.min(1, audit.descriptionTokensSaved / audit.tokens),
+        evidence: {
+          source: "Measured in this sample",
+          claim:
+            `Truncating tool descriptions to 24 tokens recovers ${Math.round(audit.descriptionTokensSaved)} ` +
+            `tokens of ${Math.round(audit.tokens)}. Descriptions are how the model chooses between tools, so ` +
+            "this needs a replay check on tool-selection accuracy before rollout.",
+        },
+      });
+    }
   }
+  // unused-tool-removal is deliberately absent. Nothing in a usage log shows a
+  // tool is unreachable for the workload, only that it was not called in this
+  // sample, and removing a tool the model would have needed is a quality
+  // regression rather than a saving. It needs call-frequency evidence first.
 
   if (measurement.duplicateContextTokens > 0) {
     levers.push({

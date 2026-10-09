@@ -129,7 +129,10 @@ function workloadLines(
   for (const workload of measurement.workloads) {
     const projection = projections.get(workload.workload);
     lines.push("");
-    lines.push(`### ${workload.workload} (${workload.provider}/${workload.model})`);
+    const shown = workload.resolvedModel === undefined || workload.resolvedModel === workload.model
+      ? workload.model
+      : `${workload.model} -> ${workload.resolvedModel}`;
+    lines.push(`### ${workload.workload} (${workload.provider}/${shown})`);
     lines.push("");
     lines.push(`- Requests: ${workload.requests.toLocaleString()}`);
     lines.push(
@@ -336,9 +339,11 @@ const measurement = measureTraffic(ingested.records, publishedModelPrices);
 const projections = new Map<string, SavingsProjection>();
 const repairs = new Map<string, SavingsProjection>();
 for (const workload of measurement.workloads) {
+  // Price against the resolved catalogue key, not the raw logged identifier.
+  if (workload.resolvedModel === undefined) continue;
   const price = lookupPrice(publishedModelPrices, {
     provider: workload.provider,
-    model: workload.model,
+    model: workload.resolvedModel,
     at: args.date,
   });
   if (price.status === "unpriced") continue;

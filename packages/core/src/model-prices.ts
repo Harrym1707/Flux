@@ -1,4 +1,9 @@
-import { validatePriceCatalogue, type ModelPriceEntry, type PriceCatalogue } from "./price-catalogue.js";
+import {
+  validatePriceCatalogue,
+  type ModelAlias,
+  type ModelPriceEntry,
+  type PriceCatalogue,
+} from "./price-catalogue.js";
 
 /**
  * Published list rates, read from each provider's own pricing page.
@@ -93,8 +98,36 @@ const openai: ModelPriceEntry[] = [
   entry("openai", "gpt-6-astra", OPENAI, [{ input: 5, output: 25, cachedInput: 0.5 }], "batch"),
 ];
 
+/**
+ * API identifiers to catalogue keys.
+ *
+ * Catalogue keys are the names on the pricing pages; application logs carry API
+ * identifiers. Normalised matching in resolveModelId handles the common case
+ * (stripping case, punctuation and a trailing release date), so these entries
+ * exist for the ids normalisation cannot reach: aliases, "-latest" pointers, and
+ * ids whose shape does not contain the published name.
+ *
+ * A wrong entry here mis-prices real traffic, so each one is an exact id or an
+ * explicit prefix. Nothing is inferred.
+ */
+const aliases: ModelAlias[] = [
+  // Anthropic ids embed the published name, so normalisation covers dated
+  // builds such as claude-sonnet-5-5-20260514. These cover the pointers.
+  { provider: "anthropic", id: "claude-sonnet-5-5-latest", model: "Sonnet 5.5" },
+  { provider: "anthropic", id: "claude-opus-5-5-latest", model: "Opus 5.5" },
+  { provider: "anthropic", id: "claude-haiku-5-5-latest", model: "Haiku 5.5" },
+  { provider: "anthropic", id: "claude-fable-5-1-latest", model: "Fable 5.1" },
+  // OpenAI ids match their published names directly; these are the pointers
+  // and the dated snapshots that do not normalise onto a catalogued key.
+  { provider: "openai", id: "chatgpt-4o-latest", model: "gpt-4o" },
+  { provider: "openai", id: "gpt-4o-2024-*", model: "gpt-4o" },
+  { provider: "openai", id: "gpt-4o-mini-2024-*", model: "gpt-4o-mini" },
+  { provider: "openai", id: "o3-mini-2025-*", model: "o3-mini" },
+];
+
 /** Published list rates as observed on the capture date. */
 export const publishedModelPrices: PriceCatalogue = validatePriceCatalogue({
   entries: [...anthropic, ...openai],
   negotiated: [],
+  aliases,
 });
