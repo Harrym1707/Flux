@@ -1,9 +1,17 @@
 {
   "files": [],
   "references": [
-    { "path": "./packages/core" },
-    { "path": "./packages/providers" },
-    { "path": "./packages/sdk-js" },
-    { "path": "./apps/api" }
+    {
+      "path": "./packages/core"
+    },
+    {
+      "path": "./packages/providers"
+    },
+    {
+      "path": "./packages/sdk-js"
+    },
+    {
+      "path": "./apps/api"
+    }
   ]
 }

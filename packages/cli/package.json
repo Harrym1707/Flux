@@ -1,0 +1,9 @@
+{
+  "name": "@flux-ai/cli",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/src/main.js",
+  "types": "./dist/src/main.d.ts",
+  "bin": { "flux": "./dist/src/main.js" }
+}

@@ -1,0 +1,189 @@
+import { readFile } from "node:fs/promises";
+import { resolve } from "node:path";
+import {
+  ingestTraffic,
+  leversFromMeasurement,
+  measureTraffic,
+  profileFromMeasurement,
+  projectSavings,
+  publishedModelPrices,
+  lookupPrice,
+  trafficFingerprint,
+  type SavingsProjection,
+  type TrafficMeasurement,
+} from "../packages/core/src/index.js";
+
+/**
+ * Repeatable scorecard for the traffic analyser.
+ *
+ * Two jobs. It prints the savings each fixture yields, so an iteration can be
+ * compared with the last one instead of judged on a vibe. And it asserts the
+ * properties that must hold for a savings figure to be billable, so an
+ * improvement that raises the headline by cheating fails the run.
+ *
+ * The gates are deliberately about honesty rather than size. A larger number
+ * that breaks "no lever fires without measured evidence" is a regression.
+ */
+
+const AT = "2026-10-08";
+const FIXTURES = ["agent", "support", "billing"] as const;
+
+type Row = { fixture: string; measurement: TrafficMeasurement; projections: Map<string, SavingsProjection>; repairs: Map<string, SavingsProjection>; fingerprint: string };
+
+type Gate = { name: string; pass: boolean; detail: string };
+
+async function readJsonl(path: string): Promise<unknown[]> {
+  const text = await readFile(path, "utf8");
+  return text.trim().split(/\r?\n/).filter((line) => line.trim() !== "").map((line) => JSON.parse(line));
+}
+
+function analyse(records: Parameters<typeof measureTraffic>[0]): Omit<Row, "fixture" | "fingerprint"> {
+  const measurement = measureTraffic(records, publishedModelPrices);
+  const projections = new Map<string, SavingsProjection>();
+  const repairs = new Map<string, SavingsProjection>();
+  for (const workload of measurement.workloads) {
+    const price = lookupPrice(publishedModelPrices, {
+      provider: workload.provider,
+      model: workload.model,
+      at: AT,
+    });
+    if (price.status === "unpriced") continue;
+    const levers = leversFromMeasurement(workload);
+    projections.set(workload.workload, projectSavings(profileFromMeasurement(workload), levers, price.price));
+    repairs.set(
+      workload.workload,
+      projectSavings(profileFromMeasurement(workload, { repairPrefix: true }), levers, price.price),
+    );
+  }
+  return { measurement, projections, repairs };
+}
+
+function sum(projections: Map<string, SavingsProjection>, pick: (p: SavingsProjection) => number): number {
+  return [...projections.values()].reduce((total, projection) => total + pick(projection), 0);
+}
+
+function deterministicUsd(projections: Map<string, SavingsProjection>): number {
+  return sum(projections, (projection) => projection.contributions
+    .filter((contribution) => contribution.risk === "deterministic")
+    .reduce((inner, contribution) => inner + contribution.costRemovedUsd, 0));
+}
+
+const base = resolve(process.argv[2] ?? "sample-traffic");
+const rows: Row[] = [];
+for (const fixture of FIXTURES) {
+  const parsed = await readJsonl(resolve(base, `${fixture}.jsonl`));
+  const ingested = ingestTraffic(parsed, AT);
+  rows.push({
+    fixture,
+    fingerprint: trafficFingerprint(ingested.records),
+    ...analyse(ingested.records),
+  });
+}
+
+console.log(`${"fixture".padEnd(10)} ${"baseline".padStart(10)} ${"saving".padStart(9)} ${"risk-free".padStart(10)} ${"+repair".padStart(9)}  fingerprint`);
+console.log("-".repeat(78));
+for (const row of rows) {
+  const baseline = row.measurement.totalBaselineCostUsd;
+  const saving = sum(row.projections, (projection) => projection.savingUsd);
+  const free = deterministicUsd(row.projections);
+  const repaired = sum(row.repairs, (projection) => projection.savingUsd);
+  const share = (value: number) => (baseline === 0 ? "n/a" : `${((value / baseline) * 100).toFixed(1)}%`);
+  console.log(
+    `${row.fixture.padEnd(10)} ${`$${baseline.toFixed(4)}`.padStart(10)} ${share(saving).padStart(9)} ` +
+    `${share(free).padStart(10)} ${share(repaired).padStart(9)}  ${row.fingerprint}`,
+  );
+}
+
+const gates: Gate[] = [];
+const byFixture = new Map(rows.map((row) => [row.fixture, row]));
+
+// 1. Determinism. A billable figure cannot move between identical runs.
+const repeat = await (async () => {
+  const parsed = await readJsonl(resolve(base, "agent.jsonl"));
+  const ingested = ingestTraffic(parsed, AT);
+  const again = analyse(ingested.records);
+  return {
+    fingerprint: trafficFingerprint(ingested.records),
+    saving: sum(again.projections, (projection) => projection.savingUsd),
+  };
+})();
+const agent = byFixture.get("agent")!;
+gates.push({
+  name: "deterministic across runs",
+  pass: repeat.fingerprint === agent.fingerprint &&
+    Math.abs(repeat.saving - sum(agent.projections, (p) => p.savingUsd)) < 1e-12,
+  detail: `fingerprint ${repeat.fingerprint}`,
+});
+
+// 2. Every lever must carry evidence. A saving with no stated basis is not billable.
+const unevidenced = rows.flatMap((row) => [...row.projections.values()])
+  .flatMap((projection) => projection.contributions)
+  .filter((contribution) => contribution.costRemovedUsd > 0 &&
+    (contribution.evidence.source.trim() === "" || contribution.evidence.claim.trim() === ""));
+gates.push({
+  name: "every paying lever cites evidence",
+  pass: unevidenced.length === 0,
+  detail: unevidenced.length === 0 ? "all cited" : `${unevidenced.length} without evidence`,
+});
+
+// 3. Headline arithmetic. Contributions must reconcile to the reported saving.
+const reconciles = rows.every((row) => [...row.projections.values()].every((projection) => {
+  const total = projection.contributions.reduce((inner, contribution) => inner + contribution.costRemovedUsd, 0);
+  return Math.abs(total - projection.savingUsd) < 1e-9;
+}));
+gates.push({
+  name: "contributions reconcile to the total",
+  pass: reconciles,
+  detail: reconciles ? "exact" : "mismatch between levers and headline",
+});
+
+// 4. A workload already caching well must not be sold caching again.
+const support = byFixture.get("support")!;
+const supportCaching = [...support.projections.values()]
+  .flatMap((projection) => projection.contributions)
+  .filter((contribution) => contribution.lever === "prefix-caching" && contribution.costRemovedUsd > 0);
+gates.push({
+  name: "no caching claimed where already cached",
+  pass: support.measurement.alreadyCachedShare > 0.5 && supportCaching.length === 0,
+  detail: `${(support.measurement.alreadyCachedShare * 100).toFixed(1)}% already cached, ` +
+    `${supportCaching.length} caching claims`,
+});
+
+// 5. Usage-only input cannot yield prompt-derived savings.
+const billing = byFixture.get("billing")!;
+const billingPromptLevers = [...billing.projections.values()]
+  .flatMap((projection) => projection.contributions)
+  .filter((contribution) => ["prefix-caching", "duplicate-context-removal", "tool-schema-minification"]
+    .includes(contribution.lever) && contribution.costRemovedUsd > 0);
+gates.push({
+  name: "no prompt-derived saving without prompts",
+  pass: !billing.measurement.promptTextAvailable && billingPromptLevers.length === 0,
+  detail: `${billingPromptLevers.length} prompt-derived claims on a usage-only sample`,
+});
+
+// 6. Unpriced models are excluded, never counted as free.
+gates.push({
+  name: "unpriced models excluded not zeroed",
+  pass: billing.measurement.unpricedModels.length > 0 &&
+    billing.measurement.workloads.some((workload) => workload.baselineCostUsd === undefined),
+  detail: `unpriced: ${billing.measurement.unpricedModels.join(", ") || "none"}`,
+});
+
+// 7. The product has to be worth buying on its target workload. This is the
+//    only gate about size, and it is on the risk-free share alone.
+const agentBaseline = agent.measurement.totalBaselineCostUsd;
+const agentFreeShare = (deterministicUsd(agent.projections) / agentBaseline) * 100;
+gates.push({
+  name: "tool-heavy agent clears 35% risk-free",
+  pass: agentFreeShare >= 35,
+  detail: `${agentFreeShare.toFixed(1)}% risk-free`,
+});
+
+console.log("");
+let failed = 0;
+for (const gate of gates) {
+  if (!gate.pass) failed += 1;
+  console.log(`${gate.pass ? "PASS" : "FAIL"}  ${gate.name.padEnd(42)} ${gate.detail}`);
+}
+console.log(`\n${gates.length - failed}/${gates.length} gates passed.`);
+if (failed > 0) process.exit(1);
