@@ -1,0 +1,425 @@
+import { estimateTokenCost, type TokenPrice } from "./cost.js";
+
+/**
+ * Token reduction: spend fewer tokens on the SAME model, rather than moving work
+ * to a weaker one. Model substitution trades quality for cost and needs a quality
+ * gate to be safe. Most of the levers here do not: removing a duplicated context
+ * block, or letting a provider's prefix cache serve a prompt you already paid
+ * for, changes the bill and not the answer.
+ *
+ * The economics that make this the primary lever rather than a secondary one,
+ * using rates captured in model-prices.ts:
+ *   - Output tokens cost 5x input (Claude Sonnet 5.5) to 8x (gpt-5), so trimming
+ *     an over-long answer is worth several times trimming the prompt.
+ *   - Cached input costs 1/20th of fresh input (Sonnet 5.5: $2.00 -> $0.10), so a
+ *     stable prefix served from cache is close to free.
+ *
+ * Token counting here is an ESTIMATE used to decide what to cut and to project a
+ * saving. It is never the basis of a realised-saving claim: those come from the
+ * provider's own reported usage, priced through the catalogue. A deployment
+ * should pass the tokenizer matching its model via `countTokens`, because a
+ * tokenizer pinned inside FLUX would drift from the provider's own counting.
+ */
+
+export type TokenCounter = (text: string) => number;
+
+const CODE_FENCE = /```[\s\S]*?```|`[^`\n]+`/g;
+
+/**
+ * Tokenizer-free estimate. Byte-pair encoders average roughly 4 characters per
+ * token on English prose and nearer 3 on code, punctuation and JSON, so this
+ * counts word-like runs and separators separately instead of dividing the whole
+ * string by one constant. Expect roughly +/-15% against a real tokenizer; good
+ * enough to rank candidate reductions, not good enough to bill on.
+ */
+export const approximateTokenCount: TokenCounter = (text) => {
+  if (text === "") return 0;
+  let total = 0;
+  for (const match of text.matchAll(/[\p{L}\p{N}']+|[^\p{L}\p{N}'\s]+|\s+/gu)) {
+    const chunk = match[0]!;
+    if (/^\s+$/.test(chunk)) {
+      // Runs of whitespace mostly ride along with an adjacent token; newlines do not.
+      total += (chunk.match(/\n/g)?.length ?? 0);
+      continue;
+    }
+    if (/^[\p{L}\p{N}']+$/u.test(chunk)) {
+      total += Math.max(1, Math.ceil(chunk.length / 4.5));
+      continue;
+    }
+    // Punctuation and symbols tokenize densely.
+    total += Math.max(1, Math.ceil(chunk.length / 2));
+  }
+  return total;
+};
+
+export type ReductionRisk = "lossless" | "low" | "moderate";
+
+export type ReductionOutcome = {
+  reducer: string;
+  version: string;
+  risk: ReductionRisk;
+  text: string;
+  tokensBefore: number;
+  tokensAfter: number;
+  tokensSaved: number;
+  /** What the reducer removed, for review before anything is enabled. */
+  notes: string[];
+};
+
+export type Reducer = {
+  id: string;
+  version: string;
+  risk: ReductionRisk;
+  reduce: (text: string) => { text: string; notes: string[] };
+};
+
+/**
+ * Removes exact duplicate blocks. Retrieval pipelines routinely send the same
+ * passage two or three times (overlapping chunks, a document that matched several
+ * queries, a system prompt echoed into the first user turn). Dropping later exact
+ * copies is lossless: the model already has the text.
+ *
+ * Only blocks at or above `minimumBlockTokens` are considered, so ordinary
+ * repeated phrasing is left alone.
+ */
+export function dedupeRepeatedBlocks(
+  minimumBlockTokens = 24,
+  countTokens: TokenCounter = approximateTokenCount,
+): Reducer {
+  return {
+    id: "dedupe-repeated-blocks",
+    version: "1",
+    risk: "lossless",
+    reduce: (text) => {
+      const blocks = text.split(/\n{2,}/);
+      const seen = new Set<string>();
+      const notes: string[] = [];
+      const kept: string[] = [];
+      for (const block of blocks) {
+        const key = block.trim().replace(/\s+/g, " ");
+        if (key === "") {
+          kept.push(block);
+          continue;
+        }
+        const tokens = countTokens(block);
+        if (tokens >= minimumBlockTokens && seen.has(key)) {
+          notes.push(`Dropped a repeated ${tokens}-token block beginning "${key.slice(0, 60)}".`);
+          continue;
+        }
+        seen.add(key);
+        kept.push(block);
+      }
+      return { text: kept.join("\n\n"), notes };
+    },
+  };
+}
+
+/**
+ * Collapses redundant whitespace outside fenced and inline code, where layout is
+ * meaningful. Individually small; free, and it compounds across every request.
+ */
+export function collapseWhitespace(): Reducer {
+  return {
+    id: "collapse-whitespace",
+    version: "1",
+    risk: "lossless",
+    reduce: (text) => {
+      const code: string[] = [];
+      const masked = text.replace(CODE_FENCE, (match) => {
+        code.push(match);
+        return `@@FLUXCODE${code.length - 1}@@`;
+      });
+      const squeezed = masked
+        .replace(/[ \t]+/g, " ")
+        .replace(/ *\n/g, "\n")
+        .replace(/\n{3,}/g, "\n\n")
+        .trim();
+      const restored = squeezed.replace(/@@FLUXCODE(\d+)@@/g, (_match, index) => code[Number(index)]!);
+      const notes = restored.length < text.length
+        ? [`Collapsed ${text.length - restored.length} characters of redundant whitespace, preserving code blocks.`]
+        : [];
+      return { text: restored, notes };
+    },
+  };
+}
+
+/** Run reducers in order, reporting what each one saved. */
+export function applyReducers(
+  text: string,
+  reducers: Reducer[],
+  countTokens: TokenCounter = approximateTokenCount,
+): { text: string; outcomes: ReductionOutcome[]; tokensBefore: number; tokensAfter: number } {
+  const tokensBefore = countTokens(text);
+  let current = text;
+  const outcomes: ReductionOutcome[] = [];
+  for (const reducer of reducers) {
+    const before = countTokens(current);
+    const result = reducer.reduce(current);
+    const after = countTokens(result.text);
+    if (after > before) {
+      throw new Error(`Reducer ${reducer.id} increased token count from ${before} to ${after}.`);
+    }
+    outcomes.push({
+      reducer: reducer.id,
+      version: reducer.version,
+      risk: reducer.risk,
+      text: result.text,
+      tokensBefore: before,
+      tokensAfter: after,
+      tokensSaved: before - after,
+      notes: result.notes,
+    });
+    current = result.text;
+  }
+  return { text: current, outcomes, tokensBefore, tokensAfter: countTokens(current) };
+}
+
+export type PrefixBreaker = {
+  /** What kind of per-request value is sitting inside the would-be stable prefix. */
+  kind: "timestamp" | "date" | "uuid" | "long-number" | "unknown";
+  example: string;
+  occurrences: number;
+};
+
+export type CachingProjection =
+  | {
+    status: "priced";
+    baselineCostUsd: number;
+    cachedCostUsd: number;
+    savingUsd: number;
+    savingPercent: number;
+    recoverableSavingUsd: number;
+  }
+  | { status: "unpriced"; reason: string };
+
+export type CachingAnalysis = {
+  requests: number;
+  meanInputTokens: number;
+  /** Tokens identical across every sampled request, from the start of the prompt. */
+  sharedPrefixTokens: number;
+  /** Share of a request's input that the provider could serve from cache today. */
+  cacheablePrefixShare: number;
+  /**
+   * Shared prefix that would exist if the per-request values listed in
+   * `prefixBreakers` were moved out of the prefix. The gap between this and
+   * `sharedPrefixTokens` is the cost of a timestamp in a system prompt.
+   */
+  recoverablePrefixTokens: number;
+  prefixBreakers: PrefixBreaker[];
+  projection: CachingProjection;
+};
+
+const BREAKER_PATTERNS: Array<{ kind: PrefixBreaker["kind"]; pattern: RegExp }> = [
+  { kind: "timestamp", pattern: /\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}(?::\d{2})?(?:\.\d+)?Z?/g },
+  { kind: "uuid", pattern: /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi },
+  { kind: "date", pattern: /\d{4}-\d{2}-\d{2}/g },
+  { kind: "long-number", pattern: /\b\d{6,}\b/g },
+];
+
+function commonPrefixLength(left: string, right: string): number {
+  const limit = Math.min(left.length, right.length);
+  let index = 0;
+  while (index < limit && left[index] === right[index]) index += 1;
+  return index;
+}
+
+function maskBreakers(text: string): { masked: string; found: Map<string, PrefixBreaker> } {
+  let masked = text;
+  const found = new Map<string, PrefixBreaker>();
+  for (const { kind, pattern } of BREAKER_PATTERNS) {
+    masked = masked.replace(pattern, (match) => {
+      const existing = found.get(match);
+      if (existing) existing.occurrences += 1;
+      else found.set(match, { kind, example: match, occurrences: 1 });
+      return `[[${kind}]]`;
+    });
+  }
+  return { masked, found };
+}
+
+/**
+ * How much of a workload's prompt a provider's prefix cache could serve, and what
+ * is stopping it.
+ *
+ * Providers cache on an exact prefix match, so a single value that changes per
+ * request invalidates everything after it. A current-date line at the top of a
+ * system prompt can therefore cost the entire prompt's cache discount, which is
+ * the difference between paying full input rate and one twentieth of it. That
+ * failure is invisible in a cost dashboard: spend simply stays high.
+ *
+ * `requests` should be a representative sample of real prompts for one workload.
+ */
+export function analysePromptCaching(
+  requests: string[],
+  options: {
+    price?: TokenPrice;
+    countTokens?: TokenCounter;
+    /** Minimum prefix a provider will cache at all; OpenAI's floor is 1024 tokens. */
+    minimumCacheableTokens?: number;
+  } = {},
+): CachingAnalysis {
+  if (requests.length < 2) {
+    throw new Error("Prefix-cache analysis needs at least two requests to find what they share.");
+  }
+  const countTokens = options.countTokens ?? approximateTokenCount;
+  const minimumCacheable = options.minimumCacheableTokens ?? 1024;
+
+  const rawPrefix = requests.reduce((prefix, request) =>
+    prefix.slice(0, commonPrefixLength(prefix, request)), requests[0]!);
+  const masked = requests.map(maskBreakers);
+  const maskedPrefix = masked.reduce((prefix, { masked: text }) =>
+    prefix.slice(0, commonPrefixLength(prefix, text)), masked[0]!.masked);
+
+  const breakers = new Map<string, PrefixBreaker>();
+  for (const { found } of masked) {
+    for (const [value, breaker] of found) {
+      const existing = breakers.get(value);
+      if (existing) existing.occurrences += breaker.occurrences;
+      else breakers.set(value, { ...breaker });
+    }
+  }
+
+  const sharedPrefixTokens = countTokens(rawPrefix);
+  const recoverablePrefixTokens = countTokens(maskedPrefix);
+  const meanInputTokens = requests.reduce((sum, request) => sum + countTokens(request), 0) / requests.length;
+
+  // Only a prefix above the provider's floor caches at all.
+  const effectivePrefix = sharedPrefixTokens >= minimumCacheable ? sharedPrefixTokens : 0;
+  const effectiveRecoverable = recoverablePrefixTokens >= minimumCacheable ? recoverablePrefixTokens : 0;
+
+  let projection: CachingProjection;
+  if (!options.price) {
+    projection = { status: "unpriced", reason: "No price was supplied, so only token counts are reported." };
+  } else if (options.price.cachedInputPerMillion === undefined) {
+    projection = {
+      status: "unpriced",
+      reason: "The supplied price has no cached-input rate, so a caching saving cannot be computed.",
+    };
+  } else {
+    const price = options.price;
+    const cost = (prefixTokens: number): number => {
+      const body = Math.max(0, meanInputTokens - prefixTokens);
+      // The first request populates the cache and the rest read it. Providers
+      // charging a write premium (Anthropic) bill it once; providers without one
+      // (OpenAI) just pay the normal input rate on that first call.
+      const write = price.cacheWriteInputPerMillion === undefined
+        ? estimateTokenCost(prefixTokens, 0, price)
+        : estimateTokenCost(prefixTokens, 0, price, { cacheWriteInputTokens: prefixTokens });
+      const read = estimateTokenCost(prefixTokens, 0, price, { cachedInputTokens: prefixTokens });
+      const bodyCost = estimateTokenCost(body, 0, price);
+      return write + (requests.length - 1) * read + requests.length * bodyCost;
+    };
+    const baselineCostUsd = estimateTokenCost(meanInputTokens, 0, price) * requests.length;
+    const cachedCostUsd = effectivePrefix === 0 ? baselineCostUsd : cost(effectivePrefix);
+    const recoverableCostUsd = effectiveRecoverable === 0 ? baselineCostUsd : cost(effectiveRecoverable);
+    projection = {
+      status: "priced",
+      baselineCostUsd,
+      cachedCostUsd,
+      savingUsd: baselineCostUsd - cachedCostUsd,
+      savingPercent: baselineCostUsd === 0 ? 0 : ((baselineCostUsd - cachedCostUsd) / baselineCostUsd) * 100,
+      recoverableSavingUsd: Math.max(0, cachedCostUsd - recoverableCostUsd),
+    };
+  }
+
+  return {
+    requests: requests.length,
+    meanInputTokens,
+    sharedPrefixTokens,
+    cacheablePrefixShare: meanInputTokens === 0 ? 0 : effectivePrefix / meanInputTokens,
+    recoverablePrefixTokens,
+    prefixBreakers: [...breakers.values()]
+      .sort((left, right) => right.occurrences - left.occurrences)
+      .slice(0, 20),
+    projection,
+  };
+}
+
+export type OutputCapAdvice = {
+  observations: number;
+  /** Cap that would have truncated none of the observed responses. */
+  maxObserved: number;
+  recommendedCap: number;
+  /** Share of observed responses the recommended cap would have truncated. */
+  truncationRate: number;
+  meanOutputTokens: number;
+  /**
+   * Saving only materialises on responses that would have run past the cap, so
+   * this is deliberately conservative: it counts the tokens above the cap and
+   * nothing else.
+   */
+  projectedTokensSaved: number;
+  projectedSavingUsd?: number;
+};
+
+/**
+ * Recommend `max_output_tokens` from observed response lengths.
+ *
+ * Output is the expensive half of the bill (5x input on Sonnet 5.5, 8x on gpt-5),
+ * and an uncapped request lets a model ramble at that rate. A cap set at a high
+ * quantile of what a workload actually produces removes the tail without touching
+ * the responses that were already the right length.
+ *
+ * This caps length; it does not make answers shorter at equal quality. Any
+ * response that would have exceeded the cap gets truncated, so `truncationRate`
+ * is the number to judge it on, and a cap belongs behind a replay check before
+ * rollout.
+ */
+export function recommendOutputCap(
+  observedOutputTokens: number[],
+  options: { quantile?: number; price?: TokenPrice; headroom?: number } = {},
+): OutputCapAdvice {
+  if (observedOutputTokens.length === 0) {
+    throw new Error("An output cap needs observed response lengths to be derived from.");
+  }
+  if (observedOutputTokens.some((value) => !Number.isFinite(value) || value < 0)) {
+    throw new Error("Observed output token counts must be non-negative finite numbers.");
+  }
+  const quantile = options.quantile ?? 0.99;
+  if (quantile <= 0 || quantile > 1) throw new Error("quantile must be above 0 and at most 1.");
+  const headroom = options.headroom ?? 1.1;
+  if (headroom < 1) throw new Error("headroom must be at least 1.");
+
+  const sorted = [...observedOutputTokens].sort((left, right) => left - right);
+  const index = Math.min(sorted.length - 1, Math.ceil(quantile * sorted.length) - 1);
+  const recommendedCap = Math.ceil(sorted[Math.max(0, index)]! * headroom);
+  const truncated = sorted.filter((value) => value > recommendedCap);
+  const projectedTokensSaved = truncated.reduce((sum, value) => sum + (value - recommendedCap), 0);
+  const meanOutputTokens = sorted.reduce((sum, value) => sum + value, 0) / sorted.length;
+
+  return {
+    observations: sorted.length,
+    maxObserved: sorted[sorted.length - 1]!,
+    recommendedCap,
+    truncationRate: truncated.length / sorted.length,
+    meanOutputTokens,
+    projectedTokensSaved,
+    ...(options.price
+      ? { projectedSavingUsd: estimateTokenCost(0, projectedTokensSaved, options.price) }
+      : {}),
+  };
+}
+
+export type ReductionSaving = {
+  inputTokensSaved: number;
+  outputTokensSaved: number;
+  savingUsd?: number;
+};
+
+/** Price a projected reduction. Returns tokens only when no price is supplied. */
+export function priceReduction(
+  inputTokensSaved: number,
+  outputTokensSaved: number,
+  price?: TokenPrice,
+): ReductionSaving {
+  if (inputTokensSaved < 0 || outputTokensSaved < 0) {
+    throw new Error("Token savings cannot be negative.");
+  }
+  return {
+    inputTokensSaved,
+    outputTokensSaved,
+    ...(price
+      ? { savingUsd: estimateTokenCost(inputTokensSaved, outputTokensSaved, price) }
+      : {}),
+  };
+}
