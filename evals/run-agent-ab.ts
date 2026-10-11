@@ -136,6 +136,8 @@ type Arm = {
 
 type ArmResult = {
   label: string;
+  /** What this arm would cost if the provider had no cache at all. */
+  uncachedCostUsd: number;
   calls: number;
   successfulTasks: number;
   /** Mean answer completeness across calls, so truncation is not free. */
@@ -190,6 +192,7 @@ function runArm(arm: Arm, policy: CachePolicy, price: Parameters<typeof simulate
 
   const result = simulateCache(simulated, policy, price, { countTokens: approximateTokenCount });
   return {
+    uncachedCostUsd: result.uncachedCostUsd,
     label: arm.label,
     calls: result.calls.length,
     successfulTasks,
@@ -260,6 +263,58 @@ function report(policy: CachePolicy, spacing: number): void {
 
 // Turns inside a task are 3s apart, so the cache is warm within a task.
 report(OPENAI_CACHE, 30);
+
+/**
+ * How much the provider's cache is worth at all, separately from how much FLUX
+ * adds to it. These are different questions and conflating them is how the
+ * earlier 29% claim happened.
+ */
+function reportCacheValue(): void {
+  console.log("\n=== what the cache itself is worth, before FLUX touches anything ===");
+  for (const spacing of [30, 600]) {
+    const row = runArm(ARMS[0]!, OPENAI_CACHE, price.price, spacing);
+    const share = ((row.uncachedCostUsd - row.costUsd) / row.uncachedCostUsd) * 100;
+    console.log(
+      `tasks ${String(spacing).padStart(3)}s apart: no cache $${row.uncachedCostUsd.toFixed(3)}, ` +
+      `with cache $${row.costUsd.toFixed(3)} -> the cache alone saves ${share.toFixed(1)}% ` +
+      `(hit rate ${(row.hitRate * 100).toFixed(0)}%)`,
+    );
+  }
+}
+reportCacheValue();
+
+/**
+ * The workload where prefix repair DOES matter: independent one-shot requests,
+ * each sharing the same big preamble, each stamped with a per-request clock at
+ * the top. Nothing appends, so the only cacheable content is the preamble, and
+ * the clock kills it. This is the fixture the earlier 29% claim came from, run
+ * through the same simulator as the agent so both numbers are comparable.
+ */
+function reportOneShot(): void {
+  console.log("\n=== one-shot workload: same preamble, per-request clock, nothing appends ===");
+  for (const arm of [ARMS[0]!, ARMS[2]!]) {
+    const simulated: SimulatedRequest[] = [];
+    for (let index = 0; index < 60; index += 1) {
+      const original: AnyObject = {
+        model: "gpt-5",
+        instructions: `Current time: ${AT}T09:${String(index % 60).padStart(2, "0")}:22Z\n${PREAMBLE}`,
+        tools: tools(),
+        input: [{ role: "user", content: `Question ${index} about account ${1000 + index}.` }],
+        metadata: { domain: DOMAINS[index % DOMAINS.length]!, taskIndex: index, turn: 0 },
+      };
+      const sent = arm.config === undefined
+        ? original
+        : (reduceRequest(original, arm.config).request as AnyObject);
+      simulated.push({ atSeconds: index * 30, prompt: wirePrompt(sent), outputTokens: 400 });
+    }
+    const result = simulateCache(simulated, OPENAI_CACHE, price.price, { countTokens: approximateTokenCount });
+    console.log(
+      `${arm.label.padEnd(26)} cost $${result.totalCostUsd.toFixed(3)}, hit rate ` +
+      `${(result.hitRate * 100).toFixed(0)}%, saving vs no-cache ${result.savingPercent.toFixed(1)}%`,
+    );
+  }
+}
+reportOneShot();
 // Tasks spread past the TTL: the cache goes cold between them.
 report(OPENAI_CACHE, 600);
 // A write premium changes where the break-even sits.
