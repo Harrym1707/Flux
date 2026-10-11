@@ -2,6 +2,7 @@ export * from "./types.js";
 export * from "./router.js";
 export * from "./evaluator.js";
 export * from "./cost.js";
+export * from "./confidence.js";
 export * from "./price-catalogue.js";
 export * from "./token-reduction.js";
 export * from "./tool-schema.js";

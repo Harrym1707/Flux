@@ -9,3 +9,22 @@ export type {
   FluxReductionSummary,
   FluxTokenReductionConfig,
 } from "./reduce-request.js";
+export {
+  exactTextGrader,
+  replayGate,
+  replayUsage,
+  responseText,
+  responseToolCalls,
+  toolNameGrader,
+  toolSelectionGrader,
+} from "./replay-gate.js";
+export type {
+  ReplayCandidate,
+  ReplayCandidateResult,
+  ReplayComparison,
+  ReplayGateOptions,
+  ReplayGateResult,
+  ReplayGrader,
+  ReplayUsage,
+  ToolCall,
+} from "./replay-gate.js";
