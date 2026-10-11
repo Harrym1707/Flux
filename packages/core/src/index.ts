@@ -9,6 +9,8 @@ export * from "./token-reduction.js";
 export * from "./tool-schema.js";
 export * from "./savings-model.js";
 export * from "./traffic.js";
+export * from "./triage.js";
+export * from "./litellm.js";
 export * from "./model-prices.js";
 export * from "./replay.js";
 export * from "./replay-runner.js";
