@@ -28,3 +28,10 @@ export type {
   ReplayUsage,
   ToolCall,
 } from "./replay-gate.js";
+export {
+  agentGrader,
+  compositeGrader,
+  textSimilarityGrader,
+  truncationAwareGrader,
+} from "./graders.js";
+export type { TruncationOptions, WeightedGrader } from "./graders.js";
