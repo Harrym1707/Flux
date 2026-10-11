@@ -66,6 +66,15 @@ export type Lever = {
   targets: readonly WorkloadSegment[];
   /** Share of targeted tokens removed, between 0 and 1. */
   reduction: number;
+  /**
+   * How this lever changes the number of calls a task takes. 1 leaves it
+   * unchanged, 1.5 adds half a round trip per existing one, 0.3 removes most of
+   * them. Above 1 can make a lever net negative however much it trims per
+   * prompt, which is the whole reason this field exists: a published bench found
+   * progressive disclosure modelled at ~77% delivering ~13%, because the router
+   * it adds costs one extra round trip per novel tool call.
+   */
+  roundTripMultiplier?: number;
   evidence: LeverEvidence;
 };
 
@@ -110,6 +119,10 @@ export type SavingsProjection = {
   outputTokensBefore: number;
   outputTokensAfter: number;
   cachedInputTokens: number;
+  /** Calls per task before any lever. */
+  roundTripsBefore: number;
+  /** Calls per task after every lever's effect on call count. */
+  roundTripsAfter: number;
   warnings: string[];
 };
 
@@ -170,6 +183,47 @@ export const PUBLISHED_LEVERS: Record<string, Lever> = {
     evidence: {
       source: "mindstudio.ai MCP optimisation, buildmvpfast MCP token cost analysis",
       claim: "Removing unused MCP entries cuts 8-12 KB of context per call; unused tools are the most common inefficiency.",
+    },
+  },
+  progressiveDisclosure: {
+    id: "progressive-disclosure",
+    description:
+      "Replace the tool catalogue with a search/meta tool the model queries for the definitions it needs, so " +
+      "the full catalogue is never sent. Cuts the prompt hard, but adds a round trip per novel tool invocation.",
+    risk: "needs-verification",
+    targets: ["toolSchemas"],
+    // Solo.io measured 10,877 -> 970 prompt tokens, a 91.1% cut.
+    reduction: 0.91,
+    // The reason this lever usually disappoints. Archestra measured ~77% modelled
+    // against ~13% in production on a 20-step run; 1.5 is a conservative middle.
+    roundTripMultiplier: 1.5,
+    evidence: {
+      source: "solo.io agentgateway progressive disclosure; archestra.ai modelled-vs-measured bench",
+      claim:
+        "Prompt overhead fell 10,877 to 970 tokens (91.1%) on Claude Sonnet 4.6. But a router adds a hop: the " +
+        "same approach modelled at ~77% measured ~13% in production, because every novel tool call costs an " +
+        "extra round trip and an extra model decision.",
+    },
+  },
+  codeMode: {
+    id: "code-mode",
+    description:
+      "Expose a handful of meta-tools (list, describe, call, call-sequential) and let the model write code that " +
+      "orchestrates the real tools in a sandbox, so it never sees the full definitions. Cuts the prompt and the " +
+      "number of calls at the same time.",
+    risk: "needs-verification",
+    targets: ["toolSchemas"],
+    // Bifrost measured 92.8% at 508 tools; Anthropic reported 150k -> 2k (98.7%).
+    reduction: 0.9,
+    // The reason this one holds up: 3-4x fewer round trips, modelled at the
+    // conservative end of that range.
+    roundTripMultiplier: 0.35,
+    evidence: {
+      source: "Bifrost code mode benchmarks; Anthropic engineering on code execution with MCP",
+      claim:
+        "Bifrost cut input tokens up to 92.8% at 508 tools with a 100% pass rate and ran ~40% faster, needing " +
+        "3-4x fewer round trips. Anthropic reported a workflow falling from 150,000 to 2,000 tokens (98.7%) " +
+        "rewritten as code execution. Requires a sandbox and changes how the agent is built.",
     },
   },
   retrievedContextPruning: {
@@ -266,7 +320,13 @@ export function projectSavings(
       throw new Error(`Segment ${segment} must hold a non-negative token count.`);
     }
   }
-  for (const lever of levers) assertFraction(lever.reduction, `Lever ${lever.id} reduction`);
+  for (const lever of levers) {
+    assertFraction(lever.reduction, `Lever ${lever.id} reduction`);
+    if (lever.roundTripMultiplier !== undefined &&
+        (!Number.isFinite(lever.roundTripMultiplier) || lever.roundTripMultiplier <= 0)) {
+      throw new Error(`Lever ${lever.id} roundTripMultiplier must be a positive finite number.`);
+    }
+  }
   const minimumCacheable = options.minimumCacheableTokens ?? 1024;
   const warnings: string[] = [];
 
@@ -274,8 +334,11 @@ export function projectSavings(
   const inputTokensBefore = INPUT_SEGMENTS.reduce((sum, segment) => sum + profile.segments[segment], 0);
   const outputTokensBefore = profile.segments.output;
 
-  const costOf = (input: number, output: number, cached = 0): number =>
-    estimateTokenCost(input, output, price, cached > 0 ? { cachedInputTokens: cached } : {}) * profile.requests;
+  // A lever that changes how many calls a task takes scales the whole bill, so
+  // cost is always requests x multiplier x per-call cost.
+  let callMultiplier = 1;
+  const costOf = (input: number, output: number): number =>
+    estimateTokenCost(input, output, price) * profile.requests * callMultiplier;
 
   const baselineCostUsd = costOf(inputTokensBefore, outputTokensBefore);
   let runningCost = baselineCostUsd;
@@ -288,6 +351,7 @@ export function projectSavings(
       remaining[segment] -= removed;
       tokensRemoved += removed;
     }
+    callMultiplier *= lever.roundTripMultiplier ?? 1;
     const input = INPUT_SEGMENTS.reduce((sum, segment) => sum + remaining[segment], 0);
     const cost = costOf(input, remaining.output);
     const costRemovedUsd = runningCost - cost;
@@ -341,7 +405,9 @@ export function projectSavings(
       : estimateTokenCost(cacheableTokens, 0, price, { cacheWriteInputTokens: cacheableTokens });
     const read = estimateTokenCost(cacheableTokens, 0, price, { cachedInputTokens: cacheableTokens });
     const perRequestRest = estimateTokenCost(body, remaining.output, price);
-    const cached = write + (profile.requests - 1) * read + profile.requests * perRequestRest;
+    const calls = profile.requests * callMultiplier;
+    // The prefix is written once however many calls follow it.
+    const cached = write + Math.max(0, calls - 1) * read + calls * perRequestRest;
     contributions.push({
       lever: "prefix-caching",
       risk: "deterministic",
@@ -374,10 +440,12 @@ export function projectSavings(
     needsVerificationSavingPercent: share("needs-verification"),
     contributions,
     inputTokensBefore: inputTokensBefore * profile.requests,
-    inputTokensAfter: inputTokensAfter * profile.requests,
+    inputTokensAfter: inputTokensAfter * profile.requests * callMultiplier,
     outputTokensBefore: outputTokensBefore * profile.requests,
-    outputTokensAfter: remaining.output * profile.requests,
-    cachedInputTokens: cacheableTokens * profile.requests,
+    outputTokensAfter: remaining.output * profile.requests * callMultiplier,
+    cachedInputTokens: cacheableTokens * profile.requests * callMultiplier,
+    roundTripsBefore: profile.requests,
+    roundTripsAfter: profile.requests * callMultiplier,
     warnings,
   };
 }

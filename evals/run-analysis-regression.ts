@@ -8,6 +8,7 @@ import {
   projectSavings,
   publishedModelPrices,
   lookupPrice,
+  PUBLISHED_LEVERS,
   trafficFingerprint,
   type SavingsProjection,
   type TrafficMeasurement,
@@ -81,7 +82,7 @@ for (const fixture of FIXTURES) {
   });
 }
 
-console.log(`${"fixture".padEnd(10)} ${"baseline".padStart(10)} ${"saving".padStart(9)} ${"risk-free".padStart(10)} ${"+repair".padStart(9)}  fingerprint`);
+console.log(`${"fixture".padEnd(10)} ${"baseline".padStart(10)} ${"saving".padStart(9)} ${"risk-free".padStart(10)} ${"+repair".padStart(9)} ${"calls/task".padStart(11)}  fingerprint`);
 console.log("-".repeat(78));
 for (const row of rows) {
   const baseline = row.measurement.totalBaselineCostUsd;
@@ -89,9 +90,13 @@ for (const row of rows) {
   const free = deterministicUsd(row.projections);
   const repaired = sum(row.repairs, (projection) => projection.savingUsd);
   const share = (value: number) => (baseline === 0 ? "n/a" : `${((value / baseline) * 100).toFixed(1)}%`);
+  const episodes = row.measurement.workloads[0]?.episodes;
+  const calls = episodes === undefined
+    ? "n/a"
+    : `${episodes.meanRoundTrips.toFixed(1)}${episodes.identified ? "" : "*"}`;
   console.log(
     `${row.fixture.padEnd(10)} ${`$${baseline.toFixed(4)}`.padStart(10)} ${share(saving).padStart(9)} ` +
-    `${share(free).padStart(10)} ${share(repaired).padStart(9)}  ${row.fingerprint}`,
+    `${share(free).padStart(10)} ${share(repaired).padStart(9)} ${calls.padStart(11)}  ${row.fingerprint}`,
   );
 }
 
@@ -194,6 +199,46 @@ gates.push({
   name: "agent clears 35% risk-free with repair",
   pass: agentRepairedFreeShare >= 35,
   detail: `${agentRepairedFreeShare.toFixed(1)}% risk-free once the prefix is repaired`,
+});
+
+// 9. A technique that adds round trips must not be credited a saving it does not
+//    deliver. Progressive disclosure trims more prompt than caching alone, so a
+//    per-request model ranks it higher; per task it must rank lower, because the
+//    round trip it adds costs more than the tokens it saves. This gate is what
+//    stops the analyser reproducing the market's 77%-modelled/13%-measured gap.
+const agentProfileWorkload = agent.measurement.workloads[0]!;
+const agentPrice = lookupPrice(publishedModelPrices, {
+  provider: agentProfileWorkload.provider,
+  model: agentProfileWorkload.resolvedModel ?? agentProfileWorkload.model,
+  at: AT,
+});
+if (agentPrice.status === "priced") {
+  const profile = profileFromMeasurement(agentProfileWorkload);
+  const cachingOnly = projectSavings(profile, [], agentPrice.price).savingPercent;
+  const disclosure = projectSavings(profile, [PUBLISHED_LEVERS.progressiveDisclosure!], agentPrice.price);
+  const code = projectSavings(profile, [PUBLISHED_LEVERS.codeMode!], agentPrice.price);
+  gates.push({
+    name: "round trips priced, not ignored",
+    pass: disclosure.savingPercent < cachingOnly && code.savingPercent > cachingOnly &&
+      disclosure.roundTripsAfter > disclosure.roundTripsBefore &&
+      code.roundTripsAfter < code.roundTripsBefore,
+    detail: `caching alone ${cachingOnly.toFixed(1)}%, progressive disclosure ` +
+      `${disclosure.savingPercent.toFixed(1)}% (x${(disclosure.roundTripsAfter / disclosure.roundTripsBefore).toFixed(2)} calls), ` +
+      `code mode ${code.savingPercent.toFixed(1)}% (x${(code.roundTripsAfter / code.roundTripsBefore).toFixed(2)} calls)`,
+  });
+}
+
+// 10. Episode identification must be reported, never assumed. Agent traffic
+//     carries conversation ids; the usage-only export does not, and saying so
+//     is the difference between an informative per-task figure and a fake one.
+gates.push({
+  name: "episode identification reported honestly",
+  pass: agent.measurement.episodesIdentified &&
+    agent.measurement.workloads[0]!.episodes.meanRoundTrips > 1 &&
+    !billing.measurement.episodesIdentified &&
+    billing.measurement.notes.some((note) => /task identifier/.test(note)),
+  detail: `agent ${agent.measurement.workloads[0]!.episodes.meanRoundTrips.toFixed(1)} calls/task from ` +
+    `${agent.measurement.workloads[0]!.episodes.episodes} episodes; billing unidentified and flagged`,
 });
 
 console.log("");

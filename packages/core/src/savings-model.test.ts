@@ -199,3 +199,62 @@ describe("workload archetypes", () => {
     expect(ids).toContain(PUBLISHED_LEVERS.retrievedContextPruning!.id);
   });
 });
+
+describe("round trips", () => {
+  const halveAndDouble: Lever = {
+    id: "halve-prompt-double-calls",
+    description: "test lever",
+    risk: "needs-verification",
+    targets: ["toolSchemas"],
+    reduction: 0.5,
+    roundTripMultiplier: 2,
+    evidence: { source: "test", claim: "test" },
+  };
+
+  it("reports call count before and after", () => {
+    const result = projectSavings(profile({ requests: 10 }), [halveAndDouble], plainPrice);
+    expect(result.roundTripsBefore).toBe(10);
+    expect(result.roundTripsAfter).toBe(20);
+  });
+
+  it("can make a lever net negative however much prompt it trims", () => {
+    // Half the tokens, twice the calls, so the bill is unchanged. Anything worse
+    // than halving the prompt would make this a loss. A per-request model would
+    // have scored it a 50% win.
+    const result = projectSavings(profile({ requests: 10 }), [halveAndDouble], plainPrice);
+    expect(result.savingPercent).toBeCloseTo(0, 6);
+  });
+
+  it("credits a lever that removes calls on top of its prompt saving", () => {
+    const fewerCalls: Lever = { ...halveAndDouble, id: "code-mode-like", roundTripMultiplier: 0.35 };
+    const result = projectSavings(profile({ requests: 10 }), [fewerCalls], plainPrice);
+    expect(result.roundTripsAfter).toBeCloseTo(3.5, 6);
+    // Half the prompt and roughly a third of the calls compound.
+    expect(result.savingPercent).toBeGreaterThan(80);
+  });
+
+  it("ranks progressive disclosure below caching alone, and code mode above it", () => {
+    // The published figures put these within a point of each other per request.
+    // Per task they separate, which is the point of modelling call count.
+    const agent = WORKLOAD_ARCHETYPES.toolHeavyAgent!;
+    const cachingOnly = projectSavings(agent, [], cachingPrice).savingPercent;
+    const disclosure = projectSavings(agent, [PUBLISHED_LEVERS.progressiveDisclosure!], cachingPrice);
+    const code = projectSavings(agent, [PUBLISHED_LEVERS.codeMode!], cachingPrice);
+    expect(disclosure.savingPercent).toBeLessThan(cachingOnly);
+    expect(code.savingPercent).toBeGreaterThan(cachingOnly);
+    expect(disclosure.roundTripsAfter).toBeGreaterThan(disclosure.roundTripsBefore);
+    expect(code.roundTripsAfter).toBeLessThan(code.roundTripsBefore);
+  });
+
+  it("writes a cached prefix once regardless of how many calls follow", () => {
+    const withCaching = profile({ requests: 10, stableSegments: ["toolSchemas"] });
+    const result = projectSavings(withCaching, [], cachingPrice);
+    // 1 write at $1.00 plus 9 reads at $0.10.
+    expect(result.projectedCostUsd).toBeCloseTo(1.9, 10);
+  });
+
+  it("rejects a non-positive round-trip multiplier", () => {
+    expect(() => projectSavings(profile(), [{ ...halveAndDouble, roundTripMultiplier: 0 }], plainPrice))
+      .toThrow(/roundTripMultiplier/);
+  });
+});

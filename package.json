@@ -22,6 +22,7 @@
     "savings:model": "node --import tsx evals/run-savings-model.ts",
     "traffic:sample": "node --import tsx evals/make-sample-traffic.ts",
     "traffic:regression": "node --import tsx evals/run-analysis-regression.ts",
+    "techniques:compare": "node --import tsx evals/run-technique-comparison.ts",
     "analyse": "node --import tsx packages/cli/src/main.ts",
     "benchmark:routers": "node --import tsx evals/run-router-comparison.ts",
     "benchmark:captures": "node --import tsx evals/run-capture-benchmark.ts",

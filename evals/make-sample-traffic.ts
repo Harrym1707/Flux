@@ -59,6 +59,10 @@ const agent = Array.from({ length: 30 }, (_, index) => {
   return {
     id: `agent-${index}`,
     workload: "coding-agent",
+    // Five turns per task, so round trips per episode are 5 rather than 1.
+    // Without this the analyser cannot tell a technique that halves the prompt
+    // from one that halves the prompt and doubles the number of calls.
+    conversation_id: `task-${Math.floor(index / 5)}`,
     at: "2026-10-08",
     request: {
       model: "gpt-5",

@@ -45,6 +45,11 @@ export type TrafficRecord = {
   toolSchemaText?: string;
   /** Logical grouping. Prompts only share a prefix within one workload. */
   workload: string;
+  /**
+   * Task this request belongs to, where the log says so. Several requests share
+   * one episode id when an agent takes several turns to finish one job.
+   */
+  episodeId?: string;
 };
 
 export type IngestIssue = { line: number; reason: string };
@@ -109,6 +114,36 @@ function toolSchemaTextFrom(request: Row | undefined): string | undefined {
   return JSON.stringify(tools);
 }
 
+/**
+ * Pull a task identifier out of whatever the log calls it.
+ *
+ * Checked in order of how specifically each names a single task: an explicit
+ * episode id, then conversation/thread/session, then an OpenTelemetry trace,
+ * then a run id. `previous_response_id` is checked last and only as a marker
+ * that the row belongs to a chain, since it names the predecessor rather than
+ * the chain itself.
+ */
+function episodeIdFrom(outer: Row, request: Row, response: Row): string | undefined {
+  const candidates = [
+    outer.episodeId, outer.episode_id,
+    outer.conversationId, outer.conversation_id,
+    outer.threadId, outer.thread_id,
+    outer.sessionId, outer.session_id,
+    outer.traceId, outer.trace_id,
+    outer.runId, outer.run_id,
+    nested(outer, ["metadata", "session_id"]),
+    nested(outer, ["metadata", "conversation_id"]),
+    nested(request, ["metadata", "session_id"]),
+    nested(request, ["metadata", "conversation_id"]),
+    nested(response, ["metadata", "session_id"]),
+  ];
+  for (const candidate of candidates) {
+    const value = asString(candidate);
+    if (value !== undefined) return value;
+  }
+  return undefined;
+}
+
 function providerFor(model: string, explicit?: string): string {
   if (explicit) return explicit;
   if (/^(?:claude|opus|sonnet|haiku|fable)/i.test(model)) return "anthropic";
@@ -170,8 +205,12 @@ export function normaliseTrafficRow(
     adapter = "openai-responses";
     inputTokens = asNumber(usage.input_tokens);
     outputTokens = asNumber(usage.output_tokens);
-    // Responses reports cached tokens INSIDE input_tokens.
-    cachedInputTokens = asNumber(nested(usage, ["input_tokens_details", "cached_tokens"])) ?? 0;
+    // Responses reports cached tokens INSIDE input_tokens, under a details
+    // object. Flattened exports often hoist the same count to the top level,
+    // so fall back to that rather than silently reading zero cached tokens and
+    // claiming a caching saving the customer already has.
+    cachedInputTokens = asNumber(nested(usage, ["input_tokens_details", "cached_tokens"])) ??
+      asNumber(outer.cachedInputTokens) ?? asNumber(outer.cached_tokens) ?? 0;
   } else {
     adapter = "usage-row";
     inputTokens = asNumber(outer.inputTokens) ?? asNumber(outer.input_tokens);
@@ -204,6 +243,9 @@ export function normaliseTrafficRow(
       ...(promptText === undefined ? {} : { promptText }),
       ...(toolSchemaTextFrom(request) === undefined ? {} : { toolSchemaText: toolSchemaTextFrom(request)! }),
       workload: asString(outer.workload) ?? asString(outer.endpoint) ?? asString(outer.taskClass) ?? model,
+      ...(episodeIdFrom(outer, request, response) === undefined
+        ? {}
+        : { episodeId: episodeIdFrom(outer, request, response)! }),
     },
   };
 }
@@ -225,6 +267,31 @@ export function ingestTraffic(rows: unknown[], fallbackDate: string): IngestResu
   return { records, issues, adapterCounts };
 }
 
+/**
+ * Per-task view of a workload.
+ *
+ * The unit that matters for agentic traffic, and the one the market does not
+ * report. A technique that cuts each prompt by 91% while tripling the number of
+ * prompts has saved nothing, and per-request figures cannot show that: one
+ * published bench found progressive disclosure modelled at ~77% delivering ~13%
+ * in production, because a router adds a round trip per novel tool call.
+ *
+ * `identified` matters. Without a task identifier in the log every request is
+ * its own episode, round trips read as 1.0, and nothing here is informative.
+ * It is reported rather than silently assumed.
+ */
+export type EpisodeStats = {
+  episodes: number;
+  /** Mean requests per task. This is the round-trip count a technique can change. */
+  meanRoundTrips: number;
+  maxRoundTrips: number;
+  meanInputTokens: number;
+  meanOutputTokens: number;
+  meanCostUsd?: number;
+  /** False when the log carried no task identifier, making the above meaningless. */
+  identified: boolean;
+};
+
 export type WorkloadMeasurement = {
   workload: string;
   /** Model identifier exactly as the log carried it. */
@@ -244,6 +311,7 @@ export type WorkloadMeasurement = {
   caching?: CachingAnalysis;
   outputCap?: OutputCapAdvice;
   duplicateContextTokens: number;
+  episodes: EpisodeStats;
   baselineCostUsd?: number;
   /** Set when the catalogue cannot price this model on these dates. */
   unpricedReason?: string;
@@ -258,6 +326,8 @@ export type TrafficMeasurement = {
   /** Share of input tokens already arriving cached, which FLUX must not claim credit for. */
   alreadyCachedShare: number;
   promptTextAvailable: boolean;
+  /** True when at least one record carried a task identifier. */
+  episodesIdentified: boolean;
   notes: string[];
 };
 
@@ -383,6 +453,26 @@ export function measureTraffic(
       return sum + (countTokens(record.promptText!) - countTokens(reduced.text));
     }, 0);
 
+    const byEpisode = new Map<string, TrafficRecord[]>();
+    for (const record of group) {
+      const key = record.episodeId ?? `__single__${record.id}`;
+      const list = byEpisode.get(key) ?? [];
+      list.push(record);
+      byEpisode.set(key, list);
+    }
+    const episodeGroups = [...byEpisode.values()];
+    const identified = group.some((record) => record.episodeId !== undefined);
+    const roundTrips = episodeGroups.map((episode) => episode.length);
+    const episodes: EpisodeStats = {
+      episodes: episodeGroups.length,
+      meanRoundTrips: roundTrips.reduce((sum, value) => sum + value, 0) / episodeGroups.length,
+      maxRoundTrips: Math.max(...roundTrips),
+      meanInputTokens: inputTokens / episodeGroups.length,
+      meanOutputTokens: outputTokens / episodeGroups.length,
+      ...(baselineCostUsd === undefined ? {} : { meanCostUsd: baselineCostUsd / episodeGroups.length }),
+      identified,
+    };
+
     workloads.push({
       workload: first.workload,
       model: first.model,
@@ -399,11 +489,20 @@ export function measureTraffic(
         ? { outputCap: recommendOutputCap(group.map((record) => record.outputTokens), { quantile: 0.99 }) }
         : {}),
       duplicateContextTokens,
+      episodes,
       ...(baselineCostUsd === undefined ? {} : { baselineCostUsd }),
       ...(unpricedReason === undefined ? {} : { unpricedReason }),
     });
   }
 
+  const episodesIdentified = records.some((record) => record.episodeId !== undefined);
+  if (!episodesIdentified) {
+    notes.push(
+      "No task identifier was found, so every request counts as its own episode and round trips read as 1.0. " +
+      "Per-task figures are the unit that matters for agentic traffic: add a conversation, session or trace id " +
+      "to the log before trusting any technique that changes how many calls a task takes.",
+    );
+  }
   if (!anyPromptText) {
     notes.push(
       "No prompt text was present, so this is a usage-only measurement: baseline spend and output caps only. " +
@@ -426,6 +525,7 @@ export function measureTraffic(
     unpricedModels: [...unpricedModels].sort(),
     alreadyCachedShare: totalInputTokens === 0 ? 0 : totalAlreadyCached / totalInputTokens,
     promptTextAvailable: anyPromptText,
+    episodesIdentified,
     notes,
   };
 }
