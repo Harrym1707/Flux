@@ -1,6 +1,10 @@
-import { priceUsage, resolveModelId, type PriceCatalogue } from "./price-catalogue.js";
-import type { IngestIssue, TrafficMeasurement, TrafficRecord } from "./traffic.js";
-import type { StreamSignals } from "./triage.js";
+import {
+  reconcileGatewaySpend,
+  signalsFromGateway,
+  type GatewayParseResult,
+  type GatewayRecord,
+} from "./gateway.js";
+import type { IngestIssue, TrafficRecord } from "./traffic.js";
 
 /**
  * LiteLLM spend-log adapter.
@@ -67,22 +71,8 @@ function flattenMessages(value: unknown): string | undefined {
   return parts.length === 0 ? undefined : parts.join("\n\n");
 }
 
-export type LiteLLMRecord = {
-  record: TrafficRecord;
-  /** LiteLLM's own cost figure for the row, as logged. */
-  reportedSpendUsd?: number;
-  /** The customer the request was made for (LiteLLM's end_user). */
-  endUser?: string;
-  teamId?: string;
-};
-
-export type LiteLLMParseResult = {
-  /** Rows that reached a provider; the analysable baseline. */
-  accepted: LiteLLMRecord[];
-  /** Rows LiteLLM's response cache answered. Not baseline: no provider call happened. */
-  cacheHits: LiteLLMRecord[];
-  issues: IngestIssue[];
-};
+export type LiteLLMRecord = GatewayRecord;
+export type LiteLLMParseResult = GatewayParseResult;
 
 /**
  * Parse LiteLLM spend-log rows, from /spend/logs output, a database export, or
@@ -163,137 +153,9 @@ export function parseLiteLLMSpendLogs(rows: unknown[], fallbackDate: string): Li
   return { accepted, cacheHits, issues };
 }
 
-export type SpendReconciliation = {
-  /** Rows where both a reported spend and a catalogue price existed. */
-  comparedRows: number;
-  reportedSpendUsd: number;
-  catalogueCostUsd: number;
-  /** Positive when LiteLLM reports more spend than published rates support. */
-  driftPercent: number;
-  /** Rows whose reported spend deviates more than the tolerance. */
-  flagged: Array<{ id: string; model: string; reportedUsd: number; catalogueUsd: number; driftPercent: number }>;
-  /** Rows whose model the catalogue cannot price; excluded, never zeroed. */
-  unpricedRows: number;
-  /** What LiteLLM's own response cache already saves the customer, at catalogue rates. */
-  cacheHitRows: number;
-  cacheHitSavedUsd: number;
-};
-
 /**
- * Reconcile LiteLLM's reported spend against the dated price catalogue.
- *
- * A persistent drift means one of the two price sources is stale, and either
- * way the customer's dashboards are wrong by that much. Cache-hit rows are
- * valued at catalogue rates as the saving the customer already has, so FLUX's
- * own quote can exclude it explicitly.
+ * Reconciliation and signal derivation are shared across every connector; see
+ * gateway.ts. Re-exported under the LiteLLM names existing callers use.
  */
-export function reconcileLiteLLMSpend(
-  parsed: LiteLLMParseResult,
-  catalogue: PriceCatalogue,
-  options: { tolerancePercent?: number } = {},
-): SpendReconciliation {
-  const tolerance = options.tolerancePercent ?? 10;
-  let comparedRows = 0;
-  let reportedSpendUsd = 0;
-  let catalogueCostUsd = 0;
-  let unpricedRows = 0;
-  const flagged: SpendReconciliation["flagged"] = [];
-
-  const priceRow = (entry: LiteLLMRecord): number | undefined => {
-    const resolved = resolveModelId(catalogue, entry.record.provider, entry.record.model);
-    if (resolved.status !== "resolved") return undefined;
-    const priced = priceUsage(
-      catalogue,
-      { provider: entry.record.provider, model: resolved.model, at: entry.record.at },
-      { inputTokens: entry.record.inputTokens, outputTokens: entry.record.outputTokens },
-    );
-    return priced.status === "priced" ? priced.costUsd : undefined;
-  };
-
-  for (const entry of parsed.accepted) {
-    const catalogued = priceRow(entry);
-    if (catalogued === undefined) {
-      unpricedRows += 1;
-      continue;
-    }
-    if (entry.reportedSpendUsd === undefined) continue;
-    comparedRows += 1;
-    reportedSpendUsd += entry.reportedSpendUsd;
-    catalogueCostUsd += catalogued;
-    const drift = catalogued === 0 ? 0 : ((entry.reportedSpendUsd - catalogued) / catalogued) * 100;
-    if (Math.abs(drift) > tolerance && Math.abs(entry.reportedSpendUsd - catalogued) > 0.000_1) {
-      flagged.push({
-        id: entry.record.id,
-        model: entry.record.model,
-        reportedUsd: entry.reportedSpendUsd,
-        catalogueUsd: catalogued,
-        driftPercent: drift,
-      });
-    }
-  }
-
-  let cacheHitSavedUsd = 0;
-  for (const entry of parsed.cacheHits) {
-    cacheHitSavedUsd += priceRow(entry) ?? 0;
-  }
-
-  return {
-    comparedRows,
-    reportedSpendUsd,
-    catalogueCostUsd,
-    driftPercent: catalogueCostUsd === 0
-      ? 0
-      : ((reportedSpendUsd - catalogueCostUsd) / catalogueCostUsd) * 100,
-    flagged,
-    unpricedRows,
-    cacheHitRows: parsed.cacheHits.length,
-    cacheHitSavedUsd,
-  };
-}
-
-/**
- * Derive segment-classification signals for one traffic stream.
- *
- * The measurement supplies what usage alone can show; the LiteLLM extras add
- * the dimensions a gateway uniquely knows: who each request was for (end_user)
- * and how often its own response cache already answers.
- */
-export function signalsFromLiteLLM(
-  stream: LiteLLMRecord[],
-  cacheHits: LiteLLMRecord[],
-  measurement: TrafficMeasurement,
-): StreamSignals {
-  const endUsers = new Set(stream.map((entry) => entry.endUser).filter((user): user is string => !!user));
-  const withEndUser = stream.filter((entry) => entry.endUser !== undefined).length;
-
-  let weightedRoundTrips = 0;
-  let identifiedRequests = 0;
-  let inputTokens = 0;
-  let toolTokens = 0;
-  let breakers = false;
-  for (const workload of measurement.workloads) {
-    if (workload.episodes.identified) {
-      weightedRoundTrips += workload.episodes.meanRoundTrips * workload.requests;
-      identifiedRequests += workload.requests;
-    }
-    inputTokens += workload.inputTokens;
-    toolTokens += workload.meanToolSchemaTokens * workload.requests;
-    if ((workload.caching?.prefixBreakers.length ?? 0) > 0) breakers = true;
-  }
-
-  return {
-    requests: stream.length,
-    distinctEndUsers: endUsers.size,
-    requestsPerEndUser: endUsers.size === 0 ? stream.length : withEndUser / endUsers.size,
-    episodesIdentified: measurement.episodesIdentified,
-    meanRoundTrips: identifiedRequests === 0 ? 1 : weightedRoundTrips / identifiedRequests,
-    toolSchemaShare: inputTokens === 0 ? 0 : toolTokens / inputTokens,
-    alreadyCachedShare: measurement.alreadyCachedShare,
-    gatewayCacheHitShare: stream.length + cacheHits.length === 0
-      ? 0
-      : cacheHits.length / (stream.length + cacheHits.length),
-    promptTextAvailable: measurement.promptTextAvailable,
-    prefixBreakersFound: breakers,
-    meanInputTokens: stream.length === 0 ? 0 : inputTokens / stream.length,
-  };
-}
+export const reconcileLiteLLMSpend = reconcileGatewaySpend;
+export const signalsFromLiteLLM = signalsFromGateway;
