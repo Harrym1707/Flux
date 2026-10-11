@@ -10,6 +10,7 @@
     "start:api": "node apps/api/dist/src/server.js",
     "example": "node --env-file=.env --import tsx examples/openai-drop-in.ts",
     "example:mock": "node --import tsx examples/mock-drop-in.ts",
+    "example:reduce": "node --import tsx examples/reduce-drop-in.ts",
     "replay:run": "node --env-file=.env --import tsx evals/run-model-replay.ts",
     "eval:demo": "node --import tsx evals/run-replay.ts",
     "eval:replay": "node --import tsx evals/run-replay.ts",

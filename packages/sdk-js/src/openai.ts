@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { TelemetryClient } from "./telemetry.js";
 import { chooseRoute } from "./routing.js";
 import { ExactResponseCache } from "./exact-cache.js";
+import { reduceRequest } from "./reduce-request.js";
 import type {
   FluxContextProfile,
   FluxEvaluationCaptureAttempt,
@@ -113,10 +114,22 @@ export function withFlux<T extends AnyObject>(client: T, options: FluxOptions): 
         }
         context = { ...context, taskClass };
         const model = typeof request?.model === "string" ? request.model : "unknown";
-        const route = chooseRoute(options.routing, request, taskClass, context);
+
+        // Token reduction runs on every request, whatever the routing decision.
+        // getContext and classify above were given the caller's own request;
+        // everything downstream uses the reduced one, because that is what gets
+        // sent, cached and quality-checked.
+        const reduction = options.tokenReduction
+          ? reduceRequest(request, options.tokenReduction)
+          : undefined;
+        const effectiveRequest = (reduction?.request ?? request) as AnyObject;
+
+        const route = chooseRoute(options.routing, effectiveRequest, taskClass, context);
         const candidateSelected = route.reason === "candidate_quality_and_cost_gates_passed";
         let fallbackReason: FluxRequestEvent["fallbackReason"];
-        let routedRequest: AnyObject = candidateSelected ? { ...request, model: route.model } : request;
+        let routedRequest: AnyObject = candidateSelected
+          ? { ...effectiveRequest, model: route.model }
+          : effectiveRequest;
         const contextProfile = candidateSelected && route.contextProfileId
           ? options.contextProfiles?.find((profile) => profile.id === route.contextProfileId)
           : undefined;
@@ -128,7 +141,7 @@ export function withFlux<T extends AnyObject>(client: T, options: FluxOptions): 
             fallbackReason = "context_transform_unavailable";
           } else {
             try {
-              const transformed = transform(request, context);
+              const transformed = transform(effectiveRequest, context);
               if (!transformed || typeof transformed !== "object" || Array.isArray(transformed)) {
                 throw new Error("Context transform must return a request object.");
               }
@@ -196,7 +209,7 @@ export function withFlux<T extends AnyObject>(client: T, options: FluxOptions): 
           if (candidateSelected && fallbackReason === undefined && options.qualityCheck) {
             try {
               qualityCheckPassed = await options.qualityCheck({
-                request,
+                request: effectiveRequest,
                 response,
                 taskClass,
                 context,
@@ -211,8 +224,8 @@ export function withFlux<T extends AnyObject>(client: T, options: FluxOptions): 
 
           if (candidateSelected && fallbackReason !== undefined) {
             finalModel = model;
-            attempts.push({ model, request });
-            response = await create.call(target, request, ...rest);
+            attempts.push({ model, request: effectiveRequest });
+            response = await create.call(target, effectiveRequest, ...rest);
             attempts[attempts.length - 1].response = response as AnyObject;
           }
           if (!cacheHit && fallbackReason === undefined && cacheKey && response !== undefined) {
@@ -263,6 +276,7 @@ export function withFlux<T extends AnyObject>(client: T, options: FluxOptions): 
           const event: FluxRequestEvent = {
             requestId,
             applicationId: options.applicationId,
+            ...(reduction === undefined ? {} : { reduction: reduction.summary }),
             provider: "openai-compatible",
             model: finalModel,
             requestedModel: candidateSelected ? model : undefined,

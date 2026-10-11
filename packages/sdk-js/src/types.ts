@@ -1,9 +1,12 @@
+import type { FluxReductionSummary, FluxTokenReductionConfig } from "./reduce-request.js";
 export type FluxTelemetryConfig = {
   endpoint?: string;
   mode?: "metadata_only" | "content";
 };
 
 export type FluxRequestEvent = {
+  /** What reduction removed from this request, when reduction is configured. */
+  reduction?: FluxReductionSummary;
   requestId: string;
   applicationId: string;
   provider: string;
@@ -174,6 +177,11 @@ export type FluxOptions = {
   telemetry?: FluxTelemetryConfig;
   classify?: (request: unknown) => string | undefined;
   getContext?: (request: unknown) => FluxRequestContext;
+  /**
+   * Token reduction applied to every request, independent of routing. Omit to
+   * leave requests untouched.
+   */
+  tokenReduction?: FluxTokenReductionConfig;
   contextProfiles?: readonly FluxContextProfile[];
   /** @deprecated Use versioned contextProfiles for replayable context transformations. */
   contextTransforms?: Record<string, (request: unknown, context: FluxRequestContext) => unknown>;

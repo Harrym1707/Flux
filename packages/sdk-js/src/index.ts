@@ -3,3 +3,9 @@ export * from "./types.js";
 export { chooseRoute } from "./routing.js";
 export { ExactResponseCache } from "./exact-cache.js";
 export { createLocalJsonlCapture } from "./evaluation-capture.js";
+export { reduceRequest } from "./reduce-request.js";
+export type {
+  FluxReductionChange,
+  FluxReductionSummary,
+  FluxTokenReductionConfig,
+} from "./reduce-request.js";
