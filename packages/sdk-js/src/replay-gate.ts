@@ -67,9 +67,27 @@ export type ReplayGateOptions = {
   baselineResponses?: unknown[];
   /** Rate used to express savings in money as well as tokens. */
   price?: TokenPrice;
+  /**
+   * Called before the baseline run and before each candidate run.
+   *
+   * Providers hold state between calls: a prefix cache is cold on the first
+   * request and warm afterwards. Without a reset between runs the baseline
+   * warms the cache that the candidates then benefit from, which flatters every
+   * candidate and makes the baseline look worse than it is. Use this to clear
+   * whatever state would otherwise leak across runs.
+   */
+  beforeRun?: (label: string) => void | Promise<void>;
 };
 
-export type ReplayUsage = { inputTokens: number; outputTokens: number };
+export type ReplayUsage = {
+  /** Total input billed, inclusive of anything served from cache. */
+  inputTokens: number;
+  outputTokens: number;
+  /** Input served from the provider's cache, billed at the cached rate. */
+  cachedInputTokens: number;
+  /** Input written into the cache, which some providers bill at a premium. */
+  cacheWriteInputTokens: number;
+};
 
 export type ReplayCandidateResult = {
   label: string;
@@ -104,19 +122,53 @@ function isPlainObject(value: unknown): value is AnyObject {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-/** Pull usage out of a Responses or Chat Completions shaped response. */
+/**
+ * Pull usage out of a Responses, Chat Completions or Anthropic Messages shape.
+ *
+ * Cached tokens must be read, not ignored. Pricing all input at the full rate
+ * makes prefix caching worth exactly zero to the gate, which would mean the
+ * largest lossless lever could never be measured or credited.
+ *
+ * The two conventions differ and both are normalised to a total-inclusive
+ * figure: OpenAI reports cached tokens INSIDE input_tokens, Anthropic reports
+ * cache reads and writes alongside it.
+ */
 export function replayUsage(response: unknown): ReplayUsage | undefined {
   if (!isPlainObject(response)) return undefined;
   const usage = isPlainObject(response.usage) ? response.usage : undefined;
   if (!usage) return undefined;
-  const input = typeof usage.input_tokens === "number"
-    ? usage.input_tokens
-    : typeof usage.prompt_tokens === "number" ? usage.prompt_tokens : undefined;
-  const output = typeof usage.output_tokens === "number"
-    ? usage.output_tokens
-    : typeof usage.completion_tokens === "number" ? usage.completion_tokens : undefined;
-  if (input === undefined || output === undefined) return undefined;
-  return { inputTokens: input, outputTokens: output };
+  const number = (value: unknown): number | undefined =>
+    typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : undefined;
+  const details = isPlainObject(usage.input_tokens_details) ? usage.input_tokens_details : undefined;
+  const promptDetails = isPlainObject(usage.prompt_tokens_details) ? usage.prompt_tokens_details : undefined;
+
+  const anthropicRead = number(usage.cache_read_input_tokens);
+  const anthropicWrite = number(usage.cache_creation_input_tokens);
+  const output = number(usage.output_tokens) ?? number(usage.completion_tokens);
+  if (output === undefined) return undefined;
+
+  if (anthropicRead !== undefined || anthropicWrite !== undefined) {
+    const fresh = number(usage.input_tokens) ?? 0;
+    const cached = anthropicRead ?? 0;
+    const written = anthropicWrite ?? 0;
+    return {
+      inputTokens: fresh + cached + written,
+      outputTokens: output,
+      cachedInputTokens: cached,
+      cacheWriteInputTokens: written,
+    };
+  }
+
+  const input = number(usage.input_tokens) ?? number(usage.prompt_tokens);
+  if (input === undefined) return undefined;
+  const cached = number(details?.cached_tokens) ?? number(promptDetails?.cached_tokens) ?? 0;
+  return {
+    inputTokens: input,
+    outputTokens: output,
+    // Already inside input_tokens on these shapes.
+    cachedInputTokens: Math.min(cached, input),
+    cacheWriteInputTokens: 0,
+  };
 }
 
 /** Concatenate the assistant text of a response, ignoring structure. */
@@ -270,6 +322,7 @@ export async function replayGate(options: ReplayGateOptions): Promise<ReplayGate
   const groups = requests.map((request, index) => options.groupOf?.(request, index) ?? `request-${index}`);
 
   // Baseline run, unless recorded responses were supplied.
+  if (!options.baselineResponses) await options.beforeRun?.("baseline");
   const baselineResponses: Array<unknown | undefined> = [];
   for (const [index, request] of requests.entries()) {
     if (options.baselineResponses) {
@@ -298,12 +351,17 @@ export async function replayGate(options: ReplayGateOptions): Promise<ReplayGate
   }> = [];
 
   for (const candidate of candidates) {
+    await options.beforeRun?.(candidate.label);
     const deltas: number[] = new Array(requests.length).fill(0);
     let graded = 0;
     let failed = 0;
     let reductionSkipped = 0;
-    const baselineUsage: ReplayUsage = { inputTokens: 0, outputTokens: 0 };
-    const candidateUsage: ReplayUsage = { inputTokens: 0, outputTokens: 0 };
+    const baselineUsage: ReplayUsage = {
+      inputTokens: 0, outputTokens: 0, cachedInputTokens: 0, cacheWriteInputTokens: 0,
+    };
+    const candidateUsage: ReplayUsage = {
+      inputTokens: 0, outputTokens: 0, cachedInputTokens: 0, cacheWriteInputTokens: 0,
+    };
 
     for (const [index, request] of requests.entries()) {
       const baselineResponse = baselineResponses[index];
@@ -326,8 +384,12 @@ export async function replayGate(options: ReplayGateOptions): Promise<ReplayGate
       if (baseline && candidateUsageRow) {
         baselineUsage.inputTokens += baseline.inputTokens;
         baselineUsage.outputTokens += baseline.outputTokens;
+        baselineUsage.cachedInputTokens += baseline.cachedInputTokens;
+        baselineUsage.cacheWriteInputTokens += baseline.cacheWriteInputTokens;
         candidateUsage.inputTokens += candidateUsageRow.inputTokens;
         candidateUsage.outputTokens += candidateUsageRow.outputTokens;
+        candidateUsage.cachedInputTokens += candidateUsageRow.cachedInputTokens;
+        candidateUsage.cacheWriteInputTokens += candidateUsageRow.cacheWriteInputTokens;
       }
       try {
         const score = await grade({ request, baselineResponse, candidateResponse });
@@ -369,6 +431,22 @@ export async function replayGate(options: ReplayGateOptions): Promise<ReplayGate
     const outputSaved = row.baselineUsage.outputTokens - row.candidateUsage.outputTokens;
     const baselineTokens = row.baselineUsage.inputTokens + row.baselineUsage.outputTokens;
 
+    // Priced with cache usage, so a lever that changes only the RATE a token is
+    // billed at shows up. Without this, prefix caching reads as worthless.
+    const priceUsageRow = (usage: ReplayUsage): number | undefined => {
+      if (!price) return undefined;
+      const cached = price.cachedInputPerMillion === undefined ? 0 : usage.cachedInputTokens;
+      const written = price.cacheWriteInputPerMillion === undefined ? 0 : usage.cacheWriteInputTokens;
+      return estimateTokenCost(usage.inputTokens, usage.outputTokens, price, {
+        cachedInputTokens: cached,
+        cacheWriteInputTokens: written,
+      });
+    };
+    const costBaseline = priceUsageRow(row.baselineUsage);
+    const costCandidate = priceUsageRow(row.candidateUsage);
+    const costFell = costBaseline !== undefined && costCandidate !== undefined &&
+      costCandidate < costBaseline;
+
     let approved = lower >= -maximumQualityDrop;
     let rejectionReason: string | undefined;
     if (row.graded === 0) {
@@ -377,17 +455,13 @@ export async function replayGate(options: ReplayGateOptions): Promise<ReplayGate
     } else if (!approved) {
       rejectionReason = `Quality lower bound ${(lower * 100).toFixed(2)} pp breaches the ` +
         `${(maximumQualityDrop * 100).toFixed(2)} pp limit.`;
-    } else if (inputSaved + outputSaved <= 0) {
+    } else if (inputSaved + outputSaved <= 0 && !costFell) {
+      // Tokens removed is the wrong test on its own. Prefix repair removes no
+      // tokens at all and saves money by moving them to the cached rate, so a
+      // token-only check would reject the largest lossless lever there is.
       approved = false;
-      rejectionReason = "Quality held but no tokens were saved, so there is nothing to enable.";
+      rejectionReason = "Quality held but neither tokens nor cost fell, so there is nothing to enable.";
     }
-
-    const costBaseline = price
-      ? estimateTokenCost(row.baselineUsage.inputTokens, row.baselineUsage.outputTokens, price)
-      : undefined;
-    const costCandidate = price
-      ? estimateTokenCost(row.candidateUsage.inputTokens, row.candidateUsage.outputTokens, price)
-      : undefined;
 
     return {
       label: row.candidate.label,
@@ -415,7 +489,9 @@ export async function replayGate(options: ReplayGateOptions): Promise<ReplayGate
   // The most aggressive candidate that held quality, measured by what it saved.
   const approved = results
     .filter((result) => result.approved)
-    .sort((left, right) => right.tokenSavingPercent - left.tokenSavingPercent)[0];
+    .sort((left, right) =>
+      (right.costSavingPercent ?? right.tokenSavingPercent) -
+      (left.costSavingPercent ?? left.tokenSavingPercent))[0];
 
   if (approved === undefined) {
     notes.push("No candidate held quality. The lossless levers remain available and need no gate.");

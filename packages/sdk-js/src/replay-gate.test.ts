@@ -44,11 +44,43 @@ const losslessOnly: ReplayCandidate = { label: "lossless", config: { toolSchemas
 describe("response readers", () => {
   it("reads usage from both provider shapes", () => {
     expect(replayUsage({ usage: { input_tokens: 10, output_tokens: 2 } }))
-      .toEqual({ inputTokens: 10, outputTokens: 2 });
+      .toEqual({ inputTokens: 10, outputTokens: 2, cachedInputTokens: 0, cacheWriteInputTokens: 0 });
     expect(replayUsage({ usage: { prompt_tokens: 7, completion_tokens: 3 } }))
-      .toEqual({ inputTokens: 7, outputTokens: 3 });
+      .toEqual({ inputTokens: 7, outputTokens: 3, cachedInputTokens: 0, cacheWriteInputTokens: 0 });
     expect(replayUsage({ usage: {} })).toBeUndefined();
     expect(replayUsage("nope")).toBeUndefined();
+  });
+
+  it("reads cached tokens, which the gate must price to see a caching saving", () => {
+    // OpenAI reports cached tokens INSIDE input_tokens.
+    expect(replayUsage({
+      usage: { input_tokens: 1_000, output_tokens: 20, input_tokens_details: { cached_tokens: 800 } },
+    })).toEqual({ inputTokens: 1_000, outputTokens: 20, cachedInputTokens: 800, cacheWriteInputTokens: 0 });
+
+    // Chat Completions uses a differently named details object.
+    expect(replayUsage({
+      usage: { prompt_tokens: 500, completion_tokens: 10, prompt_tokens_details: { cached_tokens: 100 } },
+    })).toEqual({ inputTokens: 500, outputTokens: 10, cachedInputTokens: 100, cacheWriteInputTokens: 0 });
+
+    // Anthropic reports cache reads and writes ALONGSIDE input_tokens, so the
+    // total is the sum; reporting only the fresh count would understate input.
+    expect(replayUsage({
+      usage: {
+        input_tokens: 900,
+        cache_read_input_tokens: 3_400,
+        cache_creation_input_tokens: 100,
+        output_tokens: 50,
+      },
+    })).toEqual({
+      inputTokens: 4_400, outputTokens: 50, cachedInputTokens: 3_400, cacheWriteInputTokens: 100,
+    });
+  });
+
+  it("never reports more cached tokens than total input", () => {
+    const usage = replayUsage({
+      usage: { input_tokens: 100, output_tokens: 5, input_tokens_details: { cached_tokens: 9_999 } },
+    })!;
+    expect(usage.cachedInputTokens).toBeLessThanOrEqual(usage.inputTokens);
   });
 
   it("collects assistant text from nested content", () => {
@@ -274,6 +306,48 @@ describe("replayGate", () => {
     });
     expect(result.candidates[0]!.failed).toBeGreaterThan(0);
     expect(result.candidates[0]!.graded).toBeGreaterThan(0);
+  });
+
+  it("credits a candidate that changed only the rate its tokens were billed at", async () => {
+    // Same token count both ways; the candidate simply arrives cached. Pricing
+    // input at the full rate would make prefix caching look worthless.
+    const call = async (request: unknown) => {
+      const cached = JSON.stringify(request).includes("$schema") ? 0 : 900;
+      return {
+        output: [{ type: "function_call", name: "lookup", arguments: '{"accountId":"1"}' }],
+        usage: {
+          input_tokens: 1_000,
+          output_tokens: 10,
+          input_tokens_details: { cached_tokens: cached },
+        },
+      };
+    };
+    const result = await replayGate({
+      requests: requests(20),
+      call,
+      candidates: [losslessOnly],
+      grade: toolSelectionGrader,
+      price: { inputPerMillion: 1.25, cachedInputPerMillion: 0.125, outputPerMillion: 10 },
+    });
+    const candidate = result.candidates[0]!;
+    expect(candidate.candidateUsage.cachedInputTokens).toBeGreaterThan(0);
+    // No tokens were removed, yet the bill fell.
+    expect(candidate.inputTokensSaved).toBe(0);
+    expect(candidate.costSavedUsd!).toBeGreaterThan(0);
+    expect(candidate.approved).toBe(true);
+  });
+
+  it("resets provider state before each run so the baseline cannot warm it", async () => {
+    const seen: string[] = [];
+    const call = async (request: unknown) => toolResponse("lookup", { accountId: "1" }, JSON.stringify(request).length);
+    await replayGate({
+      requests: requests(4),
+      call,
+      candidates: [losslessOnly, { label: "second", config: { toolSchemas: true } }],
+      grade: toolSelectionGrader,
+      beforeRun: (label) => { seen.push(label); },
+    });
+    expect(seen).toEqual(["baseline", "lossless", "second"]);
   });
 
   it("validates its inputs", async () => {
