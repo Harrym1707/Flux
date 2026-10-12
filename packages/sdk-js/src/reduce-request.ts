@@ -110,6 +110,22 @@ export type FluxTokenReductionConfig = {
    * the request does not already carry a service_tier.
    */
   executionTier?: "flex";
+  /**
+   * Anthropic prompt-cache TTL for traffic too sparse for the default cache.
+   * "1h" stamps `cache_control: {type: "ephemeral", ttl: "1h"}` on the last
+   * content block of the last message of an Anthropic-shaped request (a
+   * `claude-*` model with a `messages` array), so the cached prefix survives
+   * for an hour instead of five minutes. The economics are a trade, not a free
+   * discount: 1h cache writes bill at 2x the base input rate (5m: 1.25x) while
+   * reads stay at 0.1x, so it pays exactly when calls arrive MORE than ~5
+   * minutes but less than an hour apart - the regime where the 5m cache
+   * expires between calls and every call rewrites. Dense traffic should stay
+   * on the default. Applied only when the request carries no cache_control of
+   * its own: a caller who placed breakpoints has chosen their own caching and
+   * silently doubling their write rate would change their bill. Never set by
+   * default; like executionTier, it must be the caller's per-workload flag.
+   */
+  cacheTtl?: "1h";
   countTokens?: TokenCounter;
   onReduction?: (summary: FluxReductionSummary) => void;
 };
@@ -452,6 +468,50 @@ function reduceMessageContent(
 }
 
 /**
+ * Stamp the 1h prompt-cache TTL on an Anthropic-shaped request, copy-on-write.
+ *
+ * Returns true when a breakpoint was stamped. The request must look like an
+ * Anthropic Messages call (a claude model with a non-empty `messages` array)
+ * and must not already carry any cache_control anywhere: a caller who placed
+ * their own breakpoints has chosen their caching, and silently doubling their
+ * write rate would change their bill behind their back. The stamp lands on the
+ * last content block of the last message, so the entire prompt prefix above it
+ * is what gets the hour. A string body is lifted into the equivalent single
+ * text block, which the Anthropic API documents as the same request.
+ */
+function stampAnthropicCacheTtl(next: AnyObject): boolean {
+  const model = typeof next.model === "string" ? next.model.toLowerCase() : "";
+  if (!model.includes("claude")) return false;
+  if (!Array.isArray(next.messages) || next.messages.length === 0) return false;
+  const carriesCacheControl = (value: unknown): boolean =>
+    (JSON.stringify(value ?? null) ?? "").includes('"cache_control"');
+  if (carriesCacheControl(next.messages) || carriesCacheControl(next.system)) return false;
+
+  const cacheControl = { type: "ephemeral", ttl: "1h" };
+  const messages = [...next.messages];
+  const lastIndex = messages.length - 1;
+  const last = messages[lastIndex];
+  if (!isPlainObject(last)) return false;
+  const content = last.content;
+  if (typeof content === "string") {
+    messages[lastIndex] = {
+      ...last,
+      content: [{ type: "text", text: content, cache_control: cacheControl }],
+    };
+  } else if (Array.isArray(content) && content.length > 0) {
+    const blocks = [...content];
+    const lastBlock = blocks[blocks.length - 1];
+    if (!isPlainObject(lastBlock)) return false;
+    blocks[blocks.length - 1] = { ...lastBlock, cache_control: cacheControl };
+    messages[lastIndex] = { ...last, content: blocks };
+  } else {
+    return false;
+  }
+  next.messages = messages;
+  return true;
+}
+
+/**
  * Apply reduction to one request.
  *
  * Returns the original request and a `skipped` summary if anything goes wrong,
@@ -595,6 +655,25 @@ export function reduceRequest(
           "same answer; latency may rise and 429s fall back to standard, so this applies only to workloads " +
           "the caller flagged latency-tolerant.",
       });
+    }
+
+    // Cache TTL, only on Anthropic-shaped requests that carry no cache_control
+    // of their own. Like the execution tier this changes a billing RATE, not a
+    // prompt: the same bytes are cached for an hour at a 2x write premium.
+    if (config.cacheTtl === "1h") {
+      const stamped = stampAnthropicCacheTtl(next);
+      if (stamped) {
+        changes.push({
+          lever: "cache-ttl-1h",
+          lossless: true,
+          // The saving is a rate change (fewer cold rewrites), not tokens removed.
+          estimatedTokensSaved: 0,
+          detail: "Stamped cache_control {type: 'ephemeral', ttl: '1h'} on the last content block, so the " +
+            "cached prefix outlives sparse traffic. Writes bill at 2x base input (5m: 1.25x), reads at 0.1x: " +
+            "this pays only when calls arrive more than ~5 minutes apart, and the caller must flag that " +
+            "workload - it is never set by default.",
+        });
+      }
     }
 
     // Output budget, only where the caller has not set one themselves.

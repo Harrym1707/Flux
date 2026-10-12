@@ -1,5 +1,6 @@
 import { reduceRequest, type FluxTokenReductionConfig } from "../packages/sdk-js/src/index.js";
 import {
+  ANTHROPIC_CACHE_1H,
   ANTHROPIC_CACHE_5M,
   OPENAI_CACHE,
   approximateTokenCount,
@@ -9,6 +10,19 @@ import {
   type CachePolicy,
   type SimulatedRequest,
 } from "../packages/core/src/index.js";
+import {
+  AT,
+  DOMAINS,
+  PREAMBLE,
+  SEED_OFFSET,
+  TASKS,
+  TURNS_PER_TASK,
+  answer,
+  buildRequest,
+  tools,
+  wirePrompt,
+  type AnyObject,
+} from "./agent-fixture.js";
 
 /**
  * A/B test of the whole product on a simulated multi-turn agent.
@@ -26,141 +40,11 @@ import {
  * that fails more often has not saved anything.
  */
 
-const AT = "2026-10-08";
-const DOMAINS = ["refunds", "chargebacks", "payouts", "disputes", "settlements"] as const;
-const TASKS = 40;
-const TURNS_PER_TASK = 5;
-
-const PREAMBLE = [
-  "You are a senior support agent for a payments company.",
-  ...Array.from({ length: 60 }, (_, index) =>
-    `Rule ${index}: confirm the account identifier before quoting a figure, never speculate about unapproved ` +
-    "refunds, and escalate chargebacks or legal threats to a human with the reason recorded."),
-].join("\n\n");
-
-function tools(): unknown[] {
-  return DOMAINS.map((domain, index) => ({
-    type: "function",
-    function: {
-      name: `lookup_${domain}`,
-      description:
-        `Look up records for a customer account in subsystem ${index}. ` +
-        `Use this tool for questions about ${domain}. ` +
-        "Returns a paginated list ordered by creation time descending. Do not call this more than once per " +
-        "turn; prefer narrowing the query with filters over paging through results. If the account is closed " +
-        "the call returns an empty list rather than an error.",
-      parameters: {
-        $schema: "https://json-schema.org/draft/2020-12/schema",
-        type: "object",
-        properties: { accountId: { type: "string", title: "accountId", description: "Account identifier." } },
-        required: ["accountId"],
-      },
-    },
-  }));
-}
-
-/**
- * A realistically sized tool result (~2.5KB), deterministic per task and turn.
- *
- * Day 1 measured compaction at 0.7-2.9% and diagnosed why: the old 140-char
- * constant gave it nothing to compact, while real agent tool results run to
- * kilobytes. The shape mirrors reality against the digest rules honestly: a
- * headline carrying the reference later turns depend on, a mostly-verbose body
- * that a digest may collapse, and an occasional error line that must survive.
- * This makes the fixture HARDER, not softer: answer() now fails any task whose
- * latest result lost its reference.
- */
-function toolResult(taskIndex: number, turn: number): string {
-  const ref = `R-${taskIndex}-${turn}`;
-  const lines = [
-    `Lookup complete for account ${1000 + taskIndex}: 3 records found; latest reference ${ref} ` +
-    "with a pending adjustment awaiting supervisor approval.",
-  ];
-  for (let row = 0; row < 18; row += 1) {
-    lines.push(
-      `Record ${row} shows a settlement entry of ${(row * 137 + taskIndex) % 9000} pence captured on day ` +
-      `${(row + turn) % 28 + 1}, routed through the ${DOMAINS[(row + taskIndex) % DOMAINS.length]} subsystem, ` +
-      "with reconciliation state nominal, no customer notification sent, retention window standard, and " +
-      "two internal annotations noting routine supervisor review cadence for entries of this category.",
-    );
-  }
-  if (turn % 3 === 2) {
-    lines.push(`One earlier retry failed with a transient timeout before record ${turn} was captured cleanly.`);
-  }
-  return lines.join(" ");
-}
-
-type AnyObject = Record<string, unknown>;
-
-/** One turn of one task, as the caller would build it. */
-function buildRequest(taskIndex: number, turn: number, clockHour: number): AnyObject {
-  const domain = DOMAINS[taskIndex % DOMAINS.length]!;
-  const history: AnyObject[] = [];
-  for (let past = 0; past < turn; past += 1) {
-    history.push({ role: "user", content: `Step ${past} for account ${1000 + taskIndex}.` });
-    history.push({ role: "assistant", content: toolResult(taskIndex, past) });
-  }
-  return {
-    model: "gpt-5",
-    // The clock at the top is what stops the preamble from caching.
-    instructions: `Current time: ${AT}T${String(clockHour).padStart(2, "0")}:14:22Z\n${PREAMBLE}`,
-    tools: tools(),
-    input: [
-      ...history,
-      { role: "user", content: `A customer is asking about ${domain} on account ${1000 + taskIndex}.` },
-    ],
-    metadata: { domain, taskIndex, turn },
-  };
-}
-
-/** The prompt text the provider sees, in wire order, for cache matching. */
-function wirePrompt(request: AnyObject): string {
-  return `${String(request.instructions ?? "")}\n${JSON.stringify(request.tools ?? [])}\n` +
-    JSON.stringify(request.input ?? []);
-}
-
-/**
- * The simulated model. Picks the tool whose description still says it covers the
- * asked-about domain, and otherwise guesses, which is what a real model does
- * once the catalogue stops discriminating.
- */
-function answer(request: AnyObject): {
-  correct: boolean;
-  outputTokens: number;
-  /** How much of the answer the model would naturally have given survived. */
-  completeness: number;
-} {
-  const domain = String((request.metadata as AnyObject).domain);
-  const catalogue = (request.tools ?? []) as AnyObject[];
-  const matching = catalogue.find((tool) => {
-    const fn = tool.function as AnyObject | undefined;
-    return typeof fn?.description === "string" && fn.description.includes(`questions about ${domain}`);
-  });
-  const chosen = matching ?? catalogue[0];
-  const name = ((chosen?.function as AnyObject | undefined)?.name ?? "") as string;
-  const turn = Number((request.metadata as AnyObject).turn);
-  const taskIndex = Number((request.metadata as AnyObject).taskIndex);
-  // Recency dependency: the model needs the LATEST tool result's reference to
-  // act correctly, exactly as a real model needs its most recent observation.
-  // A reducer that trims or digests the most recent turn now FAILS the task,
-  // so this tightens the quality bar on every reduction lever.
-  const latestReferenceIntact = turn === 0 ||
-    JSON.stringify(request.input ?? []).includes(`latest reference R-${taskIndex}-${turn - 1}`);
-  // A long tail, so an output cap has something real to trim.
-  const natural = taskIndex % 20 === 0 ? 4_000 : taskIndex % 7 === 0 ? 1_800 : 320 + (turn % 5) * 40;
-  const cap = typeof request.max_output_tokens === "number" ? request.max_output_tokens : undefined;
-  const outputTokens = cap === undefined ? natural : Math.min(cap, natural);
-  return {
-    correct: name === `lookup_${domain}` && latestReferenceIntact,
-    outputTokens,
-    // An answer cut at 1,000 of 1,800 tokens kept 56% of what was coming. The
-    // same curve the truncation-aware grader uses: below half it is useless,
-    // above half it is worth its coverage less a small penalty for being cut.
-    completeness: outputTokens >= natural
-      ? 1
-      : outputTokens / natural < 0.5 ? 0 : Math.max(0, outputTokens / natural - 0.05),
-  };
-}
+// The task set, tools, simulated model and quality bar live in
+// evals/agent-fixture.ts, shared verbatim with the replay-gate script so the
+// gate approves exactly the behaviour this harness measures. FLUX_AB_TASKS and
+// FLUX_AB_SEED are read there; with both unset the fixture is byte-identical
+// to the original inline version.
 
 type Arm = {
   label: string;
@@ -181,6 +65,8 @@ type ArmResult = {
   costPerSuccessfulTask: number;
   inputTokens: number;
   cachedInputTokens: number;
+  /** Tokens written into the provider cache, billed at the policy's write multiplier. */
+  writtenInputTokens: number;
   hitRate: number;
   missReasons: Record<string, number>;
 };
@@ -235,6 +121,7 @@ function runArm(arm: Arm, policy: CachePolicy, price: Parameters<typeof simulate
     costPerSuccessfulTask: successfulTasks === 0 ? Number.POSITIVE_INFINITY : result.totalCostUsd / successfulTasks,
     inputTokens: result.totalInputTokens,
     cachedInputTokens: result.cachedInputTokens,
+    writtenInputTokens: result.calls.reduce((sum, call) => sum + call.writtenInputTokens, 0),
     hitRate: result.hitRate,
     missReasons: result.missReasons,
   };
@@ -465,3 +352,83 @@ console.log(
   "has not saved anything. Arm F is the control for that, and the 600s run is the control for\n" +
   "claiming a caching saving on traffic too sparse to keep a cache warm.",
 );
+
+// ---------------------------------------------------------------------------
+// Appended 1h-TTL sections (round 2). Everything above prints byte-identically
+// to the c7b03d4 run; the sections below only ADD rows.
+// ---------------------------------------------------------------------------
+
+// The sparse block on Anthropic pricing, both TTLs. 5m at 600s spacing is the
+// COLD CONTROL: every task outlives the TTL, so caching barely pays and FLUX's
+// history levers have nothing cached to nibble. 1h at the same spacing is the
+// LEVER: the cache survives between tasks at the cost of a 2x write premium
+// (vs 1.25x for 5m). Both tables keep the same-policy arm-A baseline, so each
+// "vs A" column is FLUX's contribution under that policy, not the TTL's.
+report(ANTHROPIC_CACHE_5M, 600);
+report(ANTHROPIC_CACHE_1H, 600);
+
+/**
+ * TTL as a FLUX lever, measured.
+ *
+ * The claim this block prices: a customer running the no-FLUX agent on the
+ * default 5m cache at 600s task spacing (arm A @5m, what they pay today)
+ * switches on FLUX, which both applies arm J's reduction stack AND stamps the
+ * 1h cache TTL on their requests. The comparison is J@1h vs A@5m, with the
+ * decomposition printed so the TTL's share and the reduction stack's share are
+ * visible separately, and the 2x write premium shown explicitly rather than
+ * buried in the total.
+ *
+ * MEASURED here means measured on this simulated harness via the provider-rule
+ * cache simulator. The request-path side (the cacheTtl knob in reduceRequest,
+ * which stamps cache_control {ttl: '1h'} on Anthropic-shaped requests) exists
+ * and is unit-tested, but this fixture is OpenAI-shaped, so no production
+ * saving is claimed until the stamped path is gated on real Anthropic traffic.
+ */
+function reportTtlLever(): void {
+  const spacing = 600;
+  const armA = ARMS[0]!;
+  const armJ = ARMS[9]!;
+  const a5m = runArm(armA, ANTHROPIC_CACHE_5M, price.price, spacing);
+  const a1h = runArm(armA, ANTHROPIC_CACHE_1H, price.price, spacing);
+  const j5m = runArm(armJ, ANTHROPIC_CACHE_5M, price.price, spacing);
+  const j1h = runArm(armJ, ANTHROPIC_CACHE_1H, price.price, spacing);
+  const versus = (row: ArmResult) => `${(((a5m.costUsd - row.costUsd) / a5m.costUsd) * 100).toFixed(1)}%`;
+
+  console.log(`\n=== TTL as a FLUX lever: J@1h vs A@5m, tasks ${spacing}s apart, Anthropic write premiums ===`);
+  console.log(`baseline  A @5m TTL (customer today)   $${a5m.costUsd.toFixed(3)}   vs A@5m ${versus(a5m).padStart(6)}   clean ${a5m.fullyGoodTasks}/${TASKS}`);
+  console.log(`decompose A @1h TTL (TTL alone)        $${a1h.costUsd.toFixed(3)}   vs A@5m ${versus(a1h).padStart(6)}   clean ${a1h.fullyGoodTasks}/${TASKS}`);
+  console.log(`decompose J @5m TTL (stack alone)      $${j5m.costUsd.toFixed(3)}   vs A@5m ${versus(j5m).padStart(6)}   clean ${j5m.fullyGoodTasks}/${TASKS}`);
+  console.log(`lever     J @1h TTL (stack + TTL)      $${j1h.costUsd.toFixed(3)}   vs A@5m ${versus(j1h).padStart(6)}   clean ${j1h.fullyGoodTasks}/${TASKS}`);
+
+  // The write premium, explicit. Writes are billed at writeMultiplier x the
+  // base input rate: 1.25x on the 5m cache, 2x on the 1h cache. The premium
+  // PAID is part of the J@1h total above; this line shows how much of that
+  // total is premium, so the lever's cost is not hidden inside its saving.
+  const writeCostUsd = (written: number, multiplier: number) =>
+    (written / 1_000_000) * price.price.inputPerMillion * multiplier;
+  const j1hWrites = writeCostUsd(j1h.writtenInputTokens, ANTHROPIC_CACHE_1H.writeMultiplier);
+  const j1hWritesAt5mRate = writeCostUsd(j1h.writtenInputTokens, ANTHROPIC_CACHE_5M.writeMultiplier);
+  const j5mWrites = writeCostUsd(j5m.writtenInputTokens, ANTHROPIC_CACHE_5M.writeMultiplier);
+  console.log(
+    `write premium: J@1h wrote ${j1h.writtenInputTokens.toLocaleString("en-US")} tokens at ` +
+    `${ANTHROPIC_CACHE_1H.writeMultiplier}x base input = $${j1hWrites.toFixed(3)} ` +
+    `(the same tokens at the 5m ${ANTHROPIC_CACHE_5M.writeMultiplier}x rate: $${j1hWritesAt5mRate.toFixed(3)}; ` +
+    `J@5m actually wrote ${j5m.writtenInputTokens.toLocaleString("en-US")} tokens = $${j5mWrites.toFixed(3)}, ` +
+    "because its cache keeps expiring and rewriting).",
+  );
+  console.log(
+    "caveat: TTL figures are MEASURED on this harness via the provider-rule cache simulator (the\n" +
+    "1h policy applied directly). reduceRequest now has the cacheTtl knob that stamps cache_control\n" +
+    "{type: 'ephemeral', ttl: '1h'} on Anthropic-shaped requests, but this fixture is OpenAI-shaped,\n" +
+    "so the knob itself is not what these rows exercised: an end-to-end gated measurement of the\n" +
+    "stamped request path on real Anthropic traffic is still follow-up before any production claim.",
+  );
+}
+reportTtlLever();
+
+if (SEED_OFFSET !== 0 || TASKS !== 40) {
+  console.log(
+    `\nvariant run: FLUX_AB_TASKS=${TASKS} FLUX_AB_SEED=${SEED_OFFSET} ` +
+    "(domain assignment rotated by the seed; natural-output-length formula immutable).",
+  );
+}

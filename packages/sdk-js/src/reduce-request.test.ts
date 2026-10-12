@@ -380,3 +380,65 @@ describe("withFlux reduction", () => {
     expect(response.id).toBe("r1");
   });
 });
+
+describe("cacheTtl 1h stamping", () => {
+  const anthropicRequest = (content: unknown = "Summarise the account history."): Record<string, unknown> => ({
+    model: "claude-sonnet-4-5",
+    system: "You are a support agent.",
+    messages: [
+      { role: "user", content: "Earlier turn." },
+      { role: "user", content },
+    ],
+  });
+
+  it("stamps cache_control {ttl: '1h'} on the last block of the last message", () => {
+    const { request: reduced, summary } = reduceRequest(anthropicRequest(), { cacheTtl: "1h" });
+    const messages = (reduced as Record<string, unknown>).messages as Array<Record<string, unknown>>;
+    const last = messages[messages.length - 1]!;
+    const blocks = last.content as Array<Record<string, unknown>>;
+    expect(blocks[blocks.length - 1]!.cache_control).toEqual({ type: "ephemeral", ttl: "1h" });
+    // A string body is lifted into the equivalent single text block, verbatim.
+    expect(blocks[blocks.length - 1]!.text).toBe("Summarise the account history.");
+    expect(summary.changes.map((change) => change.lever)).toContain("cache-ttl-1h");
+    // A rate change, not a prompt change: nothing was removed.
+    expect(summary.changes.find((change) => change.lever === "cache-ttl-1h")!.estimatedTokensSaved).toBe(0);
+  });
+
+  it("stamps an existing block array without disturbing the other blocks", () => {
+    const { request: reduced } = reduceRequest(
+      anthropicRequest([{ type: "text", text: "First." }, { type: "text", text: "Second." }]),
+      { cacheTtl: "1h" },
+    );
+    const messages = (reduced as Record<string, unknown>).messages as Array<Record<string, unknown>>;
+    const blocks = messages[messages.length - 1]!.content as Array<Record<string, unknown>>;
+    expect(blocks[0]).toEqual({ type: "text", text: "First." });
+    expect(blocks[1]).toEqual({ type: "text", text: "Second.", cache_control: { type: "ephemeral", ttl: "1h" } });
+  });
+
+  it("leaves non-Anthropic requests untouched", () => {
+    const request = { model: "gpt-5", messages: [{ role: "user", content: "Hello." }] };
+    const { request: reduced, summary } = reduceRequest(request, { cacheTtl: "1h" });
+    expect(reduced).toBe(request);
+    expect(summary.changes).toHaveLength(0);
+  });
+
+  it("defers to a caller who already placed their own cache_control", () => {
+    const request = {
+      model: "claude-sonnet-4-5",
+      messages: [
+        { role: "user", content: [{ type: "text", text: "Pinned.", cache_control: { type: "ephemeral" } }] },
+        { role: "user", content: "Next question." },
+      ],
+    };
+    const { request: reduced, summary } = reduceRequest(request, { cacheTtl: "1h" });
+    expect(reduced).toBe(request);
+    expect(summary.changes).toHaveLength(0);
+  });
+
+  it("does not mutate the caller's original messages", () => {
+    const original = anthropicRequest();
+    const snapshot = JSON.stringify(original);
+    reduceRequest(original, { cacheTtl: "1h" });
+    expect(JSON.stringify(original)).toBe(snapshot);
+  });
+});
