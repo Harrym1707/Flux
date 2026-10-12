@@ -87,6 +87,16 @@ export type FluxTokenReductionConfig = {
   historyCompaction?: boolean | FluxHistoryCompactionConfig;
   /** Set max_output_tokens when the caller has not. Output is the dearer half. */
   maxOutputTokens?: number;
+  /**
+   * Execution tier for requests the caller has flagged latency-tolerant.
+   * "flex" sets OpenAI's service_tier on the request (batch-level pricing, 50%
+   * off input and output, on a synchronous API with a possible 429 fallback to
+   * standard). The answer is unchanged - same model, same tokens - so this is
+   * deterministic for cost; only latency changes, which is why it must be the
+   * CALLER's flag per workload and is never set by default. Applied only when
+   * the request does not already carry a service_tier.
+   */
+  executionTier?: "flex";
   countTokens?: TokenCounter;
   onReduction?: (summary: FluxReductionSummary) => void;
 };
@@ -417,6 +427,20 @@ export function reduceRequest(
       });
     } else if (typeof next.input === "string") {
       next.input = reduceText(next.input as string, config, countTokens, changes, "input");
+    }
+
+    // Execution tier, only where the caller has not chosen one themselves.
+    if (config.executionTier === "flex" && next.service_tier === undefined) {
+      next.service_tier = "flex";
+      changes.push({
+        lever: "execution-tier-flex",
+        lossless: true,
+        // The saving is a rate change on the whole request, not tokens removed.
+        estimatedTokensSaved: 0,
+        detail: "Set service_tier to flex: batch-level pricing (50% off) on a synchronous API. Same model, " +
+          "same answer; latency may rise and 429s fall back to standard, so this applies only to workloads " +
+          "the caller flagged latency-tolerant.",
+      });
     }
 
     // Output budget, only where the caller has not set one themselves.
