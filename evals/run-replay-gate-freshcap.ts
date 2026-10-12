@@ -19,6 +19,7 @@ import {
   TASKS,
   TURNS_PER_TASK,
   answer,
+  buildAnthropicRequest,
   buildRequest,
   wirePrompt,
   type AnyObject,
@@ -74,6 +75,18 @@ export function buildFixtureRequests(): AnyObject[] {
   return requests;
 }
 
+/** The same fixture in Anthropic Messages shape, for the cacheTtl-stamped candidate. */
+export function buildAnthropicFixtureRequests(): AnyObject[] {
+  const requests: AnyObject[] = [];
+  for (let taskIndex = 0; taskIndex < TASKS; taskIndex += 1) {
+    const clockHour = 8 + (taskIndex % 10);
+    for (let turn = 0; turn < TURNS_PER_TASK; turn += 1) {
+      requests.push(buildAnthropicRequest(taskIndex, turn, clockHour));
+    }
+  }
+  return requests;
+}
+
 /**
  * A simulated provider around the shared fixture.
  *
@@ -114,7 +127,9 @@ export function createSimulatedProvider(): {
     // destroyed it embeds a different (or missing) string, the tool-call
     // arguments stop matching, and the agent grader hard-fails the request -
     // the same requests answer() fails.
-    const references = JSON.stringify(row.input ?? []).match(/latest reference R-\d+-\d+/g);
+    // `input ?? messages` covers the Anthropic shape; OpenAI-shaped requests
+    // always carry `input`, so this is a no-op for them.
+    const references = JSON.stringify(row.input ?? row.messages ?? []).match(/latest reference R-\d+-\d+/g);
     const latestReference = turn === 0 ? "first-turn" : references?.at(-1) ?? "REFERENCE-LOST";
 
     // Tool choice delegated to answer(): a correct outcome reproduces the
@@ -192,6 +207,28 @@ export const FULL_ARM_J: ReplayCandidate = {
     freshToolResultCap: true,
     historyCompaction: true,
     maxOutputTokens: 2_000,
+  },
+};
+
+/**
+ * J + cacheTtl, gated on the ANTHROPIC-shaped fixture, which is the only shape
+ * the stamp lands on. The output cap is left off - full J's rejection above is
+ * the gate's teeth and stays on the record - so this candidate is the
+ * shippable J-minus-cap stack plus the 1h TTL stamp. Expected verdict:
+ * approved at exactly zero quality delta. The gate prices tokens at one fixed
+ * cache policy, so the stamp slightly INCREASES this candidate's token count
+ * (a ~10-token suffix per request); the TTL's rate benefit is measured in the
+ * A/B harness's stamped arm L block, never claimed here.
+ */
+export const J_MINUS_CAP_PLUS_CACHE_TTL: ReplayCandidate = {
+  label: "J-minus-cap + cacheTtl 1h (Anthropic-shaped)",
+  config: {
+    toolSchemas: { descriptions: "truncate", maximumDescriptionTokens: 40 },
+    duplicateContext: true,
+    repairCachePrefix: true,
+    freshToolResultCap: true,
+    historyCompaction: true,
+    cacheTtl: "1h",
   },
 };
 
@@ -276,7 +313,9 @@ async function main(): Promise<void> {
   // Hard expectations, so a regression in the gate or the lever fails loudly.
   const freshCap = result.candidates.find((candidate) => candidate.label === FRESH_CAP_ISOLATION.label)!;
   if (!freshCap.approved) throw new Error("Expected the isolated fresh cap to be approved.");
-  if (freshCap.meanQualityDelta !== 0 || freshCap.lower95QualityDelta !== 0) {
+  // The mean must be EXACTLY zero; the bootstrap lower bound is a float
+  // aggregate of exact zeros, so it gets an epsilon rather than ===.
+  if (freshCap.meanQualityDelta !== 0 || !(Math.abs(freshCap.lower95QualityDelta) < 1e-12)) {
     throw new Error("Expected the isolated fresh cap to hold quality at exactly zero delta.");
   }
   if (freshCap.inputTokensSaved <= 0) throw new Error("Expected the isolated fresh cap to save input tokens.");
@@ -286,6 +325,51 @@ async function main(): Promise<void> {
       "check that the budget or grader was not loosened.");
   }
   console.log("\nexpectations held: fresh cap approved at zero delta with tokens saved; full J rejected at 2%.");
+
+  // Second gate: J-minus-cap + cacheTtl on the ANTHROPIC-shaped fixture, the
+  // shape the stamp actually lands on, against that shape's own unreduced
+  // baseline. Run separately so the stamped candidate cannot borrow or spoil
+  // the OpenAI-shaped baseline above.
+  const anthropicRequests = buildAnthropicFixtureRequests();
+  const ttlSample = reduceRequest(anthropicRequests[anthropicRequests.length - 1]!, J_MINUS_CAP_PLUS_CACHE_TTL.config);
+  const ttlChange = ttlSample.summary.changes.find((change) => change.lever === "cache-ttl-1h");
+  if (!ttlChange) throw new Error("cacheTtl produced no cache-ttl-1h change record on the Anthropic-shaped sample.");
+  console.log(`\nchange record under gate: lever '${ttlChange.lever}' (lossless: ${ttlChange.lossless})`);
+  console.log(`  ${ttlChange.detail}`);
+
+  const anthropicResult = await runFreshCapGate(anthropicRequests, [J_MINUS_CAP_PLUS_CACHE_TTL]);
+  const stampedCandidate = anthropicResult.candidates
+    .find((candidate) => candidate.label === J_MINUS_CAP_PLUS_CACHE_TTL.label)!;
+  console.log(`\n--- ${stampedCandidate.label} (Anthropic-shaped baseline) ---`);
+  console.log(`  graded ${stampedCandidate.graded}, failed ${stampedCandidate.failed}`);
+  console.log(
+    `  mean quality delta ${(stampedCandidate.meanQualityDelta * 100).toFixed(2)} pp, ` +
+    `lower95 ${(stampedCandidate.lower95QualityDelta * 100).toFixed(2)} pp`,
+  );
+  console.log(
+    `  input tokens: baseline ${stampedCandidate.baselineUsage.inputTokens.toLocaleString("en-US")} -> candidate ` +
+    `${stampedCandidate.candidateUsage.inputTokens.toLocaleString("en-US")}; saved ` +
+    `${stampedCandidate.inputTokensSaved.toLocaleString("en-US")} input ` +
+    `(${stampedCandidate.tokenSavingPercent.toFixed(1)}% of tokens; the ~10-token/request stamp suffix is ` +
+    "included, so this is net of the stamp's own cost)",
+  );
+  console.log(
+    `  verdict: ${stampedCandidate.approved ? "APPROVED" : "REJECTED"}` +
+    (stampedCandidate.rejectionReason ? ` - ${stampedCandidate.rejectionReason}` : ""),
+  );
+  if (!stampedCandidate.approved) {
+    throw new Error("Expected J-minus-cap + cacheTtl to be approved on the Anthropic-shaped fixture.");
+  }
+  if (stampedCandidate.meanQualityDelta !== 0 || !(Math.abs(stampedCandidate.lower95QualityDelta) < 1e-12)) {
+    throw new Error("Expected the stamped J-minus-cap stack to hold quality at exactly zero delta.");
+  }
+  if (stampedCandidate.inputTokensSaved <= 0) {
+    throw new Error("Expected the stamped J-minus-cap stack to save input tokens net of the stamp suffix.");
+  }
+  console.log(
+    "\nexpectations held: J-minus-cap + cacheTtl approved at zero delta on the Anthropic shape; the TTL's\n" +
+    "rate benefit is measured in the A/B harness (stamped arm L), not claimed from this gate.",
+  );
 }
 
 const isDirectRun = typeof process.argv[1] === "string" &&

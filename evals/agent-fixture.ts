@@ -128,10 +128,35 @@ export function buildRequest(taskIndex: number, turn: number, clockHour: number)
   };
 }
 
-/** The prompt text the provider sees, in wire order, for cache matching. */
+/**
+ * The same task in Anthropic Messages shape: a byte-verbatim remap of
+ * buildRequest. `instructions` becomes `system`, `input` becomes `messages`,
+ * the model is a claude id so the production cacheTtl stamp recognises the
+ * shape; tools and metadata are passed through untouched. Every string the
+ * simulated model grades is the identical byte sequence, so answer() must
+ * reach the same verdict on either shape.
+ */
+export function buildAnthropicRequest(taskIndex: number, turn: number, clockHour: number): AnyObject {
+  const openaiShaped = buildRequest(taskIndex, turn, clockHour);
+  return {
+    model: "claude-sonnet-4-5",
+    system: openaiShaped.instructions,
+    tools: openaiShaped.tools,
+    messages: openaiShaped.input,
+    metadata: openaiShaped.metadata,
+  };
+}
+
+/**
+ * The prompt text the provider sees, in wire order, for cache matching.
+ *
+ * Widened for the Anthropic shape: `system` stands where `instructions` does
+ * and `messages` where `input` does, each in the same wire position, so an
+ * OpenAI-shaped request produces byte-identical output to before the widening.
+ */
 export function wirePrompt(request: AnyObject): string {
-  return `${String(request.instructions ?? "")}\n${JSON.stringify(request.tools ?? [])}\n` +
-    JSON.stringify(request.input ?? []);
+  return `${String(request.system ?? request.instructions ?? "")}\n${JSON.stringify(request.tools ?? [])}\n` +
+    JSON.stringify(request.input ?? request.messages ?? []);
 }
 
 /**
@@ -159,8 +184,11 @@ export function answer(request: AnyObject): {
   // act correctly, exactly as a real model needs its most recent observation.
   // A reducer that trims or digests the most recent turn now FAILS the task,
   // so this tightens the quality bar on every reduction lever.
+  // `input ?? messages` widens the check to the Anthropic shape; on an
+  // OpenAI-shaped request `input` is always present, so this is a byte no-op
+  // there. The quality logic itself is unchanged: same string, same verdict.
   const latestReferenceIntact = turn === 0 ||
-    JSON.stringify(request.input ?? []).includes(`latest reference R-${taskIndex}-${turn - 1}`);
+    JSON.stringify(request.input ?? request.messages ?? []).includes(`latest reference R-${taskIndex}-${turn - 1}`);
   // A long tail, so an output cap has something real to trim.
   const natural = taskIndex % 20 === 0 ? 4_000 : taskIndex % 7 === 0 ? 1_800 : 320 + (turn % 5) * 40;
   const cap = typeof request.max_output_tokens === "number" ? request.max_output_tokens : undefined;

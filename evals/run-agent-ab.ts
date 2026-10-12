@@ -18,6 +18,7 @@ import {
   TASKS,
   TURNS_PER_TASK,
   answer,
+  buildAnthropicRequest,
   buildRequest,
   tools,
   wirePrompt,
@@ -417,11 +418,10 @@ function reportTtlLever(): void {
     "because its cache keeps expiring and rewriting).",
   );
   console.log(
-    "caveat: TTL figures are MEASURED on this harness via the provider-rule cache simulator (the\n" +
-    "1h policy applied directly). reduceRequest now has the cacheTtl knob that stamps cache_control\n" +
-    "{type: 'ephemeral', ttl: '1h'} on Anthropic-shaped requests, but this fixture is OpenAI-shaped,\n" +
-    "so the knob itself is not what these rows exercised: an end-to-end gated measurement of the\n" +
-    "stamped request path on real Anthropic traffic is still follow-up before any production claim.",
+    "caveat: TTL figures are MEASURED on this harness via the provider-rule cache simulator. The\n" +
+    "cacheTtl knob is exercised end-to-end on Anthropic-shaped requests in the stamped arm L block\n" +
+    "below (the stamp observed on every reduced request before the 1h policy is selected);\n" +
+    "real-traffic validation on a production Anthropic workload is still open.",
   );
 }
 reportTtlLever();
@@ -432,3 +432,230 @@ if (SEED_OFFSET !== 0 || TASKS !== 40) {
     "(domain assignment rotated by the seed; natural-output-length formula immutable).",
   );
 }
+
+// ---------------------------------------------------------------------------
+// Appended arm L (round 3): the 1h TTL driven through the SHIPPED cacheTtl
+// knob, end-to-end on Anthropic-shaped requests.
+//
+// Rounds 1-2 measured the 1h TTL by applying the simulator's 1h policy to
+// OpenAI-shaped traffic directly, leaving the printed caveat that the
+// production knob (reduceRequest's cacheTtl, which stamps cache_control
+// {type:'ephemeral', ttl:'1h'} on the last content block) was unit-tested but
+// never the thing measured. This block closes that gap inside the simulator:
+//
+//   - the fixture is rebuilt byte-verbatim in Anthropic Messages shape
+//     (buildAnthropicRequest: instructions->system, input->messages);
+//   - arm L is EXACTLY arm J's config plus cacheTtl:'1h', J pinned by label;
+//   - the simulator's 1h policy is selected ONLY for a run in which every
+//     reduced request is OBSERVED to carry the stamp (change record AND the
+//     cache_control bytes); the unstamped baseline stays on the 5m policy;
+//   - the stamp must be suffix-only: the wire prompt of the stamped reduction
+//     must be byte-identical to the unstamped reduction up to the final
+//     content block, or the stamp itself would break the cached prefix.
+//
+// Remaining caveat: knob exercised end-to-end on Anthropic-shaped requests,
+// real-traffic validation still open.
+// ---------------------------------------------------------------------------
+
+const ARM_J_LABEL = "J. H + fresh result cap";
+const ARM_J_BY_LABEL = ARMS.find((arm) => arm.label === ARM_J_LABEL);
+if (ARM_J_BY_LABEL?.config === undefined) {
+  throw new Error(`Arm '${ARM_J_LABEL}' not found by label; arm L must stack on exactly J's config.`);
+}
+const ARM_L: Arm = {
+  label: "L. J + cacheTtl 1h (stamped)",
+  config: { ...ARM_J_BY_LABEL.config, cacheTtl: "1h" },
+};
+
+const STAMP_BYTES = '"cache_control":{"type":"ephemeral","ttl":"1h"}';
+
+type AnthropicShapedRun = {
+  label: string;
+  stampedCalls: number;
+  totalCalls: number;
+  policyName: string;
+  costUsd: number;
+  hitRate: number;
+  successfulTasks: number;
+  fullyGoodTasks: number;
+  writtenInputTokens: number;
+};
+
+/**
+ * Run one arm on the Anthropic-shaped fixture.
+ *
+ * Identical task loop, spacing and quality accounting to runArm; the only
+ * differences are the request shape and that the cache policy is DERIVED from
+ * the observed stamps rather than passed in.
+ */
+function runAnthropicShapedArm(arm: Arm, spacing: number): AnthropicShapedRun {
+  const simulated: SimulatedRequest[] = [];
+  let stampedCalls = 0;
+  let suffixOnlyChecks = 0;
+  let successfulTasks = 0;
+  let fullyGoodTasks = 0;
+
+  // The same config minus the TTL, for the suffix-only byte control below.
+  let configWithoutTtl: FluxTokenReductionConfig | undefined;
+  if (arm.config !== undefined) {
+    const { cacheTtl: _ignored, ...rest } = arm.config;
+    configWithoutTtl = rest;
+  }
+
+  for (let taskIndex = 0; taskIndex < TASKS; taskIndex += 1) {
+    const startedAt = taskIndex * spacing;
+    const clockHour = 8 + (taskIndex % 10);
+    let taskSucceeded = true;
+    let taskFullyGood = true;
+    for (let turn = 0; turn < TURNS_PER_TASK; turn += 1) {
+      const original = buildAnthropicRequest(taskIndex, turn, clockHour);
+      let sent = original;
+      let stamped = false;
+      if (arm.config !== undefined) {
+        const reduced = reduceRequest(original, arm.config);
+        sent = reduced.request as AnyObject;
+        const changeRecorded = reduced.summary.changes.some((change) => change.lever === "cache-ttl-1h");
+        const bytesStamped = JSON.stringify(sent.messages ?? []).includes(STAMP_BYTES);
+        if (changeRecorded !== bytesStamped) {
+          throw new Error(
+            `cache-ttl-1h bookkeeping mismatch at task ${taskIndex} turn ${turn}: ` +
+            `change record ${changeRecorded}, stamp bytes ${bytesStamped}.`,
+          );
+        }
+        stamped = changeRecorded && bytesStamped;
+      } else if (JSON.stringify(sent).includes('"cache_control"')) {
+        throw new Error(`Unreduced baseline request carries cache_control at task ${taskIndex} turn ${turn}.`);
+      }
+
+      if (stamped) {
+        stampedCalls += 1;
+        // Suffix-only control: identical bytes up to the final content block.
+        const unstamped = reduceRequest(
+          buildAnthropicRequest(taskIndex, turn, clockHour), configWithoutTtl ?? {},
+        ).request as AnyObject;
+        const stampedWire = wirePrompt(sent);
+        const unstampedWire = wirePrompt(unstamped);
+        const finalBlockAt = unstampedWire.lastIndexOf('{"role":"user","content":');
+        if (finalBlockAt <= 0) {
+          throw new Error(`Could not locate the final content block at task ${taskIndex} turn ${turn}.`);
+        }
+        if (stampedWire.slice(0, finalBlockAt) !== unstampedWire.slice(0, finalBlockAt)) {
+          throw new Error(
+            `TTL stamp changed bytes BEFORE the final content block at task ${taskIndex} turn ${turn}; ` +
+            "a non-suffix stamp would break the cached prefix.",
+          );
+        }
+        if (stampedWire.slice(0, finalBlockAt).includes('"cache_control"')) {
+          throw new Error(`cache_control appeared before the final content block at task ${taskIndex} turn ${turn}.`);
+        }
+        suffixOnlyChecks += 1;
+      }
+
+      const outcome = answer(sent);
+      if (!outcome.correct) taskSucceeded = false;
+      if (!outcome.correct || outcome.completeness < 0.95) taskFullyGood = false;
+      simulated.push({
+        atSeconds: startedAt + turn * 3,
+        prompt: wirePrompt(sent),
+        outputTokens: outcome.outputTokens,
+      });
+    }
+    if (taskSucceeded) successfulTasks += 1;
+    if (taskFullyGood) fullyGoodTasks += 1;
+  }
+
+  if (stampedCalls > 0 && suffixOnlyChecks !== stampedCalls) {
+    throw new Error(`Suffix-only control ran ${suffixOnlyChecks} times for ${stampedCalls} stamped requests.`);
+  }
+
+  // The 1h policy is selected ONLY when every request in the run was observed
+  // to carry the stamp. No stamps, no 1h pricing; a mixed run is a bug.
+  const totalCalls = simulated.length;
+  let policy: CachePolicy;
+  if (stampedCalls === totalCalls && totalCalls > 0) policy = ANTHROPIC_CACHE_1H;
+  else if (stampedCalls === 0) policy = ANTHROPIC_CACHE_5M;
+  else throw new Error(`Mixed stamping (${stampedCalls}/${totalCalls}): refusing to pick a single cache policy.`);
+
+  const result = simulateCache(simulated, policy, price.price, { countTokens: approximateTokenCount });
+  return {
+    label: arm.label,
+    stampedCalls,
+    totalCalls,
+    policyName: policy.name,
+    costUsd: result.totalCostUsd,
+    hitRate: result.hitRate,
+    successfulTasks,
+    fullyGoodTasks,
+    writtenInputTokens: result.calls.reduce((sum, call) => sum + call.writtenInputTokens, 0),
+  };
+}
+
+function reportStampedTtlArm(): void {
+  const spacing = 600;
+  const expectedCalls = TASKS * TURNS_PER_TASK;
+  console.log(`\n=== arm L: J + cacheTtl '1h' STAMPED end-to-end, Anthropic-shaped, tasks ${spacing}s apart ===`);
+
+  const baseline = runAnthropicShapedArm(ARMS[0]!, spacing);
+  const armL = runAnthropicShapedArm(ARM_L, spacing);
+
+  // Hard assertion 1: every reduced request carries the stamp + change record.
+  if (armL.stampedCalls !== expectedCalls || armL.totalCalls !== expectedCalls) {
+    throw new Error(`Expected ${expectedCalls}/${expectedCalls} stamped arm L requests, got ` +
+      `${armL.stampedCalls}/${armL.totalCalls}.`);
+  }
+  // Hard assertion 2: zero stamps on the unreduced baseline.
+  if (baseline.stampedCalls !== 0) {
+    throw new Error(`Expected 0 stamped baseline requests, got ${baseline.stampedCalls}.`);
+  }
+  console.log(
+    `stamp audit: arm L ${armL.stampedCalls}/${armL.totalCalls} requests carry cache_control with the ` +
+    `'cache-ttl-1h' change record (policy ${armL.policyName}); baseline A ${baseline.stampedCalls}/` +
+    `${baseline.totalCalls} (policy ${baseline.policyName}); stamp verified suffix-only on every stamped request.`,
+  );
+
+  // Hard assertion 4: quality cells exactly J's. Quality is cache-independent,
+  // so J's cells come from the OpenAI-shaped reference run of the same config.
+  const jReference = runArm(ARM_J_BY_LABEL!, ANTHROPIC_CACHE_5M, price.price, spacing);
+  if (armL.successfulTasks !== jReference.successfulTasks || armL.fullyGoodTasks !== jReference.fullyGoodTasks) {
+    throw new Error(
+      `Arm L quality cells (tool ok ${armL.successfulTasks}/${TASKS}, clean ${armL.fullyGoodTasks}/${TASKS}) ` +
+      `differ from arm J's (${jReference.successfulTasks}/${TASKS}, ${jReference.fullyGoodTasks}/${TASKS}): ` +
+      "the TTL stamp must not touch quality.",
+    );
+  }
+  if (TASKS === 40 && SEED_OFFSET === 0 && (armL.successfulTasks !== 40 || armL.fullyGoodTasks !== 38)) {
+    throw new Error(
+      `Default-fixture quality cells must be exactly J's 40/40 tool ok and 38/40 clean; got ` +
+      `${armL.successfulTasks}/40 and ${armL.fullyGoodTasks}/40.`,
+    );
+  }
+
+  const saving = ((baseline.costUsd - armL.costUsd) / baseline.costUsd) * 100;
+  console.log(`baseline  A @5m (Anthropic-shaped, unstamped)  $${baseline.costUsd.toFixed(3)}   clean ${baseline.fullyGoodTasks}/${TASKS}`);
+  console.log(
+    `lever     L = J + cacheTtl '1h' (stamped)      $${armL.costUsd.toFixed(3)}   vs A@5m ${saving.toFixed(1)}%   ` +
+    `tool ok ${armL.successfulTasks}/${TASKS}   clean ${armL.fullyGoodTasks}/${TASKS}   hits ${(armL.hitRate * 100).toFixed(0)}%`,
+  );
+
+  if (TASKS === 40 && SEED_OFFSET === 0) {
+    const drift = Math.abs(saving - 34.5);
+    if (drift > 0.5) {
+      console.log(
+        `RESULT: FAILURE of the stamped TTL lever - measured ${saving.toFixed(1)}% vs the 34.5% +/-0.5pt ` +
+        "policy-applied row. The drift is reported, not tuned away; diagnose before any claim.",
+      );
+    } else {
+      console.log(
+        `RESULT: stamped row ${saving.toFixed(1)}% matches the policy-applied 34.5% row within 0.5pt: ` +
+        "the production stamp reproduces the measured saving end-to-end in the simulator.",
+      );
+    }
+  } else {
+    console.log(`variant stamped row: ${saving.toFixed(1)}% vs this variant's own Anthropic-shaped A@5m baseline.`);
+  }
+  console.log(
+    "caveat: knob exercised end-to-end on Anthropic-shaped requests (simulator-measured); " +
+    "real-traffic validation still open.",
+  );
+}
+reportStampedTtlArm();

@@ -549,8 +549,8 @@ export function reduceRequest(
         return 0;
       }
     };
-    const before = measure(next.instructions) + measure(next.input) + measure(next.messages) +
-      measure(next.tools);
+    const before = measure(next.instructions) + measure(next.system) + measure(next.input) +
+      measure(next.messages) + measure(next.tools);
 
     // Tool catalogue. Lossless unless the caller opts into description trimming.
     if (Array.isArray(next.tools) && next.tools.length > 0 && config.toolSchemas !== false) {
@@ -584,24 +584,36 @@ export function reduceRequest(
       }
     }
 
-    // Instructions: dedupe, then move prefix breakers to the end.
-    if (typeof next.instructions === "string") {
-      let instructions = reduceText(next.instructions, config, countTokens, changes, "instructions");
+    // Instructions: dedupe, then move prefix breakers to the end. The same
+    // pass covers a string `system` field, which is where an Anthropic-shaped
+    // request keeps exactly what an OpenAI-shaped one keeps in `instructions`:
+    // without this the per-request clock at the top of `system` breaks the
+    // cached prefix on Anthropic traffic while the identical prompt is
+    // repaired on OpenAI traffic. A block-array `system` is left untouched -
+    // reordering caller-placed blocks is not ours to do.
+    const reduceSystemText = (text: string, label: "instructions" | "system"): string => {
+      let current = reduceText(text, config, countTokens, changes, label);
       if (config.repairCachePrefix) {
-        const repaired = repairPrefix(instructions);
+        const repaired = repairPrefix(current);
         if (repaired.moved.length > 0) {
-          instructions = repaired.text;
+          current = repaired.text;
           changes.push({
             lever: "cache-prefix-repair",
             lossless: true,
             // The saving is a cache-rate change, not tokens removed.
             estimatedTokensSaved: 0,
-            detail: `Moved ${repaired.moved.length} per-request value(s) out of the prompt prefix, making the ` +
-              "stable remainder cacheable. The text is reordered, not removed.",
+            detail: `Moved ${repaired.moved.length} per-request value(s) out of the ${label} prefix, making ` +
+              "the stable remainder cacheable. The text is reordered, not removed.",
           });
         }
       }
-      next.instructions = instructions;
+      return current;
+    };
+    if (typeof next.instructions === "string") {
+      next.instructions = reduceSystemText(next.instructions, "instructions");
+    }
+    if (typeof next.system === "string") {
+      next.system = reduceSystemText(next.system, "system");
     }
 
     // Fresh tool-result capping, BEFORE history compaction: the cap targets
@@ -691,8 +703,8 @@ export function reduceRequest(
       });
     }
 
-    const after = measure(next.instructions) + measure(next.input) + measure(next.messages) +
-      measure(next.tools);
+    const after = measure(next.instructions) + measure(next.system) + measure(next.input) +
+      measure(next.messages) + measure(next.tools);
 
     const summary: FluxReductionSummary = {
       estimatedTokensBefore: before,
