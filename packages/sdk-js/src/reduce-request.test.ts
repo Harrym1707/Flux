@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
+import { approximateTokenCount } from "../../core/dist/src/index.js";
 import { withFlux } from "./openai.js";
-import { reduceRequest, type FluxReductionSummary } from "./reduce-request.js";
+import {
+  capToolResultBody,
+  digestStaleBody,
+  reduceRequest,
+  type FluxReductionSummary,
+} from "./reduce-request.js";
 
 const LONG_DESCRIPTION =
   "Look up a record set for a customer account. Use this when the customer asks about historical activity in " +
@@ -142,6 +148,169 @@ describe("reduceRequest", () => {
     reduceRequest(request(), { toolSchemas: true, onReduction: (summary) => seen.push(summary) });
     expect(seen).toHaveLength(1);
     expect(seen[0]!.estimatedTokensSaved).toBeGreaterThan(0);
+  });
+});
+
+describe("fresh tool-result capping", () => {
+  /** An oversized tool result shaped like the eval fixture: a headline carrying
+   * the reference later turns depend on, verbose record sentences, one error
+   * sentence and one file path, all of which must survive the cap. */
+  function oversizedResult(task = 3, turn = 2): string {
+    const lines = [
+      `Lookup complete for account ${1000 + task}: 3 records found; latest reference R-${task}-${turn} ` +
+      "with a pending adjustment awaiting supervisor approval.",
+    ];
+    for (let row = 0; row < 18; row += 1) {
+      lines.push(
+        `Record ${row} shows a settlement entry of ${row * 137 + task} pence captured on day ${(row % 28) + 1}, ` +
+        "routed through the refunds subsystem, with reconciliation state nominal, no customer notification " +
+        "sent, and two internal annotations noting routine supervisor review cadence for this category.",
+      );
+    }
+    lines.push("One earlier retry failed with a transient timeout before the record was captured cleanly.");
+    lines.push("The reconciliation ledger lives at ops/settlements/ledger.csv for later checks.");
+    return lines.join(" ");
+  }
+
+  const MARKER = /\[flux: \d+ chars of fresh tool-result detail capped\]/;
+
+  it("keeps the headline with its latest reference, errors and file paths verbatim", () => {
+    const capped = capToolResultBody(oversizedResult(), 600, approximateTokenCount);
+    expect(capped).not.toBe(oversizedResult());
+    expect(capped.length).toBeLessThan(oversizedResult().length);
+    expect(capped).toContain("latest reference R-3-2");
+    expect(capped).toContain("One earlier retry failed with a transient timeout");
+    expect(capped).toContain("ops/settlements/ledger.csv");
+    expect(capped).toMatch(MARKER);
+  });
+
+  it("is the identity at or under the threshold", () => {
+    const small = "Lookup complete: latest reference R-1-1 with a pending adjustment.";
+    expect(capToolResultBody(small, 600, approximateTokenCount)).toBe(small);
+    const body = oversizedResult();
+    expect(capToolResultBody(body, approximateTokenCount(body), approximateTokenCount)).toBe(body);
+  });
+
+  it("is idempotent: cap(cap(x)) === cap(x)", () => {
+    const once = capToolResultBody(oversizedResult(), 600, approximateTokenCount);
+    expect(capToolResultBody(once, 600, approximateTokenCount)).toBe(once);
+  });
+
+  it("is deterministic across calls", () => {
+    expect(capToolResultBody(oversizedResult(), 600, approximateTokenCount))
+      .toBe(capToolResultBody(oversizedResult(), 600, approximateTokenCount));
+  });
+
+  it("is byte-stable under stale compaction: digestStaleBody(cap(x)) === cap(x)", () => {
+    const capped = capToolResultBody(oversizedResult(), 600, approximateTokenCount);
+    expect(digestStaleBody(capped)).toBe(capped);
+  });
+
+  it("throws on a threshold under 64 or not an integer", () => {
+    expect(() => capToolResultBody(oversizedResult(), 10, approximateTokenCount)).toThrow(/at least 64/);
+    expect(() => capToolResultBody(oversizedResult(), 600.5, approximateTokenCount)).toThrow(/at least 64/);
+  });
+
+  function capRequest(input: unknown[], messages?: unknown[]): Record<string, unknown> {
+    return {
+      model: "gpt-5",
+      instructions: "You are a support agent.",
+      input,
+      ...(messages === undefined ? {} : { messages }),
+    };
+  }
+
+  it("caps oversized assistant bodies and reports a lossy, measured change record", () => {
+    const { request: reduced, summary } = reduceRequest(
+      capRequest([
+        { role: "user", content: "Step 0." },
+        { role: "assistant", content: oversizedResult() },
+      ]),
+      { freshToolResultCap: true },
+    );
+    const change = summary.changes.find((entry) => entry.lever === "fresh-tool-result-cap")!;
+    expect(change.lossless).toBe(false);
+    expect(change.estimatedTokensSaved).toBeGreaterThan(0);
+    const wire = JSON.stringify(reduced);
+    expect(wire).toContain("latest reference R-3-2");
+    expect(wire).toContain("fresh tool-result detail capped");
+  });
+
+  it("returns the original request with NO change record when every body is under the threshold", () => {
+    const original = capRequest([
+      { role: "user", content: "Step 0." },
+      { role: "assistant", content: "Done: latest reference R-1-1 recorded." },
+    ]);
+    const { request: reduced, summary } = reduceRequest(original, { freshToolResultCap: true });
+    expect(reduced).toBe(original);
+    expect(summary.changes).toHaveLength(0);
+  });
+
+  it("caps function_call_output, {text} parts and nested {content} shapes, in input and messages", () => {
+    const { request: reduced } = reduceRequest(
+      capRequest(
+        [
+          { role: "user", content: "Step 0." },
+          { type: "function_call_output", call_id: "c1", output: oversizedResult(1, 1) },
+          { role: "tool", content: [{ type: "output_text", text: oversizedResult(2, 1) }] },
+          { role: "assistant", content: [{ content: oversizedResult(4, 1) }] },
+        ],
+        [{ role: "tool", content: oversizedResult(5, 1) }],
+      ),
+      { freshToolResultCap: true },
+    );
+    const next = reduced as Record<string, unknown>;
+    const inputWire = JSON.stringify(next.input);
+    const messagesWire = JSON.stringify(next.messages);
+    expect(inputWire.match(/fresh tool-result detail capped/g)).toHaveLength(3);
+    expect(messagesWire).toContain("fresh tool-result detail capped");
+    for (const [task, wire] of [[1, inputWire], [2, inputWire], [4, inputWire], [5, messagesWire]] as const) {
+      expect(wire).toContain(`latest reference R-${task}-1`);
+    }
+  });
+
+  it("never touches user, system or developer messages, however oversized", () => {
+    const body = oversizedResult(6, 1);
+    const { request: reduced, summary } = reduceRequest(
+      capRequest([
+        { role: "system", content: body },
+        { role: "developer", content: body },
+        { role: "user", content: body },
+      ]),
+      { freshToolResultCap: true },
+    );
+    expect(summary.changes).toHaveLength(0);
+    const wire = JSON.stringify(reduced);
+    expect(wire.match(/fresh tool-result detail capped/g)).toBeNull();
+    expect(wire).toContain("Record 17 shows a settlement entry");
+  });
+
+  it("skips the whole reduction, request untouched, on an invalid threshold", () => {
+    const original = capRequest([{ role: "assistant", content: oversizedResult() }]);
+    for (const maximumTokens of [10, 63, 600.5]) {
+      const { request: reduced, summary } = reduceRequest(original, {
+        freshToolResultCap: { maximumTokens },
+      });
+      expect(reduced).toBe(original);
+      expect(summary.skipped).toBe(true);
+      expect(summary.skippedReason).toMatch(/at least 64/);
+    }
+  });
+
+  it("leaves capped bodies byte-identical through history compaction", () => {
+    const input: unknown[] = [];
+    for (let turn = 0; turn < 6; turn += 1) {
+      input.push({ role: "user", content: `Step ${turn}.` });
+      input.push({ role: "assistant", content: oversizedResult(7, turn) });
+    }
+    const capOnly = reduceRequest(capRequest([...input]), { freshToolResultCap: true });
+    const both = reduceRequest(capRequest([...input]), {
+      freshToolResultCap: true,
+      historyCompaction: true,
+    });
+    expect(JSON.stringify((both.request as Record<string, unknown>).input))
+      .toBe(JSON.stringify((capOnly.request as Record<string, unknown>).input));
+    expect(both.summary.changes.some((entry) => entry.lever === "stale-history-compaction")).toBe(false);
   });
 });
 

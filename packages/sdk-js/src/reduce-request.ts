@@ -85,6 +85,19 @@ export type FluxTokenReductionConfig = {
    * never once per turn. `true` uses the defaults; pass an object to tune.
    */
   historyCompaction?: boolean | FluxHistoryCompactionConfig;
+  /**
+   * Cap oversized tool-result and assistant bodies at injection, BEFORE first
+   * send. A fresh oversized result is billed once at the FULL input rate and
+   * only its cached rebills are discounted, so this reaches tokens that
+   * history compaction (which touches already-cached turns) never can. The
+   * headline sentence, error mentions, file paths and FLUX's own markers
+   * survive verbatim; the rest collapses to a char-count marker. Pure,
+   * deterministic and idempotent, so consecutive requests re-emit identical
+   * bytes and the provider cache keeps matching. Lossy by definition and
+   * reported as such. `true` uses the 600-token default; pass an object to
+   * tune `maximumTokens` (integer, at least 64).
+   */
+  freshToolResultCap?: boolean | { maximumTokens?: number };
   /** Set max_output_tokens when the caller has not. Output is the dearer half. */
   maxOutputTokens?: number;
   /**
@@ -147,6 +160,14 @@ const STALE_BODY_FILE_PATH =
   /(?:^|[\s"'`(=[])((?:\/|\.{1,2}\/|~\/|[A-Za-z]:\\)[\w.\\/-]+|[\w.-]+\/[\w./-]+|[\w-]+\.(?:ts|tsx|js|jsx|mjs|cjs|py|json|jsonl|md|yml|yaml|toml|txt|csv|tsv|html|css|go|rs|java|rb|sh|sql|log|xml|lock))\b/;
 
 /**
+ * FLUX's own digest/cap markers. Both the fresh-result capper and the stale
+ * compactor keep segments carrying one, so a body either lever has already
+ * reduced passes through the other byte-identically: the two levers are
+ * byte-stable together and the provider's exact-prefix cache keeps matching.
+ */
+const FLUX_MARKER = /\[flux: \d+ chars of [\w -]+\]/;
+
+/**
  * Digest one stale body. Pure function of the text, so every later request in
  * the same epoch re-emits exactly the same bytes, which is what lets the
  * provider's exact-prefix cache match across the compacted region.
@@ -156,7 +177,7 @@ const STALE_BODY_FILE_PATH =
  * a byte count. If that would not actually shorten the text, the original is
  * returned untouched.
  */
-function digestStaleBody(text: string): string {
+export function digestStaleBody(text: string): string {
   const segments = text.split(/(?<=[.!?])\s+|\n+/).filter((segment) => segment.length > 0);
   if (segments.length <= 1) return text;
   const kept: string[] = [];
@@ -164,7 +185,8 @@ function digestStaleBody(text: string): string {
   for (const [index, segment] of segments.entries()) {
     const keep = index === 0 ||
       STALE_BODY_MUST_KEEP.test(segment) ||
-      STALE_BODY_FILE_PATH.test(segment);
+      STALE_BODY_FILE_PATH.test(segment) ||
+      FLUX_MARKER.test(segment);
     if (keep) kept.push(segment);
     else droppedChars += segment.length;
   }
@@ -173,29 +195,144 @@ function digestStaleBody(text: string): string {
   return digest.length < text.length ? digest : text;
 }
 
-/** Digest a message body of unknown shape; count how many bodies changed. */
-function digestBodyValue(value: unknown, state: { bodies: number }): unknown {
+/**
+ * Cap one oversized tool-result body at injection time, BEFORE it is first
+ * sent. A fresh result is billed once at the FULL input rate; only its cached
+ * rebills get the provider discount, so this is the one lever that removes
+ * full-rate tokens rather than nibbling 0.1x rebills of an already-cached copy.
+ *
+ * Pure and idempotent: a body at or under `maximumTokens` is returned
+ * untouched (identity, no marker), and capping a capped body changes nothing,
+ * because every surviving segment - the headline, error mentions, file paths
+ * and FLUX's own markers - is a keeper on the second pass too. The same keep
+ * rules as stale compaction apply, so later turns still find the reference
+ * they depend on; a capper that lost the latest result's headline would fail
+ * tasks, which is exactly the quality bar working.
+ */
+export function capToolResultBody(
+  text: string,
+  maximumTokens: number,
+  countTokens: TokenCounter,
+): string {
+  if (!Number.isInteger(maximumTokens) || maximumTokens < 64) {
+    throw new Error("freshToolResultCap maximumTokens must be an integer of at least 64.");
+  }
+  if (countTokens(text) <= maximumTokens) return text;
+  const segments = text.split(/(?<=[.!?])\s+|\n+/).filter((segment) => segment.length > 0);
+  if (segments.length <= 1) return text;
+  const kept: string[] = [];
+  let droppedChars = 0;
+  for (const [index, segment] of segments.entries()) {
+    const keep = index === 0 ||
+      STALE_BODY_MUST_KEEP.test(segment) ||
+      STALE_BODY_FILE_PATH.test(segment) ||
+      FLUX_MARKER.test(segment);
+    if (keep) kept.push(segment);
+    else droppedChars += segment.length;
+  }
+  if (droppedChars === 0) return text;
+  const capped = `${kept.join(" ")} [flux: ${droppedChars} chars of fresh tool-result detail capped]`;
+  return capped.length < text.length ? capped : text;
+}
+
+/**
+ * Apply one text transform to a message body of unknown shape; count how many
+ * bodies changed. Shared traversal for stale-history digests and fresh-result
+ * caps, so both levers see exactly the same string/{text}/{content} shapes.
+ */
+function transformBodyValue(
+  value: unknown,
+  transform: (text: string) => string,
+  state: { bodies: number },
+): unknown {
   if (typeof value === "string") {
-    const digested = digestStaleBody(value);
-    if (digested !== value) state.bodies += 1;
-    return digested;
+    const transformed = transform(value);
+    if (transformed !== value) state.bodies += 1;
+    return transformed;
   }
   if (Array.isArray(value)) {
     return value.map((part) => {
       if (!isPlainObject(part)) return part;
       if (typeof part.text === "string") {
-        const digested = digestStaleBody(part.text);
-        if (digested !== part.text) state.bodies += 1;
-        return digested === part.text ? part : { ...part, text: digested };
+        const transformed = transform(part.text);
+        if (transformed !== part.text) state.bodies += 1;
+        return transformed === part.text ? part : { ...part, text: transformed };
       }
       if ("content" in part) {
-        const digested = digestBodyValue(part.content, state);
-        return digested === part.content ? part : { ...part, content: digested };
+        const transformed = transformBodyValue(part.content, transform, state);
+        return transformed === part.content ? part : { ...part, content: transformed };
       }
       return part;
     });
   }
   return value;
+}
+
+/** Digest a message body of unknown shape; count how many bodies changed. */
+function digestBodyValue(value: unknown, state: { bodies: number }): unknown {
+  return transformBodyValue(value, digestStaleBody, state);
+}
+
+/**
+ * Cap oversized fresh tool results in a message array.
+ *
+ * Unlike stale-history compaction this has no turn boundary: it runs on every
+ * tool-result and assistant body because its target is the FIRST send of an
+ * oversized result, which is billed at the full input rate. It is idempotent,
+ * so re-walking already-capped history is a byte-level no-op, and the capped
+ * bytes are deterministic, so the provider's exact-prefix cache still matches
+ * across consecutive requests. User, system and developer messages are never
+ * touched.
+ */
+function capFreshToolResults(
+  input: unknown[],
+  maximumTokens: number,
+  countTokens: TokenCounter,
+  changes: FluxReductionChange[],
+): unknown[] {
+  const cap = (text: string): string => capToolResultBody(text, maximumTokens, countTokens);
+  const state = { bodies: 0 };
+  let savedTokens = 0;
+  const next = input.map((message) => {
+    if (!isPlainObject(message)) return message;
+    const role = typeof message.role === "string" ? message.role : undefined;
+    if (role === "user" || role === "system" || role === "developer") return message;
+
+    // Responses-style tool output item: { type: "function_call_output", output }.
+    if (message.type === "function_call_output" && typeof message.output === "string") {
+      const before = countTokens(message.output);
+      const capped = transformBodyValue(message.output, cap, state);
+      if (capped === message.output) return message;
+      savedTokens += Math.max(0, before - countTokens(capped as string));
+      return { ...message, output: capped };
+    }
+
+    // Chat-style tool results and assistant bodies.
+    if ((role === "tool" || role === "assistant") && "content" in message) {
+      const before = countTokens(
+        typeof message.content === "string" ? message.content : JSON.stringify(message.content) ?? "",
+      );
+      const capped = transformBodyValue(message.content, cap, state);
+      if (capped === message.content) return message;
+      savedTokens += Math.max(0, before - countTokens(
+        typeof capped === "string" ? capped : JSON.stringify(capped) ?? "",
+      ));
+      return { ...message, content: capped };
+    }
+    return message;
+  });
+
+  if (state.bodies === 0) return input;
+  changes.push({
+    lever: "fresh-tool-result-cap",
+    lossless: false,
+    estimatedTokensSaved: savedTokens,
+    detail: `Capped ${state.bodies} oversized tool-result/assistant body(ies) above ${maximumTokens} tokens at ` +
+      "injection, before first send (headlines, errors, file paths and FLUX markers kept verbatim). These " +
+      "tokens would have been billed once at the FULL input rate; history compaction only reaches their " +
+      "cached rebills.",
+  });
+  return next;
 }
 
 /**
@@ -405,6 +542,23 @@ export function reduceRequest(
         }
       }
       next.instructions = instructions;
+    }
+
+    // Fresh tool-result capping, BEFORE history compaction: the cap targets
+    // full-rate tokens at injection, and compaction then sees already-capped
+    // bodies it keeps byte-identical (both levers keep FLUX markers).
+    if (config.freshToolResultCap) {
+      const capOptions = isPlainObject(config.freshToolResultCap) ? config.freshToolResultCap : {};
+      const threshold = capOptions.maximumTokens === undefined ? 600 : capOptions.maximumTokens;
+      if (typeof threshold !== "number" || !Number.isInteger(threshold) || threshold < 64) {
+        throw new Error("freshToolResultCap maximumTokens must be an integer of at least 64.");
+      }
+      if (Array.isArray(next.input)) {
+        next.input = capFreshToolResults(next.input, threshold, countTokens, changes);
+      }
+      if (Array.isArray(next.messages)) {
+        next.messages = capFreshToolResults(next.messages, threshold, countTokens, changes);
+      }
     }
 
     // Stale-history compaction, before per-message dedupe so digests are what

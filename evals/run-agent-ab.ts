@@ -307,7 +307,34 @@ const ARMS: Arm[] = [
       executionTier: "flex",
     },
   },
+  {
+    // J: the full interactive stack plus fresh tool-result capping. Unlike
+    // every lever above it, the cap removes tokens billed at the FULL input
+    // rate (the first injection of an oversized tool result) rather than
+    // 0.1x cached rebills, which is what lets it pass the ~15% interactive
+    // ceiling. The headline sentence - including the "latest reference R-x-y"
+    // the model needs - plus error lines and file paths survive verbatim, so
+    // answer() polices the cap directly: lose the latest reference, fail the
+    // task.
+    label: "J. H + fresh result cap",
+    config: {
+      toolSchemas: { descriptions: "truncate", maximumDescriptionTokens: 40 },
+      duplicateContext: true,
+      repairCachePrefix: true,
+      freshToolResultCap: true,
+      historyCompaction: true,
+      maxOutputTokens: 2_000,
+    },
+  },
 ];
+
+// Arm I's successor for the async-eligible segment: J plus the flex execution
+// tier. Kept OUT of the interactive ARMS table because flex pricing is only
+// legitimate on traffic the caller flags latency-tolerant.
+const ARM_J_FLEX: Arm = {
+  label: "K. J + flex tier (async)",
+  config: { ...ARMS[ARMS.length - 1]!.config!, executionTier: "flex" },
+};
 
 const price = lookupPrice(publishedModelPrices, { provider: "openai", model: "gpt-5", at: AT });
 if (price.status !== "priced") throw new Error(price.reason);
@@ -365,7 +392,9 @@ report(OPENAI_CACHE, 30);
 report(OPENAI_CACHE, 30, {
   label: "ASYNC-ELIGIBLE segment (flex/batch x0.5, stacks with caching)",
   multiplier: 0.5,
-  arms: [ARMS[0]!, ARMS[ARMS.length - 1]!],
+  // A is the standard-tier baseline; I is the previously measured async arm;
+  // K is arm J's async successor, so the fresh-cap figure here is MEASURED.
+  arms: [ARMS[0]!, ARMS[8]!, ARM_J_FLEX],
 });
 
 /**
@@ -396,7 +425,9 @@ reportCacheValue();
  */
 function reportOneShot(): void {
   console.log("\n=== one-shot workload: same preamble, per-request clock, nothing appends ===");
-  for (const arm of [ARMS[0]!, ARMS[2]!, ARMS[ARMS.length - 2]!, ARMS[ARMS.length - 1]!]) {
+  // Pinned to A, C, H and I: the one-shot fixture has no tool results, so the
+  // fresh cap is a no-op there and a J row would just duplicate H.
+  for (const arm of [ARMS[0]!, ARMS[2]!, ARMS[7]!, ARMS[8]!]) {
     const flexTier = arm.config?.executionTier === "flex";
     const simulated: SimulatedRequest[] = [];
     for (let index = 0; index < 60; index += 1) {
