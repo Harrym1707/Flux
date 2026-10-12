@@ -235,6 +235,18 @@ const ARMS: Arm[] = [
     label: "F. descriptions dropped",
     config: { toolSchemas: { descriptions: "drop" }, duplicateContext: true, repairCachePrefix: true },
   },
+  {
+    // The round-1 lever: arm C plus epoch-frozen stale-history compaction. No
+    // output cap (that arm already fails the quality bar) and no description
+    // trimming, so any cost delta against C is the compaction alone.
+    label: "G. C + history compaction",
+    config: {
+      toolSchemas: true,
+      duplicateContext: true,
+      repairCachePrefix: true,
+      historyCompaction: true,
+    },
+  },
 ];
 
 const price = lookupPrice(publishedModelPrices, { provider: "openai", model: "gpt-5", at: AT });

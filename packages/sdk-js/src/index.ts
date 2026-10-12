@@ -5,6 +5,7 @@ export { ExactResponseCache } from "./exact-cache.js";
 export { createLocalJsonlCapture } from "./evaluation-capture.js";
 export { reduceRequest } from "./reduce-request.js";
 export type {
+  FluxHistoryCompactionConfig,
   FluxReductionChange,
   FluxReductionSummary,
   FluxTokenReductionConfig,
