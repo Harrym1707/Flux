@@ -1,3 +1,4 @@
+import type { LedgerGateVerdict, PriceCatalogue } from "../../core/dist/src/index.js";
 import type { FluxReductionSummary, FluxTokenReductionConfig } from "./reduce-request.js";
 export type FluxTelemetryConfig = {
   endpoint?: string;
@@ -34,6 +35,14 @@ export type FluxRequestEvent = {
   cachedInputTokens?: number;
   cacheWriteInputTokens?: number;
   costUsd?: number;
+  /**
+   * service_tier as reported on the final RESPONSE, never the requested one: a
+   * flex request that 429s and falls back to standard bills standard and earns
+   * zero tier savings. Absent when the provider reports none.
+   */
+  responseServiceTier?: string;
+  /** Response service_tier per attempt, aligned with modelsAttempted; null where unreported. */
+  attemptServiceTiers?: Array<string | null>;
   latencyMs: number;
   status: "succeeded" | "failed";
   error?: string;
@@ -143,6 +152,36 @@ export type FluxEvaluationCaptureConfig = {
   write: (record: FluxEvaluationCaptureRecord) => void | Promise<void>;
 };
 
+/**
+ * Opt-in savings ledger: an append-only, hash-chained JSONL spool of billable
+ * events, one per request, written synchronously from the event path. Off by
+ * default; every write is wrapped so a full disk or bad path can never throw
+ * into the request path. The spool is the billing source of truth a customer
+ * recomputes themselves with `recomputeInvoice`.
+ */
+export type FluxSavingsLedgerConfig = {
+  /** Append-only JSONL file; parent directories are created on first write. */
+  path: string;
+  /** Provider key used to resolve rates in the catalogue. Default "openai". */
+  provider?: string;
+  /** Rates to pin event pricing against. Default: the published catalogue. */
+  catalogue?: PriceCatalogue;
+  /**
+   * Replay-gate verdict reference per lossy lever id. A lossy lever's savings
+   * bill only when its verdict here is "approved"; unknown lossy levers are
+   * recorded and never billed.
+   */
+  gateVerdicts?: Record<string, LedgerGateVerdict>;
+  /** Optional task correlation so a failed task's turns are excluded from the invoice. */
+  getCorrelation?: (event: FluxRequestEvent) => { taskId?: string; turnIndex?: number } | undefined;
+  /**
+   * Optional measured counterfactual cost (standard tier, no levers) in USD for
+   * this request, from a replay/counterfactual measurement path. Stored on the
+   * event; the measured token-reduction delta bills only when it is present.
+   */
+  getBaselineUsd?: (event: FluxRequestEvent) => number | undefined;
+};
+
 export type FluxRequestContext = {
   taskClass?: string;
   workflow?: string;
@@ -198,5 +237,7 @@ export type FluxOptions = {
   exactCache?: FluxExactCacheConfig;
   /** Off by default. Captures request/response content only when explicitly configured. */
   evaluationCapture?: FluxEvaluationCaptureConfig;
+  /** Off by default. Appends hash-chained billable events to a local JSONL spool. */
+  ledger?: FluxSavingsLedgerConfig;
   onEvent?: (event: FluxRequestEvent) => void;
 };

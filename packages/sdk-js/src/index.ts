@@ -3,6 +3,8 @@ export * from "./types.js";
 export { chooseRoute } from "./routing.js";
 export { ExactResponseCache } from "./exact-cache.js";
 export { createLocalJsonlCapture } from "./evaluation-capture.js";
+export { billableEventFromRequest, createSavingsLedger } from "./savings-ledger.js";
+export type { SavingsLedger } from "./savings-ledger.js";
 export { capToolResultBody, digestStaleBody, reduceRequest } from "./reduce-request.js";
 export type {
   FluxHistoryCompactionConfig,

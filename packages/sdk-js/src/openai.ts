@@ -3,6 +3,7 @@ import { TelemetryClient } from "./telemetry.js";
 import { chooseRoute } from "./routing.js";
 import { ExactResponseCache } from "./exact-cache.js";
 import { reduceRequest } from "./reduce-request.js";
+import { createSavingsLedger, type SavingsLedger } from "./savings-ledger.js";
 import type {
   FluxContextProfile,
   FluxEvaluationCaptureAttempt,
@@ -91,6 +92,9 @@ export function withFlux<T extends AnyObject>(client: T, options: FluxOptions): 
 
   const telemetry = new TelemetryClient(options.telemetry);
   const exactCache = options.exactCache ? new ExactResponseCache(options.exactCache) : undefined;
+  // Config errors (no path) surface here, at setup time; from the first request
+  // on, the ledger is fire-and-forget and can never throw into the request path.
+  const ledger: SavingsLedger | undefined = options.ledger ? createSavingsLedger(options.ledger) : undefined;
   const wrappedResponses = new Proxy(originalResponses, {
     get(target, property, receiver) {
       if (property !== "create") return Reflect.get(target, property, receiver);
@@ -273,6 +277,15 @@ export function withFlux<T extends AnyObject>(client: T, options: FluxOptions): 
             : attemptCosts.length > 0 && attemptCosts.every((cost) => cost !== undefined)
               ? attemptCosts.reduce<number>((sum, cost) => sum + (cost as number), 0)
               : undefined;
+          // Billing reads the tier the provider ANSWERED with, never the one
+          // the request asked for: flex that fell back bills standard.
+          const serviceTierOf = (attemptResponse: AnyObject | undefined): string | undefined =>
+            typeof attemptResponse?.service_tier === "string" ? attemptResponse.service_tier : undefined;
+          const attemptServiceTiers = attempts.map(({ response: attemptResponse }) =>
+            serviceTierOf(attemptResponse) ?? null);
+          const responseServiceTier = attempts.length > 0
+            ? serviceTierOf(attempts[attempts.length - 1].response)
+            : undefined;
           const event: FluxRequestEvent = {
             requestId,
             applicationId: options.applicationId,
@@ -304,11 +317,22 @@ export function withFlux<T extends AnyObject>(client: T, options: FluxOptions): 
             cachedInputTokens: actualUsage?.cachedInputTokens,
             cacheWriteInputTokens: actualUsage?.cacheWriteInputTokens,
             costUsd,
+            responseServiceTier,
+            ...(attempts.length > 0 ? { attemptServiceTiers } : {}),
             latencyMs: performance.now() - started,
             status,
             error,
             timestamp: new Date().toISOString(),
           };
+
+          // Synchronous, so the billable record exists before the caller sees
+          // the response; emit swallows every failure internally, and the
+          // extra try/catch keeps even a broken emitter out of the request path.
+          try {
+            ledger?.emit(event);
+          } catch {
+            // The savings meter must never change application behavior.
+          }
 
           void Promise.resolve()
             .then(() => options.onEvent?.(event))

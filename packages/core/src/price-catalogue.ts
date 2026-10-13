@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { estimateTokenCost, type TokenPrice } from "./cost.js";
 
 /**
@@ -363,6 +364,32 @@ export function mergePriceCatalogues(...catalogues: PriceCatalogue[]): PriceCata
     negotiated: catalogues.flatMap((catalogue) => catalogue.negotiated),
     aliases: catalogues.flatMap((catalogue) => catalogue.aliases ?? []),
   });
+}
+
+/**
+ * Deterministic JSON: object keys sorted recursively, `undefined` members
+ * omitted. Two structurally equal values always serialise to identical bytes,
+ * which is what makes content hashes over catalogues and ledger events stable.
+ */
+export function canonicalJson(value: unknown): string {
+  if (value === null || typeof value !== "object") return JSON.stringify(value) ?? "null";
+  if (Array.isArray(value)) {
+    return `[${value.map((item) => canonicalJson(item)).join(",")}]`;
+  }
+  const entries = Object.entries(value as Record<string, unknown>)
+    .filter(([, member]) => member !== undefined)
+    .sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0))
+    .map(([key, member]) => `${JSON.stringify(key)}:${canonicalJson(member)}`);
+  return `{${entries.join(",")}}`;
+}
+
+/**
+ * Content hash of a catalogue. Pinned onto every ledger event at write time, so
+ * an invoice names the exact rates it was computed against and a later
+ * catalogue update can never silently re-price history.
+ */
+export function catalogueVersion(catalogue: PriceCatalogue): string {
+  return createHash("sha256").update(canonicalJson(catalogue)).digest("hex").slice(0, 16);
 }
 
 /** Maps an API model identifier onto a catalogue key. */
