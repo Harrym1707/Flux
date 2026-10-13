@@ -6,6 +6,7 @@ import {
   catalogueVersion,
   publishedModelPrices,
   recomputeInvoice,
+  recomputeInvoiceWithAudit,
   verifyLedgerChain,
   type LedgerRecord,
 } from "../../core/dist/src/index.js";
@@ -75,8 +76,8 @@ describe("createSavingsLedger wired into withFlux", () => {
     expect(billed.levers).toEqual([{ leverId: "execution-tier-batch", kind: "tier", savedUsd: 5 }]);
 
     // The spool replayed twice recomputes to the same invoice (idempotent by requestId).
-    const invoice = recomputeInvoice([billed, billed]);
-    expect(invoice.duplicatesIgnored).toBe(1);
+    const { invoice, audit } = recomputeInvoiceWithAudit([billed, billed]);
+    expect(audit.duplicatesIgnored).toBe(1);
     expect(invoice.netVerifiedSavingsUsd).toBe(5);
   });
 

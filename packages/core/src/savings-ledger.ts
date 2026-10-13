@@ -328,7 +328,6 @@ export type Invoice = {
   catalogueVersions: string[];
   eventsConsidered: number;
   eventsBilled: number;
-  duplicatesIgnored: number;
   failedTaskIds: string[];
   eventsExcludedForFailedTasks: number;
   unpricedEvents: number;
@@ -360,7 +359,26 @@ function compareEvents(left: BillableEvent, right: BillableEvent): number {
  * sorted and deduplicated by requestId before anything is summed, so the same
  * spool replayed twice, a day late, or shuffled produces byte-identical output.
  */
+export type LedgerAudit = {
+  /** Events dropped as requestId replays before anything was summed. */
+  duplicatesIgnored: number;
+};
+
+/**
+ * The canonical, customer-recomputable invoice. Deliberately does NOT include
+ * replay metadata: whether a spool was transmitted once or three times must not
+ * change a single byte of the billing artifact, or "recompute it yourself"
+ * stops being a guarantee and becomes a dispute. Replay counts are audit
+ * telemetry and come back separately from recomputeInvoiceWithAudit.
+ */
 export function recomputeInvoice(events: readonly BillableEvent[], options: InvoiceOptions = {}): Invoice {
+  return recomputeInvoiceWithAudit(events, options).invoice;
+}
+
+export function recomputeInvoiceWithAudit(
+  events: readonly BillableEvent[],
+  options: InvoiceOptions = {},
+): { invoice: Invoice; audit: LedgerAudit } {
   for (const event of events) {
     if (event.schemaVersion !== 1) {
       throw new Error(`Unsupported billable event schemaVersion ${JSON.stringify((event as { schemaVersion: unknown }).schemaVersion)}.`);
@@ -469,13 +487,12 @@ export function recomputeInvoice(events: readonly BillableEvent[], options: Invo
       ? (netVerifiedSavingsUsd * options.feePercent) / 100
       : 0;
 
-  return {
+  const invoice: Invoice = {
     schemaVersion: 1,
     period: options.period ?? null,
     catalogueVersions: [...catalogueVersions].sort(),
     eventsConsidered: inPeriod.length,
     eventsBilled,
-    duplicatesIgnored,
     failedTaskIds: [...failedTaskIds].sort(),
     eventsExcludedForFailedTasks,
     unpricedEvents,
@@ -494,4 +511,5 @@ export function recomputeInvoice(events: readonly BillableEvent[], options: Invo
       amountDueCents: Math.round((amountDueUsd ?? 0) * 100),
     }),
   };
+  return { invoice, audit: { duplicatesIgnored } };
 }

@@ -6,6 +6,7 @@ import {
   chainLedgerRecord,
   priceLedgerUsage,
   recomputeInvoice,
+  recomputeInvoiceWithAudit,
   verifyLedgerChain,
   type BillableEvent,
   type LedgerRecord,
@@ -39,7 +40,11 @@ describe("recomputeInvoice", () => {
     const replayedTwice = JSON.stringify(recomputeInvoice([...events, ...events]));
     expect(shuffled).toBe(first);
     expect(replayedTwice).toBe(first);
-    expect(recomputeInvoice([...events, ...events]).duplicatesIgnored).toBe(3);
+    // Replay metadata lives in the audit object, never in the canonical
+    // invoice: a doubled spool must be byte-identical billing, and the audit
+    // trail still shows the replays were seen and dropped.
+    expect(recomputeInvoiceWithAudit([...events, ...events]).audit.duplicatesIgnored).toBe(3);
+    expect(recomputeInvoiceWithAudit(events).audit.duplicatesIgnored).toBe(0);
     // A spool replayed 25 hours late carries the same per-event invoicePeriod
     // stamps, so the period query result cannot drift either.
     const late = JSON.stringify(recomputeInvoice([...events, ...events], { period: "2026-10" }));
