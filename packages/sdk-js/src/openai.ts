@@ -300,13 +300,18 @@ export function withFlux<T extends AnyObject>(client: T, options: FluxOptions): 
         } finally {
           const usages = attempts.map(({ response: attemptResponse }) => tokenUsage(attemptResponse));
           const hasAllUsages = attempts.length > 0 && usages.every((usage) => usage !== undefined);
-          // The cache-write TTL split totals only when it is known for every
-          // write: one attempt with unreported split makes the total's split
-          // unknown too, so pricing falls back to the dispute-safe rule rather
-          // than treating the unreported share as 5m writes.
-          const splitKnownForAll = hasAllUsages && usages.every((usage) =>
-            usage!.cacheWriteInputTokens === 0 ||
-            (usage!.cacheWrite5mInputTokens !== undefined || usage!.cacheWrite1hInputTokens !== undefined));
+          // The cache-write TTL split totals only when the provider actually
+          // reported one AND it is known for every write: one attempt with an
+          // unreported split makes the total's split unknown too, so pricing
+          // falls back to the dispute-safe rule rather than treating the
+          // unreported share as 5m writes. With no split reported anywhere
+          // (every OpenAI response), the pair stays absent.
+          const splitKnownForAll = hasAllUsages &&
+            usages.some((usage) =>
+              usage!.cacheWrite5mInputTokens !== undefined || usage!.cacheWrite1hInputTokens !== undefined) &&
+            usages.every((usage) =>
+              usage!.cacheWriteInputTokens === 0 ||
+              (usage!.cacheWrite5mInputTokens !== undefined || usage!.cacheWrite1hInputTokens !== undefined));
           const usageTotals = hasAllUsages ? usages.reduce<TokenUsage>((total, usage) => ({
             inputTokens: total.inputTokens + usage!.inputTokens,
             uncachedInputTokens: total.uncachedInputTokens + usage!.uncachedInputTokens,
