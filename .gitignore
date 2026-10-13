@@ -1,5 +1,7 @@
 node_modules
 dist
+packages/sdk-js/pkg/
+*.tgz
 .env
 .env.*
 !.env.example

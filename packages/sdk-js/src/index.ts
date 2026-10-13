@@ -5,6 +5,38 @@ export { ExactResponseCache } from "./exact-cache.js";
 export { createLocalJsonlCapture } from "./evaluation-capture.js";
 export { billableEventFromRequest, createSavingsLedger } from "./savings-ledger.js";
 export type { SavingsLedger } from "./savings-ledger.js";
+// The customer-side audit surface: everything needed to verify a ledger spool
+// and recompute the invoice locally, without the FLUX workspace.
+export {
+  auditEventPricing,
+  canonicalJson,
+  catalogueVersion,
+  chainLedgerRecord,
+  ledgerEventHash,
+  LEDGER_GENESIS_HASH,
+  priceLedgerUsage,
+  publishedModelPrices,
+  recomputeInvoice,
+  verifyLedgerChain,
+} from "../../core/dist/src/index.js";
+export type {
+  BillableEvent,
+  Invoice,
+  InvoiceLineItem,
+  InvoiceOptions,
+  InvoiceUnbilledItem,
+  LedgerChainVerification,
+  LedgerExecutionMode,
+  LedgerGateVerdict,
+  LedgerLever,
+  LedgerLeverKind,
+  LedgerPricing,
+  LedgerPricingAudit,
+  LedgerPricingInput,
+  LedgerRecord,
+  LedgerUsage,
+  PriceCatalogue,
+} from "../../core/dist/src/index.js";
 export { capToolResultBody, digestStaleBody, reduceRequest } from "./reduce-request.js";
 export type {
   FluxHistoryCompactionConfig,
