@@ -1,10 +1,12 @@
-import { reduceRequest, type FluxTokenReductionConfig } from "../packages/sdk-js/src/index.js";
+import { reduceRequest, serviceTierOf, type FluxTokenReductionConfig } from "../packages/sdk-js/src/index.js";
 import {
   ANTHROPIC_CACHE_1H,
   ANTHROPIC_CACHE_5M,
   OPENAI_CACHE,
   approximateTokenCount,
+  executionModeFromServiceTier,
   lookupPrice,
+  providerUsage,
   publishedModelPrices,
   simulateCache,
   type CachePolicy,
@@ -246,12 +248,12 @@ function tierPrice(base: typeof price.price, multiplier: number): typeof price.p
   };
 }
 
-function report(policy: CachePolicy, spacing: number, segment?: { label: string; multiplier: number; arms: typeof ARMS }): void {
-  const arms = segment?.arms ?? ARMS;
-  const effectivePrice = segment ? tierPrice(price.price, segment.multiplier) : price.price;
-  console.log(`\n=== ${segment ? `${segment.label}: ` : ""}${policy.name}, tasks ${spacing}s apart, TTL ${policy.ttlSeconds}s ===`);
-  // The baseline is ALWAYS standard-tier arm A: the segment's saving is
-  // measured against what the customer pays today, which is standard pricing.
+function report(policy: CachePolicy, spacing: number): void {
+  const arms = ARMS;
+  const effectivePrice = price.price;
+  console.log(`\n=== ${policy.name}, tasks ${spacing}s apart, TTL ${policy.ttlSeconds}s ===`);
+  // The baseline is ALWAYS standard-tier arm A: a saving is measured against
+  // what the customer pays today, which is standard pricing.
   const baseline = runArm(ARMS[0]!, policy, price.price, spacing);
   console.log(
     `${"arm".padEnd(26)} ${"cost".padStart(9)} ${"vs A".padStart(7)} ${"hits".padStart(7)} ` +
@@ -274,16 +276,260 @@ function report(policy: CachePolicy, spacing: number, segment?: { label: string;
 // Turns inside a task are 3s apart, so the cache is warm within a task.
 report(OPENAI_CACHE, 30);
 
-// The async-eligible segment: same tasks, same quality bar, batch/flex pricing.
-// Legitimate only for traffic the customer flags latency-tolerant; its saving
-// is still measured against the standard-tier no-FLUX baseline above.
-report(OPENAI_CACHE, 30, {
-  label: "ASYNC-ELIGIBLE segment (flex/batch x0.5, stacks with caching)",
-  multiplier: 0.5,
-  // A is the standard-tier baseline; I is the previously measured async arm;
-  // K is arm J's async successor, so the fresh-cap figure here is MEASURED.
-  arms: [ARMS[0]!, ARMS[8]!, ARM_J_FLEX],
-});
+// ---------------------------------------------------------------------------
+// The async-eligible segment, SERVED-tier honest (replaces the earlier table
+// that priced arm K at tierPrice(0.5) unconditionally).
+//
+// OpenAI does not guarantee flex: a flex request can be answered at the
+// default tier (response.service_tier: "default", billed standard) or rejected
+// outright with 429 resource_unavailable (nothing executed, nothing billed).
+// Billing must read the tier the provider ANSWERED with, so this block
+// synthesizes the response-side evidence per call and routes it through the
+// SAME serviceTierOf detection the SDK's ledger event uses (exported from
+// packages/sdk-js/src/openai.ts), then prices each event at its served tier:
+//
+//   - served "flex"    -> flex rates (0.5x on all four rates, caching stacks)
+//   - served "default" -> STANDARD rates, zero tier saving claimed that event
+//   - 429 resource_unavailable -> ZERO billable event for the attempt; the
+//     caller's realistic recovery (retry at standard tier) is billed standard
+//
+// The fallback/429 rates are ASSUMED, not provider-published: no public
+// telemetry exists for flex fallback frequency. The ceiling row (0% fallback)
+// is the harness-measured number; the net row is that ceiling degraded by the
+// assumed rates, and is the figure to quote for the async band until real
+// flex-traffic telemetry lands. The simulated model and quality signal are
+// untouched: fallback changes PRICING evidence only, never the answer.
+// ---------------------------------------------------------------------------
+
+/** ASSUMED share of flex requests the provider serves at the default tier. */
+const FLEX_DEFAULT_FALLBACK_RATE = 0.10;
+/** ASSUMED share of flex requests rejected 429 resource_unavailable. */
+const FLEX_RESOURCE_UNAVAILABLE_RATE = 0.05;
+
+type FlexServedOutcome = "flex" | "default" | "resource_unavailable_429";
+
+/** Deterministic 32-bit hash so the fallback schedule is reproducible. */
+function hash32(value: number): number {
+  let x = (value ^ 0x9e3779b9) >>> 0;
+  x = Math.imul(x ^ (x >>> 16), 0x45d9f3b) >>> 0;
+  x = Math.imul(x ^ (x >>> 16), 0x45d9f3b) >>> 0;
+  return (x ^ (x >>> 16)) >>> 0;
+}
+
+function drawServedOutcome(callIndex: number, fallbackRate: number, unavailableRate: number): FlexServedOutcome {
+  const draw = hash32(callIndex) / 2 ** 32;
+  if (draw < unavailableRate) return "resource_unavailable_429";
+  if (draw < unavailableRate + fallbackRate) return "default";
+  return "flex";
+}
+
+type AsyncFlexRun = {
+  costUsd: number;
+  successfulTasks: number;
+  fullyGoodTasks: number;
+  hitRate: number;
+  billableEvents: number;
+  flexServedEvents: number;
+  /** Flex requests answered at the default tier: billed standard, zero tier saving. */
+  defaultServedEvents: number;
+  /** 429 resource_unavailable attempts: zero billable events. */
+  rejected429Attempts: number;
+  /** Standard-tier retries that recovered the 429s (one each, billed standard). */
+  standardRetryEvents: number;
+  stampedRequests: number;
+  totalRequests: number;
+};
+
+/**
+ * Run arm K with served-tier pricing. Every reduced request must carry the
+ * request-path stamp (service_tier: "flex" plus the execution-tier-flex change
+ * record) or the run aborts: the lever only counts implemented in the real
+ * request path and exercised here.
+ */
+function runAsyncFlexArm(arm: Arm, fallbackRate: number, unavailableRate: number, spacing: number): AsyncFlexRun {
+  if (arm.config?.executionTier !== "flex") {
+    throw new Error("runAsyncFlexArm is only for arms whose config requests the flex execution tier.");
+  }
+  const simulated: SimulatedRequest[] = [];
+  /** Served tier per simulated call, index-aligned with `simulated`. */
+  const servedTiers: ("flex" | "default")[] = [];
+  const expectedAtSeconds: number[] = [];
+  let successfulTasks = 0;
+  let fullyGoodTasks = 0;
+  let stampedRequests = 0;
+  let totalRequests = 0;
+  let rejected429Attempts = 0;
+  let standardRetryEvents = 0;
+
+  for (let taskIndex = 0; taskIndex < TASKS; taskIndex += 1) {
+    const startedAt = taskIndex * spacing;
+    const clockHour = 8 + (taskIndex % 10);
+    let taskSucceeded = true;
+    let taskFullyGood = true;
+    for (let turn = 0; turn < TURNS_PER_TASK; turn += 1) {
+      const original = buildRequest(taskIndex, turn, clockHour);
+      const reduced = reduceRequest(original, arm.config!);
+      const sent = reduced.request as AnyObject;
+      totalRequests += 1;
+
+      // Request-path audit: the flex stamp must be real, not assumed.
+      const changeRecorded = reduced.summary.changes.some((change) => change.lever === "execution-tier-flex");
+      if (!changeRecorded || sent.service_tier !== "flex") {
+        throw new Error(
+          `Arm '${arm.label}' request at task ${taskIndex} turn ${turn} lacks the request-path flex stamp ` +
+          `(change record ${changeRecorded}, service_tier ${String(sent.service_tier)}).`,
+        );
+      }
+      stampedRequests += 1;
+
+      // Quality is measured on the request the model would see, identically to
+      // every other arm. The served tier NEVER feeds back into the answer.
+      const outcome = answer(sent);
+      if (!outcome.correct) taskSucceeded = false;
+      if (!outcome.correct || outcome.completeness < 0.95) taskFullyGood = false;
+
+      const callIndex = taskIndex * TURNS_PER_TASK + turn;
+      const served = (fallbackRate === 0 && unavailableRate === 0)
+        ? "flex"
+        : drawServedOutcome(callIndex, fallbackRate, unavailableRate);
+      const atSeconds = startedAt + turn * 3;
+
+      if (served === "resource_unavailable_429") {
+        // The provider rejected the flex attempt: nothing executed, nothing
+        // billed. Prove the zero-billable-event claim through the shared
+        // normaliser rather than asserting it.
+        const errorBody: AnyObject = {
+          status: 429,
+          error: { type: "requests", code: "resource_unavailable", message: "The flex tier is at capacity." },
+        };
+        if (providerUsage(errorBody) !== undefined) {
+          throw new Error("A 429 resource_unavailable body produced provider usage; it must yield no billable event.");
+        }
+        if (serviceTierOf(errorBody) !== undefined) {
+          throw new Error("A 429 resource_unavailable body produced service-tier evidence; it must not.");
+        }
+        rejected429Attempts += 1;
+        // Realistic recovery: the caller retries the SAME request at the
+        // standard tier two seconds later. That retry is a normal billable
+        // event served (and priced) at the default tier.
+        simulated.push({ atSeconds: atSeconds + 2, prompt: wirePrompt(sent), outputTokens: outcome.outputTokens });
+        servedTiers.push("default");
+        expectedAtSeconds.push(atSeconds + 2);
+        standardRetryEvents += 1;
+      } else {
+        simulated.push({ atSeconds, prompt: wirePrompt(sent), outputTokens: outcome.outputTokens });
+        servedTiers.push(served);
+        expectedAtSeconds.push(atSeconds);
+      }
+    }
+    if (taskSucceeded) successfulTasks += 1;
+    if (taskFullyGood) fullyGoodTasks += 1;
+  }
+
+  // Simulate the cache ONCE at standard rates, then price each event at its
+  // served tier. Flex multiplies all four rates by 0.5, and per-call cost is
+  // linear in the rates, so cost(tierPrice(p, m)) === m * cost(p) exactly.
+  const result = simulateCache(simulated, OPENAI_CACHE, price.price, { countTokens: approximateTokenCount });
+  if (result.calls.length !== servedTiers.length) {
+    throw new Error(`Simulator returned ${result.calls.length} calls for ${servedTiers.length} billable events.`);
+  }
+  let costUsd = 0;
+  let flexServedEvents = 0;
+  let defaultServedEvents = 0;
+  for (let index = 0; index < result.calls.length; index += 1) {
+    const call = result.calls[index]!;
+    if (call.atSeconds !== expectedAtSeconds[index]) {
+      throw new Error(`Simulated call order diverged at index ${index}: the served-tier alignment would be wrong.`);
+    }
+    // Synthesize the response-side evidence the provider would have returned
+    // and read it through the SAME detection the SDK ledger event uses.
+    const syntheticResponse: AnyObject = {
+      service_tier: servedTiers[index],
+      usage: {
+        input_tokens: call.totalInputTokens,
+        input_tokens_details: { cached_tokens: call.cachedInputTokens },
+        output_tokens: call.outputTokens,
+      },
+    };
+    const mode = executionModeFromServiceTier(serviceTierOf(syntheticResponse));
+    const multiplier = mode === "flex" || mode === "batch" ? 0.5 : 1;
+    const servedCostUsd = call.costUsd * multiplier;
+    if (mode === "standard") {
+      defaultServedEvents += 1;
+      if (servedCostUsd !== call.costUsd) {
+        throw new Error("A default-served event was priced below standard; tier savings may only follow served flex.");
+      }
+    } else {
+      flexServedEvents += 1;
+    }
+    costUsd += servedCostUsd;
+  }
+
+  return {
+    costUsd,
+    successfulTasks,
+    fullyGoodTasks,
+    hitRate: result.hitRate,
+    billableEvents: result.calls.length,
+    flexServedEvents,
+    defaultServedEvents,
+    rejected429Attempts,
+    standardRetryEvents,
+    stampedRequests,
+    totalRequests,
+  };
+}
+
+function reportAsyncServedTier(): void {
+  const spacing = 30;
+  console.log(
+    `\n=== ASYNC-ELIGIBLE segment, SERVED-tier pricing: ${OPENAI_CACHE.name}, tasks ${spacing}s apart ===`,
+  );
+  // The baseline is what the customer pays today: standard tier, no FLUX.
+  const baseline = runArm(ARMS[0]!, OPENAI_CACHE, price.price, spacing);
+  const ceiling = runAsyncFlexArm(ARM_J_FLEX, 0, 0, spacing);
+  const net = runAsyncFlexArm(ARM_J_FLEX, FLEX_DEFAULT_FALLBACK_RATE, FLEX_RESOURCE_UNAVAILABLE_RATE, spacing);
+
+  // The fallback schedule may only change pricing, never the measured quality.
+  if (ceiling.successfulTasks !== net.successfulTasks || ceiling.fullyGoodTasks !== net.fullyGoodTasks) {
+    throw new Error("Fallback pricing changed the quality cells; it must touch pricing evidence only.");
+  }
+  console.log(
+    `request audit: ${net.stampedRequests}/${net.totalRequests} reduced requests carry service_tier=flex with ` +
+    "the 'execution-tier-flex' change record; served tier read via the SDK's serviceTierOf on synthesized " +
+    "response evidence.",
+  );
+  const versus = (cost: number) => `${(((baseline.costUsd - cost) / baseline.costUsd) * 100).toFixed(1)}%`;
+  console.log(
+    `baseline  A standard tier, no FLUX             $${baseline.costUsd.toFixed(3)}   ` +
+    `clean ${baseline.fullyGoodTasks}/${TASKS}`,
+  );
+  console.log(
+    `ceiling   K all events served flex (0% fallback) $${ceiling.costUsd.toFixed(3)}   vs A ${versus(ceiling.costUsd)}   ` +
+    `tool ok ${ceiling.successfulTasks}/${TASKS}   clean ${ceiling.fullyGoodTasks}/${TASKS}   ` +
+    `hits ${(ceiling.hitRate * 100).toFixed(0)}%`,
+  );
+  console.log(
+    `net       K at ASSUMED fallback rates            $${net.costUsd.toFixed(3)}   vs A ${versus(net.costUsd)}   ` +
+    `tool ok ${net.successfulTasks}/${TASKS}   clean ${net.fullyGoodTasks}/${TASKS}   ` +
+    `hits ${(net.hitRate * 100).toFixed(0)}%`,
+  );
+  console.log(
+    `fallback schedule (ASSUMED ${(FLEX_DEFAULT_FALLBACK_RATE * 100).toFixed(0)}% default-served + ` +
+    `${(FLEX_RESOURCE_UNAVAILABLE_RATE * 100).toFixed(0)}% 429, deterministic): of ${net.totalRequests} flex ` +
+    `attempts, ${net.flexServedEvents} served flex, ` +
+    `${net.defaultServedEvents - net.standardRetryEvents} served default (priced STANDARD, zero tier saving), ` +
+    `${net.rejected429Attempts} rejected 429 (ZERO billable events) each recovered by one standard-tier retry ` +
+    `(${net.standardRetryEvents} retries billed standard); ${net.billableEvents} billable events total.`,
+  );
+  console.log(
+    "caveat: the ceiling row is harness-measured; the fallback/429 rates are ASSUMED (no provider publishes " +
+    "flex fallback telemetry), so the net row is the ceiling degraded by that assumption and is the figure to " +
+    "quote for the async band until real flex-traffic telemetry lands. Flex applies ONLY to traffic the " +
+    "customer flags latency-tolerant; interactive arms keep their own table above.",
+  );
+}
+reportAsyncServedTier();
 
 /**
  * How much the provider's cache is worth at all, separately from how much FLUX

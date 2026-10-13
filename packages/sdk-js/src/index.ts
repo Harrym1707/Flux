@@ -1,4 +1,4 @@
-export { withFlux } from "./openai.js";
+export { serviceTierOf, withFlux } from "./openai.js";
 export * from "./types.js";
 export { chooseRoute } from "./routing.js";
 export { ExactResponseCache } from "./exact-cache.js";

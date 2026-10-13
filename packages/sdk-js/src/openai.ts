@@ -58,6 +58,18 @@ function tokenUsage(response: AnyObject | undefined): TokenUsage | undefined {
   return result.status === "ok" ? result.usage : undefined;
 }
 
+/**
+ * The served-tier detection the ledger event is built from: the tier the
+ * provider ANSWERED with (OpenAI's top-level response.service_tier, Anthropic's
+ * usage.service_tier), never the tier the request asked for. Exported so the
+ * measurement harness prices the SERVED tier through this exact code path
+ * rather than reimplementing it: a flex request answered "default" must bill
+ * standard everywhere, and a response with no tier evidence reports undefined.
+ */
+export function serviceTierOf(response: AnyObject | undefined): string | undefined {
+  return providerResponseServiceTier(response);
+}
+
 function usageCost(usage: TokenUsage | undefined, pricing: Pricing | undefined): number | undefined {
   if (!usage || !pricing ||
       (usage.cachedInputTokens > 0 && pricing.cachedInputPerMillion === undefined) ||
@@ -341,10 +353,8 @@ export function withFlux<T extends AnyObject>(client: T, options: FluxOptions): 
               : undefined;
           // Billing reads the tier the provider ANSWERED with, never the one
           // the request asked for: flex that fell back bills standard. The
-          // shared core helper reads OpenAI's top-level service_tier and
-          // Anthropic's usage.service_tier (standard | priority | batch).
-          const serviceTierOf = (attemptResponse: AnyObject | undefined): string | undefined =>
-            providerResponseServiceTier(attemptResponse);
+          // module-level serviceTierOf (shared with the harness) reads OpenAI's
+          // top-level service_tier and Anthropic's usage.service_tier.
           const attemptServiceTiers = attempts.map(({ response: attemptResponse }) =>
             serviceTierOf(attemptResponse) ?? null);
           const responseServiceTier = attempts.length > 0
