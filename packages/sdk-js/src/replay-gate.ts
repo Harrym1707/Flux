@@ -1,5 +1,6 @@
 import {
   estimateTokenCost,
+  normalizeProviderUsage,
   simultaneousGroupBootstrapLowerBounds,
   type TokenPrice,
 } from "../../core/dist/src/index.js";
@@ -129,46 +130,16 @@ function isPlainObject(value: unknown): value is AnyObject {
  * makes prefix caching worth exactly zero to the gate, which would mean the
  * largest lossless lever could never be measured or credited.
  *
- * The two conventions differ and both are normalised to a total-inclusive
- * figure: OpenAI reports cached tokens INSIDE input_tokens, Anthropic reports
- * cache reads and writes alongside it.
+ * The parsing itself now lives in packages/core (normalizeProviderUsage), the
+ * single shared normaliser the SDK wrapper and the ledger read through too, so
+ * the gate and the meter can never disagree about what a response cost. This
+ * wrapper keeps the gate's historical contract: the usage, or undefined.
  */
 export function replayUsage(response: unknown): ReplayUsage | undefined {
-  if (!isPlainObject(response)) return undefined;
-  const usage = isPlainObject(response.usage) ? response.usage : undefined;
-  if (!usage) return undefined;
-  const number = (value: unknown): number | undefined =>
-    typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : undefined;
-  const details = isPlainObject(usage.input_tokens_details) ? usage.input_tokens_details : undefined;
-  const promptDetails = isPlainObject(usage.prompt_tokens_details) ? usage.prompt_tokens_details : undefined;
-
-  const anthropicRead = number(usage.cache_read_input_tokens);
-  const anthropicWrite = number(usage.cache_creation_input_tokens);
-  const output = number(usage.output_tokens) ?? number(usage.completion_tokens);
-  if (output === undefined) return undefined;
-
-  if (anthropicRead !== undefined || anthropicWrite !== undefined) {
-    const fresh = number(usage.input_tokens) ?? 0;
-    const cached = anthropicRead ?? 0;
-    const written = anthropicWrite ?? 0;
-    return {
-      inputTokens: fresh + cached + written,
-      outputTokens: output,
-      cachedInputTokens: cached,
-      cacheWriteInputTokens: written,
-    };
-  }
-
-  const input = number(usage.input_tokens) ?? number(usage.prompt_tokens);
-  if (input === undefined) return undefined;
-  const cached = number(details?.cached_tokens) ?? number(promptDetails?.cached_tokens) ?? 0;
-  return {
-    inputTokens: input,
-    outputTokens: output,
-    // Already inside input_tokens on these shapes.
-    cachedInputTokens: Math.min(cached, input),
-    cacheWriteInputTokens: 0,
-  };
+  const result = normalizeProviderUsage(response);
+  if (result.status !== "ok") return undefined;
+  const { inputTokens, outputTokens, cachedInputTokens, cacheWriteInputTokens } = result.usage;
+  return { inputTokens, outputTokens, cachedInputTokens, cacheWriteInputTokens };
 }
 
 /** Concatenate the assistant text of a response, ignoring structure. */

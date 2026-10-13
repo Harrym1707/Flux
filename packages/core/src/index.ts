@@ -18,4 +18,5 @@ export * from "./helicone.js";
 export * from "./langfuse.js";
 export * from "./model-prices.js";
 export * from "./replay.js";
+export * from "./provider-usage.js";
 export * from "./geo-visibility.js";

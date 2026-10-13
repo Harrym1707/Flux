@@ -34,6 +34,14 @@ export type FluxRequestEvent = {
   uncachedInputTokens?: number;
   cachedInputTokens?: number;
   cacheWriteInputTokens?: number;
+  /**
+   * Provider-reported TTL split of the cache writes (Anthropic
+   * usage.cache_creation). Present as a PAIR only when the provider reported
+   * the split; absent means unknown, and billing must treat unknown writes on a
+   * FLUX-placed cache_control at the 1h premium (dispute-safe), never as 5m.
+   */
+  cacheWrite5mInputTokens?: number;
+  cacheWrite1hInputTokens?: number;
   costUsd?: number;
   /**
    * service_tier as reported on the final RESPONSE, never the requested one: a
@@ -205,12 +213,16 @@ export type FluxOptions = {
     inputPerMillion: number;
     cachedInputPerMillion?: number;
     cacheWriteInputPerMillion?: number;
+    /** 1h-TTL cache writes bill at their own premium (Anthropic: 2x base input). */
+    cacheWrite1hInputPerMillion?: number;
     outputPerMillion: number;
   };
   pricingByModel?: Record<string, {
     inputPerMillion: number;
     cachedInputPerMillion?: number;
     cacheWriteInputPerMillion?: number;
+    /** 1h-TTL cache writes bill at their own premium (Anthropic: 2x base input). */
+    cacheWrite1hInputPerMillion?: number;
     outputPerMillion: number;
   }>;
   telemetry?: FluxTelemetryConfig;

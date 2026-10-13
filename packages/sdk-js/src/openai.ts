@@ -1,4 +1,9 @@
 import { randomUUID } from "node:crypto";
+import {
+  normalizeProviderUsage,
+  responseServiceTier as providerResponseServiceTier,
+  type NormalizedProviderUsage,
+} from "../../core/dist/src/index.js";
 import { TelemetryClient } from "./telemetry.js";
 import { chooseRoute } from "./routing.js";
 import { ExactResponseCache } from "./exact-cache.js";
@@ -16,43 +21,39 @@ import type {
 type AnyObject = Record<PropertyKey, any>;
 type Pricing = NonNullable<FluxOptions["pricing"]>;
 
-type TokenUsage = {
-  inputTokens: number;
-  uncachedInputTokens: number;
-  cachedInputTokens: number;
-  cacheWriteInputTokens: number;
-  outputTokens: number;
-};
+type TokenUsage = NormalizedProviderUsage;
 
 function validRate(value: unknown): boolean {
   return value === undefined || (typeof value === "number" && Number.isFinite(value) && value >= 0);
 }
 
+/**
+ * Provider usage through the ONE shared normaliser in packages/core, so the
+ * wrapper, the replay gate and the ledger can never disagree about a response:
+ * Responses, Chat Completions and Anthropic Messages shapes all parse, cached
+ * tokens stay inside the OpenAI totals, Anthropic reads/writes are added to a
+ * total-inclusive figure, and an inconsistent cache-write TTL split yields no
+ * usage at all rather than a silently repaired one.
+ */
 function tokenUsage(response: AnyObject | undefined): TokenUsage | undefined {
-  const usage = response?.usage;
-  const inputTokens = usage?.input_tokens;
-  const outputTokens = usage?.output_tokens;
-  const cachedInputTokens = usage?.input_tokens_details?.cached_tokens ?? 0;
-  const cacheWriteInputTokens = usage?.input_tokens_details?.cache_write_tokens ?? 0;
-  if (![inputTokens, outputTokens, cachedInputTokens, cacheWriteInputTokens].every((count) =>
-    typeof count === "number" && Number.isFinite(count) && count >= 0
-  ) || cachedInputTokens + cacheWriteInputTokens > inputTokens) return undefined;
-  return {
-    inputTokens,
-    uncachedInputTokens: inputTokens - cachedInputTokens - cacheWriteInputTokens,
-    cachedInputTokens,
-    cacheWriteInputTokens,
-    outputTokens,
-  };
+  const result = normalizeProviderUsage(response);
+  return result.status === "ok" ? result.usage : undefined;
 }
 
 function usageCost(usage: TokenUsage | undefined, pricing: Pricing | undefined): number | undefined {
   if (!usage || !pricing ||
       (usage.cachedInputTokens > 0 && pricing.cachedInputPerMillion === undefined) ||
       (usage.cacheWriteInputTokens > 0 && pricing.cacheWriteInputPerMillion === undefined)) return undefined;
+  // The 1h-TTL share of cache writes bills at its own premium where a rate is
+  // configured; with no split reported, every write prices at the base write rate
+  // here (the catalogue-backed ledger applies the dispute-safe 1h fallback).
+  const write1h = usage.cacheWrite1hInputTokens ?? 0;
+  if (write1h > 0 && pricing.cacheWrite1hInputPerMillion === undefined) return undefined;
+  const write5m = usage.cacheWriteInputTokens - write1h;
   return (usage.uncachedInputTokens / 1_000_000) * pricing.inputPerMillion +
     (usage.cachedInputTokens / 1_000_000) * (pricing.cachedInputPerMillion ?? 0) +
-    (usage.cacheWriteInputTokens / 1_000_000) * (pricing.cacheWriteInputPerMillion ?? 0) +
+    (write5m / 1_000_000) * (pricing.cacheWriteInputPerMillion ?? 0) +
+    (write1h / 1_000_000) * (pricing.cacheWrite1hInputPerMillion ?? 0) +
     (usage.outputTokens / 1_000_000) * pricing.outputPerMillion;
 }
 
@@ -74,13 +75,15 @@ export function withFlux<T extends AnyObject>(client: T, options: FluxOptions): 
   if (options.pricing && (
       !Number.isFinite(options.pricing.inputPerMillion) || options.pricing.inputPerMillion < 0 ||
       !Number.isFinite(options.pricing.outputPerMillion) || options.pricing.outputPerMillion < 0 ||
-      !validRate(options.pricing.cachedInputPerMillion) || !validRate(options.pricing.cacheWriteInputPerMillion))) {
+      !validRate(options.pricing.cachedInputPerMillion) || !validRate(options.pricing.cacheWriteInputPerMillion) ||
+      !validRate(options.pricing.cacheWrite1hInputPerMillion))) {
     throw new Error("FLUX pricing rates must be finite, non-negative USD per million tokens.");
   }
   for (const [model, pricing] of Object.entries(options.pricingByModel ?? {})) {
     if (!model || !Number.isFinite(pricing.inputPerMillion) || pricing.inputPerMillion < 0 ||
         !Number.isFinite(pricing.outputPerMillion) || pricing.outputPerMillion < 0 ||
-        !validRate(pricing.cachedInputPerMillion) || !validRate(pricing.cacheWriteInputPerMillion)) {
+        !validRate(pricing.cachedInputPerMillion) || !validRate(pricing.cacheWriteInputPerMillion) ||
+        !validRate(pricing.cacheWrite1hInputPerMillion)) {
       throw new Error("FLUX per-model pricing rates must be finite, non-negative USD per million tokens.");
     }
   }
@@ -256,11 +259,24 @@ export function withFlux<T extends AnyObject>(client: T, options: FluxOptions): 
         } finally {
           const usages = attempts.map(({ response: attemptResponse }) => tokenUsage(attemptResponse));
           const hasAllUsages = attempts.length > 0 && usages.every((usage) => usage !== undefined);
+          // The cache-write TTL split totals only when it is known for every
+          // write: one attempt with unreported split makes the total's split
+          // unknown too, so pricing falls back to the dispute-safe rule rather
+          // than treating the unreported share as 5m writes.
+          const splitKnownForAll = hasAllUsages && usages.every((usage) =>
+            usage!.cacheWriteInputTokens === 0 ||
+            (usage!.cacheWrite5mInputTokens !== undefined || usage!.cacheWrite1hInputTokens !== undefined));
           const usageTotals = hasAllUsages ? usages.reduce<TokenUsage>((total, usage) => ({
             inputTokens: total.inputTokens + usage!.inputTokens,
             uncachedInputTokens: total.uncachedInputTokens + usage!.uncachedInputTokens,
             cachedInputTokens: total.cachedInputTokens + usage!.cachedInputTokens,
             cacheWriteInputTokens: total.cacheWriteInputTokens + usage!.cacheWriteInputTokens,
+            ...(splitKnownForAll
+              ? {
+                  cacheWrite5mInputTokens: (total.cacheWrite5mInputTokens ?? 0) + (usage!.cacheWrite5mInputTokens ?? 0),
+                  cacheWrite1hInputTokens: (total.cacheWrite1hInputTokens ?? 0) + (usage!.cacheWrite1hInputTokens ?? 0),
+                }
+              : {}),
             outputTokens: total.outputTokens + usage!.outputTokens,
           }), { inputTokens: 0, uncachedInputTokens: 0, cachedInputTokens: 0, cacheWriteInputTokens: 0, outputTokens: 0 }) : undefined;
           const emptyCacheUsage: TokenUsage = { inputTokens: 0, uncachedInputTokens: 0, cachedInputTokens: 0, cacheWriteInputTokens: 0, outputTokens: 0 };
@@ -278,9 +294,11 @@ export function withFlux<T extends AnyObject>(client: T, options: FluxOptions): 
               ? attemptCosts.reduce<number>((sum, cost) => sum + (cost as number), 0)
               : undefined;
           // Billing reads the tier the provider ANSWERED with, never the one
-          // the request asked for: flex that fell back bills standard.
+          // the request asked for: flex that fell back bills standard. The
+          // shared core helper reads OpenAI's top-level service_tier and
+          // Anthropic's usage.service_tier (standard | priority | batch).
           const serviceTierOf = (attemptResponse: AnyObject | undefined): string | undefined =>
-            typeof attemptResponse?.service_tier === "string" ? attemptResponse.service_tier : undefined;
+            providerResponseServiceTier(attemptResponse);
           const attemptServiceTiers = attempts.map(({ response: attemptResponse }) =>
             serviceTierOf(attemptResponse) ?? null);
           const responseServiceTier = attempts.length > 0
@@ -316,6 +334,15 @@ export function withFlux<T extends AnyObject>(client: T, options: FluxOptions): 
             uncachedInputTokens: actualUsage?.uncachedInputTokens,
             cachedInputTokens: actualUsage?.cachedInputTokens,
             cacheWriteInputTokens: actualUsage?.cacheWriteInputTokens,
+            // Provider-reported TTL split of the cache writes; absent when the
+            // provider did not report one, so billing can fall back dispute-safe.
+            ...(actualUsage !== undefined &&
+                (actualUsage.cacheWrite5mInputTokens !== undefined || actualUsage.cacheWrite1hInputTokens !== undefined)
+              ? {
+                  cacheWrite5mInputTokens: actualUsage.cacheWrite5mInputTokens ?? 0,
+                  cacheWrite1hInputTokens: actualUsage.cacheWrite1hInputTokens ?? 0,
+                }
+              : {}),
             costUsd,
             responseServiceTier,
             ...(attempts.length > 0 ? { attemptServiceTiers } : {}),
