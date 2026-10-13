@@ -21,6 +21,24 @@ import type {
 type AnyObject = Record<PropertyKey, any>;
 type Pricing = NonNullable<FluxOptions["pricing"]>;
 
+/**
+ * The provider surfaces one FLUX wrapper can route. All three are thin
+ * adapters over the SAME handler: one context pipeline, one reduction pass,
+ * one exact cache, one ledger and event path. The only per-surface facts are
+ * which field carries a routing policy's output cap and which provider label
+ * the event records; everything else - including usage parsing, which goes
+ * through core's normalizeProviderUsage - is shared, so the surfaces cannot
+ * drift apart.
+ */
+type FluxSurface = "responses" | "chat_completions" | "anthropic_messages";
+
+/** The output-cap field each surface actually honours, for routing candidates. */
+function routeCapField(surface: FluxSurface): string {
+  if (surface === "chat_completions") return "max_completion_tokens";
+  if (surface === "anthropic_messages") return "max_tokens";
+  return "max_output_tokens";
+}
+
 type TokenUsage = NormalizedProviderUsage;
 
 function validRate(value: unknown): boolean {
@@ -63,7 +81,16 @@ function matchesContextProfile(profile: FluxContextProfile, context: FluxRequest
   );
 }
 
-/** Route eligible Responses API calls and preserve the provider's response shape. */
+/**
+ * Wrap a provider client and preserve its response shapes.
+ *
+ * Three surfaces route through ONE shared handler: OpenAI Responses
+ * (responses.create), OpenAI Chat Completions (chat.completions.create), and
+ * an Anthropic-SDK-shaped client (messages.create). Reduction, routing, the
+ * exact cache, telemetry, evaluation capture and the savings ledger are all
+ * the same code on every surface - the adapters differ only in which output-cap
+ * field a routing candidate uses and which provider label the event records.
+ */
 export function withFlux<T extends AnyObject>(client: T, options: FluxOptions): T {
   const profileIds = new Set<string>();
   for (const profile of options.contextProfiles ?? []) {
@@ -89,20 +116,31 @@ export function withFlux<T extends AnyObject>(client: T, options: FluxOptions): 
   }
 
   const originalResponses = client.responses;
-  if (!originalResponses?.create || typeof originalResponses.create !== "function") {
-    throw new Error("FLUX currently supports OpenAI-compatible clients with responses.create().");
+  const originalChat = (client as AnyObject).chat;
+  const originalChatCompletions =
+    originalChat && typeof originalChat === "object" ? (originalChat as AnyObject).completions : undefined;
+  const originalMessages = (client as AnyObject).messages;
+  const hasResponses = typeof originalResponses?.create === "function";
+  const hasChat = typeof (originalChatCompletions as AnyObject | undefined)?.create === "function";
+  const hasMessages = typeof (originalMessages as AnyObject | undefined)?.create === "function";
+  if (!hasResponses && !hasChat && !hasMessages) {
+    throw new Error(
+      "FLUX supports OpenAI-compatible clients with responses.create() or chat.completions.create(), " +
+      "and Anthropic-SDK-shaped clients with messages.create().",
+    );
   }
 
   const telemetry = new TelemetryClient(options.telemetry);
   const exactCache = options.exactCache ? new ExactResponseCache(options.exactCache) : undefined;
   // Config errors (no path) surface here, at setup time; from the first request
   // on, the ledger is fire-and-forget and can never throw into the request path.
+  // ONE ledger (and one telemetry client, one exact cache) across every
+  // surface, so a client used through chat and messages still writes a single
+  // hash chain.
   const ledger: SavingsLedger | undefined = options.ledger ? createSavingsLedger(options.ledger) : undefined;
-  const wrappedResponses = new Proxy(originalResponses, {
-    get(target, property, receiver) {
-      if (property !== "create") return Reflect.get(target, property, receiver);
 
-      return async (request: AnyObject, ...rest: unknown[]) => {
+  const surfaceCreate = (surface: FluxSurface, target: AnyObject) =>
+    async (request: AnyObject, ...rest: unknown[]) => {
         const requestId = randomUUID();
         const started = performance.now();
         let context: FluxRequestContext = {};
@@ -159,10 +197,13 @@ export function withFlux<T extends AnyObject>(client: T, options: FluxOptions): 
           }
         }
         if (candidateSelected && route.maxOutputTokens !== undefined) {
-          const requestedCap = request.max_output_tokens;
+          // The routing policy's candidate cap lands on the field THIS surface
+          // honours; the caller's own tighter cap always wins.
+          const capField = routeCapField(surface);
+          const requestedCap = request[capField];
           routedRequest = {
             ...routedRequest,
-            max_output_tokens: typeof requestedCap === "number" && Number.isFinite(requestedCap)
+            [capField]: typeof requestedCap === "number" && Number.isFinite(requestedCap)
               ? Math.min(requestedCap, route.maxOutputTokens)
               : route.maxOutputTokens,
           };
@@ -308,7 +349,7 @@ export function withFlux<T extends AnyObject>(client: T, options: FluxOptions): 
             requestId,
             applicationId: options.applicationId,
             ...(reduction === undefined ? {} : { reduction: reduction.summary }),
-            provider: "openai-compatible",
+            provider: surface === "anthropic_messages" ? "anthropic-compatible" : "openai-compatible",
             model: finalModel,
             requestedModel: candidateSelected ? model : undefined,
             taskClass,
@@ -452,12 +493,38 @@ export function withFlux<T extends AnyObject>(client: T, options: FluxOptions): 
           }
         }
       };
-    },
-  });
+
+  // Each surface is a thin proxy handing "create" to the SHARED handler above;
+  // every other property passes through to the provider's own object.
+  const wrapCreate = (surface: FluxSurface, surfaceTarget: AnyObject): AnyObject =>
+    new Proxy(surfaceTarget, {
+      get(target, property, receiver) {
+        if (property !== "create") return Reflect.get(target, property, receiver);
+        return surfaceCreate(surface, target);
+      },
+    });
+
+  const wrappedResponses = hasResponses ? wrapCreate("responses", originalResponses) : undefined;
+  const wrappedChatCompletions = hasChat
+    ? wrapCreate("chat_completions", originalChatCompletions as AnyObject)
+    : undefined;
+  const wrappedChat = hasChat
+    ? new Proxy(originalChat as AnyObject, {
+        get(target, property, receiver) {
+          if (property === "completions") return wrappedChatCompletions;
+          return Reflect.get(target, property, receiver);
+        },
+      })
+    : undefined;
+  const wrappedMessages = hasMessages
+    ? wrapCreate("anthropic_messages", originalMessages as AnyObject)
+    : undefined;
 
   return new Proxy(client, {
     get(target, property, receiver) {
-      if (property === "responses") return wrappedResponses;
+      if (property === "responses" && wrappedResponses !== undefined) return wrappedResponses;
+      if (property === "chat" && wrappedChat !== undefined) return wrappedChat;
+      if (property === "messages" && wrappedMessages !== undefined) return wrappedMessages;
       return Reflect.get(target, property, receiver);
     },
   });
