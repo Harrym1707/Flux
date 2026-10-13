@@ -2,6 +2,8 @@ import {
   approximateTokenCount,
   dedupeRepeatedBlocks,
   minifyToolSchemas,
+  publishedModelPrices,
+  resolveModelId,
   type TokenCounter,
 } from "../../core/dist/src/index.js";
 
@@ -98,7 +100,13 @@ export type FluxTokenReductionConfig = {
    * tune `maximumTokens` (integer, at least 64).
    */
   freshToolResultCap?: boolean | { maximumTokens?: number };
-  /** Set max_output_tokens when the caller has not. Output is the dearer half. */
+  /**
+   * Output budget, applied through the field each surface honours: Responses
+   * max_output_tokens (set only when absent), Chat Completions
+   * max_completion_tokens (set only when the caller set no cap in any
+   * spelling), Anthropic Messages max_tokens (downward-only clamp of the
+   * caller's required value). Output is the dearer half of the bill.
+   */
   maxOutputTokens?: number;
   /**
    * Execution tier for requests the caller has flagged latency-tolerant.
@@ -107,7 +115,10 @@ export type FluxTokenReductionConfig = {
    * standard). The answer is unchanged - same model, same tokens - so this is
    * deterministic for cost; only latency changes, which is why it must be the
    * CALLER's flag per workload and is never set by default. Applied only when
-   * the request does not already carry a service_tier.
+   * the request does not already carry a service_tier, only on OpenAI-shaped
+   * requests (service_tier is not an Anthropic field), and only for models the
+   * published catalogue resolves - a tier delta on an unpriceable model could
+   * never be verified, so it is never stamped.
    */
   executionTier?: "flex";
   /**
@@ -290,6 +301,52 @@ function digestBodyValue(value: unknown, state: { bodies: number }): unknown {
 }
 
 /**
+ * Whether a user message is a tool-result CARRIER: Anthropic's convention puts
+ * tool results back into the conversation as {type: 'tool_result'} blocks
+ * inside a user-role message. A message that is nothing but such blocks is the
+ * transport for tool output, not a human turn, so turn counting must skip it
+ * or Anthropic conversations would count twice as many turns as the identical
+ * OpenAI-shaped conversation and compact on a different boundary.
+ */
+function isToolResultCarrier(message: unknown): boolean {
+  return isPlainObject(message) && message.role === "user" && Array.isArray(message.content) &&
+    message.content.length > 0 &&
+    message.content.every((block) => isPlainObject(block) && block.type === "tool_result");
+}
+
+/**
+ * Transform ONLY the {type: 'tool_result'} blocks inside a user message,
+ * leaving genuine user text verbatim, always. Shared by the fresh-result cap
+ * and stale-history compaction so both levers see the Anthropic tool-result
+ * convention identically. Returns the original message when nothing changed.
+ */
+function transformUserToolResultBlocks(
+  message: AnyObject,
+  transform: (text: string) => string,
+  countTokens: TokenCounter,
+  state: { bodies: number },
+  addSavedTokens: (saved: number) => void,
+): unknown {
+  if (!Array.isArray(message.content)) return message;
+  const sizeOf = (value: unknown): number =>
+    countTokens(typeof value === "string" ? value : JSON.stringify(value) ?? "");
+  let changed = false;
+  const blocks = message.content.map((block) => {
+    if (!isPlainObject(block) || block.type !== "tool_result" || !("content" in block)) return block;
+    const before = sizeOf(block.content);
+    // transformBodyValue returns fresh arrays even when no text changed, so
+    // the change signal is the bodies counter, not reference equality.
+    const bodiesBefore = state.bodies;
+    const transformed = transformBodyValue(block.content, transform, state);
+    if (state.bodies === bodiesBefore) return block;
+    changed = true;
+    addSavedTokens(Math.max(0, before - sizeOf(transformed)));
+    return { ...block, content: transformed };
+  });
+  return changed ? { ...message, content: blocks } : message;
+}
+
+/**
  * Cap oversized fresh tool results in a message array.
  *
  * Unlike stale-history compaction this has no turn boundary: it runs on every
@@ -312,7 +369,15 @@ function capFreshToolResults(
   const next = input.map((message) => {
     if (!isPlainObject(message)) return message;
     const role = typeof message.role === "string" ? message.role : undefined;
-    if (role === "user" || role === "system" || role === "developer") return message;
+    if (role === "system" || role === "developer") return message;
+    // Genuine user text is verbatim, always. The only part of a user message
+    // the cap may touch is Anthropic's {type: 'tool_result'} blocks, which are
+    // tool output travelling under the user role.
+    if (role === "user") {
+      return transformUserToolResultBlocks(message, cap, countTokens, state, (saved) => {
+        savedTokens += saved;
+      });
+    }
 
     // Responses-style tool output item: { type: "function_call_output", output }.
     if (message.type === "function_call_output" && typeof message.output === "string") {
@@ -373,7 +438,13 @@ function compactStaleHistory(
   if (minimumTurns < 1 || keepRecentTurns < 1 || epochTurns < 1) {
     throw new Error("History compaction turn counts must be positive integers.");
   }
-  const totalTurns = input.filter((message) => isPlainObject(message) && message.role === "user").length;
+  // A turn is a REAL user message. User messages that are pure tool-result
+  // carriers (Anthropic's convention for returning tool output) are transport,
+  // not turns: counting them would give an Anthropic conversation twice the
+  // turns of the identical OpenAI-shaped one and move the epoch boundary.
+  const isRealUserTurn = (message: unknown): boolean =>
+    isPlainObject(message) && message.role === "user" && !isToolResultCarrier(message);
+  const totalTurns = input.filter(isRealUserTurn).length;
   if (totalTurns < minimumTurns) return input;
   const compactedTurns = Math.floor((totalTurns - keepRecentTurns) / epochTurns) * epochTurns;
   if (compactedTurns <= 0) return input;
@@ -382,11 +453,18 @@ function compactStaleHistory(
   let savedTokens = 0;
   let turn = -1;
   const next = input.map((message) => {
-    if (isPlainObject(message) && message.role === "user") turn += 1;
+    if (isRealUserTurn(message)) turn += 1;
     if (turn < 0 || turn >= compactedTurns) return message;
     if (!isPlainObject(message)) return message;
     const role = typeof message.role === "string" ? message.role : undefined;
-    if (role === "user" || role === "system" || role === "developer") return message;
+    if (role === "system" || role === "developer") return message;
+    // Genuine user text is verbatim, always; only Anthropic tool_result blocks
+    // inside stale user messages are digested.
+    if (role === "user") {
+      return transformUserToolResultBlocks(message, digestStaleBody, countTokens, state, (saved) => {
+        savedTokens += saved;
+      });
+    }
 
     // Responses-style tool output item: { type: "function_call_output", output }.
     if (message.type === "function_call_output" && typeof message.output === "string") {
@@ -483,6 +561,12 @@ function stampAnthropicCacheTtl(next: AnyObject): boolean {
   const model = typeof next.model === "string" ? next.model.toLowerCase() : "";
   if (!model.includes("claude")) return false;
   if (!Array.isArray(next.messages) || next.messages.length === 0) return false;
+  // A top-level cache_control (the automatic-caching request field) is the
+  // caller choosing their caching at the request level; stamping an explicit
+  // breakpoint with a different TTL alongside it risks a provider-side
+  // TTL-mismatch rejection, so the stamp defers exactly as it does for
+  // caller-placed block-level breakpoints.
+  if (next.cache_control !== undefined) return false;
   const carriesCacheControl = (value: unknown): boolean =>
     (JSON.stringify(value ?? null) ?? "").includes('"cache_control"');
   if (carriesCacheControl(next.messages) || carriesCacheControl(next.system)) return false;
@@ -494,6 +578,10 @@ function stampAnthropicCacheTtl(next: AnyObject): boolean {
   if (!isPlainObject(last)) return false;
   const content = last.content;
   if (typeof content === "string") {
+    // An empty or whitespace-only body cannot carry a breakpoint: Anthropic
+    // rejects text blocks without visible content, so the stamp would turn a
+    // valid request into a 400.
+    if (content.trim() === "") return false;
     messages[lastIndex] = {
       ...last,
       content: [{ type: "text", text: content, cache_control: cacheControl }],
@@ -502,6 +590,8 @@ function stampAnthropicCacheTtl(next: AnyObject): boolean {
     const blocks = [...content];
     const lastBlock = blocks[blocks.length - 1];
     if (!isPlainObject(lastBlock)) return false;
+    // A whitespace-only final text block is skipped for the same reason.
+    if (typeof lastBlock.text === "string" && lastBlock.text.trim() === "") return false;
     blocks[blocks.length - 1] = { ...lastBlock, cache_control: cacheControl };
     messages[lastIndex] = { ...last, content: blocks };
   } else {
@@ -655,18 +745,30 @@ export function reduceRequest(
       next.input = reduceText(next.input as string, config, countTokens, changes, "input");
     }
 
-    // Execution tier, only where the caller has not chosen one themselves.
+    // Execution tier, only where the caller has not chosen one themselves,
+    // and ONLY on OpenAI-shaped requests for models the catalogue knows:
+    // service_tier is an OpenAI request field, so an Anthropic-shaped request
+    // is never stamped (the field would 400), and a model the catalogue cannot
+    // resolve gets no stamp because an unpriceable tier delta could never be
+    // verified or billed - unpriced is excluded, never zeroed, and never
+    // stamped on spec.
     if (config.executionTier === "flex" && next.service_tier === undefined) {
-      next.service_tier = "flex";
-      changes.push({
-        lever: "execution-tier-flex",
-        lossless: true,
-        // The saving is a rate change on the whole request, not tokens removed.
-        estimatedTokensSaved: 0,
-        detail: "Set service_tier to flex: batch-level pricing (50% off) on a synchronous API. Same model, " +
-          "same answer; latency may rise and 429s fall back to standard, so this applies only to workloads " +
-          "the caller flagged latency-tolerant.",
-      });
+      const model = typeof next.model === "string" ? next.model : "";
+      const anthropicShaped = model.toLowerCase().includes("claude");
+      const catalogued = !anthropicShaped &&
+        resolveModelId(publishedModelPrices, "openai", model).status === "resolved";
+      if (catalogued) {
+        next.service_tier = "flex";
+        changes.push({
+          lever: "execution-tier-flex",
+          lossless: true,
+          // The saving is a rate change on the whole request, not tokens removed.
+          estimatedTokensSaved: 0,
+          detail: "Set service_tier to flex: batch-level pricing (50% off) on a synchronous API. Same model, " +
+            "same answer; latency may rise and 429s fall back to standard, so this applies only to workloads " +
+            "the caller flagged latency-tolerant.",
+        });
+      }
     }
 
     // Cache TTL, only on Anthropic-shaped requests that carry no cache_control
@@ -688,19 +790,63 @@ export function reduceRequest(
       }
     }
 
-    // Output budget, only where the caller has not set one themselves.
-    if (config.maxOutputTokens !== undefined && next.max_output_tokens === undefined) {
-      if (!Number.isInteger(config.maxOutputTokens) || config.maxOutputTokens < 1) {
-        throw new Error("maxOutputTokens must be a positive integer.");
+    // Output budget, applied through the field each surface actually honours,
+    // and only where the caller has not set a cap themselves (guard per
+    // surface). The Responses behaviour is unchanged.
+    if (config.maxOutputTokens !== undefined) {
+      const assertValidCap = (): void => {
+        if (!Number.isInteger(config.maxOutputTokens) || config.maxOutputTokens! < 1) {
+          throw new Error("maxOutputTokens must be a positive integer.");
+        }
+      };
+      const claudeModel = typeof next.model === "string" && next.model.toLowerCase().includes("claude");
+      const messagesShaped = Array.isArray(next.messages);
+      if (claudeModel && messagesShaped &&
+          typeof next.max_tokens === "number" && Number.isFinite(next.max_tokens)) {
+        // Anthropic Messages REQUIRES max_tokens, so a real request always
+        // carries the caller's own choice: FLUX may only tighten it downward,
+        // never loosen or replace it. (A claude-shaped request WITHOUT
+        // max_tokens is not sendable to the real API; it falls through to the
+        // generic branch below unchanged, which keeps simulator-shaped traffic
+        // behaving exactly as before.)
+        assertValidCap();
+        if (next.max_tokens > config.maxOutputTokens) {
+          next.max_tokens = config.maxOutputTokens;
+          changes.push({
+            lever: "output-cap",
+            lossless: false,
+            estimatedTokensSaved: 0,
+            detail: `Clamped max_tokens down to ${config.maxOutputTokens} (downward only; a caller cap at or ` +
+              "below the budget is never touched). Responses that would have run longer are truncated, so this " +
+              "needs checking against real output lengths.",
+          });
+        }
+      } else if (!claudeModel && messagesShaped) {
+        // Chat Completions honours max_completion_tokens (max_tokens is the
+        // deprecated alias); either one set by the caller wins.
+        if (next.max_completion_tokens === undefined && next.max_tokens === undefined &&
+            next.max_output_tokens === undefined) {
+          assertValidCap();
+          next.max_completion_tokens = config.maxOutputTokens;
+          changes.push({
+            lever: "output-cap",
+            lossless: false,
+            estimatedTokensSaved: 0,
+            detail: `Set max_completion_tokens to ${config.maxOutputTokens}. Responses that would have run ` +
+              "longer are truncated, so this needs checking against real output lengths.",
+          });
+        }
+      } else if (next.max_output_tokens === undefined) {
+        assertValidCap();
+        next.max_output_tokens = config.maxOutputTokens;
+        changes.push({
+          lever: "output-cap",
+          lossless: false,
+          estimatedTokensSaved: 0,
+          detail: `Set max_output_tokens to ${config.maxOutputTokens}. Responses that would have run longer are ` +
+            "truncated, so this needs checking against real output lengths.",
+        });
       }
-      next.max_output_tokens = config.maxOutputTokens;
-      changes.push({
-        lever: "output-cap",
-        lossless: false,
-        estimatedTokensSaved: 0,
-        detail: `Set max_output_tokens to ${config.maxOutputTokens}. Responses that would have run longer are ` +
-          "truncated, so this needs checking against real output lengths.",
-      });
     }
 
     const after = measure(next.instructions) + measure(next.system) + measure(next.input) +
