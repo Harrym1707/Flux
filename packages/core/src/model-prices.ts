@@ -22,7 +22,8 @@ import {
 const ANTHROPIC = {
   source: "https://claude.com/pricing",
   capturedOn: "2026-10-08",
-  note: "Published display names; cache read/write rates as listed.",
+  note: "Published display names; cache read/write rates as listed. 5m cache writes bill 1.25x base input, " +
+    "1h cache writes 2x base input, per the published prompt-caching pricing.",
 } as const;
 
 const OPENAI = {
@@ -38,6 +39,7 @@ type Rates = {
   output: number;
   cachedInput?: number;
   cacheWriteInput?: number;
+  cacheWrite1hInput?: number;
   maxInputTokens?: number;
 };
 
@@ -60,24 +62,25 @@ function entry(
       outputPerMillion: band.output,
       ...(band.cachedInput === undefined ? {} : { cachedInputPerMillion: band.cachedInput }),
       ...(band.cacheWriteInput === undefined ? {} : { cacheWriteInputPerMillion: band.cacheWriteInput }),
+      ...(band.cacheWrite1hInput === undefined ? {} : { cacheWrite1hInputPerMillion: band.cacheWrite1hInput }),
     })),
   };
 }
 
 const anthropic: ModelPriceEntry[] = [
   entry("anthropic", "Fable 5.1", ANTHROPIC, [
-    { input: 10, output: 50, cachedInput: 0.25, cacheWriteInput: 12.5 },
+    { input: 10, output: 50, cachedInput: 0.25, cacheWriteInput: 12.5, cacheWrite1hInput: 20 },
   ]),
   entry("anthropic", "Opus 5.5", ANTHROPIC, [
-    { input: 4, output: 20, cachedInput: 0.2, cacheWriteInput: 5 },
+    { input: 4, output: 20, cachedInput: 0.2, cacheWriteInput: 5, cacheWrite1hInput: 8 },
   ]),
   entry("anthropic", "Sonnet 5.5", ANTHROPIC, [
-    { input: 2, output: 10, cachedInput: 0.1, cacheWriteInput: 2.5 },
+    { input: 2, output: 10, cachedInput: 0.1, cacheWriteInput: 2.5, cacheWrite1hInput: 4 },
   ]),
   // Haiku 5.5 is tiered by prompt size: the higher band applies above 100K input tokens.
   entry("anthropic", "Haiku 5.5", ANTHROPIC, [
-    { maxInputTokens: 100_000, input: 0.1, output: 0.5, cachedInput: 0.01, cacheWriteInput: 0.125 },
-    { input: 0.5, output: 2.5, cachedInput: 0.05, cacheWriteInput: 0.625 },
+    { maxInputTokens: 100_000, input: 0.1, output: 0.5, cachedInput: 0.01, cacheWriteInput: 0.125, cacheWrite1hInput: 0.2 },
+    { input: 0.5, output: 2.5, cachedInput: 0.05, cacheWriteInput: 0.625, cacheWrite1hInput: 1 },
   ]),
 ];
 

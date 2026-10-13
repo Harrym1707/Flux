@@ -70,7 +70,18 @@ export type LedgerUsage = {
   inputTokens: number;
   outputTokens: number;
   cachedInputTokens: number;
+  /** TOTAL cache writes, inclusive of any TTL-split share below. */
   cacheWriteInputTokens: number;
+  /**
+   * Provider-reported TTL split of the cache writes, present as a PAIR only
+   * when the provider reported one (Anthropic usage.cache_creation). The two
+   * buckets must sum exactly to cacheWriteInputTokens or the event is unpriced.
+   * Absent means the split is UNKNOWN: writes on a FLUX-placed cache_control
+   * are then priced at the 1h premium (dispute-safe, counts against FLUX),
+   * never assumed to be 5m writes.
+   */
+  cacheWrite5mInputTokens?: number;
+  cacheWrite1hInputTokens?: number;
 };
 
 /** One append-only billable event, written once per completed request. */
@@ -211,13 +222,43 @@ export function priceLedgerUsage(catalogue: PriceCatalogue, input: LedgerPricing
   if (resolution.status === "unresolved") {
     return { pricingStatus: "unpriced", reason: resolution.reason };
   }
+
+  // The cache-write TTL split decides which write rate bills. Three cases:
+  // a reported split must sum exactly (a mismatched event is unpriced, never
+  // repaired); an absent split on a FLUX-placed cache_control prices EVERY
+  // write at the 1h premium, because FLUX stamped the 1h TTL and the benefit
+  // of the doubt belongs to the customer (dispute-safe); an absent split on
+  // customer-placed caching keeps the default write rate, exactly as before.
+  const split5m = input.usage.cacheWrite5mInputTokens;
+  const split1h = input.usage.cacheWrite1hInputTokens;
+  const splitReported = split5m !== undefined || split1h !== undefined;
+  if (splitReported && (split5m ?? 0) + (split1h ?? 0) !== input.usage.cacheWriteInputTokens) {
+    return {
+      pricingStatus: "unpriced",
+      reason: `Cache-write TTL split (5m ${split5m ?? 0} + 1h ${split1h ?? 0}) does not sum to ` +
+        `cacheWriteInputTokens ${input.usage.cacheWriteInputTokens}.`,
+    };
+  }
+  const write1hForPricing = splitReported
+    ? (split1h ?? 0)
+    : input.fluxPlacedCacheControl
+      ? input.usage.cacheWriteInputTokens
+      : 0;
+  const pricingUsage = {
+    inputTokens: input.usage.inputTokens,
+    outputTokens: input.usage.outputTokens,
+    cachedInputTokens: input.usage.cachedInputTokens,
+    cacheWriteInputTokens: input.usage.cacheWriteInputTokens,
+    cacheWrite1hInputTokens: write1hForPricing,
+  };
+
   const query = { provider: input.provider, model: resolution.model, at: input.at };
-  const actual = priceUsage(catalogue, { ...query, mode: input.executionMode }, input.usage);
+  const actual = priceUsage(catalogue, { ...query, mode: input.executionMode }, pricingUsage);
   if (actual.status === "unpriced") return { pricingStatus: "unpriced", reason: actual.reason };
 
   const standardWithCache = input.executionMode === "standard"
     ? actual
-    : priceUsage(catalogue, { ...query, mode: "standard" }, input.usage);
+    : priceUsage(catalogue, { ...query, mode: "standard" }, pricingUsage);
   if (standardWithCache.status === "unpriced") {
     return { pricingStatus: "unpriced", reason: standardWithCache.reason };
   }

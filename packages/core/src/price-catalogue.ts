@@ -72,7 +72,10 @@ export type TokenUsage = {
   inputTokens: number;
   outputTokens: number;
   cachedInputTokens?: number;
+  /** TOTAL cache writes, inclusive of any 1h share below. */
   cacheWriteInputTokens?: number;
+  /** The share of the writes above that carried the 1h TTL (bills a premium). */
+  cacheWrite1hInputTokens?: number;
 };
 
 export type PriceQuery = {
@@ -119,6 +122,7 @@ function assertTiers(tiers: PriceTier[], label: string): void {
     assertRate(tier.outputPerMillion, `${label} outputPerMillion`);
     assertRate(tier.cachedInputPerMillion, `${label} cachedInputPerMillion`);
     assertRate(tier.cacheWriteInputPerMillion, `${label} cacheWriteInputPerMillion`);
+    assertRate(tier.cacheWrite1hInputPerMillion, `${label} cacheWrite1hInputPerMillion`);
   }
 }
 
@@ -232,6 +236,9 @@ function discounted(tier: PriceTier, discountPercent: number): TokenPrice {
     ...(tier.cacheWriteInputPerMillion === undefined
       ? {}
       : { cacheWriteInputPerMillion: tier.cacheWriteInputPerMillion * factor }),
+    ...(tier.cacheWrite1hInputPerMillion === undefined
+      ? {}
+      : { cacheWrite1hInputPerMillion: tier.cacheWrite1hInputPerMillion * factor }),
   };
 }
 
@@ -294,8 +301,16 @@ export function priceUsage(
   if (lookup.status === "unpriced") return lookup;
   const cached = usage.cachedInputTokens ?? 0;
   const cacheWrite = usage.cacheWriteInputTokens ?? 0;
+  const cacheWrite1h = usage.cacheWrite1hInputTokens ?? 0;
+  if (cacheWrite1h > cacheWrite) {
+    return {
+      status: "unpriced",
+      reason: `${query.provider}/${query.model} reports more 1h cache writes (${cacheWrite1h}) than total cache writes (${cacheWrite}).`,
+    };
+  }
   if ((cached > 0 && lookup.price.cachedInputPerMillion === undefined) ||
-      (cacheWrite > 0 && lookup.price.cacheWriteInputPerMillion === undefined)) {
+      (cacheWrite - cacheWrite1h > 0 && lookup.price.cacheWriteInputPerMillion === undefined) ||
+      (cacheWrite1h > 0 && lookup.price.cacheWrite1hInputPerMillion === undefined)) {
     return {
       status: "unpriced",
       reason: `${query.provider}/${query.model} billed cached input tokens on ${query.at}, but the catalogue has no cached-input rate for it.`,
@@ -304,6 +319,7 @@ export function priceUsage(
   const costUsd = estimateTokenCost(usage.inputTokens, usage.outputTokens, lookup.price, {
     cachedInputTokens: usage.cachedInputTokens,
     cacheWriteInputTokens: usage.cacheWriteInputTokens,
+    cacheWrite1hInputTokens: usage.cacheWrite1hInputTokens,
   });
   return { status: "priced", costUsd, price: lookup.price, entry: lookup.entry, negotiated: lookup.negotiated };
 }

@@ -200,9 +200,41 @@ describe("priceLedgerUsage", () => {
       usage: writeHeavy,
       fluxPlacedCacheControl: true,
     });
-    // Sonnet 5.5: write 2.5 vs input 2 per million; all writes, no reads => the
-    // 1h stamp's surcharge shows as NEGATIVE attributed savings, not clamped.
-    expect(fluxPlaced).toEqual({ pricingStatus: "priced", actualUsd: 2.5, cacheAttributedUsd: -0.5 });
+    // FLUX stamped the 1h TTL and the provider reported no TTL split, so EVERY
+    // write prices at the 1h premium (Sonnet 5.5: 4 vs input 2 per million) -
+    // the dispute-safe reading. All writes, no reads => the surcharge shows as
+    // NEGATIVE attributed savings, not clamped.
+    expect(fluxPlaced).toEqual({ pricingStatus: "priced", actualUsd: 4, cacheAttributedUsd: -2 });
+
+    // A reported split prices each bucket at its own rate: 5m at 1.25x, 1h at 2x.
+    const splitReported = priceLedgerUsage(publishedModelPrices, {
+      provider: "anthropic",
+      model: "claude-sonnet-5-5-20260514",
+      at: "2026-10-13",
+      executionMode: "standard",
+      usage: {
+        inputTokens: 1_000_000, outputTokens: 0, cachedInputTokens: 0, cacheWriteInputTokens: 1_000_000,
+        cacheWrite5mInputTokens: 600_000, cacheWrite1hInputTokens: 400_000,
+      },
+      fluxPlacedCacheControl: true,
+    });
+    // 0.6M at 2.5 + 0.4M at 4 = 1.5 + 1.6 = 3.1 USD.
+    expect(splitReported).toEqual({ pricingStatus: "priced", actualUsd: 3.1, cacheAttributedUsd: -1.1 });
+
+    // A split that does not sum to the total is a provider-usage inconsistency:
+    // the event is unpriced, never silently repaired.
+    const mismatch = priceLedgerUsage(publishedModelPrices, {
+      provider: "anthropic",
+      model: "claude-sonnet-5-5-20260514",
+      at: "2026-10-13",
+      executionMode: "standard",
+      usage: {
+        inputTokens: 1_000_000, outputTokens: 0, cachedInputTokens: 0, cacheWriteInputTokens: 1_000_000,
+        cacheWrite5mInputTokens: 600_000, cacheWrite1hInputTokens: 100_000,
+      },
+      fluxPlacedCacheControl: true,
+    });
+    expect(mismatch.pricingStatus).toBe("unpriced");
 
     const customerOwned = priceLedgerUsage(publishedModelPrices, {
       provider: "anthropic",

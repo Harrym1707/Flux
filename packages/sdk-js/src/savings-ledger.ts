@@ -54,11 +54,25 @@ function usageOf(event: FluxRequestEvent): LedgerUsage | undefined {
     .some((count) => typeof count !== "number" || !Number.isFinite(count) || count < 0)) {
     return undefined;
   }
+  // The TTL split is recorded verbatim when the provider reported one; pricing
+  // sum-checks it (a mismatched event is unpriced) and an ABSENT split on a
+  // FLUX-placed cache_control prices every write at the 1h premium.
+  const validCount = (count: unknown): count is number =>
+    typeof count === "number" && Number.isFinite(count) && count >= 0;
+  const splitReported = event.cacheWrite5mInputTokens !== undefined || event.cacheWrite1hInputTokens !== undefined;
+  const splitValid = splitReported &&
+    validCount(event.cacheWrite5mInputTokens ?? 0) && validCount(event.cacheWrite1hInputTokens ?? 0);
   return {
     inputTokens: inputTokens!,
     outputTokens: outputTokens!,
     cachedInputTokens: cachedInputTokens!,
     cacheWriteInputTokens: cacheWriteInputTokens!,
+    ...(splitValid
+      ? {
+          cacheWrite5mInputTokens: event.cacheWrite5mInputTokens ?? 0,
+          cacheWrite1hInputTokens: event.cacheWrite1hInputTokens ?? 0,
+        }
+      : {}),
   };
 }
 

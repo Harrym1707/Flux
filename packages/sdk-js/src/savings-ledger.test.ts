@@ -174,8 +174,10 @@ describe("billableEventFromRequest", () => {
       publishedModelPrices,
       version,
     );
-    expect(billed.levers).toContainEqual({ leverId: "cache-ttl-1h", kind: "provider_cache", savedUsd: -0.5 });
-    expect(recomputeInvoice([billed]).netVerifiedSavingsUsd).toBeCloseTo(-0.5, 10);
+    // No TTL split reported on a FLUX-placed stamp: every write prices at the
+    // 1h premium (Sonnet 5.5: 4/M vs input 2/M), the dispute-safe reading.
+    expect(billed.levers).toContainEqual({ leverId: "cache-ttl-1h", kind: "provider_cache", savedUsd: -2 });
+    expect(recomputeInvoice([billed]).netVerifiedSavingsUsd).toBeCloseTo(-2, 10);
   });
 
   it("excludes cache discounts the customer already had instead of billing them", () => {
