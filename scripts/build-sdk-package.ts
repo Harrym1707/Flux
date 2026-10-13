@@ -93,6 +93,56 @@ const sdkTypes = copyDeclarations(sdkDist, path.join(outDir, "types"), true);
 const coreTypes = copyDeclarations(coreDist, path.join(outDir, "types/core"), false);
 console.log(`copied ${sdkTypes} sdk + ${coreTypes} core declaration file(s)`);
 
+// The packaged flux-quote CLI: the five-minute design-partner experience.
+// Plain JS against the bundled entry, so the artifact stays dependency-free.
+mkdirSync(path.join(outDir, "bin"), { recursive: true });
+writeFileSync(path.join(outDir, "bin/flux-quote.mjs"), `#!/usr/bin/env node
+// Pre-contract savings quote from YOUR gateway export (LiteLLM, Helicone or
+// Langfuse), including the honest "do not pay us" verdict.
+//
+//   flux-quote <export-file> [--format litellm|helicone|langfuse]
+//              [--at YYYY-MM-DD] [--out quote.json]
+import { readFileSync, writeFileSync } from "node:fs";
+import { buildQuoteReport, canonicalJson, publishedModelPrices, renderQuoteReport } from "../index.js";
+
+function fail(message) {
+  console.error(message);
+  process.exit(1);
+}
+
+const args = process.argv.slice(2);
+if (args.length === 0 || args[0].startsWith("--")) {
+  fail("Usage: flux-quote <export-file> [--format litellm|helicone|langfuse] [--at YYYY-MM-DD] [--out quote.json]");
+}
+const file = args[0];
+let format = "litellm";
+let at = new Date().toISOString().slice(0, 10);
+let out;
+for (let index = 1; index < args.length; index += 2) {
+  const flag = args[index];
+  const value = args[index + 1];
+  if (value === undefined) fail(\`Missing value for \${flag}.\`);
+  if (flag === "--format") {
+    if (!["litellm", "helicone", "langfuse"].includes(value)) fail(\`Unknown format \${value}.\`);
+    format = value;
+  } else if (flag === "--at") at = value;
+  else if (flag === "--out") out = value;
+  else fail(\`Unknown flag \${flag}.\`);
+}
+
+const text = readFileSync(file, "utf8").trim();
+const rows = text.startsWith("[")
+  ? JSON.parse(text)
+  : text.split(/\\r?\\n/).filter((line) => line.trim() !== "").map((line) => JSON.parse(line));
+
+const report = buildQuoteReport(rows, { format, at, catalogue: publishedModelPrices });
+console.log(renderQuoteReport(report));
+if (out !== undefined) {
+  writeFileSync(out, \`\${canonicalJson(report)}\\n\`, "utf8");
+  console.error(\`\\nShareable report written to \${out}\`);
+}
+`, "utf8");
+
 const workspaceManifest = JSON.parse(readFileSync(path.join(sdkDir, "package.json"), "utf8")) as {
   name: string;
   version: string;
@@ -115,7 +165,8 @@ const manifest = {
       require: "./index.cjs",
     },
   },
-  files: ["index.js", "index.cjs", "types", "README.md"],
+  bin: { "flux-quote": "./bin/flux-quote.mjs" },
+  files: ["index.js", "index.cjs", "bin", "types", "README.md"],
   engines: { node: ">=18" },
 };
 writeFileSync(path.join(outDir, "package.json"), `${JSON.stringify(manifest, null, 2)}\n`, "utf8");

@@ -7,6 +7,10 @@ export { billableEventFromRequest, createSavingsLedger } from "./savings-ledger.
 export type { SavingsLedger } from "./savings-ledger.js";
 // The customer-side audit surface: everything needed to verify a ledger spool
 // and recompute the invoice locally, without the FLUX workspace.
+// The pre-contract quote pipeline, so the packaged flux-quote CLI (and any
+// design partner) can triage a gateway export without the FLUX workspace.
+export { buildQuoteReport, parseGatewayExport, renderQuoteReport } from "../../core/dist/src/index.js";
+export type { QuoteExportFormat, QuoteReport, QuoteStreamReport } from "../../core/dist/src/index.js";
 export {
   auditEventPricing,
   canonicalJson,
