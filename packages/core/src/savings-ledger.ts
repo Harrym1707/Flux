@@ -396,6 +396,90 @@ function compareEvents(left: BillableEvent, right: BillableEvent): number {
 }
 
 /**
+ * Why one lever's savings may NOT bill, or undefined when they may. The single
+ * rule the invoice and every projection of it (for example the Stripe meter
+ * sink) share, so no downstream artifact can ever bill a lever the invoice
+ * would refuse: unmeasured levers never bill, and lossy levers bill only with
+ * an approved replay-gate verdict.
+ */
+export function leverUnbilledReason(
+  lever: LedgerLever,
+  gateVerdictOverrides?: Record<string, "approved" | "rejected">,
+): string | undefined {
+  const verdict = gateVerdictOverrides?.[lever.leverId] ?? lever.gateVerdict?.verdict;
+  if (lever.savedUsd === undefined || !Number.isFinite(lever.savedUsd)) {
+    return "no per-request verified measurement";
+  }
+  if (lever.kind === "lossy" && verdict !== "approved") {
+    return verdict === "rejected" ? "replay gate verdict rejected" : "no approved replay gate verdict";
+  }
+  return undefined;
+}
+
+/**
+ * The shared selection pipeline: validate, sort, dedupe by requestId, filter
+ * to one period, and void every turn of a failed task. Extracted so the
+ * invoice and its projections apply IDENTICAL filters; recomputeInvoice's
+ * output bytes are unchanged by the extraction.
+ */
+export function selectBillableEvents(
+  events: readonly BillableEvent[],
+  options: Pick<InvoiceOptions, "period" | "failedTaskIds"> = {},
+): {
+  /** Deduplicated events inside the period, before task-failure exclusion. */
+  consideredEvents: BillableEvent[];
+  /** Events whose levers may bill: succeeded, on no failed task. */
+  billableEvents: BillableEvent[];
+  failedTaskIds: Set<string>;
+  eventsExcludedForFailedTasks: number;
+  duplicatesIgnored: number;
+} {
+  for (const event of events) {
+    if (event.schemaVersion !== 1) {
+      throw new Error(`Unsupported billable event schemaVersion ${JSON.stringify((event as { schemaVersion: unknown }).schemaVersion)}.`);
+    }
+    if (typeof event.requestId !== "string" || event.requestId === "") {
+      throw new Error("Billable events need a non-empty requestId idempotency key.");
+    }
+  }
+
+  const sorted = [...events].sort(compareEvents);
+  const seen = new Set<string>();
+  let duplicatesIgnored = 0;
+  const deduped: BillableEvent[] = [];
+  for (const event of sorted) {
+    if (seen.has(event.requestId)) {
+      duplicatesIgnored += 1;
+      continue;
+    }
+    seen.add(event.requestId);
+    deduped.push(event);
+  }
+
+  const consideredEvents = options.period === undefined
+    ? deduped
+    : deduped.filter((event) => event.invoicePeriod === options.period);
+
+  // Savings bill per COMPLETED task: one failed turn poisons the whole task,
+  // including savings its earlier turns appeared to earn.
+  const failedTaskIds = new Set<string>(options.failedTaskIds ?? []);
+  for (const event of consideredEvents) {
+    if (event.status === "failed" && event.taskId !== undefined) failedTaskIds.add(event.taskId);
+  }
+  let eventsExcludedForFailedTasks = 0;
+  const billableEvents: BillableEvent[] = [];
+  for (const event of consideredEvents) {
+    const taskFailed = event.taskId !== undefined && failedTaskIds.has(event.taskId);
+    if (taskFailed || event.status === "failed") {
+      eventsExcludedForFailedTasks += 1;
+      continue;
+    }
+    billableEvents.push(event);
+  }
+  return { consideredEvents, billableEvents, failedTaskIds, eventsExcludedForFailedTasks, duplicatesIgnored };
+}
+
+/**
  * Recompute the invoice from raw events. Pure and deterministic: events are
  * sorted and deduplicated by requestId before anything is summed, so the same
  * spool replayed twice, a day late, or shuffled produces byte-identical output.
@@ -420,52 +504,18 @@ export function recomputeInvoiceWithAudit(
   events: readonly BillableEvent[],
   options: InvoiceOptions = {},
 ): { invoice: Invoice; audit: LedgerAudit } {
-  for (const event of events) {
-    if (event.schemaVersion !== 1) {
-      throw new Error(`Unsupported billable event schemaVersion ${JSON.stringify((event as { schemaVersion: unknown }).schemaVersion)}.`);
-    }
-    if (typeof event.requestId !== "string" || event.requestId === "") {
-      throw new Error("Billable events need a non-empty requestId idempotency key.");
-    }
-  }
   if (options.feePercent !== undefined &&
       (!Number.isFinite(options.feePercent) || options.feePercent < 0 || options.feePercent > 100)) {
     throw new Error("feePercent must be between 0 and 100.");
   }
 
-  const sorted = [...events].sort(compareEvents);
-  const seen = new Set<string>();
-  let duplicatesIgnored = 0;
-  const deduped: BillableEvent[] = [];
-  for (const event of sorted) {
-    if (seen.has(event.requestId)) {
-      duplicatesIgnored += 1;
-      continue;
-    }
-    seen.add(event.requestId);
-    deduped.push(event);
-  }
-
-  const inPeriod = options.period === undefined
-    ? deduped
-    : deduped.filter((event) => event.invoicePeriod === options.period);
-
-  // Savings bill per COMPLETED task: one failed turn poisons the whole task,
-  // including savings its earlier turns appeared to earn.
-  const failedTaskIds = new Set<string>(options.failedTaskIds ?? []);
-  for (const event of inPeriod) {
-    if (event.status === "failed" && event.taskId !== undefined) failedTaskIds.add(event.taskId);
-  }
-  let eventsExcludedForFailedTasks = 0;
-  const billableEvents: BillableEvent[] = [];
-  for (const event of inPeriod) {
-    const taskFailed = event.taskId !== undefined && failedTaskIds.has(event.taskId);
-    if (taskFailed || event.status === "failed") {
-      eventsExcludedForFailedTasks += 1;
-      continue;
-    }
-    billableEvents.push(event);
-  }
+  const {
+    consideredEvents: inPeriod,
+    billableEvents,
+    failedTaskIds,
+    eventsExcludedForFailedTasks,
+    duplicatesIgnored,
+  } = selectBillableEvents(events, options);
 
   const lineMap = new Map<string, { leverId: string; kind: LedgerLeverKind; events: number; savedUsd: number; refs: Set<string> }>();
   const unbilledMap = new Map<string, InvoiceUnbilledItem>();
@@ -482,12 +532,7 @@ export function recomputeInvoiceWithAudit(
     gatewayCacheUsd += event.excluded?.gatewayCacheUsd ?? 0;
     let billedAny = false;
     for (const lever of event.levers) {
-      const verdict = options.gateVerdictOverrides?.[lever.leverId] ?? lever.gateVerdict?.verdict;
-      const unbilledReason = lever.savedUsd === undefined || !Number.isFinite(lever.savedUsd)
-        ? "no per-request verified measurement"
-        : lever.kind === "lossy" && verdict !== "approved"
-          ? (verdict === "rejected" ? "replay gate verdict rejected" : "no approved replay gate verdict")
-          : undefined;
+      const unbilledReason = leverUnbilledReason(lever, options.gateVerdictOverrides);
       if (unbilledReason !== undefined) {
         const key = `${lever.kind}\n${lever.leverId}\n${unbilledReason}`;
         const existing = unbilledMap.get(key);
