@@ -181,7 +181,8 @@ describe("priceLedgerUsage", () => {
   it("returns unpriced, never zero, when the actual mode has no catalogued rate", () => {
     const priced = priceLedgerUsage(publishedModelPrices, {
       provider: "openai",
-      model: "gpt-5",
+      // gpt-4o has no flex rate catalogued (gpt-5 does), so flex must be unpriced.
+      model: "gpt-4o",
       at: "2026-10-13",
       executionMode: "flex",
       usage,

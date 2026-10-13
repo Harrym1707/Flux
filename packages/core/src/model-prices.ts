@@ -99,6 +99,11 @@ const openai: ModelPriceEntry[] = [
   // Only the batch rate published explicitly is catalogued. The page describes batch
   // and flex as "typically" half of standard; that is not a rate, so it is not seeded.
   entry("openai", "gpt-6-astra", OPENAI, [{ input: 5, output: 25, cachedInput: 0.5 }], "batch"),
+  // Flex processing is billed at Batch API rates = 50% of standard, on a
+  // synchronous API, per OpenAI's flex-processing guide. Cached-input discount
+  // stacks on top. Catalogued so the ledger can price flex-tier events rather
+  // than leaving async savings unpriced.
+  entry("openai", "gpt-5", OPENAI, [{ input: 0.625, output: 5, cachedInput: 0.0625 }], "flex"),
 ];
 
 /**
