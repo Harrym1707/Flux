@@ -19,9 +19,11 @@ import type { FluxRequestEvent, FluxSavingsLedgerConfig } from "./types.js";
  * BillableEvent and writes it as a hash-chained JSONL record.
  *
  * Honesty properties, enforced here rather than promised:
- * - Every USD figure on an event is recomputable from the provider-verbatim
- *   usage it carries plus the pinned catalogue version. Estimated token counts
- *   are never priced.
+ * - Every USD figure on an event is recomputable from what the event itself
+ *   carries: provider-verbatim usage plus the pinned catalogue version for
+ *   measured figures, plus the recorded `estimatedReduction` counts for
+ *   estimated-baseline ones. An estimate is always labelled (`basis`) on the
+ *   lever and on the invoice line item, never passed off as a measurement.
  * - executionMode comes from the RESPONSE service_tier, never the requested
  *   one, so a flex request that fell back to standard earns zero tier savings.
  * - Provider-cache economics bill only on cache_control FLUX itself placed
@@ -29,9 +31,10 @@ import type { FluxRequestEvent, FluxSavingsLedgerConfig } from "./types.js";
  *   own cache discounts land in `excluded`, visible and never billed. The
  *   attributed figure MAY be negative: a 1h write surcharge with no reads to
  *   earn it counts against FLUX on the invoice.
- * - Token-reduction levers are recorded per request but bill only through the
- *   measured counterfactual (`getBaselineUsd`), and only when every applied
- *   lossy lever carries an approved replay-gate verdict.
+ * - Token-reduction levers bill from the estimated baseline above when no
+ *   measured counterfactual (`getBaselineUsd`) is supplied — lossless levers
+ *   unconditionally, lossy levers only with an approved replay-gate verdict.
+ *   A supplied measured counterfactual replaces the estimate entirely.
  * - Writes are synchronous (the record exists before the caller sees the
  *   response) and totally silent on failure: a bad path, full disk, or corrupt
  *   tail disables the meter rather than ever throwing into the request path.
@@ -134,15 +137,50 @@ export function billableEventFromRequest(
     excluded.providerCacheAlreadyOwnedUsd = priced.providerCacheAlreadyOwnedUsd;
   }
 
-  // Token-reduction changes are recorded per request. They never bill from
-  // estimated token counts; their billable path is the measured composite below.
+  // A customer-supplied measured counterfactual takes precedence over the
+  // estimated path below: when it exists, token savings bill through the
+  // measured composite and the per-change levers stay record-only, so the
+  // same removed tokens can never bill twice.
+  let baselineUsd: number | undefined;
+  try {
+    const supplied = config.getBaselineUsd?.(event);
+    if (typeof supplied === "number" && Number.isFinite(supplied) && supplied >= 0) baselineUsd = supplied;
+  } catch {
+    baselineUsd = undefined;
+  }
+
+  // Token-reduction changes bill from an ESTIMATED baseline anchored to
+  // provider-verbatim usage: FLUX's own counter gives the fraction of the
+  // request it removed before send; the provider's input total is what
+  // actually remained, so baseline input = actual / (1 - fraction). Saved
+  // tokens are valued at this event's realized blended input rate (actual
+  // input cost / actual input tokens) — an under-claim whenever the removed
+  // tokens would have billed fresh while the surviving prompt is largely
+  // cached, which is the dispute-safe direction. An implausible fraction
+  // (>= 0.95) voids the estimate and the levers stay record-only.
   const tokenChanges = changes.filter((change) =>
     !EXECUTION_TIER_LEVERS.has(change.lever) &&
     !(change.lever === CACHE_TTL_LEVER && priced?.cacheAttributedUsd !== undefined));
+  const summary = event.reduction && !event.reduction.skipped ? event.reduction : undefined;
+  const estimatedBefore = summary?.estimatedTokensBefore ?? 0;
+  const estimatedRemoved = tokenChanges.reduce((sum, change) =>
+    sum + (Number.isFinite(change.estimatedTokensSaved) && change.estimatedTokensSaved > 0
+      ? change.estimatedTokensSaved
+      : 0), 0);
+  const removedFraction = estimatedBefore > 0 ? estimatedRemoved / estimatedBefore : 0;
+  const estimateUsable = baselineUsd === undefined && priced !== undefined && usage !== undefined &&
+    usage.inputTokens > 0 && estimatedRemoved > 0 && removedFraction > 0 && removedFraction < 0.95;
+  const estimatedSavedUsdTotal = estimateUsable
+    ? (usage!.inputTokens / (1 - removedFraction) - usage!.inputTokens) * (priced!.inputUsd / usage!.inputTokens)
+    : 0;
   for (const change of tokenChanges) {
+    const share = estimateUsable && change.estimatedTokensSaved > 0
+      ? estimatedSavedUsdTotal * (change.estimatedTokensSaved / estimatedRemoved)
+      : undefined;
     levers.push({
       leverId: change.lever,
       kind: change.lossless ? "lossless" : "lossy",
+      ...(share === undefined ? {} : { savedUsd: share, basis: "estimated-baseline" as const }),
       ...(config.gateVerdicts?.[change.lever] === undefined
         ? {}
         : { gateVerdict: config.gateVerdicts[change.lever] }),
@@ -156,13 +194,6 @@ export function billableEventFromRequest(
     }
   }
 
-  let baselineUsd: number | undefined;
-  try {
-    const supplied = config.getBaselineUsd?.(event);
-    if (typeof supplied === "number" && Number.isFinite(supplied) && supplied >= 0) baselineUsd = supplied;
-  } catch {
-    baselineUsd = undefined;
-  }
   // Rate levers (tier, cache TTL) bill through their own priced components
   // above; the measured composite covers only the token-removing changes.
   const measuredTokenChanges = changes.filter((change) =>
@@ -214,6 +245,14 @@ export function billableEventFromRequest(
     ...(baselineUsd === undefined ? {} : { baselineUsd }),
     ...(event.costUsd === undefined ? {} : { reportedCostUsd: event.costUsd }),
     levers,
+    ...(estimateUsable
+      ? {
+          estimatedReduction: {
+            estimatedInputTokensBefore: estimatedBefore,
+            estimatedInputTokensRemoved: estimatedRemoved,
+          },
+        }
+      : {}),
     ...(Object.keys(excluded).length === 0 ? {} : { excluded }),
     status: event.status,
   };

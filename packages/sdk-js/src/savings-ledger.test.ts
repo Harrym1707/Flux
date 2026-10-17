@@ -239,3 +239,83 @@ describe("billableEventFromRequest", () => {
     expect(invoice.eventsExcludedForFailedTasks).toBe(3);
   });
 });
+
+describe("estimated-baseline billing for token-reduction levers", () => {
+  const version = catalogueVersion(publishedModelPrices);
+  // gpt-6-astra standard input is 10 USD/M. The event's provider-verbatim input
+  // is 800k uncached tokens; FLUX's own counter says it removed 200k of a 1M
+  // request (fraction 0.2), so baseline input = 800k / 0.8 = 1M, saved = 200k,
+  // valued at the realized input rate 10 USD/M => 2 USD, split 3:1 by lever.
+  const reducedEvent = (losslessCap: boolean) => requestEvent({
+    inputTokens: 800_000, uncachedInputTokens: 800_000,
+    reduction: {
+      estimatedTokensBefore: 1_000_000, estimatedTokensAfter: 800_000, estimatedTokensSaved: 200_000,
+      estimatedLosslessTokensSaved: losslessCap ? 200_000 : 150_000, skipped: false,
+      changes: [
+        { lever: "tool-schemas", lossless: true, estimatedTokensSaved: 150_000, detail: "" },
+        { lever: "fresh-tool-result-cap", lossless: losslessCap, estimatedTokensSaved: 50_000, detail: "" },
+      ],
+    },
+  });
+
+  it("bills lossless levers from the ratio-anchored estimate at the realized input rate, labelled", () => {
+    const billed = billableEventFromRequest(reducedEvent(true), { path: "unused" }, publishedModelPrices, version);
+    const schemas = billed.levers.find((lever) => lever.leverId === "tool-schemas");
+    const cap = billed.levers.find((lever) => lever.leverId === "fresh-tool-result-cap");
+    expect(schemas?.savedUsd).toBeCloseTo(1.5, 10);
+    expect(cap?.savedUsd).toBeCloseTo(0.5, 10);
+    expect(schemas?.basis).toBe("estimated-baseline");
+    expect(billed.estimatedReduction).toEqual({
+      estimatedInputTokensBefore: 1_000_000,
+      estimatedInputTokensRemoved: 200_000,
+    });
+    const invoice = recomputeInvoice([billed]);
+    expect(invoice.netVerifiedSavingsUsd).toBeCloseTo(2, 10);
+    expect(invoice.lineItems.every((line) => line.basis === "estimated-baseline")).toBe(true);
+  });
+
+  it("keeps a lossy lever's estimated share unbilled until a replay gate approves it", () => {
+    const unapproved = billableEventFromRequest(reducedEvent(false), { path: "unused" }, publishedModelPrices, version);
+    expect(recomputeInvoice([unapproved]).netVerifiedSavingsUsd).toBeCloseTo(1.5, 10);
+
+    const approved = billableEventFromRequest(
+      reducedEvent(false),
+      { path: "unused", gateVerdicts: { "fresh-tool-result-cap": { ref: "replay-gate/freshcap@cbbffb9", verdict: "approved" } } },
+      publishedModelPrices,
+      version,
+    );
+    expect(recomputeInvoice([approved]).netVerifiedSavingsUsd).toBeCloseTo(2, 10);
+  });
+
+  it("voids the estimate entirely when the removed fraction is implausible (>= 0.95)", () => {
+    const billed = billableEventFromRequest(
+      requestEvent({
+        inputTokens: 50_000, uncachedInputTokens: 50_000,
+        reduction: {
+          estimatedTokensBefore: 1_000_000, estimatedTokensAfter: 40_000, estimatedTokensSaved: 960_000,
+          estimatedLosslessTokensSaved: 960_000, skipped: false,
+          changes: [{ lever: "tool-schemas", lossless: true, estimatedTokensSaved: 960_000, detail: "" }],
+        },
+      }),
+      { path: "unused" },
+      publishedModelPrices,
+      version,
+    );
+    expect(billed.levers.find((lever) => lever.leverId === "tool-schemas")?.savedUsd).toBeUndefined();
+    expect(billed.estimatedReduction).toBeUndefined();
+    expect(recomputeInvoice([billed]).netVerifiedSavingsUsd).toBe(0);
+  });
+
+  it("never double-counts: a supplied measured counterfactual replaces the estimate", () => {
+    const billed = billableEventFromRequest(
+      reducedEvent(true),
+      { path: "unused", getBaselineUsd: () => 20 },
+      publishedModelPrices,
+      version,
+    );
+    expect(billed.levers.find((lever) => lever.leverId === "tool-schemas")?.savedUsd).toBeUndefined();
+    expect(billed.estimatedReduction).toBeUndefined();
+    // Bills exactly baseline minus actual (800k input at 10/M = 8), once.
+    expect(recomputeInvoice([billed]).netVerifiedSavingsUsd).toBeCloseTo(12, 10);
+  });
+});

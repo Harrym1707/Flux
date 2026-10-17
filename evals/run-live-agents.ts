@@ -68,6 +68,7 @@ function makeClient(): { responses: { create: (req: AnyObject) => Promise<AnyObj
             authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
           },
           body: JSON.stringify(req),
+          signal: AbortSignal.timeout(120_000),
         });
         if (!res.ok) throw new Error(`OpenAI ${res.status}: ${(await res.text()).slice(0, 200)}`);
         return (await res.json()) as AnyObject;
@@ -131,10 +132,14 @@ const agents: Agent[] = [
     name: "rag-docqa",
     segment: "one-shot templated",
     reduction: { toolSchemas: true, duplicateContext: true, repairCachePrefix: true },
+    // The retriever pastes the same top excerpt under two headings — the
+    // classic RAG duplication the duplicate-context lever exists to remove.
     requests: () => Array.from({ length: 6 }, (_, i) => ({
       model: MODEL,
       instructions: `Request time: 2026-10-13T10:1${i}:00Z\n${PREAMBLE}`,
-      input: [{ role: "user", content: `Excerpts for case ${i}. ${BIG_TOOL_RESULT} Question: what does clause ${i} require?` }],
+      input: [{ role: "user", content:
+        `Excerpts for case ${i}.\n\n${BIG_TOOL_RESULT}\n\n${BIG_TOOL_RESULT}\n\n` +
+        `Question: what does clause ${i} require?` }],
     })),
   },
   {
@@ -151,9 +156,11 @@ const agents: Agent[] = [
     name: "support-chat",
     segment: "consumer",
     reduction: { toolSchemas: true, duplicateContext: true, repairCachePrefix: true, maxOutputTokens: 400 },
+    // A consumer helpdesk ships its whole verbose tool belt on every turn.
     requests: () => Array.from({ length: 6 }, (_, i) => ({
       model: MODEL,
       instructions: PREAMBLE,
+      tools: TOOLS,
       input: [{ role: "user", content: `User ${i}: how do I reset my password?` }],
     })),
   },
@@ -194,17 +201,22 @@ for (const agent of agents) {
     ledger: { path: ledgerPath, provider: "openai" },
   }) as unknown as { responses: { create: (r: unknown) => Promise<unknown> } };
 
+  const planned = agent.requests();
+  process.stdout.write(`${agent.name} (${planned.length} requests): `);
   let ok = 0;
   let failed = 0;
-  for (const req of agent.requests()) {
+  for (const req of planned) {
     try {
       await client.responses.create(req);
       ok += 1;
+      process.stdout.write(".");
     } catch (cause) {
       failed += 1;
-      if (failed === 1) console.log(`  ${agent.name}: request error — ${(cause as Error).message}`);
+      process.stdout.write("x");
+      if (failed === 1) process.stdout.write(`\n  ${agent.name}: request error — ${(cause as Error).message}\n  `);
     }
   }
+  process.stdout.write(" done\n");
 
   const records = readLedger(ledgerPath);
   const chain = verifyLedgerChain(records);

@@ -62,6 +62,16 @@ export type LedgerLever = {
    * per-request verified measurement; it is then recorded and never billed.
    */
   savedUsd?: number;
+  /**
+   * How savedUsd was derived. "measured" (the default when absent) means it
+   * came entirely from provider-verbatim deltas. "estimated-baseline" means
+   * the tokens this lever removed were counted BEFORE send by FLUX's own
+   * counter, anchored to the provider-verbatim input total by ratio, and
+   * valued at this event's realized blended input rate — a conservative
+   * under-claim on cache-heavy traffic, labelled as an estimate everywhere
+   * it appears, including the invoice line item.
+   */
+  basis?: "measured" | "estimated-baseline";
   gateVerdict?: LedgerGateVerdict;
   detail?: string;
 };
@@ -113,6 +123,18 @@ export type BillableEvent = {
   /** The caller's own pricing of the request, informational only. */
   reportedCostUsd?: number;
   levers: LedgerLever[];
+  /**
+   * Evidence behind any estimated-baseline lever on this event: FLUX's own
+   * pre-send token counts. Informational — the invoice never reads it; it
+   * exists so an auditor can re-derive every estimated savedUsd from the
+   * event alone (removedFraction = removed / before, baseline input =
+   * usage.inputTokens / (1 - removedFraction), valued at actual input cost
+   * divided by actual input tokens).
+   */
+  estimatedReduction?: {
+    estimatedInputTokensBefore: number;
+    estimatedInputTokensRemoved: number;
+  };
   /** Savings the customer already had. Recorded for transparency, NEVER billed. */
   excluded?: {
     providerCacheAlreadyOwnedUsd?: number;
@@ -198,6 +220,8 @@ export type LedgerPricing =
   | {
       pricingStatus: "priced";
       actualUsd: number;
+      /** Input-side share of actualUsd (actual mode, cache usage included, output excluded). */
+      inputUsd: number;
       /** Standard-mode minus actual-mode cost on the same tokens; set only when the mode differs. */
       tierSavedUsd?: number;
       /** Cache economics attributable to FLUX; MAY be negative (write surcharge unearned by reads). */
@@ -255,6 +279,13 @@ export function priceLedgerUsage(catalogue: PriceCatalogue, input: LedgerPricing
   const query = { provider: input.provider, model: resolution.model, at: input.at };
   const actual = priceUsage(catalogue, { ...query, mode: input.executionMode }, pricingUsage);
   if (actual.status === "unpriced") return { pricingStatus: "unpriced", reason: actual.reason };
+  const actualInputOnly = priceUsage(catalogue, { ...query, mode: input.executionMode }, {
+    ...pricingUsage,
+    outputTokens: 0,
+  });
+  if (actualInputOnly.status === "unpriced") {
+    return { pricingStatus: "unpriced", reason: actualInputOnly.reason };
+  }
 
   const standardWithCache = input.executionMode === "standard"
     ? actual
@@ -276,6 +307,7 @@ export function priceLedgerUsage(catalogue: PriceCatalogue, input: LedgerPricing
   return {
     pricingStatus: "priced",
     actualUsd: actual.costUsd,
+    inputUsd: actualInputOnly.costUsd,
     ...(input.executionMode === "standard"
       ? {}
       : { tierSavedUsd: standardWithCache.costUsd - actual.costUsd }),
@@ -353,6 +385,8 @@ export type InvoiceLineItem = {
   events: number;
   savedUsd: number;
   savedCents: number;
+  /** Present when ANY contributing lever's savedUsd was estimated-baseline rather than fully measured. */
+  basis?: "estimated-baseline";
   gateVerdictRefs: string[];
 };
 
@@ -517,7 +551,7 @@ export function recomputeInvoiceWithAudit(
     duplicatesIgnored,
   } = selectBillableEvents(events, options);
 
-  const lineMap = new Map<string, { leverId: string; kind: LedgerLeverKind; events: number; savedUsd: number; refs: Set<string> }>();
+  const lineMap = new Map<string, { leverId: string; kind: LedgerLeverKind; events: number; savedUsd: number; estimated: boolean; refs: Set<string> }>();
   const unbilledMap = new Map<string, InvoiceUnbilledItem>();
   const catalogueVersions = new Set<string>();
   let unpricedEvents = 0;
@@ -541,9 +575,10 @@ export function recomputeInvoiceWithAudit(
         continue;
       }
       const key = `${lever.kind}\n${lever.leverId}`;
-      const line = lineMap.get(key) ?? { leverId: lever.leverId, kind: lever.kind, events: 0, savedUsd: 0, refs: new Set<string>() };
+      const line = lineMap.get(key) ?? { leverId: lever.leverId, kind: lever.kind, events: 0, savedUsd: 0, estimated: false, refs: new Set<string>() };
       line.events += 1;
       line.savedUsd += lever.savedUsd!;
+      if (lever.basis === "estimated-baseline") line.estimated = true;
       if (lever.gateVerdict?.ref) line.refs.add(lever.gateVerdict.ref);
       lineMap.set(key, line);
       billedAny = true;
@@ -559,6 +594,7 @@ export function recomputeInvoiceWithAudit(
       events: line.events,
       savedUsd: line.savedUsd,
       savedCents: Math.round(line.savedUsd * 100),
+      ...(line.estimated ? { basis: "estimated-baseline" as const } : {}),
       gateVerdictRefs: [...line.refs].sort(),
     }));
   const recordedUnbilled = [...unbilledMap.values()]

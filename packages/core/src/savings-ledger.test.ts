@@ -175,7 +175,7 @@ describe("priceLedgerUsage", () => {
       usage,
       fluxPlacedCacheControl: false,
     });
-    expect(priced).toEqual({ pricingStatus: "priced", actualUsd: 5, tierSavedUsd: 5 });
+    expect(priced).toEqual({ pricingStatus: "priced", actualUsd: 5, inputUsd: 5, tierSavedUsd: 5 });
   });
 
   it("returns unpriced, never zero, when the actual mode has no catalogued rate", () => {
@@ -205,7 +205,7 @@ describe("priceLedgerUsage", () => {
     // write prices at the 1h premium (Sonnet 5.5: 4 vs input 2 per million) -
     // the dispute-safe reading. All writes, no reads => the surcharge shows as
     // NEGATIVE attributed savings, not clamped.
-    expect(fluxPlaced).toEqual({ pricingStatus: "priced", actualUsd: 4, cacheAttributedUsd: -2 });
+    expect(fluxPlaced).toEqual({ pricingStatus: "priced", actualUsd: 4, inputUsd: 4, cacheAttributedUsd: -2 });
 
     // A reported split prices each bucket at its own rate: 5m at 1.25x, 1h at 2x.
     const splitReported = priceLedgerUsage(publishedModelPrices, {
@@ -220,7 +220,7 @@ describe("priceLedgerUsage", () => {
       fluxPlacedCacheControl: true,
     });
     // 0.6M at 2.5 + 0.4M at 4 = 1.5 + 1.6 = 3.1 USD.
-    expect(splitReported).toEqual({ pricingStatus: "priced", actualUsd: 3.1, cacheAttributedUsd: -1.1 });
+    expect(splitReported).toEqual({ pricingStatus: "priced", actualUsd: 3.1, inputUsd: 3.1, cacheAttributedUsd: -1.1 });
 
     // A split that does not sum to the total is a provider-usage inconsistency:
     // the event is unpriced, never silently repaired.
@@ -248,6 +248,7 @@ describe("priceLedgerUsage", () => {
     expect(customerOwned).toEqual({
       pricingStatus: "priced",
       actualUsd: 0.1,
+      inputUsd: 0.1,
       providerCacheAlreadyOwnedUsd: 1.9,
     });
   });
@@ -297,5 +298,31 @@ describe("catalogue pinning", () => {
     });
     const audit = auditEventPricing(tampered, publishedModelPrices);
     expect(audit.status).toBe("mismatch");
+  });
+});
+
+describe("estimated-baseline labelling", () => {
+  it("labels a line item estimated-baseline when any contributing lever's savedUsd was estimated", () => {
+    const events = [
+      event({
+        requestId: "r1",
+        levers: [{ leverId: "tool-schemas", kind: "lossless", savedUsd: 1.5, basis: "estimated-baseline" }],
+      }),
+      event({
+        requestId: "r2",
+        levers: [{ leverId: "tool-schemas", kind: "lossless", savedUsd: 0.5 }],
+      }),
+    ];
+    const invoice = recomputeInvoice(events);
+    expect(invoice.lineItems).toHaveLength(1);
+    expect(invoice.lineItems[0]).toMatchObject({
+      leverId: "tool-schemas",
+      events: 2,
+      savedUsd: 2,
+      basis: "estimated-baseline",
+    });
+    // A purely measured line carries no basis field at all.
+    const measuredOnly = recomputeInvoice([events[1]!]);
+    expect("basis" in measuredOnly.lineItems[0]!).toBe(false);
   });
 });
