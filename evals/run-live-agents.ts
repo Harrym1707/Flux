@@ -240,8 +240,11 @@ for (const row of summary) {
   );
 }
 console.log(`\nLedger spools written under ${ROOT} (one JSONL per agent).`);
-console.log(LIVE
-  ? "LIVE run: the net-saved figures above are measured on real OpenAI traffic — this is a real export."
-  : "LOCAL-STUB run: the request path, ledger hash-chain and invoice are all exercised; add a key for real numbers.");
+const anySucceeded = summary.some((row) => row.requests > 0);
+console.log(!LIVE
+  ? "LOCAL-STUB run: the request path, ledger hash-chain and invoice are all exercised; add a key for real numbers."
+  : anySucceeded
+    ? "LIVE run: the net-saved figures above are measured on real OpenAI traffic — this is a real export."
+    : "LIVE run FAILED: no request succeeded, so nothing above is a measurement. Check the API key and retry.");
 
 if (process.env.FLUX_LIVE_KEEP !== "1") rmSync(ROOT, { recursive: true, force: true });
