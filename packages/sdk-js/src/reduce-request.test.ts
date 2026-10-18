@@ -72,6 +72,19 @@ describe("reduceRequest", () => {
     expect(occurrences).toBe(1);
   });
 
+  it("removes an exactly duplicated context block from an Anthropic-shaped request too", () => {
+    const anthropicShaped = {
+      model: "claude-sonnet-5-5-20260514",
+      system: "You are a support agent.",
+      messages: [{ role: "user", content: `${BLOCK}\n\n${BLOCK}\n\nWhy was my refund delayed?` }],
+      max_tokens: 400,
+    };
+    const { request: reduced, summary } = reduceRequest(anthropicShaped, { duplicateContext: true });
+    const occurrences = JSON.stringify(reduced).split("article 4471").length - 1;
+    expect(occurrences).toBe(1);
+    expect(summary.changes.some((change) => change.lever === "duplicate-context-removal")).toBe(true);
+  });
+
   it("moves a leading clock out of the prefix without deleting it", () => {
     const withClock = request({ instructions: "Current time: 2026-10-08T09:14:22Z\nYou are a support agent." });
     const { request: reduced, summary } = reduceRequest(withClock, { repairCachePrefix: true });

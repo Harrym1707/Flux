@@ -744,6 +744,15 @@ export function reduceRequest(
     } else if (typeof next.input === "string") {
       next.input = reduceText(next.input as string, config, countTokens, changes, "input");
     }
+    // The same per-message pass on `messages`, so Anthropic- and Chat
+    // Completions-shaped requests get exactly the reductions `input` gets.
+    if (Array.isArray(next.messages)) {
+      next.messages = next.messages.map((message) => {
+        if (!isPlainObject(message)) return message;
+        if (!("content" in message)) return message;
+        return { ...message, content: reduceMessageContent(message.content, config, countTokens, changes) };
+      });
+    }
 
     // Execution tier, only where the caller has not chosen one themselves,
     // and ONLY on OpenAI-shaped requests for models the catalogue knows:

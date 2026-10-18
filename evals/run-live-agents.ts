@@ -13,82 +13,69 @@ import {
  * produce a REAL export: a hash-chained ledger spool and the invoice FLUX would
  * bill for each one.
  *
- * The honesty line this harness holds: real savings need real API calls, which
- * need a real key. Set OPENAI_API_KEY and these agents hit the live Responses
- * API, and the printed invoice is a measurement of real traffic — the export
- * the whole project has been waiting for. With no key they run against a
- * deterministic LOCAL model so the FLUX request path, ledger, and invoice are
- * exercised end to end; those numbers are labelled LOCAL-STUB and are a
- * pipeline check, not a savings claim.
+ * FLUX is provider-agnostic and so is this harness. The agents are written
+ * once, provider-neutrally, and shaped per provider at send time:
  *
- * The five agents are the segments the matrix quotes, so a live run maps
- * one-to-one onto the website's per-segment bands.
+ *   ANTHROPIC_API_KEY set  -> LIVE against the Anthropic Messages API (the
+ *                             default when both keys are present).
+ *   OPENAI_API_KEY set     -> LIVE against the OpenAI Responses API, or any
+ *                             OpenAI-compatible endpoint via OPENAI_BASE_URL
+ *                             (Groq, Together, Mistral, a local Ollama, ...).
+ *   neither                -> deterministic LOCAL-STUB run of BOTH provider
+ *                             shapes: a pipeline check, never a savings claim.
+ *
+ * FLUX_LIVE_PROVIDER=anthropic|openai forces the choice; FLUX_LIVE_MODEL
+ * overrides the model for the selected live provider.
+ *
+ * The honesty line this harness holds: real savings need real API calls. With
+ * no key the numbers are labelled LOCAL-STUB and are a pipeline check, not a
+ * savings claim.
  */
 
-const LIVE = typeof process.env.OPENAI_API_KEY === "string" && process.env.OPENAI_API_KEY.length > 0;
-const MODEL = process.env.FLUX_LIVE_MODEL ?? "gpt-5";
-const ROOT = mkdtempSync(join(tmpdir(), "flux-live-"));
+type Provider = "anthropic" | "openai";
+
+const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY;
+const OPENAI_KEY = process.env.OPENAI_API_KEY;
+const FORCED = process.env.FLUX_LIVE_PROVIDER as Provider | undefined;
+if (FORCED !== undefined && FORCED !== "anthropic" && FORCED !== "openai") {
+  throw new Error(`FLUX_LIVE_PROVIDER must be "anthropic" or "openai", got ${JSON.stringify(FORCED)}.`);
+}
+
+const liveProvider: Provider | undefined = FORCED !== undefined
+  ? FORCED
+  : ANTHROPIC_KEY ? "anthropic" : OPENAI_KEY ? "openai" : undefined;
+const LIVE = liveProvider !== undefined &&
+  (liveProvider === "anthropic" ? !!ANTHROPIC_KEY : !!OPENAI_KEY);
+if (FORCED !== undefined && !LIVE) {
+  throw new Error(`FLUX_LIVE_PROVIDER=${FORCED} but the matching API key is not set.`);
+}
+
+const DEFAULT_MODEL: Record<Provider, string> = {
+  anthropic: "claude-sonnet-5-5-20260514",
+  openai: "gpt-5",
+};
+const OPENAI_BASE_URL = (process.env.OPENAI_BASE_URL ?? "https://api.openai.com/v1").replace(/\/$/, "");
+
+/** A LOCAL-STUB run exercises both provider shapes; a LIVE run uses the keyed one. */
+const providers: Provider[] = LIVE ? [liveProvider!] : ["anthropic", "openai"];
+
+function modelFor(provider: Provider): string {
+  if (LIVE && provider === liveProvider && process.env.FLUX_LIVE_MODEL) return process.env.FLUX_LIVE_MODEL;
+  return DEFAULT_MODEL[provider];
+}
 
 type AnyObject = Record<string, unknown>;
 
-/** A client exposing responses.create — real HTTP when keyed, else local. */
-function makeClient(): { responses: { create: (req: AnyObject) => Promise<AnyObject> } } {
-  if (!LIVE) {
-    // Deterministic local model: answers briefly, reports usage proportional to
-    // the request it was actually sent, so reductions show up in the ledger.
-    return {
-      responses: {
-        create: async (req: AnyObject) => {
-          const text = `${JSON.stringify(req.instructions ?? "")}${JSON.stringify(req.input ?? req.messages ?? "")}` +
-            JSON.stringify(req.tools ?? "");
-          const inputTokens = Math.ceil(text.length / 4);
-          const cap = typeof req.max_output_tokens === "number" ? req.max_output_tokens : 600;
-          const outputTokens = Math.min(cap, 400);
-          return {
-            id: `local-${Math.abs(hash(text))}`,
-            output: [{ type: "message", content: [{ type: "output_text", text: "ok" }] }],
-            usage: {
-              input_tokens: inputTokens,
-              output_tokens: outputTokens,
-              input_tokens_details: { cached_tokens: 0 },
-            },
-            ...(typeof req.service_tier === "string" ? { service_tier: req.service_tier } : {}),
-          };
-        },
-      },
-    };
-  }
-  return {
-    responses: {
-      create: async (req: AnyObject) => {
-        const res = await fetch("https://api.openai.com/v1/responses", {
-          method: "POST",
-          headers: {
-            "content-type": "application/json",
-            authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
-          },
-          body: JSON.stringify(req),
-          signal: AbortSignal.timeout(120_000),
-        });
-        if (!res.ok) throw new Error(`OpenAI ${res.status}: ${(await res.text()).slice(0, 200)}`);
-        return (await res.json()) as AnyObject;
-      },
-    },
-  };
-}
+// ---------------------------------------------------------------------------
+// Provider-neutral agent definitions
+// ---------------------------------------------------------------------------
 
-function hash(text: string): number {
-  let h = 0;
-  for (const ch of text) h = (Math.imul(h, 31) + ch.charCodeAt(0)) | 0;
-  return h;
-}
-
-type Agent = {
-  name: string;
-  segment: string;
-  reduction: FluxTokenReductionConfig;
-  /** Build the request list this agent would make. */
-  requests: () => AnyObject[];
+type NeutralTool = { name: string; description: string; parameters: AnyObject };
+type NeutralRequest = {
+  system?: string;
+  turns: Array<{ role: "user" | "assistant"; content: string }>;
+  tools?: NeutralTool[];
+  maxOutput?: number;
 };
 
 const PREAMBLE = [
@@ -96,17 +83,21 @@ const PREAMBLE = [
   ...Array.from({ length: 30 }, (_, i) => `Operating rule ${i}: cite sources, escalate anything risky, keep answers tight.`),
 ].join("\n\n");
 
-const TOOLS = Array.from({ length: 12 }, (_, i) => ({
-  type: "function",
-  function: {
-    name: `lookup_${i}`,
-    description: `Look up records in subsystem ${i}. Use this for questions about topic ${i}. Returns a paginated list.`,
-    parameters: { type: "object", properties: { id: { type: "string" } }, required: ["id"] },
-  },
+const TOOLS: NeutralTool[] = Array.from({ length: 12 }, (_, i) => ({
+  name: `lookup_${i}`,
+  description: `Look up records in subsystem ${i}. Use this for questions about topic ${i}. Returns a paginated list.`,
+  parameters: { type: "object", properties: { id: { type: "string" } }, required: ["id"] },
 }));
 
 const BIG_TOOL_RESULT = Array.from({ length: 20 }, (_, i) =>
   `Record ${i}: settlement entry nominal, reconciliation standard, no notification sent, annotation routine.`).join(" ");
+
+type Agent = {
+  name: string;
+  segment: string;
+  reduction: FluxTokenReductionConfig;
+  requests: () => NeutralRequest[];
+};
 
 const agents: Agent[] = [
   {
@@ -115,17 +106,16 @@ const agents: Agent[] = [
     reduction: { toolSchemas: true, duplicateContext: true, repairCachePrefix: true, historyCompaction: true,
       freshToolResultCap: { maximumTokens: 600 } } as FluxTokenReductionConfig,
     requests: () => Array.from({ length: 5 }, (_, turn) => ({
-      model: MODEL,
-      instructions: `Current time: 2026-10-13T09:0${turn}:00Z\n${PREAMBLE}`,
+      system: `Current time: 2026-10-13T09:0${turn}:00Z\n${PREAMBLE}`,
       tools: TOOLS,
-      input: [
+      turns: [
         ...Array.from({ length: turn }, (_, p) => ([
-          { role: "user", content: `Step ${p}: inspect account 100${p}.` },
-          { role: "assistant", content: BIG_TOOL_RESULT },
+          { role: "user" as const, content: `Step ${p}: inspect account 100${p}.` },
+          { role: "assistant" as const, content: BIG_TOOL_RESULT },
         ])).flat(),
-        { role: "user", content: "Investigate account 1009 and summarise." },
+        { role: "user" as const, content: "Investigate account 1009 and summarise." },
       ],
-      max_output_tokens: 2000,
+      maxOutput: 2000,
     })),
   },
   {
@@ -135,9 +125,8 @@ const agents: Agent[] = [
     // The retriever pastes the same top excerpt under two headings — the
     // classic RAG duplication the duplicate-context lever exists to remove.
     requests: () => Array.from({ length: 6 }, (_, i) => ({
-      model: MODEL,
-      instructions: `Request time: 2026-10-13T10:1${i}:00Z\n${PREAMBLE}`,
-      input: [{ role: "user", content:
+      system: `Request time: 2026-10-13T10:1${i}:00Z\n${PREAMBLE}`,
+      turns: [{ role: "user" as const, content:
         `Excerpts for case ${i}.\n\n${BIG_TOOL_RESULT}\n\n${BIG_TOOL_RESULT}\n\n` +
         `Question: what does clause ${i} require?` }],
     })),
@@ -145,11 +134,13 @@ const agents: Agent[] = [
   {
     name: "batch-classifier",
     segment: "async-eligible",
+    // The discount lever is per-provider: OpenAI's flex tier, or the 1h cache
+    // TTL on Anthropic (its Batch API rate is not catalogued yet, so FLUX
+    // would leave real Anthropic batch events unpriced rather than guess).
     reduction: { toolSchemas: true, duplicateContext: true, repairCachePrefix: true, executionTier: "flex" },
     requests: () => Array.from({ length: 8 }, (_, i) => ({
-      model: MODEL,
-      instructions: PREAMBLE,
-      input: [{ role: "user", content: `Classify ticket ${i}: "my payment failed and I was charged twice".` }],
+      system: PREAMBLE,
+      turns: [{ role: "user" as const, content: `Classify ticket ${i}: "my payment failed and I was charged twice".` }],
     })),
   },
   {
@@ -158,10 +149,9 @@ const agents: Agent[] = [
     reduction: { toolSchemas: true, duplicateContext: true, repairCachePrefix: true, maxOutputTokens: 400 },
     // A consumer helpdesk ships its whole verbose tool belt on every turn.
     requests: () => Array.from({ length: 6 }, (_, i) => ({
-      model: MODEL,
-      instructions: PREAMBLE,
+      system: PREAMBLE,
       tools: TOOLS,
-      input: [{ role: "user", content: `User ${i}: how do I reset my password?` }],
+      turns: [{ role: "user" as const, content: `User ${i}: how do I reset my password?` }],
     })),
   },
   {
@@ -170,11 +160,130 @@ const agents: Agent[] = [
     // Minimal prompt, no tools, nothing to reduce: the honest zero case.
     reduction: { toolSchemas: true, duplicateContext: true },
     requests: () => Array.from({ length: 5 }, (_, i) => ({
-      model: MODEL,
-      input: [{ role: "user", content: `Translate "hello ${i}" to French.` }],
+      turns: [{ role: "user" as const, content: `Translate "hello ${i}" to French.` }],
     })),
   },
 ];
+
+/** The same agent, with its discount lever swapped to the provider's own. */
+function reductionFor(provider: Provider, base: FluxTokenReductionConfig): FluxTokenReductionConfig {
+  if (provider === "anthropic") {
+    const { executionTier: _tier, ...rest } = base as FluxTokenReductionConfig & { executionTier?: "flex" };
+    return _tier === "flex" ? { ...rest, cacheTtl: "1h" } : rest;
+  }
+  return base;
+}
+
+// ---------------------------------------------------------------------------
+// Request shaping: one neutral definition, each provider's wire format
+// ---------------------------------------------------------------------------
+
+function shapeRequest(provider: Provider, model: string, req: NeutralRequest): AnyObject {
+  if (provider === "anthropic") {
+    return {
+      model,
+      ...(req.system === undefined ? {} : { system: req.system }),
+      ...(req.tools === undefined ? {} : {
+        tools: req.tools.map((tool) => ({
+          name: tool.name, description: tool.description, input_schema: tool.parameters,
+        })),
+      }),
+      messages: req.turns,
+      max_tokens: req.maxOutput ?? 2000,
+    };
+  }
+  return {
+    model,
+    ...(req.system === undefined ? {} : { instructions: req.system }),
+    ...(req.tools === undefined ? {} : {
+      tools: req.tools.map((tool) => ({
+        type: "function",
+        function: { name: tool.name, description: tool.description, parameters: tool.parameters },
+      })),
+    }),
+    input: req.turns,
+    ...(req.maxOutput === undefined ? {} : { max_output_tokens: req.maxOutput }),
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Clients: real HTTP when keyed, deterministic local stub otherwise
+// ---------------------------------------------------------------------------
+
+function hash(text: string): number {
+  let h = 0;
+  for (const ch of text) h = (Math.imul(h, 31) + ch.charCodeAt(0)) | 0;
+  return h;
+}
+
+/** Deterministic local model: usage proportional to the request actually sent. */
+function stubbedCompletion(provider: Provider, req: AnyObject): AnyObject {
+  const text = `${JSON.stringify(req.system ?? req.instructions ?? "")}` +
+    `${JSON.stringify(req.messages ?? req.input ?? "")}${JSON.stringify(req.tools ?? "")}`;
+  const inputTokens = Math.ceil(text.length / 4);
+  const cap = typeof req.max_output_tokens === "number" ? req.max_output_tokens
+    : typeof req.max_tokens === "number" ? req.max_tokens : 600;
+  const outputTokens = Math.min(cap, 400);
+  if (provider === "anthropic") {
+    return {
+      id: `local-${Math.abs(hash(text))}`,
+      content: [{ type: "text", text: "ok" }],
+      usage: {
+        input_tokens: inputTokens,
+        output_tokens: outputTokens,
+        cache_read_input_tokens: 0,
+        cache_creation_input_tokens: 0,
+      },
+    };
+  }
+  return {
+    id: `local-${Math.abs(hash(text))}`,
+    output: [{ type: "message", content: [{ type: "output_text", text: "ok" }] }],
+    usage: {
+      input_tokens: inputTokens,
+      output_tokens: outputTokens,
+      input_tokens_details: { cached_tokens: 0 },
+    },
+    ...(typeof req.service_tier === "string" ? { service_tier: req.service_tier } : {}),
+  };
+}
+
+async function liveCompletion(provider: Provider, req: AnyObject): Promise<AnyObject> {
+  const [url, headers]: [string, Record<string, string>] = provider === "anthropic"
+    ? ["https://api.anthropic.com/v1/messages", {
+        "content-type": "application/json",
+        "x-api-key": ANTHROPIC_KEY!,
+        "anthropic-version": "2023-06-01",
+      }]
+    : [`${OPENAI_BASE_URL}/responses`, {
+        "content-type": "application/json",
+        authorization: `Bearer ${OPENAI_KEY}`,
+      }];
+  const res = await fetch(url, {
+    method: "POST",
+    headers,
+    body: JSON.stringify(req),
+    signal: AbortSignal.timeout(120_000),
+  });
+  if (!res.ok) throw new Error(`${provider} ${res.status}: ${(await res.text()).slice(0, 200)}`);
+  return (await res.json()) as AnyObject;
+}
+
+/**
+ * A client in the shape withFlux wraps for this provider: messages.create for
+ * Anthropic-SDK-shaped clients, responses.create for OpenAI-shaped ones.
+ */
+function makeClient(provider: Provider): AnyObject {
+  const create = async (req: AnyObject) =>
+    LIVE ? liveCompletion(provider, req) : stubbedCompletion(provider, req);
+  return provider === "anthropic" ? { messages: { create } } : { responses: { create } };
+}
+
+// ---------------------------------------------------------------------------
+// Run
+// ---------------------------------------------------------------------------
+
+const ROOT = mkdtempSync(join(tmpdir(), "flux-live-"));
 
 function readLedger(path: string): LedgerRecord[] {
   try {
@@ -185,66 +294,76 @@ function readLedger(path: string): LedgerRecord[] {
   }
 }
 
-console.log(`=== FLUX live-agent run — mode: ${LIVE ? `LIVE (OpenAI ${MODEL})` : "LOCAL-STUB (no OPENAI_API_KEY)"} ===`);
+console.log(`=== FLUX live-agent run — mode: ${LIVE
+  ? `LIVE (${liveProvider} ${modelFor(liveProvider!)}${liveProvider === "openai" && OPENAI_BASE_URL !== "https://api.openai.com/v1" ? ` via ${OPENAI_BASE_URL}` : ""})`
+  : "LOCAL-STUB (no API key; both provider shapes)"} ===`);
 if (!LIVE) {
   console.log("No key set, so these numbers are a PIPELINE CHECK, not a savings claim.");
-  console.log("Set OPENAI_API_KEY to turn this into a real-traffic export.\n");
+  console.log("Set ANTHROPIC_API_KEY (preferred) or OPENAI_API_KEY to turn this into a real-traffic export.\n");
 }
 
-const summary: Array<{ agent: string; segment: string; requests: number; chainOk: boolean; billedUsd: number; verdict: string }> = [];
+const summary: Array<{ provider: Provider; agent: string; segment: string; requests: number; chainOk: boolean; billedUsd: number; verdict: string }> = [];
 
-for (const agent of agents) {
-  const ledgerPath = join(ROOT, `${agent.name}.jsonl`);
-  const client = withFlux(makeClient() as never, {
-    applicationId: agent.name,
-    tokenReduction: agent.reduction,
-    ledger: { path: ledgerPath, provider: "openai" },
-  }) as unknown as { responses: { create: (r: unknown) => Promise<unknown> } };
+for (const provider of providers) {
+  const model = modelFor(provider);
+  for (const agent of agents) {
+    const ledgerPath = join(ROOT, `${provider}-${agent.name}.jsonl`);
+    const client = withFlux(makeClient(provider) as never, {
+      applicationId: agent.name,
+      tokenReduction: reductionFor(provider, agent.reduction),
+      ledger: { path: ledgerPath, provider },
+    }) as unknown as {
+      responses?: { create: (r: unknown) => Promise<unknown> };
+      messages?: { create: (r: unknown) => Promise<unknown> };
+    };
+    const send = provider === "anthropic" ? client.messages!.create : client.responses!.create;
 
-  const planned = agent.requests();
-  process.stdout.write(`${agent.name} (${planned.length} requests): `);
-  let ok = 0;
-  let failed = 0;
-  for (const req of planned) {
-    try {
-      await client.responses.create(req);
-      ok += 1;
-      process.stdout.write(".");
-    } catch (cause) {
-      failed += 1;
-      process.stdout.write("x");
-      if (failed === 1) process.stdout.write(`\n  ${agent.name}: request error — ${(cause as Error).message}\n  `);
+    const planned = agent.requests();
+    process.stdout.write(`${provider}/${agent.name} (${planned.length} requests): `);
+    let ok = 0;
+    let failed = 0;
+    for (const req of planned) {
+      try {
+        await send(shapeRequest(provider, model, req));
+        ok += 1;
+        process.stdout.write(".");
+      } catch (cause) {
+        failed += 1;
+        process.stdout.write("x");
+        if (failed === 1) process.stdout.write(`\n  ${agent.name}: request error — ${(cause as Error).message}\n  `);
+      }
     }
-  }
-  process.stdout.write(" done\n");
+    process.stdout.write(" done\n");
 
-  const records = readLedger(ledgerPath);
-  const chain = verifyLedgerChain(records);
-  const invoice = recomputeInvoice(records.map((r) => r.event), { feePercent: 15 });
-  summary.push({
-    agent: agent.name,
-    segment: agent.segment,
-    requests: ok,
-    chainOk: chain.ok,
-    billedUsd: invoice.netVerifiedSavingsUsd,
-    verdict: invoice.verdict,
-  });
+    const records = readLedger(ledgerPath);
+    const chain = verifyLedgerChain(records);
+    const invoice = recomputeInvoice(records.map((r) => r.event), { feePercent: 15 });
+    summary.push({
+      provider,
+      agent: agent.name,
+      segment: agent.segment,
+      requests: ok,
+      chainOk: chain.ok,
+      billedUsd: invoice.netVerifiedSavingsUsd,
+      verdict: invoice.verdict,
+    });
+  }
 }
 
-console.log(`${"agent".padEnd(18)} ${"segment".padEnd(42)} ${"reqs".padStart(5)} ${"chain".padStart(6)} ${"net saved $".padStart(12)} verdict`);
-console.log("-".repeat(100));
+console.log(`\n${"provider".padEnd(10)} ${"agent".padEnd(18)} ${"segment".padEnd(42)} ${"reqs".padStart(5)} ${"chain".padStart(6)} ${"net saved $".padStart(12)} verdict`);
+console.log("-".repeat(110));
 for (const row of summary) {
   console.log(
-    `${row.agent.padEnd(18)} ${row.segment.padEnd(42)} ${String(row.requests).padStart(5)} ` +
+    `${row.provider.padEnd(10)} ${row.agent.padEnd(18)} ${row.segment.padEnd(42)} ${String(row.requests).padStart(5)} ` +
     `${(row.chainOk ? "ok" : "BAD").padStart(6)} ${row.billedUsd.toFixed(6).padStart(12)} ${row.verdict}`,
   );
 }
-console.log(`\nLedger spools written under ${ROOT} (one JSONL per agent).`);
+console.log(`\nLedger spools written under ${ROOT} (one JSONL per provider+agent).`);
 const anySucceeded = summary.some((row) => row.requests > 0);
 console.log(!LIVE
-  ? "LOCAL-STUB run: the request path, ledger hash-chain and invoice are all exercised; add a key for real numbers."
+  ? "LOCAL-STUB run: both provider request paths, ledger hash-chains and invoices are exercised; add a key for real numbers."
   : anySucceeded
-    ? "LIVE run: the net-saved figures above are measured on real OpenAI traffic — this is a real export."
+    ? `LIVE run: the net-saved figures above are measured on real ${liveProvider} traffic — this is a real export.`
     : "LIVE run FAILED: no request succeeded, so nothing above is a measurement. Check the API key and retry.");
 
 if (process.env.FLUX_LIVE_KEEP !== "1") rmSync(ROOT, { recursive: true, force: true });
