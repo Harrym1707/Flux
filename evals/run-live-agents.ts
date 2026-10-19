@@ -34,8 +34,29 @@ import {
 
 type Provider = "anthropic" | "openai";
 
-const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY;
-const OPENAI_KEY = process.env.OPENAI_API_KEY;
+/**
+ * Credentials arrive by copy-paste, so catch the two classic paste failures
+ * up front with a plain message instead of 30 cryptic request errors:
+ * masked characters (a terminal or chat shows secrets as •••; copying that
+ * copies literal bullets) and stray whitespace/newlines.
+ */
+function cleanCredential(name: string, value: string | undefined): string | undefined {
+  if (value === undefined) return undefined;
+  const trimmed = value.trim();
+  if (trimmed === "") return undefined;
+  if (!/^[\x21-\x7e]+$/.test(trimmed)) {
+    throw new Error(
+      `${name} contains characters that cannot be part of a real key (masked • bullets or similar). ` +
+      "You most likely copied a HIDDEN rendering of the secret. Copy the actual key from the provider " +
+      "console (e.g. console.anthropic.com -> API keys), not from a terminal or chat that masks it.",
+    );
+  }
+  return trimmed;
+}
+
+const ANTHROPIC_KEY = cleanCredential("ANTHROPIC_API_KEY", process.env.ANTHROPIC_API_KEY);
+const OPENAI_KEY = cleanCredential("OPENAI_API_KEY", process.env.OPENAI_API_KEY);
+const ANTHROPIC_WORKSPACE_ID = cleanCredential("ANTHROPIC_WORKSPACE_ID", process.env.ANTHROPIC_WORKSPACE_ID);
 const FORCED = process.env.FLUX_LIVE_PROVIDER as Provider | undefined;
 if (FORCED !== undefined && FORCED !== "anthropic" && FORCED !== "openai") {
   throw new Error(`FLUX_LIVE_PROVIDER must be "anthropic" or "openai", got ${JSON.stringify(FORCED)}.`);
@@ -256,8 +277,8 @@ async function liveCompletion(provider: Provider, req: AnyObject): Promise<AnyOb
         "anthropic-version": "2023-06-01",
         // A user-scoped key (sk-ant-usr-...) must name the workspace to bill;
         // a workspace-scoped key needs no header and ignores this.
-        ...(process.env.ANTHROPIC_WORKSPACE_ID
-          ? { "anthropic-workspace-id": process.env.ANTHROPIC_WORKSPACE_ID }
+        ...(ANTHROPIC_WORKSPACE_ID
+          ? { "anthropic-workspace-id": ANTHROPIC_WORKSPACE_ID }
           : {}),
       }]
     : [`${OPENAI_BASE_URL}/responses`, {
