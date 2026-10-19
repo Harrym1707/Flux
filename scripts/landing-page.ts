@@ -313,7 +313,7 @@ export function renderLanding(origin: string, repoUrl: string): string {
   --axis:27vw; --radius:4px;
 }
 *{box-sizing:border-box}
-html{scroll-behavior:smooth;scrollbar-gutter:stable both-edges}
+html{scroll-behavior:smooth}
 body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 Manrope,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
 a{color:var(--ink)}
 .rise,.exchange .call,.exchange .response,.total-side .figure{opacity:0;transform:translateY(12px);transition:opacity .5s ease,transform .5s ease}
@@ -349,9 +349,10 @@ a{color:var(--ink)}
 /* ---------- the bands: the numbers, called out at poster size ---------- */
 .bands{padding:var(--s7) var(--s4)}
 .bandrow{display:grid;grid-template-columns:repeat(auto-fit,minmax(16rem,1fr));gap:var(--s4);max-width:72rem;margin:0 auto}
+.band{text-align:center}
 .band .n{font-size:clamp(72px,8.5vw,128px);font-weight:800;letter-spacing:-.04em;line-height:.9;color:var(--ocean)}
 .band .n span{font-size:.45em;font-weight:800}
-.band p{font-size:16px;line-height:1.5;color:var(--muted);max-width:30ch;margin:var(--s2) 0 0}
+.band p{font-size:16px;line-height:1.5;color:var(--muted);max-width:30ch;margin:var(--s2) auto 0}
 .bandcap{text-align:center;font-size:16px;color:var(--muted);max-width:46rem;margin:var(--s6) auto 0}
 .bandcap a{color:var(--ocean)}
 .bandcap strong{color:var(--ink)}
@@ -430,18 +431,17 @@ section h2{font-size:30px;font-weight:800;letter-spacing:-.01em;margin:0 0 var(-
 section h2::after{content:"";position:absolute;left:50%;transform:translateX(-50%);bottom:0;width:140px;height:12px;background:url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 140 12"><path d="M0 6 q6 -5 12 0 t12 0 q3 -9 6 0 t12 0 t12 0 q3 9 6 0 t12 0 t12 0 q6 -5 12 0 t12 0 t12 0" fill="none" stroke="%232864A5" stroke-width="1.6" opacity=".75"/></svg>') center/contain no-repeat}
 .field-ocean h2::after{opacity:.9}
 
-.axis-col{max-width:560px;margin:0 auto}
+.axis-col{max-width:720px;margin:0 auto}
 .axis-col{margin-left:auto;margin-right:auto}
 
 /* call and response */
 .exchange{margin-bottom:88px}
-.exchange .lead{font-size:20px;font-weight:600;margin:0 0 var(--s2)}
+.exchange .lead{font-size:20px;font-weight:600;margin:0 0 var(--s2);text-align:center}
 .exchange .call{background:var(--surface);border-radius:8px;position:relative;color:#F1F7FB}
 .exchange .call .copy{position:absolute;top:10px;right:10px}
-.exchange .response{margin-top:var(--s2);margin-left:56px}
-.exchange .response.breakout{margin-left:calc((560px - min(880px, calc(100vw - 64px))) / 2);width:min(880px,calc(100vw - 64px))}
-@media (max-width:1000px){.exchange .response.breakout{margin-left:0}}
-@media (max-width:760px){.exchange .response{margin-left:0}}
+.exchange .response{margin-top:var(--s2)}
+.exchange .response.breakout{width:100%}
+
 
 /* total and its receipt */
 .receipt-wrap{display:grid;grid-template-columns:1fr;gap:var(--s5);max-width:1080px;margin:0 auto}

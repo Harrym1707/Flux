@@ -1,0 +1,2511 @@
+{
+ "url": "docs/site/dist/index.html",
+ "at": "2026-10-19T21:02:08.740Z",
+ "allow": [
+  "font-count",
+  "no-footage",
+  "empty-screens",
+  "gradient-text",
+  "size-count"
+ ],
+ "viewports": [
+  {
+   "width": 1440,
+   "height": 900,
+   "load": "load",
+   "screens": 9,
+   "filled": [
+    0.13,
+    0.3,
+    0.29,
+    0.3,
+    0.6,
+    1,
+    0.67,
+    0.54,
+    0.45
+   ],
+   "motion": {
+    "elements": 32,
+    "css": 0,
+    "transitions": 32,
+    "scripted": 0,
+    "videos": 0,
+    "playingVideos": 0
+   },
+   "metrics": {
+    "viewport": {
+     "w": 1440,
+     "h": 900
+    },
+    "page": {
+     "height": 7476,
+     "screens": 8.3,
+     "words": 861,
+     "img": 3,
+     "video": 0,
+     "canvas": 1,
+     "svg": 8,
+     "sections": 8,
+     "horizontalOverflow": 0,
+     "overflowCulprits": [],
+     "uiFragments": 4,
+     "uiAbuse": false,
+     "realPictures": 3,
+     "videoCount": 0,
+     "uiPictures": 2,
+     "pictureSamples": [
+      "720",
+      "720",
+      "720"
+     ],
+     "blendText": 0,
+     "sideScrollers": 0,
+     "brokenImages": [],
+     "emoji": [],
+     "videosNoPoster": 0
+    },
+    "hero": {
+     "text": "More out.",
+     "words": 2,
+     "chars": 9,
+     "lines": 1,
+     "size": 120,
+     "vw": 8.3,
+     "font": "Manrope",
+     "weight": 800,
+     "tracking": -0.045,
+     "leading": 1,
+     "upper": false,
+     "italic": false,
+     "mono": false,
+     "align": "center",
+     "position": "center",
+     "widthRatio": 0.38,
+     "top": 292,
+     "gradientText": true,
+     "tag": "span",
+     "kind": "heading"
+    },
+    "h1": {
+     "text": "Less in. More out.",
+     "words": 4,
+     "lines": 2,
+     "size": 32,
+     "font": "Manrope"
+    },
+    "headings": [
+     {
+      "text": "More out.",
+      "words": 2,
+      "chars": 9,
+      "lines": 1,
+      "size": 120,
+      "vw": 8.3,
+      "font": "Manrope",
+      "weight": 800,
+      "tracking": -0.045,
+      "leading": 1,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "center",
+      "position": "center",
+      "widthRatio": 0.38,
+      "top": 292,
+      "gradientText": true,
+      "tag": "span",
+      "kind": "heading"
+     },
+     {
+      "text": "45–73%",
+      "words": 1,
+      "chars": 6,
+      "lines": 1,
+      "size": 122.4,
+      "vw": 8.5,
+      "font": "Manrope",
+      "weight": 800,
+      "tracking": -0.04,
+      "leading": 0.9,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "center",
+      "position": "left",
+      "widthRatio": 0.25,
+      "top": 960,
+      "tag": "div",
+      "kind": "heading"
+     },
+     {
+      "text": "57.7%",
+      "words": 1,
+      "chars": 5,
+      "lines": 1,
+      "size": 122.4,
+      "vw": 8.5,
+      "font": "Manrope",
+      "weight": 800,
+      "tracking": -0.04,
+      "leading": 0.9,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "center",
+      "position": "center",
+      "widthRatio": 0.25,
+      "top": 960,
+      "tag": "div",
+      "kind": "heading"
+     },
+     {
+      "text": "37.6%",
+      "words": 1,
+      "chars": 5,
+      "lines": 1,
+      "size": 122.4,
+      "vw": 8.5,
+      "font": "Manrope",
+      "weight": 800,
+      "tracking": -0.04,
+      "leading": 0.9,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "center",
+      "position": "right",
+      "widthRatio": 0.25,
+      "top": 960,
+      "tag": "div",
+      "kind": "heading"
+     },
+     {
+      "text": "Watch a request lose its waste.",
+      "words": 6,
+      "chars": 31,
+      "lines": 1,
+      "size": 30,
+      "vw": 2.1,
+      "font": "Manrope",
+      "weight": 800,
+      "tracking": -0.01,
+      "leading": 1.5,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "center",
+      "position": "center",
+      "widthRatio": 0.67,
+      "top": 1790,
+      "tag": "h2",
+      "kind": "heading"
+     },
+     {
+      "text": "One URL. Three exchanges.",
+      "words": 4,
+      "chars": 25,
+      "lines": 1,
+      "size": 30,
+      "vw": 2.1,
+      "font": "Manrope",
+      "weight": 800,
+      "tracking": -0.01,
+      "leading": 1.5,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "left",
+      "position": "center",
+      "widthRatio": 0.5,
+      "top": 2561,
+      "tag": "h2",
+      "kind": "heading"
+     },
+     {
+      "text": "Proven, line by line.",
+      "words": 4,
+      "chars": 21,
+      "lines": 1,
+      "size": 30,
+      "vw": 2.1,
+      "font": "Manrope",
+      "weight": 800,
+      "tracking": -0.01,
+      "leading": 1.5,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "left",
+      "position": "left",
+      "widthRatio": 0.42,
+      "top": 4151,
+      "tag": "h2",
+      "kind": "heading"
+     },
+     {
+      "text": "37.6%",
+      "words": 1,
+      "chars": 5,
+      "lines": 1,
+      "size": 216,
+      "vw": 15,
+      "font": "Manrope",
+      "weight": 800,
+      "tracking": -0.04,
+      "leading": 0.8,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "left",
+      "position": "left",
+      "widthRatio": 0.42,
+      "top": 4390,
+      "tag": "div",
+      "kind": "heading"
+     },
+     {
+      "text": "15%",
+      "words": 1,
+      "chars": 3,
+      "lines": 1,
+      "size": 230.4,
+      "vw": 16,
+      "font": "Manrope",
+      "weight": 800,
+      "tracking": -0.04,
+      "leading": 0.85,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "left",
+      "position": "right",
+      "widthRatio": 0.45,
+      "top": 5065,
+      "tag": "div",
+      "kind": "heading"
+     },
+     {
+      "text": "One price.",
+      "words": 2,
+      "chars": 10,
+      "lines": 1,
+      "size": 30,
+      "vw": 2.1,
+      "font": "Manrope",
+      "weight": 800,
+      "tracking": -0.01,
+      "leading": 1.5,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "left",
+      "position": "left",
+      "widthRatio": 0.26,
+      "top": 5065,
+      "tag": "h2",
+      "kind": "heading"
+     },
+     {
+      "text": "The catch, printed.",
+      "words": 3,
+      "chars": 19,
+      "lines": 1,
+      "size": 30,
+      "vw": 2.1,
+      "font": "Manrope",
+      "weight": 800,
+      "tracking": -0.01,
+      "leading": 1.5,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "left",
+      "position": "left",
+      "widthRatio": 0.22,
+      "top": 5851,
+      "tag": "h2",
+      "kind": "heading"
+     },
+     {
+      "text": "Start with one URL.",
+      "words": 4,
+      "chars": 19,
+      "lines": 1,
+      "size": 30,
+      "vw": 2.1,
+      "font": "Manrope",
+      "weight": 800,
+      "tracking": -0.01,
+      "leading": 1.5,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "left",
+      "position": "center",
+      "widthRatio": 0.76,
+      "top": 6766,
+      "tag": "h2",
+      "kind": "heading"
+     }
+    ],
+    "headingSummary": {
+     "count": 12,
+     "maxLines": 1,
+     "over2Lines": 0,
+     "statements": 0,
+     "centered": 5,
+     "medianWords": 2,
+     "mixedFontHeadings": 0
+    },
+    "type": {
+     "families": [
+      {
+       "family": "Manrope",
+       "share": 0.78,
+       "mono": false
+      },
+      {
+       "family": "ui-monospace",
+       "share": 0.17,
+       "mono": false
+      },
+      {
+       "family": "monospace",
+       "share": 0.05,
+       "mono": false
+      }
+     ],
+     "familyCount": 3,
+     "sizes": [
+      12,
+      13,
+      14,
+      16,
+      18,
+      20,
+      22,
+      30,
+      55,
+      115,
+      120,
+      122,
+      216,
+      230
+     ],
+     "sizeCount": 14,
+     "notLoaded": [],
+     "body": {
+      "font": "Manrope",
+      "size": 16,
+      "leading": 1.5,
+      "weight": 400,
+      "tracking": 0,
+      "contrast": 5.6
+     },
+     "measureChars": 63,
+     "max": {
+      "size": 230.4,
+      "vw": 16,
+      "font": "Manrope",
+      "text": "15"
+     },
+     "monoShare": 0.22,
+     "monoProseShare": 0,
+     "monoFamilies": [
+      "ui-monospace",
+      "monospace"
+     ],
+     "monoSamples": [
+      "copy",
+      "copy"
+     ],
+     "microLabels": 0,
+     "microLabelShare": 0,
+     "microSamples": [],
+     "upperShare": 0.01,
+     "centerShare": 0.19,
+     "smallText": 0
+    },
+    "eyebrows": [],
+    "numbered": [],
+    "color": {
+     "bodyBg": "#f1f7fb",
+     "bodyBgHsl": {
+      "h": 204,
+      "s": 0.56,
+      "l": 0.96
+     },
+     "dark": false,
+     "sectionBgs": [
+      {
+       "color": "#081522",
+       "top": 4055,
+       "hsl": {
+        "h": 210,
+        "s": 0.62,
+        "l": 0.08
+       }
+      },
+      {
+       "color": "#2864a5",
+       "top": 4843,
+       "hsl": {
+        "h": 211,
+        "s": 0.61,
+        "l": 0.4
+       }
+      },
+      {
+       "color": "#9dd9f5",
+       "top": 6700,
+       "hsl": {
+        "h": 199,
+        "s": 0.81,
+        "l": 0.79
+       }
+      }
+     ],
+     "textColors": [
+      {
+       "color": "#102a43",
+       "share": 0.28
+      },
+      {
+       "color": "#f1f7fb",
+       "share": 0.23
+      },
+      {
+       "color": "#486581",
+       "share": 0.18
+      },
+      {
+       "color": "#9fb3c8",
+       "share": 0.13
+      },
+      {
+       "color": "#081522",
+       "share": 0.08
+      }
+     ],
+     "button": {
+      "bg": "#102a43",
+      "hsl": {
+       "h": 209,
+       "s": 0.61,
+       "l": 0.16
+      },
+      "fg": "#f1f7fb"
+     },
+     "lowContrast": []
+    },
+    "buttons": {
+     "count": 3,
+     "inHero": 1,
+     "radius": 4,
+     "height": 48,
+     "withShadow": 0,
+     "withGradient": 0,
+     "mono": 0,
+     "upper": 0,
+     "heroLabels": [
+      "Get started"
+     ]
+    },
+    "surfaces": {
+     "shadowStatic": 0,
+     "shadowOverlay": 0,
+     "shadowSamples": [],
+     "gradients": 0,
+     "scrims": 0,
+     "gradientSamples": [],
+     "gradientText": 1,
+     "hairlines": 0,
+     "hairlineSamples": [],
+     "outlinedBoxes": 0,
+     "dashed": 0,
+     "blurred": 0,
+     "roundedBoxes": 5,
+     "boxRadius": 8,
+     "squareMedia": 1,
+     "roundedMedia": 0,
+     "mediaRadius": 0,
+     "textShadow": 0,
+     "cardRows": []
+    },
+    "heroMedia": [
+     {
+      "type": "canvas",
+      "ratio": 0.96
+     }
+    ],
+    "nav": {
+     "links": 1,
+     "fixed": false,
+     "height": 864,
+     "floatingPill": false,
+     "blur": false
+    },
+    "fontsLoaded": [
+     "manrope"
+    ]
+   },
+   "layout": {
+    "viewport": {
+     "w": 1440,
+     "h": 900
+    },
+    "pageH": 7476,
+    "margins": {
+     "left": 172,
+     "right": 144
+    },
+    "sections": [
+     {
+      "sel": "div.hero-wrap",
+      "tag": "div",
+      "top": 0,
+      "height": 864,
+      "words": 35,
+      "media": 1,
+      "middle": 387,
+      "heading": {
+       "text": "More out.",
+       "size": 120,
+       "tag": "h1"
+      },
+      "left": 460,
+      "right": 32,
+      "textLeft": 460,
+      "textRight": 32,
+      "fullBleed": true,
+      "footer": false,
+      "hero": true,
+      "continues": false,
+      "pinned": false
+     },
+     {
+      "sel": "section.bands",
+      "tag": "section",
+      "top": 864,
+      "height": 526,
+      "words": 85,
+      "media": 0,
+      "middle": 0,
+      "heading": {
+       "text": "45",
+       "size": 122,
+       "tag": "div"
+      },
+      "left": 187,
+      "right": 187,
+      "textLeft": 187,
+      "textRight": 187,
+      "fullBleed": false,
+      "footer": false,
+      "hero": false,
+      "continues": false,
+      "pinned": false
+     },
+     {
+      "sel": "section.works",
+      "tag": "section",
+      "top": 1390,
+      "height": 292,
+      "words": 64,
+      "media": 0,
+      "middle": 99,
+      "heading": {
+       "text": "OpenAI",
+       "size": 22,
+       "tag": "span"
+      },
+      "left": 144,
+      "right": 144,
+      "textLeft": 144,
+      "textRight": 144,
+      "fullBleed": false,
+      "footer": false,
+      "hero": false,
+      "continues": false,
+      "pinned": false
+     },
+     {
+      "sel": "section.demo-sect",
+      "tag": "section",
+      "top": 1682,
+      "height": 784,
+      "words": 157,
+      "media": 0,
+      "middle": 0,
+      "heading": null,
+      "left": 257,
+      "right": 173,
+      "textLeft": 257,
+      "textRight": 173,
+      "fullBleed": false,
+      "footer": false,
+      "hero": false,
+      "continues": false,
+      "pinned": false
+     },
+     {
+      "sel": "section",
+      "tag": "section",
+      "top": 2465,
+      "height": 1589,
+      "words": 186,
+      "media": 0,
+      "middle": 0,
+      "heading": {
+       "text": "One URL. Three exchanges.",
+       "size": 30,
+       "tag": "h2"
+      },
+      "left": 360,
+      "right": 288,
+      "textLeft": 360,
+      "textRight": 288,
+      "fullBleed": false,
+      "footer": false,
+      "hero": false,
+      "continues": false,
+      "pinned": false
+     },
+     {
+      "sel": "section.field-deep",
+      "tag": "section",
+      "top": 4055,
+      "height": 788,
+      "words": 157,
+      "media": 0,
+      "middle": 72,
+      "heading": {
+       "text": "37.6%",
+       "size": 216,
+       "tag": "div"
+      },
+      "left": 180,
+      "right": 196,
+      "textLeft": 180,
+      "textRight": 196,
+      "fullBleed": false,
+      "footer": false,
+      "hero": false,
+      "continues": false,
+      "pinned": false
+     },
+     {
+      "sel": "section.field-ocean",
+      "tag": "section",
+      "top": 4843,
+      "height": 912,
+      "words": 80,
+      "media": 0,
+      "middle": 66,
+      "heading": {
+       "text": "15",
+       "size": 230,
+       "tag": "div"
+      },
+      "left": 180,
+      "right": 206,
+      "textLeft": 180,
+      "textRight": 329,
+      "fullBleed": false,
+      "footer": false,
+      "hero": false,
+      "continues": false,
+      "pinned": false
+     },
+     {
+      "sel": "section",
+      "tag": "section",
+      "top": 5755,
+      "height": 850,
+      "words": 233,
+      "media": 0,
+      "middle": 119,
+      "heading": {
+       "text": "The catch, printed.",
+       "size": 30,
+       "tag": "h2"
+      },
+      "left": 180,
+      "right": 410,
+      "textLeft": 180,
+      "textRight": 410,
+      "fullBleed": false,
+      "footer": false,
+      "hero": false,
+      "continues": false,
+      "pinned": true
+     },
+     {
+      "sel": "section",
+      "tag": "section",
+      "top": 6604,
+      "height": 552,
+      "words": 36,
+      "media": 1,
+      "middle": 701,
+      "heading": {
+       "text": "Start with one URL.",
+       "size": 30,
+       "tag": "h2"
+      },
+      "left": 172,
+      "right": 0,
+      "textLeft": 172,
+      "textRight": 821,
+      "fullBleed": false,
+      "footer": true,
+      "hero": false,
+      "continues": false,
+      "pinned": false
+     }
+    ],
+    "gaps": [
+     {
+      "top": 1620,
+      "height": 296
+     },
+     {
+      "top": 3860,
+      "height": 292
+     },
+     {
+      "top": 4732,
+      "height": 272
+     },
+     {
+      "top": 5520,
+      "height": 328
+     },
+     {
+      "top": 7064,
+      "height": 360
+     }
+    ],
+    "h1s": [
+     {
+      "text": "Less in. More out.",
+      "size": 32,
+      "top": 254,
+      "firstScreen": true
+     }
+    ],
+    "edgeText": [],
+    "edges": [
+     {
+      "x": 172,
+      "n": 8
+     },
+     {
+      "x": 360,
+      "n": 1
+     },
+     {
+      "x": 852,
+      "n": 1
+     }
+    ],
+    "leftBlocks": 10,
+    "bodySize": 16,
+    "stage": false,
+    "explains": true,
+    "slivers": [],
+    "voidShare": 0,
+    "voidBox": null
+   },
+   "app": null,
+   "consoleErrors": []
+  },
+  {
+   "width": 768,
+   "height": 1024,
+   "load": "load",
+   "screens": 9,
+   "filled": [
+    0.14,
+    0.3,
+    0.37,
+    0.67,
+    0.79,
+    1,
+    0.7,
+    0.76,
+    0.54
+   ],
+   "motion": {
+    "elements": 32,
+    "css": 0,
+    "transitions": 32,
+    "scripted": 0,
+    "videos": 0,
+    "playingVideos": 0
+   },
+   "metrics": {
+    "viewport": {
+     "w": 768,
+     "h": 1024
+    },
+    "page": {
+     "height": 8782,
+     "screens": 8.6,
+     "words": 861,
+     "img": 3,
+     "video": 0,
+     "canvas": 1,
+     "svg": 8,
+     "sections": 8,
+     "horizontalOverflow": 0,
+     "overflowCulprits": [],
+     "uiFragments": 4,
+     "uiAbuse": false,
+     "realPictures": 3,
+     "videoCount": 0,
+     "uiPictures": 2,
+     "pictureSamples": [
+      "720",
+      "720",
+      "720"
+     ],
+     "blendText": 0,
+     "sideScrollers": 0,
+     "brokenImages": [],
+     "emoji": [],
+     "videosNoPoster": 0
+    },
+    "hero": {
+     "text": "More out.",
+     "words": 2,
+     "chars": 9,
+     "lines": 1,
+     "size": 84.5,
+     "vw": 11,
+     "font": "Manrope",
+     "weight": 800,
+     "tracking": -0.045,
+     "leading": 1,
+     "upper": false,
+     "italic": false,
+     "mono": false,
+     "align": "center",
+     "position": "center",
+     "widthRatio": 0.71,
+     "top": 366,
+     "gradientText": true,
+     "tag": "span",
+     "kind": "heading"
+    },
+    "h1": {
+     "text": "Less in. More out.",
+     "words": 4,
+     "lines": 2,
+     "size": 32,
+     "font": "Manrope"
+    },
+    "headings": [
+     {
+      "text": "More out.",
+      "words": 2,
+      "chars": 9,
+      "lines": 1,
+      "size": 84.5,
+      "vw": 11,
+      "font": "Manrope",
+      "weight": 800,
+      "tracking": -0.045,
+      "leading": 1,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "center",
+      "position": "center",
+      "widthRatio": 0.71,
+      "top": 366,
+      "gradientText": true,
+      "tag": "span",
+      "kind": "heading"
+     },
+     {
+      "text": "45–73%",
+      "words": 1,
+      "chars": 6,
+      "lines": 1,
+      "size": 72,
+      "vw": 9.4,
+      "font": "Manrope",
+      "weight": 800,
+      "tracking": -0.04,
+      "leading": 0.9,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "center",
+      "position": "left",
+      "widthRatio": 0.44,
+      "top": 1079,
+      "tag": "div",
+      "kind": "heading"
+     },
+     {
+      "text": "57.7%",
+      "words": 1,
+      "chars": 5,
+      "lines": 1,
+      "size": 72,
+      "vw": 9.4,
+      "font": "Manrope",
+      "weight": 800,
+      "tracking": -0.04,
+      "leading": 0.9,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "center",
+      "position": "right",
+      "widthRatio": 0.44,
+      "top": 1079,
+      "tag": "div",
+      "kind": "heading"
+     },
+     {
+      "text": "37.6%",
+      "words": 1,
+      "chars": 5,
+      "lines": 1,
+      "size": 72,
+      "vw": 9.4,
+      "font": "Manrope",
+      "weight": 800,
+      "tracking": -0.04,
+      "leading": 0.9,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "center",
+      "position": "left",
+      "widthRatio": 0.44,
+      "top": 1264,
+      "tag": "div",
+      "kind": "heading"
+     },
+     {
+      "text": "Watch a request lose its waste.",
+      "words": 6,
+      "chars": 31,
+      "lines": 1,
+      "size": 30,
+      "vw": 3.9,
+      "font": "Manrope",
+      "weight": 800,
+      "tracking": -0.01,
+      "leading": 1.5,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "center",
+      "position": "center",
+      "widthRatio": 0.92,
+      "top": 2075,
+      "tag": "h2",
+      "kind": "heading"
+     },
+     {
+      "text": "One URL. Three exchanges.",
+      "words": 4,
+      "chars": 25,
+      "lines": 1,
+      "size": 30,
+      "vw": 3.9,
+      "font": "Manrope",
+      "weight": 800,
+      "tracking": -0.01,
+      "leading": 1.5,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "left",
+      "position": "center",
+      "widthRatio": 0.92,
+      "top": 2847,
+      "tag": "h2",
+      "kind": "heading"
+     },
+     {
+      "text": "Proven, line by line.",
+      "words": 4,
+      "chars": 21,
+      "lines": 1,
+      "size": 30,
+      "vw": 3.9,
+      "font": "Manrope",
+      "weight": 800,
+      "tracking": -0.01,
+      "leading": 1.5,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "left",
+      "position": "center",
+      "widthRatio": 0.92,
+      "top": 4436,
+      "tag": "h2",
+      "kind": "heading"
+     },
+     {
+      "text": "37.6%",
+      "words": 1,
+      "chars": 5,
+      "lines": 1,
+      "size": 120,
+      "vw": 15.6,
+      "font": "Manrope",
+      "weight": 800,
+      "tracking": -0.04,
+      "leading": 0.8,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "left",
+      "position": "center",
+      "widthRatio": 0.92,
+      "top": 4716,
+      "tag": "div",
+      "kind": "heading"
+     },
+     {
+      "text": "One price.",
+      "words": 2,
+      "chars": 10,
+      "lines": 1,
+      "size": 30,
+      "vw": 3.9,
+      "font": "Manrope",
+      "weight": 800,
+      "tracking": -0.01,
+      "leading": 1.5,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "left",
+      "position": "center",
+      "widthRatio": 0.92,
+      "top": 5813,
+      "tag": "h2",
+      "kind": "heading"
+     },
+     {
+      "text": "15%",
+      "words": 1,
+      "chars": 3,
+      "lines": 1,
+      "size": 122.9,
+      "vw": 16,
+      "font": "Manrope",
+      "weight": 800,
+      "tracking": -0.04,
+      "leading": 0.85,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "left",
+      "position": "center",
+      "widthRatio": 0.92,
+      "top": 6106,
+      "tag": "div",
+      "kind": "heading"
+     },
+     {
+      "text": "The catch, printed.",
+      "words": 3,
+      "chars": 19,
+      "lines": 1,
+      "size": 30,
+      "vw": 3.9,
+      "font": "Manrope",
+      "weight": 800,
+      "tracking": -0.01,
+      "leading": 1.5,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "left",
+      "position": "center",
+      "widthRatio": 0.92,
+      "top": 6675,
+      "tag": "h2",
+      "kind": "heading"
+     },
+     {
+      "text": "Start with one URL.",
+      "words": 4,
+      "chars": 19,
+      "lines": 1,
+      "size": 30,
+      "vw": 3.9,
+      "font": "Manrope",
+      "weight": 800,
+      "tracking": -0.01,
+      "leading": 1.5,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "left",
+      "position": "center",
+      "widthRatio": 0.81,
+      "top": 7871,
+      "tag": "h2",
+      "kind": "heading"
+     }
+    ],
+    "headingSummary": {
+     "count": 12,
+     "maxLines": 1,
+     "over2Lines": 0,
+     "statements": 0,
+     "centered": 5,
+     "medianWords": 2,
+     "mixedFontHeadings": 0
+    },
+    "type": {
+     "families": [
+      {
+       "family": "Manrope",
+       "share": 0.78,
+       "mono": false
+      },
+      {
+       "family": "ui-monospace",
+       "share": 0.17,
+       "mono": false
+      },
+      {
+       "family": "monospace",
+       "share": 0.05,
+       "mono": false
+      }
+     ],
+     "familyCount": 3,
+     "sizes": [
+      12,
+      13,
+      14,
+      16,
+      18,
+      20,
+      22,
+      23,
+      30,
+      32,
+      61,
+      72,
+      85,
+      120,
+      123
+     ],
+     "sizeCount": 15,
+     "notLoaded": [],
+     "body": {
+      "font": "Manrope",
+      "size": 16,
+      "leading": 1.5,
+      "weight": 400,
+      "tracking": 0,
+      "contrast": 5.6
+     },
+     "measureChars": 63,
+     "max": {
+      "size": 122.9,
+      "vw": 16,
+      "font": "Manrope",
+      "text": "15"
+     },
+     "monoShare": 0.22,
+     "monoProseShare": 0,
+     "monoFamilies": [
+      "ui-monospace",
+      "monospace"
+     ],
+     "monoSamples": [
+      "copy",
+      "copy"
+     ],
+     "microLabels": 0,
+     "microLabelShare": 0,
+     "microSamples": [],
+     "upperShare": 0.01,
+     "centerShare": 0.19,
+     "smallText": 0
+    },
+    "eyebrows": [],
+    "numbered": [],
+    "color": {
+     "bodyBg": "#f1f7fb",
+     "bodyBgHsl": {
+      "h": 204,
+      "s": 0.56,
+      "l": 0.96
+     },
+     "dark": false,
+     "sectionBgs": [
+      {
+       "color": "#0e2133",
+       "top": 2190,
+       "hsl": {
+        "h": 209,
+        "s": 0.57,
+        "l": 0.13
+       }
+      },
+      {
+       "color": "#081522",
+       "top": 4340,
+       "hsl": {
+        "h": 210,
+        "s": 0.62,
+        "l": 0.08
+       }
+      },
+      {
+       "color": "#ffffff",
+       "top": 5044,
+       "hsl": {
+        "h": 0,
+        "s": 0,
+        "l": 1
+       }
+      },
+      {
+       "color": "#2864a5",
+       "top": 5717,
+       "hsl": {
+        "h": 211,
+        "s": 0.61,
+        "l": 0.4
+       }
+      }
+     ],
+     "textColors": [
+      {
+       "color": "#102a43",
+       "share": 0.28
+      },
+      {
+       "color": "#f1f7fb",
+       "share": 0.23
+      },
+      {
+       "color": "#486581",
+       "share": 0.18
+      },
+      {
+       "color": "#9fb3c8",
+       "share": 0.13
+      },
+      {
+       "color": "#081522",
+       "share": 0.08
+      }
+     ],
+     "button": {
+      "bg": "#102a43",
+      "hsl": {
+       "h": 209,
+       "s": 0.61,
+       "l": 0.16
+      },
+      "fg": "#f1f7fb"
+     },
+     "lowContrast": []
+    },
+    "buttons": {
+     "count": 3,
+     "inHero": 1,
+     "radius": 4,
+     "height": 48,
+     "withShadow": 0,
+     "withGradient": 0,
+     "mono": 0,
+     "upper": 0,
+     "heroLabels": [
+      "Get started"
+     ]
+    },
+    "surfaces": {
+     "shadowStatic": 0,
+     "shadowOverlay": 0,
+     "shadowSamples": [],
+     "gradients": 0,
+     "scrims": 0,
+     "gradientSamples": [],
+     "gradientText": 1,
+     "hairlines": 0,
+     "hairlineSamples": [],
+     "outlinedBoxes": 0,
+     "dashed": 0,
+     "blurred": 0,
+     "roundedBoxes": 5,
+     "boxRadius": 8,
+     "squareMedia": 1,
+     "roundedMedia": 0,
+     "mediaRadius": 0,
+     "textShadow": 0,
+     "cardRows": []
+    },
+    "heroMedia": [
+     {
+      "type": "canvas",
+      "ratio": 0.96
+     }
+    ],
+    "nav": {
+     "links": 1,
+     "fixed": false,
+     "height": 983,
+     "floatingPill": false,
+     "blur": false
+    },
+    "fontsLoaded": [
+     "manrope"
+    ]
+   },
+   "layout": {
+    "viewport": {
+     "w": 768,
+     "h": 1024
+    },
+    "pageH": 8782,
+    "margins": {
+     "left": 32,
+     "right": 32
+    },
+    "sections": [
+     {
+      "sel": "div.hero-wrap",
+      "tag": "div",
+      "top": 0,
+      "height": 983,
+      "words": 35,
+      "media": 1,
+      "middle": 51,
+      "heading": {
+       "text": "More out.",
+       "size": 84,
+       "tag": "h1"
+      },
+      "left": 124,
+      "right": 32,
+      "textLeft": 124,
+      "textRight": 32,
+      "fullBleed": true,
+      "footer": false,
+      "hero": true,
+      "continues": false,
+      "pinned": false
+     },
+     {
+      "sel": "section.bands",
+      "tag": "section",
+      "top": 983,
+      "height": 642,
+      "words": 85,
+      "media": 0,
+      "middle": 0,
+      "heading": {
+       "text": "45",
+       "size": 72,
+       "tag": "div"
+      },
+      "left": 37,
+      "right": 37,
+      "textLeft": 37,
+      "textRight": 37,
+      "fullBleed": false,
+      "footer": false,
+      "hero": false,
+      "continues": false,
+      "pinned": false
+     },
+     {
+      "sel": "section.works",
+      "tag": "section",
+      "top": 1625,
+      "height": 343,
+      "words": 64,
+      "media": 0,
+      "middle": 0,
+      "heading": {
+       "text": "OpenAI",
+       "size": 22,
+       "tag": "span"
+      },
+      "left": 32,
+      "right": 32,
+      "textLeft": 32,
+      "textRight": 32,
+      "fullBleed": false,
+      "footer": false,
+      "hero": false,
+      "continues": false,
+      "pinned": false
+     },
+     {
+      "sel": "section.demo-sect",
+      "tag": "section",
+      "top": 1967,
+      "height": 784,
+      "words": 157,
+      "media": 0,
+      "middle": 0,
+      "heading": null,
+      "left": 39,
+      "right": 38,
+      "textLeft": 39,
+      "textRight": -291,
+      "fullBleed": false,
+      "footer": false,
+      "hero": false,
+      "continues": false,
+      "pinned": false
+     },
+     {
+      "sel": "section",
+      "tag": "section",
+      "top": 2751,
+      "height": 1589,
+      "words": 186,
+      "media": 0,
+      "middle": 0,
+      "heading": {
+       "text": "One URL. Three exchanges.",
+       "size": 30,
+       "tag": "h2"
+      },
+      "left": 32,
+      "right": 0,
+      "textLeft": 32,
+      "textRight": -56,
+      "fullBleed": false,
+      "footer": false,
+      "hero": false,
+      "continues": false,
+      "pinned": false
+     },
+     {
+      "sel": "section.field-deep",
+      "tag": "section",
+      "top": 4340,
+      "height": 1377,
+      "words": 157,
+      "media": 0,
+      "middle": 0,
+      "heading": {
+       "text": "37.6%",
+       "size": 120,
+       "tag": "div"
+      },
+      "left": 32,
+      "right": 316,
+      "textLeft": 32,
+      "textRight": 316,
+      "fullBleed": false,
+      "footer": false,
+      "hero": false,
+      "continues": false,
+      "pinned": false
+     },
+     {
+      "sel": "section.field-ocean",
+      "tag": "section",
+      "top": 5717,
+      "height": 862,
+      "words": 80,
+      "media": 0,
+      "middle": 53,
+      "heading": {
+       "text": "15",
+       "size": 123,
+       "tag": "div"
+      },
+      "left": 32,
+      "right": 60,
+      "textLeft": 32,
+      "textRight": 233,
+      "fullBleed": false,
+      "footer": false,
+      "hero": false,
+      "continues": false,
+      "pinned": false
+     },
+     {
+      "sel": "section",
+      "tag": "section",
+      "top": 6579,
+      "height": 1025,
+      "words": 233,
+      "media": 0,
+      "middle": 0,
+      "heading": {
+       "text": "The catch, printed.",
+       "size": 30,
+       "tag": "h2"
+      },
+      "left": 32,
+      "right": 254,
+      "textLeft": 32,
+      "textRight": 254,
+      "fullBleed": false,
+      "footer": false,
+      "hero": false,
+      "continues": false,
+      "pinned": false
+     },
+     {
+      "sel": "section",
+      "tag": "section",
+      "top": 7603,
+      "height": 764,
+      "words": 36,
+      "media": 1,
+      "middle": 0,
+      "heading": {
+       "text": "Start with one URL.",
+       "size": 30,
+       "tag": "h2"
+      },
+      "left": 32,
+      "right": 32,
+      "textLeft": 72,
+      "textRight": 249,
+      "fullBleed": false,
+      "footer": true,
+      "hero": false,
+      "continues": false,
+      "pinned": false
+     }
+    ],
+    "gaps": [
+     {
+      "top": 8272,
+      "height": 400
+     }
+    ],
+    "h1s": [
+     {
+      "text": "Less in. More out.",
+      "size": 32,
+      "top": 335,
+      "firstScreen": true
+     }
+    ],
+    "edgeText": [],
+    "edges": [
+     {
+      "x": 32,
+      "n": 7
+     },
+     {
+      "x": 72,
+      "n": 2
+     },
+     {
+      "x": 56,
+      "n": 1
+     }
+    ],
+    "leftBlocks": 10,
+    "bodySize": 16,
+    "stage": false,
+    "explains": true,
+    "slivers": [],
+    "voidShare": 0,
+    "voidBox": null
+   },
+   "app": null,
+   "consoleErrors": []
+  },
+  {
+   "width": 390,
+   "height": 844,
+   "load": "load",
+   "screens": 12,
+   "filled": [
+    0.15,
+    0.23,
+    0.34,
+    0.47,
+    0.4,
+    0.72,
+    0.99,
+    0.85,
+    0.64,
+    0.64,
+    0.34,
+    0.34
+   ],
+   "motion": {
+    "elements": 36,
+    "css": 0,
+    "transitions": 36,
+    "scripted": 0,
+    "videos": 0,
+    "playingVideos": 0
+   },
+   "metrics": {
+    "viewport": {
+     "w": 481,
+     "h": 1039
+    },
+    "page": {
+     "height": 9400,
+     "screens": 9,
+     "words": 857,
+     "img": 3,
+     "video": 0,
+     "canvas": 1,
+     "svg": 8,
+     "sections": 8,
+     "horizontalOverflow": 0,
+     "overflowCulprits": [],
+     "uiFragments": 4,
+     "uiAbuse": false,
+     "realPictures": 3,
+     "videoCount": 0,
+     "uiPictures": 2,
+     "pictureSamples": [
+      "720",
+      "720",
+      "720"
+     ],
+     "blendText": 0,
+     "sideScrollers": 0,
+     "brokenImages": [],
+     "emoji": [],
+     "videosNoPoster": 0
+    },
+    "hero": {
+     "text": "45–73%",
+     "words": 1,
+     "chars": 6,
+     "lines": 1,
+     "size": 72,
+     "vw": 15,
+     "font": "Manrope",
+     "weight": 800,
+     "tracking": -0.04,
+     "leading": 0.9,
+     "upper": false,
+     "italic": false,
+     "mono": false,
+     "align": "center",
+     "position": "left",
+     "widthRatio": 0.68,
+     "top": 906,
+     "tag": "div",
+     "kind": "heading"
+    },
+    "h1": {
+     "text": "Less in. More out.",
+     "words": 4,
+     "lines": 2,
+     "size": 32,
+     "font": "Manrope"
+    },
+    "headings": [
+     {
+      "text": "More out.",
+      "words": 2,
+      "chars": 9,
+      "lines": 1,
+      "size": 64,
+      "vw": 13.3,
+      "font": "Manrope",
+      "weight": 800,
+      "tracking": -0.045,
+      "leading": 1,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "center",
+      "position": "left",
+      "widthRatio": 0.68,
+      "top": 231,
+      "gradientText": true,
+      "tag": "span",
+      "kind": "heading"
+     },
+     {
+      "text": "45–73%",
+      "words": 1,
+      "chars": 6,
+      "lines": 1,
+      "size": 72,
+      "vw": 15,
+      "font": "Manrope",
+      "weight": 800,
+      "tracking": -0.04,
+      "leading": 0.9,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "center",
+      "position": "left",
+      "widthRatio": 0.68,
+      "top": 906,
+      "tag": "div",
+      "kind": "heading"
+     },
+     {
+      "text": "57.7%",
+      "words": 1,
+      "chars": 5,
+      "lines": 1,
+      "size": 72,
+      "vw": 15,
+      "font": "Manrope",
+      "weight": 800,
+      "tracking": -0.04,
+      "leading": 0.9,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "center",
+      "position": "left",
+      "widthRatio": 0.68,
+      "top": 1091,
+      "tag": "div",
+      "kind": "heading"
+     },
+     {
+      "text": "37.6%",
+      "words": 1,
+      "chars": 5,
+      "lines": 1,
+      "size": 72,
+      "vw": 15,
+      "font": "Manrope",
+      "weight": 800,
+      "tracking": -0.04,
+      "leading": 0.9,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "center",
+      "position": "left",
+      "widthRatio": 0.68,
+      "top": 1252,
+      "tag": "div",
+      "kind": "heading"
+     },
+     {
+      "text": "Watch a request lose its waste.",
+      "words": 6,
+      "chars": 31,
+      "lines": 2,
+      "size": 30,
+      "vw": 6.2,
+      "font": "Manrope",
+      "weight": 800,
+      "tracking": -0.01,
+      "leading": 1.5,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "center",
+      "position": "left",
+      "widthRatio": 0.68,
+      "top": 2353,
+      "tag": "h2",
+      "kind": "heading"
+     },
+     {
+      "text": "One URL. Three exchanges.",
+      "words": 4,
+      "chars": 25,
+      "lines": 2,
+      "size": 30,
+      "vw": 6.2,
+      "font": "Manrope",
+      "weight": 800,
+      "tracking": -0.01,
+      "leading": 1.5,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "left",
+      "position": "left",
+      "widthRatio": 0.71,
+      "top": 3274,
+      "tag": "h2",
+      "kind": "heading"
+     },
+     {
+      "text": "Proven, line by line.",
+      "words": 4,
+      "chars": 21,
+      "lines": 1,
+      "size": 30,
+      "vw": 6.2,
+      "font": "Manrope",
+      "weight": 800,
+      "tracking": -0.01,
+      "leading": 1.5,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "left",
+      "position": "center",
+      "widthRatio": 0.95,
+      "top": 4999,
+      "tag": "h2",
+      "kind": "heading"
+     },
+     {
+      "text": "37.6%",
+      "words": 1,
+      "chars": 5,
+      "lines": 1,
+      "size": 120,
+      "vw": 24.9,
+      "font": "Manrope",
+      "weight": 800,
+      "tracking": -0.04,
+      "leading": 0.8,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "left",
+      "position": "center",
+      "widthRatio": 0.95,
+      "top": 5279,
+      "tag": "div",
+      "kind": "heading"
+     },
+     {
+      "text": "One price.",
+      "words": 2,
+      "chars": 10,
+      "lines": 1,
+      "size": 30,
+      "vw": 6.2,
+      "font": "Manrope",
+      "weight": 800,
+      "tracking": -0.01,
+      "leading": 1.5,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "left",
+      "position": "left",
+      "widthRatio": 0.71,
+      "top": 6312,
+      "tag": "h2",
+      "kind": "heading"
+     },
+     {
+      "text": "15%",
+      "words": 1,
+      "chars": 3,
+      "lines": 1,
+      "size": 120,
+      "vw": 24.9,
+      "font": "Manrope",
+      "weight": 800,
+      "tracking": -0.04,
+      "leading": 0.85,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "left",
+      "position": "left",
+      "widthRatio": 0.71,
+      "top": 6605,
+      "tag": "div",
+      "kind": "heading"
+     },
+     {
+      "text": "The catch, printed.",
+      "words": 3,
+      "chars": 19,
+      "lines": 1,
+      "size": 30,
+      "vw": 6.2,
+      "font": "Manrope",
+      "weight": 800,
+      "tracking": -0.01,
+      "leading": 1.5,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "left",
+      "position": "left",
+      "widthRatio": 0.71,
+      "top": 7203,
+      "tag": "h2",
+      "kind": "heading"
+     },
+     {
+      "text": "Start with one URL.",
+      "words": 4,
+      "chars": 19,
+      "lines": 2,
+      "size": 30,
+      "vw": 6.2,
+      "font": "Manrope",
+      "weight": 800,
+      "tracking": -0.01,
+      "leading": 1.5,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "left",
+      "position": "left",
+      "widthRatio": 0.54,
+      "top": 8438,
+      "tag": "h2",
+      "kind": "heading"
+     }
+    ],
+    "headingSummary": {
+     "count": 12,
+     "maxLines": 2,
+     "over2Lines": 0,
+     "statements": 0,
+     "centered": 5,
+     "medianWords": 2,
+     "mixedFontHeadings": 0
+    },
+    "type": {
+     "families": [
+      {
+       "family": "Manrope",
+       "share": 0.79,
+       "mono": false
+      },
+      {
+       "family": "ui-monospace",
+       "share": 0.16,
+       "mono": false
+      },
+      {
+       "family": "monospace",
+       "share": 0.05,
+       "mono": false
+      }
+     ],
+     "familyCount": 3,
+     "sizes": [
+      12,
+      13,
+      14,
+      15,
+      16,
+      17,
+      20,
+      30,
+      32,
+      60,
+      64,
+      72,
+      120
+     ],
+     "sizeCount": 13,
+     "notLoaded": [],
+     "body": {
+      "font": "Manrope",
+      "size": 16,
+      "leading": 1.5,
+      "weight": 400,
+      "tracking": 0,
+      "contrast": 5.6
+     },
+     "measureChars": 43,
+     "max": {
+      "size": 120,
+      "vw": 24.9,
+      "font": "Manrope",
+      "text": "37.6%"
+     },
+     "monoShare": 0.21,
+     "monoProseShare": 0,
+     "monoFamilies": [
+      "ui-monospace",
+      "monospace"
+     ],
+     "monoSamples": [
+      "copy",
+      "copy"
+     ],
+     "microLabels": 0,
+     "microLabelShare": 0,
+     "microSamples": [],
+     "upperShare": 0.01,
+     "centerShare": 0.19,
+     "smallText": 0
+    },
+    "eyebrows": [],
+    "numbered": [],
+    "color": {
+     "bodyBg": "#f1f7fb",
+     "bodyBgHsl": {
+      "h": 204,
+      "s": 0.56,
+      "l": 0.96
+     },
+     "dark": false,
+     "sectionBgs": [
+      {
+       "color": "#081522",
+       "top": 4935,
+       "hsl": {
+        "h": 210,
+        "s": 0.62,
+        "l": 0.08
+       }
+      },
+      {
+       "color": "#ffffff",
+       "top": 5607,
+       "hsl": {
+        "h": 0,
+        "s": 0,
+        "l": 1
+       }
+      },
+      {
+       "color": "#2864a5",
+       "top": 6248,
+       "hsl": {
+        "h": 211,
+        "s": 0.61,
+        "l": 0.4
+       }
+      }
+     ],
+     "textColors": [
+      {
+       "color": "#102a43",
+       "share": 0.28
+      },
+      {
+       "color": "#f1f7fb",
+       "share": 0.21
+      },
+      {
+       "color": "#486581",
+       "share": 0.18
+      },
+      {
+       "color": "#9fb3c8",
+       "share": 0.13
+      },
+      {
+       "color": "#081522",
+       "share": 0.08
+      }
+     ],
+     "button": {
+      "bg": "#102a43",
+      "hsl": {
+       "h": 209,
+       "s": 0.61,
+       "l": 0.16
+      },
+      "fg": "#f1f7fb"
+     },
+     "lowContrast": []
+    },
+    "buttons": {
+     "count": 3,
+     "inHero": 1,
+     "radius": 4,
+     "height": 48,
+     "withShadow": 0,
+     "withGradient": 0,
+     "mono": 0,
+     "upper": 0,
+     "heroLabels": [
+      "Get started"
+     ]
+    },
+    "surfaces": {
+     "shadowStatic": 0,
+     "shadowOverlay": 0,
+     "shadowSamples": [],
+     "gradients": 0,
+     "scrims": 0,
+     "gradientSamples": [],
+     "gradientText": 1,
+     "hairlines": 0,
+     "hairlineSamples": [],
+     "outlinedBoxes": 0,
+     "dashed": 0,
+     "blurred": 0,
+     "roundedBoxes": 5,
+     "boxRadius": 8,
+     "squareMedia": 1,
+     "roundedMedia": 0,
+     "mediaRadius": 0,
+     "textShadow": 0,
+     "cardRows": []
+    },
+    "heroMedia": [
+     {
+      "type": "canvas",
+      "ratio": 0.63
+     }
+    ],
+    "nav": {
+     "links": 1,
+     "fixed": false,
+     "height": 709,
+     "floatingPill": false,
+     "blur": false
+    },
+    "fontsLoaded": [
+     "manrope"
+    ]
+   },
+   "layout": {
+    "viewport": {
+     "w": 481,
+     "h": 1039
+    },
+    "pageH": 9400,
+    "margins": {
+     "left": 24,
+     "right": 25
+    },
+    "sections": [
+     {
+      "sel": "div.hero-wrap",
+      "tag": "div",
+      "top": 0,
+      "height": 810,
+      "words": 35,
+      "media": 1,
+      "middle": 0,
+      "heading": {
+       "text": "More out.",
+       "size": 64,
+       "tag": "h1"
+      },
+      "left": 0,
+      "right": 91,
+      "textLeft": 36,
+      "textRight": 123,
+      "fullBleed": false,
+      "footer": false,
+      "hero": true,
+      "continues": false,
+      "pinned": false
+     },
+     {
+      "sel": "section.bands",
+      "tag": "section",
+      "top": 810,
+      "height": 874,
+      "words": 85,
+      "media": 0,
+      "middle": 0,
+      "heading": {
+       "text": "45",
+       "size": 72,
+       "tag": "div"
+      },
+      "left": 37,
+      "right": 128,
+      "textLeft": 37,
+      "textRight": 128,
+      "fullBleed": false,
+      "footer": false,
+      "hero": false,
+      "continues": false,
+      "pinned": false
+     },
+     {
+      "sel": "section.works",
+      "tag": "section",
+      "top": 1685,
+      "height": 573,
+      "words": 64,
+      "media": 0,
+      "middle": 0,
+      "heading": null,
+      "left": 32,
+      "right": 124,
+      "textLeft": 32,
+      "textRight": 124,
+      "fullBleed": false,
+      "footer": false,
+      "hero": false,
+      "continues": false,
+      "pinned": false
+     },
+     {
+      "sel": "section.demo-sect",
+      "tag": "section",
+      "top": 2257,
+      "height": 953,
+      "words": 159,
+      "media": 0,
+      "middle": 0,
+      "heading": {
+       "text": "Watch a request lose its waste.",
+       "size": 30,
+       "tag": "h2"
+      },
+      "left": 37,
+      "right": 0,
+      "textLeft": 37,
+      "textRight": -437,
+      "fullBleed": false,
+      "footer": false,
+      "hero": false,
+      "continues": false,
+      "pinned": false
+     },
+     {
+      "sel": "section",
+      "tag": "section",
+      "top": 3210,
+      "height": 1725,
+      "words": 186,
+      "media": 0,
+      "middle": 84,
+      "heading": {
+       "text": "One URL. Three exchanges.",
+       "size": 30,
+       "tag": "h2"
+      },
+      "left": 24,
+      "right": 0,
+      "textLeft": 24,
+      "textRight": -335,
+      "fullBleed": false,
+      "footer": false,
+      "hero": false,
+      "continues": false,
+      "pinned": false
+     },
+     {
+      "sel": "section.field-deep",
+      "tag": "section",
+      "top": 4935,
+      "height": 1313,
+      "words": 157,
+      "media": 0,
+      "middle": 0,
+      "heading": {
+       "text": "37.6%",
+       "size": 120,
+       "tag": "div"
+      },
+      "left": 24,
+      "right": 25,
+      "textLeft": 24,
+      "textRight": 25,
+      "fullBleed": false,
+      "footer": false,
+      "hero": false,
+      "continues": false,
+      "pinned": false
+     },
+     {
+      "sel": "section.field-ocean",
+      "tag": "section",
+      "top": 6248,
+      "height": 891,
+      "words": 80,
+      "media": 0,
+      "middle": 0,
+      "heading": {
+       "text": "15",
+       "size": 120,
+       "tag": "div"
+      },
+      "left": 24,
+      "right": 128,
+      "textLeft": 24,
+      "textRight": 128,
+      "fullBleed": false,
+      "footer": false,
+      "hero": false,
+      "continues": false,
+      "pinned": false
+     },
+     {
+      "sel": "section",
+      "tag": "section",
+      "top": 7139,
+      "height": 1063,
+      "words": 230,
+      "media": 0,
+      "middle": 0,
+      "heading": {
+       "text": "The catch, printed.",
+       "size": 30,
+       "tag": "h2"
+      },
+      "left": 24,
+      "right": 142,
+      "textLeft": 24,
+      "textRight": 142,
+      "fullBleed": false,
+      "footer": false,
+      "hero": false,
+      "continues": false,
+      "pinned": false
+     },
+     {
+      "sel": "section",
+      "tag": "section",
+      "top": 8202,
+      "height": 796,
+      "words": 36,
+      "media": 2,
+      "middle": 0,
+      "heading": {
+       "text": "Start with one URL.",
+       "size": 30,
+       "tag": "h2"
+      },
+      "left": 24,
+      "right": 115,
+      "textLeft": 64,
+      "textRight": 157,
+      "fullBleed": false,
+      "footer": false,
+      "hero": false,
+      "continues": false,
+      "pinned": false
+     },
+     {
+      "sel": "footer.quiet-foot",
+      "tag": "footer",
+      "top": 9252,
+      "height": 148,
+      "words": 17,
+      "media": 0,
+      "middle": 0,
+      "heading": null,
+      "left": 32,
+      "right": 141,
+      "textLeft": 32,
+      "textRight": 141,
+      "fullBleed": false,
+      "footer": true,
+      "hero": false,
+      "continues": false,
+      "pinned": false
+     }
+    ],
+    "gaps": [
+     {
+      "top": 8936,
+      "height": 312
+     }
+    ],
+    "h1s": [
+     {
+      "text": "Less in. More out.",
+      "size": 32,
+      "top": 203,
+      "firstScreen": true
+     }
+    ],
+    "edgeText": [],
+    "edges": [
+     {
+      "x": 24,
+      "n": 7
+     },
+     {
+      "x": 64,
+      "n": 2
+     },
+     {
+      "x": 48,
+      "n": 1
+     }
+    ],
+    "leftBlocks": 10,
+    "bodySize": 16,
+    "stage": false,
+    "explains": false,
+    "slivers": [],
+    "voidShare": 0,
+    "voidBox": null
+   },
+   "app": null,
+   "consoleErrors": []
+  }
+ ],
+ "findings": [
+  {
+   "level": "WARN",
+   "id": "grey-body",
+   "width": 1440,
+   "message": "The running text is a soft grey on its ground (5.6:1).",
+   "fix": "Set body copy in the full ink (7:1 or more). Keep the muted ink for secondary notes; pages read thin and unfinished when everything is grey.",
+   "alsoAt": [
+    768,
+    390
+   ]
+  },
+  {
+   "level": "WARN",
+   "id": "off-centre",
+   "width": 1440,
+   "message": "The margins differ: 172px on the left, 144px on the right, at 1440px.",
+   "fix": "Put the navigation and the content on one pair of margins; check for padding on one side only, a scrollbar gutter, or a header on another inset than the page."
+  },
+  {
+   "level": "WARN",
+   "id": "untitled-section",
+   "width": 1440,
+   "message": "A section carries text but no heading: section.demo-sect at 1682px.",
+   "fix": "Name it with a short heading unless it is the continuation of the section above.",
+   "alsoAt": [
+    768,
+    390
+   ]
+  }
+ ],
+ "images": [
+  {
+   "viewport": "desktop",
+   "width": 1440,
+   "fold": "/Users/harrymanley/Documents/Codex/flux/.taste-skill/inspect20/desktop-fold.jpg",
+   "pages": [
+    "/Users/harrymanley/Documents/Codex/flux/.taste-skill/inspect20/desktop-page-01.jpg",
+    "/Users/harrymanley/Documents/Codex/flux/.taste-skill/inspect20/desktop-page-02.jpg",
+    "/Users/harrymanley/Documents/Codex/flux/.taste-skill/inspect20/desktop-page-03.jpg"
+   ],
+   "film": []
+  },
+  {
+   "viewport": "tablet",
+   "width": 768,
+   "fold": "/Users/harrymanley/Documents/Codex/flux/.taste-skill/inspect20/tablet-fold.jpg",
+   "pages": [
+    "/Users/harrymanley/Documents/Codex/flux/.taste-skill/inspect20/tablet-page-01.jpg",
+    "/Users/harrymanley/Documents/Codex/flux/.taste-skill/inspect20/tablet-page-02.jpg"
+   ],
+   "film": []
+  },
+  {
+   "viewport": "mobile",
+   "width": 390,
+   "fold": "/Users/harrymanley/Documents/Codex/flux/.taste-skill/inspect20/mobile-fold.jpg",
+   "pages": [
+    "/Users/harrymanley/Documents/Codex/flux/.taste-skill/inspect20/mobile-page-01.jpg",
+    "/Users/harrymanley/Documents/Codex/flux/.taste-skill/inspect20/mobile-page-02.jpg"
+   ],
+   "film": []
+  }
+ ]
+}
