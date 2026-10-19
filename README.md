@@ -1,68 +1,121 @@
-# FLUX
+# FLUX — cut your LLM API bill, pay only a share of verified savings
 
-**AI Cost Engineering — Make every token count.**
+FLUX reduces what each LLM request costs — on Claude (Anthropic), OpenAI, and
+any OpenAI-compatible API — and meters the savings into an append-only,
+hash-chained ledger **you can recompute yourself**. The fee is a percentage of
+verified savings: if FLUX saves nothing, the invoice says `do_not_charge`.
 
-FLUX is being built to help AI-native teams find lower-cost inference paths while preserving the quality their applications require.
+Three things no other cost tool says on its front page:
 
-## Cost and quality routing prototype
+1. **Integration is one URL.** Run the FLUX proxy and point your client's
+   `base_url` at it. No SDK adoption, any language. Your API key passes
+   through verbatim — FLUX never holds credentials.
+2. **The published numbers include where FLUX loses.** Already-optimised
+   stacks get a `doNotPayUs` verdict, and our busy-interactive ceiling (~29%
+   before cache enablement) is printed next to the wins.
+3. **The invoice is a pure function of a ledger you hold.** Every request
+   writes one hash-chained event with provider-verbatim usage; run
+   `recomputeInvoice` on your own spool and you must get our number.
 
-The SDK routes a stable share of each task class from a configured baseline to the cheapest approved candidate that passed offline quality and cost gates. An application quality check can reject candidate output and retry on the baseline. Candidate output caps must be evaluated in replay. An opt-in, tenant-scoped exact cache avoids repeat inference for identical safe requests. Request contents are never used as routing keys.
+## How much does it save?
 
-```ts
-import OpenAI from "openai";
+| Workload | Band | Status |
+|---|---|---|
+| Multi-turn Claude agents with no `cache_control` (most of them) | **57.1%** | simulator-measured vs the uncached baseline a live export confirmed |
+| Background / batch / latency-tolerant (OpenAI flex tier) | **57.7% net** (64.3% ceiling) | simulator-measured, billed from the SERVED tier |
+| One-shot templated API traffic | **45.5%**, up to 72.8% | simulator-measured |
+| Interactive agents (busy / sparse) | **25.9% / 34.0%** | simulator-measured |
+| First real-traffic export (30 requests, claude-sonnet-5-5) | **9–25% per agent** | measured on live API traffic |
+| Already-optimised stacks | **0–5%** | we tell you not to pay us |
+
+Every number traces to a command and a commit: see
+[docs/site/evidence.md](docs/site/evidence.md). Savings are measured **per
+completed task**, never per request, and quality is gated by replaying your
+own recorded requests — a failed task voids its savings.
+
+## Quick start: proxy mode (no code changes)
+
+```bash
+node --import tsx evals/run-proxy.ts
+```
+
+Then change one line in your app:
+
+```js
+// Anthropic SDK
+const anthropic = new Anthropic({ baseURL: "http://127.0.0.1:8787" });
+// OpenAI SDK
+const openai = new OpenAI({ baseURL: "http://127.0.0.1:8787/v1" });
+```
+
+Requests are reduced before they reach the provider, responses (including SSE
+streams) come back byte-identical, and a hash-chained ledger spool appears
+under `./flux-ledger/`. Reduction is **lossless-only by default**: compacted
+tool schemas decode identically, removed duplicates are exact, prefix repair
+reorders text without deleting it. Lossy levers stay off until a replay gate
+proves on your own traffic that quality held.
+
+## Quick start: SDK mode (one line)
+
+```js
 import { withFlux } from "@flux-ai/sdk";
 
-const openai = withFlux(new OpenAI(), {
+const client = withFlux(new Anthropic(), {
   applicationId: "my-app",
-  classify: () => "support.classification",
-  routing: {
-    getRequestKey: (request) => (request as { metadata?: { jobId?: string } }).metadata?.jobId,
-    policies: [/* reviewed replay evidence and approved candidate traffic share */],
-  },
-  qualityCheck: ({ request, response }) => validateForThisTask(request, response),
-  onEvent: (event) => console.info("FLUX", event),
-});
-
-const result = await openai.responses.create({
-  model: "gpt-4.1-mini",
-  input: "Classify this support request.",
+  tokenReduction: { toolSchemas: true, duplicateContext: true, repairCachePrefix: true },
+  ledger: { path: "./flux-ledger.jsonl", provider: "anthropic" },
 });
 ```
 
-See [`docs/COST_QUALITY_ROUTING.md`](docs/COST_QUALITY_ROUTING.md) for the routing policy format and safety gates. See [`docs/QUICKSTART.md`](docs/QUICKSTART.md) for setup and the local telemetry receiver.
+Works with Anthropic `messages.create`, OpenAI `responses.create`, and
+`chat.completions.create` on one shared hash chain.
 
-Run `corepack pnpm example:mock` to see FLUX work without an OpenAI key or API credits.
+## Where the savings come from
 
-Run `corepack pnpm replay:run` for a fully local baseline/candidate replay demonstration. To use live OpenAI models, provide a custom replay config with explicit current prices and run `corepack pnpm replay:run -- --config path/to/config.json --mode openai`; this makes two API calls per case.
+- **Anthropic's prompt cache is opt-in, and most agents never opt in.** An
+  unstamped Claude agent re-pays full rate for its entire conversation history
+  every turn (our live export measured exactly that: zero cache traffic on a
+  five-turn agent). FLUX stamps the stable prefix — writes 1.25×, reads 0.1× —
+  and defers whenever you placed your own `cache_control`.
+- **Fresh tool results are capped at injection**, before they bill once at the
+  full input rate (headlines, errors and file paths survive verbatim; the
+  replay gate approved this lever at zero quality delta).
+- **Prefix repair**: one timestamp at the top of a shared template disables
+  provider caching entirely; FLUX relocates it.
+- **Schema compaction and exact-duplicate removal**: lossless, on every request.
+- **Execution tiers**: OpenAI flex is the same model at 50% off for work that
+  can wait; FLUX bills from the tier the provider actually served.
 
-Run `corepack pnpm route:demo` for a no-network demonstration of replay gates, SDK routing, and spend comparison. Turn an actual replay report into an unapproved SDK policy with `corepack pnpm route:policy -- --report replay-report.json --task-class your.task.class --traffic-share 0.05`.
+## What FLUX never does
 
-Run `corepack pnpm context:simulate` for a local simulation across 3 model tiers, 3 workflows, 180 requests, varied 320–32,000 synthetic input units, versioned context profiles, risk-aware routing, quality gates and fallback costs. Each profile physically trims fixture text; the units are whitespace-delimited words, not provider tokenizer counts. It makes no provider calls; fixture quality is illustrative, not a real-model benchmark. Add `-- --out /tmp/flux-context-report.json` to save the detailed model/workflow report.
+- Never sends your prompts anywhere: analysis runs in-process, and the ledger
+  records usage numbers, lever names and hashes — not content.
+- Never claims savings you already had: your own cache hits and gateway-cache
+  discounts are itemised in `excluded` and never billed.
+- Never clamps a negative: a cache-write premium that didn't pay off counts
+  against FLUX on the invoice.
+- Never bills a lossy lever without an approved replay-gate verdict from your
+  own recorded traffic.
 
-## Measure cost and quality on held-out data
+## Already running LiteLLM, Helicone or Langfuse?
 
-Run `corepack pnpm benchmark:run -- --root /path/to/results/bench --dataset mmlu_pro --split test` to import already-computed LLMRouterBench outputs and compare the strongest single model, cheapest static choice, and FLUX's quality-gated workflow route. Add `--routes decisions.jsonl` to score per-case choices from another router on the same holdout, including its inference overhead. The importer makes no provider calls and writes JSON plus Markdown reports. For application-specific evidence, explicitly enable the redacted SDK capture and run `corepack pnpm benchmark:captures -- --capture .flux-captures/replay.jsonl --dataset my-workflow`. See [`docs/VALID_EVALUATION.md`](docs/VALID_EVALUATION.md) for data setup, capture privacy, holdout rules, and interpretation.
+You are one file export away from a quote, including the honest
+"do not pay us" verdict:
 
-## Current scope and limits
+```bash
+flux-quote your-export.jsonl --format litellm
+```
 
-- OpenAI-compatible `responses.create()` wrapper with stable, task-class-based candidate routing
-- Candidate requires reviewed offline replay evidence, enough samples, a quality floor, allowed accuracy drop, and lower measured replay cost
-- Application quality checks can trigger a baseline retry; attempted-model tokens and known cost are aggregated
-- Candidate output caps must be part of replay evidence
-- Workflow, difficulty, and risk context can constrain policies; deterministic, replayed context profiles can reduce candidate prompts
-- Context profiles are versioned, can require workflow matches, and are recorded in telemetry
-- A local multi-model, multi-token simulation reports candidate quality, confidence bounds, final quality, input tokens, fallbacks and cost by workflow
-- Provider prompt-cache reads/writes are counted and costed separately when usage and matching prices are available
-- Optional in-memory exact response cache with TTL and required tenant scope; streaming, tools, and continuation calls bypass it
-- Unassigned traffic, invalid policies, and unapproved or ineligible candidates stay on the baseline
-- Optional per-model prices for estimating real request cost
-- Request IDs, model, task class, duration, status and provider token usage when returned
-- Local metadata dashboard with recent in-memory events
-- Optional cost estimates from user-supplied model prices
-- Optional callback for immediate local inspection
-- Optional metadata-only telemetry delivery
-- Offline replay evaluation for saved baseline/candidate outputs against a quality contract
-- Replay-report-to-policy command; candidate approval remains explicit
-- Telemetry and callback failures do not affect the provider response
+## Reproduce every number
 
-This is an initial routing slice, not autonomous optimization. Candidate rejection can trigger a same-request baseline retry, but FLUX does not yet learn from delayed user feedback or automatically disable a candidate across future requests. Durable policy state and automatic circuit breaking are still to come. The included replay fixture is synthetic; it does not establish real savings or quality equivalence.
+```bash
+./node_modules/.bin/vitest run          # 341 tests
+node --import tsx evals/run-agent-ab.ts # the measurement harness, all arms
+node --import tsx evals/run-live-agents.ts  # five agents end-to-end (set ANTHROPIC_API_KEY for real traffic)
+```
+
+Method: [docs/site/methodology.md](docs/site/methodology.md) · segment bands:
+[docs/site/segments.md](docs/site/segments.md) · honest comparison, including
+independent measurements of competing tools:
+[docs/site/comparison.md](docs/site/comparison.md) · FAQ:
+[docs/site/faq.md](docs/site/faq.md)

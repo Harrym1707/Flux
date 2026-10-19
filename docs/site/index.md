@@ -8,11 +8,14 @@ savings. If your traffic is already optimised, FLUX tells you not to pay us.
 
 Every figure below is measured per completed task with quality held (at least
 36 of 40 tasks fully correct and complete), on a simulated harness using each
-provider's published prices and cache rules. No real-traffic claims are made
-until your own pilot measures them. [How these numbers are made →](methodology.md)
+provider's published prices and cache rules — except where marked live. A
+first real-traffic export exists (30 requests, measured 9–25% per agent);
+your own pilot replaces every band with your number before any fee exists.
+[How these numbers are made →](methodology.md)
 
 | Your traffic looks like | Measured saving | Label |
 |---|---:|---|
+| Multi-turn Claude agents with no `cache_control` | **57.1%** (vs the uncached baseline a live export confirmed) | simulator-measured |
 | Background / batch / latency-tolerant jobs | **57.7%** (net of assumed tier fallbacks; 64.3% ceiling) | simulator-measured |
 | One-shot API calls on a shared template | **45.5%** — up to **72.8%** where latency-tolerant | simulator-measured |
 | Interactive agents, sparse traffic | **34.0%** | simulator-measured, caveats apply |

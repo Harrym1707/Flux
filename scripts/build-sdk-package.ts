@@ -26,6 +26,7 @@ import {
   readdirSync,
   readFileSync,
   rmSync,
+  statSync,
   writeFileSync,
 } from "node:fs";
 import path from "node:path";
@@ -47,6 +48,47 @@ const CORE_SPECIFIER = "../../core/dist/src/index.js";
 for (const dist of [coreDist, sdkDist]) {
   if (!existsSync(dist)) {
     console.error(`Missing ${dist}; run ./node_modules/.bin/tsc -b first.`);
+    process.exit(1);
+  }
+}
+
+// Freshness gate: the JS bundles build straight from src, but the published
+// .d.ts files are copied from dist. A stale dist would silently ship types
+// that disagree with the code, so any src file newer than its dist twin fails
+// the build with the fix spelled out.
+function newestMtime(dir: string, suffix: string, excludeSuffix?: string): number {
+  let newest = 0;
+  for (const name of readdirSync(dir)) {
+    if (!name.endsWith(suffix)) continue;
+    if (excludeSuffix !== undefined && name.endsWith(excludeSuffix)) continue;
+    const mtime = statSync(path.join(dir, name)).mtimeMs;
+    if (mtime > newest) newest = mtime;
+  }
+  return newest;
+}
+// Incremental tsc leaves unchanged outputs untouched, so the witness of a
+// completed build is the .tsbuildinfo stamp, not the .d.ts mtimes.
+function buildStamp(packageDir: string): number {
+  let newest = 0;
+  for (const name of readdirSync(packageDir)) {
+    if (!name.endsWith(".tsbuildinfo")) continue;
+    const mtime = statSync(path.join(packageDir, name)).mtimeMs;
+    if (mtime > newest) newest = mtime;
+  }
+  return newest;
+}
+for (const [srcDir, distDir, label] of [
+  [path.join(root, "packages/core/src"), coreDist, "core"],
+  [path.join(sdkDir, "src"), sdkDist, "sdk-js"],
+] as const) {
+  const srcNewest = newestMtime(srcDir, ".ts", ".test.ts");
+  const packageDir = path.resolve(distDir, "../..");
+  const distNewest = Math.max(newestMtime(distDir, ".d.ts"), buildStamp(packageDir), buildStamp(path.join(packageDir, "dist")));
+  if (srcNewest > distNewest) {
+    console.error(
+      `STALE DIST: ${label} src is newer than its dist declarations. ` +
+      "Run ./node_modules/.bin/tsc -b before packaging, or the published types would not match the code.",
+    );
     process.exit(1);
   }
 }
@@ -143,6 +185,43 @@ if (out !== undefined) {
 }
 `, "utf8");
 
+writeFileSync(path.join(outDir, "bin/flux-proxy.mjs"), `#!/usr/bin/env node
+// FLUX proxy mode: point your client's base_url here, keep your own API key.
+// Requests are reduced before they reach the provider, responses (including
+// SSE streams) return byte-identical, and every request appends one
+// hash-chained ledger event. Lossless levers only by default.
+//
+//   FLUX_PROXY_PORT        default 8787
+//   FLUX_PROXY_LEDGER_DIR  default ./flux-ledger
+//   FLUX_PROXY_CACHE_TTL   "5m" | "1h" to enable the Anthropic cache stamp
+import { mkdirSync } from "node:fs";
+import { join } from "node:path";
+import { startFluxProxy } from "../index.js";
+
+const port = Number(process.env.FLUX_PROXY_PORT ?? 8787);
+const ledgerDirectory = process.env.FLUX_PROXY_LEDGER_DIR ?? join(process.cwd(), "flux-ledger");
+mkdirSync(ledgerDirectory, { recursive: true });
+const cacheTtl = process.env.FLUX_PROXY_CACHE_TTL;
+if (cacheTtl !== undefined && cacheTtl !== "5m" && cacheTtl !== "1h") {
+  console.error(\`FLUX_PROXY_CACHE_TTL must be "5m" or "1h", got \${JSON.stringify(cacheTtl)}.\`);
+  process.exit(1);
+}
+const proxy = await startFluxProxy({
+  port,
+  ledgerDirectory,
+  tokenReduction: {
+    toolSchemas: true,
+    duplicateContext: true,
+    repairCachePrefix: true,
+    ...(cacheTtl === undefined ? {} : { cacheTtl }),
+  },
+});
+console.log(\`FLUX proxy listening on \${proxy.url}\`);
+console.log(\`Ledger spools: \${ledgerDirectory}\`);
+console.log(\`Anthropic SDK: new Anthropic({ baseURL: "\${proxy.url}" })\`);
+console.log(\`OpenAI SDK:    new OpenAI({ baseURL: "\${proxy.url}/v1" })\`);
+`, "utf8");
+
 const workspaceManifest = JSON.parse(readFileSync(path.join(sdkDir, "package.json"), "utf8")) as {
   name: string;
   version: string;
@@ -152,7 +231,7 @@ const workspaceManifest = JSON.parse(readFileSync(path.join(sdkDir, "package.jso
 const manifest = {
   name: workspaceManifest.name,
   version: workspaceManifest.version,
-  description: "FLUX SDK: drop-in OpenAI-compatible wrapper that reduces LLM costs and meters verified savings into an append-only, customer-recomputable ledger.",
+  description: "Cut LLM API costs on Claude and OpenAI: one-URL proxy or one-line SDK wrapper that reduces each request losslessly and meters VERIFIED savings into an append-only, customer-recomputable ledger. Pay only a share of verified savings.",
   license: "UNLICENSED",
   type: "module",
   main: "./index.cjs",
@@ -165,7 +244,7 @@ const manifest = {
       require: "./index.cjs",
     },
   },
-  bin: { "flux-quote": "./bin/flux-quote.mjs" },
+  bin: { "flux-quote": "./bin/flux-quote.mjs", "flux-proxy": "./bin/flux-proxy.mjs" },
   files: ["index.js", "index.cjs", "bin", "types", "README.md"],
   engines: { node: ">=18" },
 };
@@ -173,22 +252,53 @@ writeFileSync(path.join(outDir, "package.json"), `${JSON.stringify(manifest, nul
 
 writeFileSync(path.join(outDir, "README.md"), `# @flux-ai/sdk
 
-Wrap an OpenAI-compatible client; FLUX reduces what each request costs and,
-when the opt-in ledger is enabled, meters VERIFIED savings into an append-only,
-hash-chained JSONL file you can recompute into the invoice yourself.
+Cut LLM API costs on Claude (Anthropic), OpenAI, and OpenAI-compatible APIs.
+FLUX reduces each request losslessly before it is sent and meters VERIFIED
+savings into an append-only, hash-chained JSONL ledger you can recompute into
+the invoice yourself. The fee is a share of verified savings; a period that
+saved nothing says do_not_charge.
+
+## Proxy mode: no code changes
+
+\`\`\`bash
+npx flux-proxy   # then point your client's base_url at it
+\`\`\`
+
+\`\`\`js
+const anthropic = new Anthropic({ baseURL: "http://127.0.0.1:8787" });
+const openai = new OpenAI({ baseURL: "http://127.0.0.1:8787/v1" });
+\`\`\`
+
+Your API key passes through verbatim (FLUX never holds credentials), responses
+— SSE streams included — return byte-identical, and every request appends one
+ledger event. Prompts never leave your machine: the ledger records usage
+numbers, lever names and hashes, not content.
+
+## SDK mode: one line
 
 \`\`\`js
 import { withFlux } from "@flux-ai/sdk"; // or require("@flux-ai/sdk")
 
-const client = withFlux(openai, {
+const client = withFlux(anthropic, {
   applicationId: "my-app",
-  ledger: { path: "./flux-ledger.jsonl" }, // opt-in savings meter
+  tokenReduction: { toolSchemas: true, duplicateContext: true, repairCachePrefix: true },
+  ledger: { path: "./flux-ledger.jsonl", provider: "anthropic" },
 });
 \`\`\`
 
-The wrapper never changes your responses; the meter never throws into the
-request path. Recompute the invoice from your own spool with
-\`recomputeInvoice\` / \`verifyLedgerChain\`, both exported here.
+Wraps Anthropic messages.create, OpenAI responses.create and
+chat.completions.create on one shared hash chain. The wrapper never changes
+your responses; the meter never throws into the request path.
+
+## Quote from your gateway export
+
+\`\`\`bash
+npx flux-quote your-export.jsonl --format litellm   # or helicone | langfuse
+\`\`\`
+
+Includes the honest "do not pay us" verdict for already-optimised stacks.
+Recompute any invoice from your own spool with \`recomputeInvoice\` /
+\`verifyLedgerChain\`, both exported here.
 `, "utf8");
 
 console.log(`artifact ready at ${path.relative(root, outDir)}`);
