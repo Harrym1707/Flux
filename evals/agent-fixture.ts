@@ -155,7 +155,12 @@ export function buildAnthropicRequest(taskIndex: number, turn: number, clockHour
  * OpenAI-shaped request produces byte-identical output to before the widening.
  */
 export function wirePrompt(request: AnyObject): string {
-  return `${String(request.system ?? request.instructions ?? "")}\n${JSON.stringify(request.tools ?? [])}\n` +
+  const system = request.system ?? request.instructions ?? "";
+  // A block-array system (e.g. after the cacheTtl stamp lifts the string into
+  // its documented equivalent text block) serialises structurally; String()
+  // would collapse it to "[object Object]" and wreck cache matching.
+  const systemText = typeof system === "string" ? system : JSON.stringify(system);
+  return `${systemText}\n${JSON.stringify(request.tools ?? [])}\n` +
     JSON.stringify(request.input ?? request.messages ?? []);
 }
 

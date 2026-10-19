@@ -734,6 +734,46 @@ type AnthropicShapedRun = {
  * differences are the request shape and that the cache policy is DERIVED from
  * the observed stamps rather than passed in.
  */
+/**
+ * The request with every cache_control stripped and the documented
+ * string<->single-text-block equivalence flattened, serialised for comparison.
+ * Two requests that agree here put identical content in front of the model.
+ */
+function withoutStampArtifacts(request: AnyObject): string {
+  const strip = (node: unknown): unknown => {
+    if (Array.isArray(node)) return node.map(strip);
+    if (typeof node === "object" && node !== null) {
+      const out: Record<string, unknown> = {};
+      for (const [key, value] of Object.entries(node)) {
+        if (key === "cache_control") continue;
+        out[key] = strip(value);
+      }
+      return out;
+    }
+    return node;
+  };
+  const flattenSingleTextBlock = (content: unknown): unknown => {
+    if (Array.isArray(content) && content.length === 1) {
+      const only = content[0] as AnyObject | undefined;
+      if (only !== undefined && only.type === "text" && typeof only.text === "string" &&
+          Object.keys(only).length === 2) {
+        return only.text;
+      }
+    }
+    return content;
+  };
+  const clean = strip(request) as AnyObject;
+  clean.system = flattenSingleTextBlock(clean.system);
+  if (Array.isArray(clean.messages)) {
+    clean.messages = clean.messages.map((message) => {
+      if (typeof message !== "object" || message === null || Array.isArray(message)) return message;
+      const row = message as AnyObject;
+      return { ...row, content: flattenSingleTextBlock(row.content) };
+    });
+  }
+  return JSON.stringify(clean);
+}
+
 function runAnthropicShapedArm(arm: Arm, spacing: number): AnthropicShapedRun {
   const simulated: SimulatedRequest[] = [];
   let stampedCalls = 0;
@@ -761,7 +801,8 @@ function runAnthropicShapedArm(arm: Arm, spacing: number): AnthropicShapedRun {
         const reduced = reduceRequest(original, arm.config);
         sent = reduced.request as AnyObject;
         const changeRecorded = reduced.summary.changes.some((change) => change.lever === "cache-ttl-1h");
-        const bytesStamped = JSON.stringify(sent.messages ?? []).includes(STAMP_BYTES);
+        const bytesStamped = JSON.stringify({ system: sent.system ?? null, messages: sent.messages ?? [] })
+          .includes(STAMP_BYTES);
         if (changeRecorded !== bytesStamped) {
           throw new Error(
             `cache-ttl-1h bookkeeping mismatch at task ${taskIndex} turn ${turn}: ` +
@@ -775,24 +816,18 @@ function runAnthropicShapedArm(arm: Arm, spacing: number): AnthropicShapedRun {
 
       if (stamped) {
         stampedCalls += 1;
-        // Suffix-only control: identical bytes up to the final content block.
+        // Metadata-only control: stripping every cache_control and flattening
+        // the documented string<->single-text-block equivalence must leave the
+        // stamped request byte-identical to the unstamped one. The stamp may
+        // mark where caching applies; it may never change what the model reads.
         const unstamped = reduceRequest(
           buildAnthropicRequest(taskIndex, turn, clockHour), configWithoutTtl ?? {},
         ).request as AnyObject;
-        const stampedWire = wirePrompt(sent);
-        const unstampedWire = wirePrompt(unstamped);
-        const finalBlockAt = unstampedWire.lastIndexOf('{"role":"user","content":');
-        if (finalBlockAt <= 0) {
-          throw new Error(`Could not locate the final content block at task ${taskIndex} turn ${turn}.`);
-        }
-        if (stampedWire.slice(0, finalBlockAt) !== unstampedWire.slice(0, finalBlockAt)) {
+        if (withoutStampArtifacts(sent) !== withoutStampArtifacts(unstamped)) {
           throw new Error(
-            `TTL stamp changed bytes BEFORE the final content block at task ${taskIndex} turn ${turn}; ` +
-            "a non-suffix stamp would break the cached prefix.",
+            `TTL stamp changed model-visible content at task ${taskIndex} turn ${turn}; ` +
+            "the stamp must be metadata-only.",
           );
-        }
-        if (stampedWire.slice(0, finalBlockAt).includes('"cache_control"')) {
-          throw new Error(`cache_control appeared before the final content block at task ${taskIndex} turn ${turn}.`);
         }
         suffixOnlyChecks += 1;
       }
@@ -811,7 +846,7 @@ function runAnthropicShapedArm(arm: Arm, spacing: number): AnthropicShapedRun {
   }
 
   if (stampedCalls > 0 && suffixOnlyChecks !== stampedCalls) {
-    throw new Error(`Suffix-only control ran ${suffixOnlyChecks} times for ${stampedCalls} stamped requests.`);
+    throw new Error(`Metadata-only control ran ${suffixOnlyChecks} times for ${stampedCalls} stamped requests.`);
   }
 
   // The 1h policy is selected ONLY when every request in the run was observed
@@ -856,7 +891,7 @@ function reportStampedTtlArm(): void {
   console.log(
     `stamp audit: arm L ${armL.stampedCalls}/${armL.totalCalls} requests carry cache_control with the ` +
     `'cache-ttl-1h' change record (policy ${armL.policyName}); baseline A ${baseline.stampedCalls}/` +
-    `${baseline.totalCalls} (policy ${baseline.policyName}); stamp verified suffix-only on every stamped request.`,
+    `${baseline.totalCalls} (policy ${baseline.policyName}); stamp verified metadata-only on every stamped request.`,
   );
 
   // Hard assertion 4: quality cells exactly J's. Quality is cache-independent,
