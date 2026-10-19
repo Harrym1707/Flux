@@ -27,6 +27,14 @@ get our number. Savings you already had are itemised and excluded. Negative
 savings (e.g. a cache-write premium that didn't pay off) reduce the bill —
 they are never clamped to zero.
 
+**Do I have to change my code?**
+One line or none. SDK mode wraps your existing client (`withFlux(client)`).
+Proxy mode needs no code at all: run the FLUX proxy locally and point your
+client's `base_url` at it — your API key passes through verbatim (FLUX never
+holds credentials), responses stream back untouched, and every request
+appends the same hash-chained ledger event the SDK writes. A stream whose
+usage cannot be read is recorded *unpriced*, never guessed.
+
 **What do you do with my prompts?**
 Analysis runs locally; prompts never leave your machine. The ledger records
 usage numbers, lever names, hashes and verdict references — not prompt text.

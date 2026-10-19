@@ -5,6 +5,8 @@ export { ExactResponseCache } from "./exact-cache.js";
 export { createLocalJsonlCapture } from "./evaluation-capture.js";
 export { billableEventFromRequest, createSavingsLedger } from "./savings-ledger.js";
 export type { SavingsLedger } from "./savings-ledger.js";
+export { startFluxProxy, usageFromSse } from "./proxy.js";
+export type { FluxProxy, FluxProxyOptions } from "./proxy.js";
 // The customer-side audit surface: everything needed to verify a ledger spool
 // and recompute the invoice locally, without the FLUX workspace.
 // The pre-contract quote pipeline, so the packaged flux-quote CLI (and any

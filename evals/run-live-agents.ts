@@ -78,6 +78,8 @@ const DEFAULT_MODEL: Record<Provider, string> = {
   openai: "gpt-5",
 };
 const OPENAI_BASE_URL = (process.env.OPENAI_BASE_URL ?? "https://api.openai.com/v1").replace(/\/$/, "");
+// Set to the FLUX proxy's url to run the whole harness THROUGH proxy mode.
+const ANTHROPIC_BASE_URL = (process.env.ANTHROPIC_BASE_URL ?? "https://api.anthropic.com").replace(/\/$/, "");
 
 /** A LOCAL-STUB run exercises both provider shapes; a LIVE run uses the keyed one. */
 const providers: Provider[] = LIVE ? [liveProvider!] : ["anthropic", "openai"];
@@ -108,7 +110,7 @@ async function pickAnthropicModel(): Promise<string> {
   const explicit = process.env.FLUX_LIVE_MODEL;
   let ids: string[] = [];
   try {
-    const res = await fetch("https://api.anthropic.com/v1/models?limit=100", {
+    const res = await fetch(`${ANTHROPIC_BASE_URL}/v1/models?limit=100`, {
       headers: anthropicHeaders(),
       signal: AbortSignal.timeout(30_000),
     });
@@ -340,7 +342,7 @@ function stubbedCompletion(provider: Provider, req: AnyObject): AnyObject {
 
 async function liveCompletion(provider: Provider, req: AnyObject): Promise<AnyObject> {
   const [url, headers]: [string, Record<string, string>] = provider === "anthropic"
-    ? ["https://api.anthropic.com/v1/messages", anthropicHeaders()]
+    ? [`${ANTHROPIC_BASE_URL}/v1/messages`, anthropicHeaders()]
     : [`${OPENAI_BASE_URL}/responses`, {
         "content-type": "application/json",
         authorization: `Bearer ${OPENAI_KEY}`,
