@@ -14,7 +14,7 @@ generated fixtures (27/27).
 |---|---|---|
 | Async 64.3% ceiling / **57.7% net** (quote the net) | arm K rows, async-eligible segment: ceiling assumes 0% tier fallback; net assumes 10% default + 5% 429-retry, priced per event at the SERVED tier | `4e51734` |
 | Interactive 25.9–29.4% | arm J across openai-30s / openai-600s / anthropic-5m blocks, clean 38/40 | `c7b03d4`, re-verified `4e51734` |
-| Proxy mode: zero-code integration | `packages/sdk-js/src/proxy.ts` + `evals/run-proxy.ts`; e2e tests cover reduction-before-forward, byte-identical passthrough, SSE streaming with usage parsed after the last byte, per-app hash chains, credential passthrough | `pending` |
+| Proxy mode: zero-code integration | `packages/sdk-js/src/proxy.ts` + `evals/run-proxy.ts`; e2e tests cover reduction-before-forward, byte-identical passthrough, SSE streaming with usage parsed after the last byte, per-app hash chains, credential passthrough | `d31b125` |
 | Multi-turn Claude agents, previously uncached: 57.1% | arm M: the full lossless+capped stack plus a FLUX-placed 5m cache stamp vs the UNCACHED baseline the live export confirmed (Anthropic's cache is opt-in); 96% hit rate, clean 38/40; stamp verified metadata-only on all 200 requests | `6249f86` |
 | Sparse interactive 34.0% | arm L, 1h cache TTL via the shipped `cacheTtl` stamp (stable-prefix placement), 600s spacing | `67eeac6` (re-verified after the placement fix `ec191c5`; was 34.0% at `cbbffb9`) |
 | First real-traffic export: 9–25% measured per agent | `evals/run-live-agents.ts`, 30 requests on claude-sonnet-5-5, hash-chained spools audited; a smoke run, NOT a band — lossy levers recorded-unbilled pending gate verdicts | `d84e256` run 2026-10-19 |
