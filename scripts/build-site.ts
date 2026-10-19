@@ -125,18 +125,51 @@ function renderBody(markdown: string): { html: string; title: string; descriptio
 }
 
 const CSS = `
-:root{--bg:#ffffff;--fg:#1a1a1a;--muted:#555;--line:#e3e3e3;--accent:#0b5fff;--code:#f4f4f4}
-@media (prefers-color-scheme: dark){:root{--bg:#121212;--fg:#e8e8e8;--muted:#aaa;--line:#333;--accent:#7aa5ff;--code:#1f1f1f}}
-*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+:root{
+  /* FLUX brand: Midnight Tide / Open Ocean / Sky Signal / Cloud White */
+  --bg:#F1F7FB;
+  --surface:#ffffff;
+  --fg:#102A43;
+  --muted:#486581;
+  --line:#d9e6f0;
+  --brand:#2864A5;
+  --signal:#9DD9F5;
+  --signal-soft:#e4f4fd;
+  --code:#e8f1f8;
+}
+@media (prefers-color-scheme: dark){:root{
+  --bg:#0b1d2e;
+  --surface:#102A43;
+  --fg:#F1F7FB;
+  --muted:#9fb3c8;
+  --line:#24415c;
+  --brand:#9DD9F5;
+  --signal:#9DD9F5;
+  --signal-soft:#16314a;
+  --code:#16314a;
+}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.7 Manrope,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
 main{max-width:46rem;margin:0 auto;padding:1.5rem 1.25rem 4rem}
-nav{border-bottom:1px solid var(--line);padding:.75rem 1.25rem;display:flex;flex-wrap:wrap;gap:1rem;font-size:.92rem}
-nav a{color:var(--muted);text-decoration:none}nav a.active,nav a:hover{color:var(--accent)}
-nav .brand{font-weight:700;color:var(--fg)}
-h1{font-size:1.7rem;line-height:1.25;margin:1.2rem 0 .6rem}h2{font-size:1.25rem;margin:2rem 0 .5rem}h3{font-size:1.05rem}
-a{color:var(--accent)}code{background:var(--code);padding:.1em .35em;border-radius:4px;font-size:.9em}
-.table-wrap{overflow-x:auto}table{border-collapse:collapse;width:100%;margin:1rem 0;font-size:.95rem}
-th,td{border:1px solid var(--line);padding:.5rem .6rem;text-align:left;vertical-align:top}
-th{background:var(--code)}footer{border-top:1px solid var(--line);margin-top:3rem;padding-top:1rem;font-size:.85rem;color:var(--muted)}
+nav{background:var(--surface);border-bottom:1px solid var(--line);padding:.8rem 1.25rem;display:flex;flex-wrap:wrap;gap:1rem;align-items:baseline;font-size:.92rem}
+nav a{color:var(--muted);text-decoration:none;font-weight:600}
+nav a.active,nav a:hover{color:var(--brand)}
+nav .brand{font-weight:800;font-size:1.25rem;color:var(--brand);letter-spacing:-.02em}
+nav .tagline{color:var(--muted);font-weight:400;margin-right:.5rem}
+h1{font-size:1.8rem;line-height:1.2;margin:1.4rem 0 .6rem;font-weight:800;letter-spacing:-.02em}
+h2{font-size:1.25rem;margin:2.2rem 0 .5rem;font-weight:800;letter-spacing:-.01em}
+h3{font-size:1.05rem;font-weight:700}
+a{color:var(--brand)}
+strong{color:var(--fg)}
+code{background:var(--code);padding:.1em .35em;border-radius:5px;font-size:.88em}
+.table-wrap{overflow-x:auto;background:var(--surface);border:1px solid var(--line);border-radius:10px;margin:1rem 0}
+table{border-collapse:collapse;width:100%;font-size:.95rem}
+th,td{border-bottom:1px solid var(--line);padding:.6rem .75rem;text-align:left;vertical-align:top}
+tr:last-child td{border-bottom:none}
+th{background:var(--signal-soft);font-weight:700}
+ul{padding-left:1.2rem}
+li{margin:.3rem 0}
+footer{border-top:2px solid var(--signal);margin-top:3rem;padding-top:1rem;font-size:.85rem;color:var(--muted)}
 `.trim();
 
 function layout(page: { file: string; nav: string }, body: string, title: string, description: string, extraHead = ""): string {
@@ -154,14 +187,18 @@ function layout(page: { file: string; nav: string }, body: string, title: string
 <title>${escapeHtml(title)}</title>
 <meta name="description" content="${escapeHtml(description)}">
 <link rel="canonical" href="${ORIGIN}/${htmlName === "index.html" ? "" : htmlName}">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&display=swap" rel="stylesheet">
 <style>${CSS}</style>
 ${extraHead}</head>
 <body>
-<nav><a class="brand" href="index.html">FLUX</a>${nav}</nav>
+<nav><a class="brand" href="index.html">flux</a><span class="tagline">Less in. More out.</span>${nav}</nav>
 <main>
 ${body}
-<footer>Every number on this site traces to a command and a commit — <a href="evidence.html">evidence</a>.
-Savings are measured per completed task; estimates are always labelled. <a href="${REPO_URL}">Source</a> · <a href="llms.txt">llms.txt</a></footer>
+<footer><strong>flux</strong> — spend tokens where they matter. Every number on this site traces to a
+command and a commit — <a href="evidence.html">evidence</a>. Savings are measured per completed task;
+estimates are always labelled. <a href="${REPO_URL}">Source</a> · <a href="llms.txt">llms.txt</a></footer>
 </main>
 </body>
 </html>
