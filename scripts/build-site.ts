@@ -18,6 +18,7 @@
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { renderLanding } from "./landing-page.js";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const siteDir = path.join(root, "docs/site");
@@ -31,7 +32,7 @@ if (ORIGIN.includes("REPLACE-WITH-YOUR-DOMAIN")) {
 
 /** Page order defines the nav. */
 const PAGES: Array<{ file: string; nav: string }> = [
-  { file: "index.md", nav: "Overview" },
+  { file: "overview.md", nav: "Overview" },
   { file: "segments.md", nav: "Savings by segment" },
   { file: "methodology.md", nav: "Methodology" },
   { file: "evidence.md", nav: "Evidence" },
@@ -174,11 +175,11 @@ footer{border-top:2px solid var(--signal);margin-top:3rem;padding-top:1rem;font-
 
 function layout(page: { file: string; nav: string }, body: string, title: string, description: string, extraHead = ""): string {
   const htmlName = page.file.replace(/\.md$/, ".html");
-  const nav = PAGES.map((p) => {
+  const nav = ['<a href="index.html">Home</a>'].concat(PAGES.map((p) => {
     const href = p.file.replace(/\.md$/, ".html");
     const cls = p.file === page.file ? " class=\"active\"" : "";
     return `<a href="${href}"${cls}>${p.nav}</a>`;
-  }).join("");
+  })).join("");
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -230,6 +231,8 @@ rmSync(outDir, { recursive: true, force: true });
 mkdirSync(outDir, { recursive: true });
 
 const built: string[] = [];
+writeFileSync(path.join(outDir, "index.html"), renderLanding(ORIGIN, REPO_URL), "utf8");
+built.push("index.html");
 for (const page of PAGES) {
   const markdown = readFileSync(path.join(siteDir, page.file), "utf8");
   const { html, title, description } = renderBody(markdown);
@@ -256,10 +259,24 @@ const failures: string[] = [];
 for (const name of built) {
   const html = readFileSync(path.join(outDir, name), "utf8");
   if (!html.includes("<title>") || html.includes("<title></title>")) failures.push(`${name}: missing title`);
+  if (name === "index.html") continue; // the landing page is verified separately below
   if (/\]\(/.test(html)) failures.push(`${name}: unrendered markdown link`);
   if (/\*\*[^*]+\*\*/.test(html)) failures.push(`${name}: unrendered bold`);
-  if (!html.includes("</table>") && (name === "index.html" || name === "evidence.html")) failures.push(`${name}: expected a table`);
+  if (!html.includes("</table>") && (name === "overview.html" || name === "evidence.html")) failures.push(`${name}: expected a table`);
 }
+const landing = readFileSync(path.join(outDir, "index.html"), "utf8");
+for (const [marker, why] of [
+  ['id="ripples"', "ripple canvas missing"],
+  ["prefers-reduced-motion", "reduced-motion guard missing"],
+  ["Less in.", "hero promise missing"],
+  ["npx flux-proxy", "the one-line install missing"],
+  ["do not pay us", "the honesty tile missing"],
+  ["evidence.html", "evidence link missing"],
+  ["SoftwareApplication", "structured data missing"],
+] as const) {
+  if (!landing.includes(marker)) failures.push(`index.html: ${why}`);
+}
+if ((landing.match(/<svg /g) ?? []).length < 6) failures.push("index.html: expected at least 6 icons");
 const faqHtml = readFileSync(path.join(outDir, "faq.html"), "utf8");
 if (!faqHtml.includes("application/ld+json") || !faqHtml.includes("FAQPage")) failures.push("faq.html: missing FAQ structured data");
 if (failures.length > 0) {

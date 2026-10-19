@@ -1,0 +1,259 @@
+/**
+ * The FLUX landing page — hand-built, zero dependencies.
+ *
+ * Design synthesis (Evil Martians' study of 100 dev-tool pages; Landingi /
+ * daily.dev 2026 practice guides) + the FLUX brand catalogue:
+ * - ONE promise in the hero, impossible to miss, one primary CTA.
+ * - Show the product, not an illustration: the real one-line install.
+ * - Benefits as scannable icon tiles, not paragraphs.
+ * - Motion that is purposeful and calm: a water-ripple field that answers
+ *   the cursor — the brand's "two streams resolve into one" made literal.
+ *   Fully disabled under prefers-reduced-motion; tap-driven on touch.
+ * - Numbers near the CTA as social proof — labelled honestly, linking to
+ *   the evidence page, because our credibility IS the verification story.
+ * - Fast: no libraries, one Google Fonts request, inline SVG icons.
+ */
+
+export function renderLanding(origin: string, repoUrl: string): string {
+  const CANVAS_JS = `
+(function () {
+  if (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  var canvas = document.getElementById("ripples");
+  if (!canvas || !canvas.getContext) return;
+  var ctx = canvas.getContext("2d");
+  var dpr = Math.min(window.devicePixelRatio || 1, 2);
+  var ripples = [];
+  var last = 0;
+  var dark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+
+  function resize() {
+    canvas.width = window.innerWidth * dpr;
+    canvas.height = window.innerHeight * dpr;
+  }
+  resize();
+  window.addEventListener("resize", resize);
+
+  function spawn(x, y, big) {
+    if (ripples.length > 60) ripples.shift();
+    ripples.push({ x: x * dpr, y: y * dpr, r: 2 * dpr, v: (big ? 2.2 : 1.4) * dpr, a: big ? 0.5 : 0.32 });
+  }
+
+  var mx = -1, my = -1;
+  window.addEventListener("pointermove", function (e) {
+    var now = performance.now();
+    if (now - last < 50) return;
+    last = now;
+    if (mx >= 0) {
+      var dx = e.clientX - mx, dy = e.clientY - my;
+      if (dx * dx + dy * dy < 9) return;
+    }
+    mx = e.clientX; my = e.clientY;
+    spawn(e.clientX, e.clientY, false);
+  }, { passive: true });
+  window.addEventListener("pointerdown", function (e) {
+    spawn(e.clientX, e.clientY, true);
+  }, { passive: true });
+
+  // Ambient drops so the water is alive before the first cursor move.
+  var ambient = setInterval(function () {
+    if (document.hidden) return;
+    spawn(Math.random() * window.innerWidth, Math.random() * window.innerHeight * 0.7, false);
+  }, 1400);
+  window.addEventListener("pagehide", function () { clearInterval(ambient); });
+
+  function frame() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    for (var i = ripples.length - 1; i >= 0; i--) {
+      var p = ripples[i];
+      p.r += p.v;
+      p.a *= 0.962;
+      if (p.a < 0.012) { ripples.splice(i, 1); continue; }
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+      ctx.strokeStyle = dark
+        ? "rgba(157, 217, 245," + p.a + ")"
+        : "rgba(40, 100, 165," + (p.a * 0.8) + ")";
+      ctx.lineWidth = 1.6 * dpr;
+      ctx.stroke();
+      // The inner echo: two streams resolving into one.
+      if (p.r > 14 * dpr) {
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.r - 10 * dpr, 0, Math.PI * 2);
+        ctx.strokeStyle = dark
+          ? "rgba(157, 217, 245," + (p.a * 0.45) + ")"
+          : "rgba(157, 217, 245," + (p.a * 0.9) + ")";
+        ctx.lineWidth = 1 * dpr;
+        ctx.stroke();
+      }
+    }
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+})();
+`;
+
+  const CSS = `
+:root{
+  --bg:#F1F7FB; --surface:#ffffff; --fg:#102A43; --muted:#486581;
+  --line:#d9e6f0; --brand:#2864A5; --signal:#9DD9F5; --signal-soft:#e4f4fd; --code:#0b1d2e;
+}
+@media (prefers-color-scheme: dark){:root{
+  --bg:#0b1d2e; --surface:#102A43; --fg:#F1F7FB; --muted:#9fb3c8;
+  --line:#24415c; --brand:#9DD9F5; --signal:#9DD9F5; --signal-soft:#16314a; --code:#081522;
+}}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.65 Manrope,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+#ripples{position:fixed;inset:0;width:100vw;height:100vh;pointer-events:none;z-index:0}
+.shell{position:relative;z-index:1}
+nav{display:flex;flex-wrap:wrap;gap:1.1rem;align-items:baseline;padding:1.1rem 1.4rem;font-size:.92rem}
+nav a{color:var(--muted);text-decoration:none;font-weight:600}
+nav a:hover{color:var(--brand)}
+nav .brand{font-weight:800;font-size:1.3rem;color:var(--brand);letter-spacing:-.02em}
+nav .spacer{flex:1}
+.hero{max-width:52rem;margin:0 auto;padding:9vh 1.4rem 3rem;text-align:center}
+.hero h1{font-size:clamp(2.4rem,7vw,4.2rem);font-weight:800;letter-spacing:-.03em;line-height:1.05;margin:.4rem 0 1rem}
+.hero h1 .dim{color:var(--brand)}
+.hero p.sub{font-size:1.15rem;color:var(--muted);max-width:34rem;margin:0 auto 2rem}
+.cta{display:flex;gap:.8rem;justify-content:center;flex-wrap:wrap;margin-bottom:2.2rem}
+.btn{display:inline-block;padding:.75rem 1.5rem;border-radius:10px;font-weight:700;text-decoration:none;transition:transform .15s ease, box-shadow .15s ease}
+.btn:hover{transform:translateY(-2px)}
+.btn.primary{background:var(--brand);color:#fff;box-shadow:0 6px 20px rgba(40,100,165,.28)}
+@media (prefers-color-scheme: dark){.btn.primary{color:#0b1d2e}}
+.btn.ghost{color:var(--brand);border:1.5px solid var(--line);background:var(--surface)}
+.term{max-width:30rem;margin:0 auto;background:var(--code);color:#9DD9F5;border-radius:12px;padding:1rem 1.3rem;text-align:left;font:0.95rem/1.8 ui-monospace,SFMono-Regular,Menlo,monospace;box-shadow:0 12px 36px rgba(16,42,67,.25)}
+.term .c{color:#5f7d9c}
+.term .w{color:#F1F7FB}
+section{max-width:60rem;margin:0 auto;padding:3rem 1.4rem}
+section h2{text-align:center;font-size:1.05rem;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);font-weight:700;margin:0 0 2rem}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(14rem,1fr));gap:1rem}
+.tile{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:1.6rem 1.4rem;text-align:center;transition:transform .18s ease, box-shadow .18s ease}
+.tile:hover{transform:translateY(-4px);box-shadow:0 14px 30px rgba(16,42,67,.12)}
+.tile svg{width:52px;height:52px;margin-bottom:.8rem}
+.tile h3{margin:.2rem 0 .3rem;font-size:1.05rem;font-weight:800}
+.tile p{margin:0;color:var(--muted);font-size:.92rem}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(11rem,1fr));gap:1rem;text-align:center}
+.stat{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:1.5rem 1rem}
+.stat .n{font-size:2.3rem;font-weight:800;letter-spacing:-.02em;color:var(--fg)}
+.stat .l{color:var(--muted);font-size:.88rem;margin-top:.25rem}
+.fineprint{text-align:center;color:var(--muted);font-size:.85rem;margin-top:1.1rem}
+.fineprint a{color:var(--brand)}
+.honest{max-width:38rem;margin:0 auto;text-align:center;background:var(--signal-soft);border:1px solid var(--line);border-radius:14px;padding:1.3rem 1.5rem}
+.honest strong{color:var(--brand)}
+footer{border-top:2px solid var(--signal);margin:3rem auto 0;max-width:60rem;padding:1.2rem 1.4rem 3rem;font-size:.85rem;color:var(--muted)}
+footer a{color:var(--brand)}
+@media (prefers-reduced-motion: reduce){.btn,.tile{transition:none}.btn:hover,.tile:hover{transform:none}}
+`.trim();
+
+  // Inline SVG icons, brand palette, stroke-led, decorative (aria-hidden; the
+  // tile headings carry the meaning for screen readers and crawlers).
+  const ICON_PLUG = `<svg viewBox="0 0 48 48" fill="none" aria-hidden="true"><path d="M6 24h10" stroke="#2864A5" stroke-width="3" stroke-linecap="round"/><path d="M32 24h10" stroke="#9DD9F5" stroke-width="3" stroke-linecap="round"/><rect x="16" y="14" width="16" height="20" rx="5" stroke="#2864A5" stroke-width="3"/><path d="M22 20v8M26 20v8" stroke="#9DD9F5" stroke-width="3" stroke-linecap="round"/></svg>`;
+  const ICON_WAVES = `<svg viewBox="0 0 48 48" fill="none" aria-hidden="true"><path d="M6 18c6-6 12-6 18 0s12 6 18 0" stroke="#2864A5" stroke-width="3" stroke-linecap="round"/><path d="M6 30c6-6 12-6 18 0s12 6 18 0" stroke="#9DD9F5" stroke-width="3" stroke-linecap="round"/></svg>`;
+  const ICON_LEDGER = `<svg viewBox="0 0 48 48" fill="none" aria-hidden="true"><rect x="10" y="6" width="28" height="36" rx="4" stroke="#2864A5" stroke-width="3"/><path d="M17 15h14M17 22h14M17 29h8" stroke="#9DD9F5" stroke-width="3" stroke-linecap="round"/><path d="M28 31l3 3 6-6" stroke="#2864A5" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+  const ICON_PERCENT = `<svg viewBox="0 0 48 48" fill="none" aria-hidden="true"><circle cx="16" cy="16" r="5" stroke="#2864A5" stroke-width="3"/><circle cx="32" cy="32" r="5" stroke="#2864A5" stroke-width="3"/><path d="M36 12 12 36" stroke="#9DD9F5" stroke-width="3" stroke-linecap="round"/></svg>`;
+  const ICON_SHIELD = `<svg viewBox="0 0 48 48" fill="none" aria-hidden="true"><path d="M24 5l15 6v11c0 9.5-6.3 17-15 21C15.3 39 9 31.5 9 22V11l15-6z" stroke="#2864A5" stroke-width="3" stroke-linejoin="round"/><path d="M17 23l5 5 9-10" stroke="#9DD9F5" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+  const ICON_STREAMS = `<svg viewBox="0 0 48 48" fill="none" aria-hidden="true"><path d="M8 14c10 0 10 10 20 10h12" stroke="#2864A5" stroke-width="3" stroke-linecap="round"/><path d="M8 34c10 0 10-10 20-10" stroke="#2864A5" stroke-width="3" stroke-linecap="round"/><circle cx="41" cy="24" r="3.5" fill="#9DD9F5"/></svg>`;
+
+  const jsonLd = JSON.stringify({
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    name: "FLUX",
+    applicationCategory: "DeveloperApplication",
+    operatingSystem: "Any",
+    url: `${origin}/`,
+    description: "Cut LLM API costs on Claude and OpenAI. One-URL proxy or one-line SDK; savings verified per completed task into a customer-recomputable ledger; fee is a share of verified savings.",
+    offers: { "@type": "Offer", price: "0", priceCurrency: "USD", description: "Free to evaluate; production use billed as a percentage of verified savings." },
+  });
+
+  return `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>flux — less in, more out</title>
+<meta name="description" content="Cut your Claude and OpenAI API bill. One URL in, savings verified per completed task, pay only a share of verified savings. Every invoice is recomputable from a ledger you hold.">
+<link rel="canonical" href="${origin}/">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&display=swap" rel="stylesheet">
+<script type="application/ld+json">${jsonLd}</script>
+<style>${CSS}</style>
+</head>
+<body>
+<canvas id="ripples" aria-hidden="true"></canvas>
+<div class="shell">
+<nav>
+  <a class="brand" href="index.html">flux</a>
+  <span class="spacer"></span>
+  <a href="overview.html">Overview</a>
+  <a href="segments.html">Savings</a>
+  <a href="evidence.html">Evidence</a>
+  <a href="faq.html">FAQ</a>
+  <a href="${repoUrl}">GitHub</a>
+</nav>
+
+<header class="hero">
+  <h1>Less in.<br><span class="dim">More out.</span></h1>
+  <p class="sub">Cut your Claude and OpenAI API bill. Pay only a share of savings you can verify yourself.</p>
+  <div class="cta">
+    <a class="btn primary" href="${repoUrl}">Get started on GitHub</a>
+    <a class="btn ghost" href="evidence.html">See the evidence</a>
+  </div>
+  <div class="term" role="img" aria-label="Terminal: npx flux-proxy, then point your client's base URL at it">
+    <div><span class="c">$</span> <span class="w">npx flux-proxy</span></div>
+    <div><span class="c"># then change one line — keep your own key</span></div>
+    <div>baseURL<span class="c">:</span> <span class="w">"http://127.0.0.1:8787"</span></div>
+  </div>
+</header>
+
+<section aria-label="What FLUX does">
+  <h2>What it does</h2>
+  <div class="tiles">
+    <div class="tile">${ICON_PLUG}<h3>One URL in</h3><p>No SDK adoption. Any language. Your key passes through — never stored.</p></div>
+    <div class="tile">${ICON_STREAMS}<h3>Signal kept</h3><p>Duplicates, schema bloat and stale context removed before the model bills you.</p></div>
+    <div class="tile">${ICON_WAVES}<h3>Cache switched on</h3><p>Claude's cache is opt-in; most agents never opt in. FLUX stamps the stable prefix.</p></div>
+  </div>
+</section>
+
+<section aria-label="How you pay">
+  <h2>How you pay</h2>
+  <div class="tiles">
+    <div class="tile">${ICON_LEDGER}<h3>Verified per task</h3><p>Every request writes a hash-chained ledger event from the provider's own usage.</p></div>
+    <div class="tile">${ICON_PERCENT}<h3>A share of savings</h3><p>Recompute the invoice from your own spool — you must get our number.</p></div>
+    <div class="tile">${ICON_SHIELD}<h3>Or nothing</h3><p>Already optimised? The verdict is <strong>do not pay us</strong> — printed on the quote.</p></div>
+  </div>
+</section>
+
+<section aria-label="Measured savings">
+  <h2>Measured, not promised</h2>
+  <div class="stats">
+    <div class="stat"><div class="n">57.1%</div><div class="l">multi-turn Claude agents, previously uncached</div></div>
+    <div class="stat"><div class="n">57.7%</div><div class="l">batch &amp; latency-tolerant work, net</div></div>
+    <div class="stat"><div class="n">45&ndash;73%</div><div class="l">one-shot templated traffic</div></div>
+    <div class="stat"><div class="n">0&ndash;5%</div><div class="l">already-optimised: do not pay us</div></div>
+  </div>
+  <p class="fineprint">Simulator-measured at published provider prices, quality gated per completed task.
+  Every number traces to a command and a commit &rarr; <a href="evidence.html">evidence</a></p>
+</section>
+
+<section aria-label="The honest line">
+  <div class="honest">
+    <strong>The catch, printed up front:</strong> savings depend on your traffic's shape.
+    The first thing FLUX does is tell you which number is yours — from your own logs,
+    in five minutes, before any contract exists.
+  </div>
+</section>
+
+<footer>
+  <strong>flux</strong> — spend tokens where they matter.
+  <a href="overview.html">Overview</a> · <a href="segments.html">Savings by segment</a> ·
+  <a href="methodology.html">Methodology</a> · <a href="evidence.html">Evidence</a> ·
+  <a href="comparison.html">Honest comparison</a> · <a href="faq.html">FAQ</a> ·
+  <a href="${repoUrl}">Source</a> · <a href="llms.txt">llms.txt</a>
+</footer>
+</div>
+<script>${CANVAS_JS}</script>
+</body>
+</html>
+`;
+}

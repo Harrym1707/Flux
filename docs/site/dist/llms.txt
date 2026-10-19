@@ -17,7 +17,7 @@
 > gate-approved.
 
 ## Docs
-- [What FLUX saves and how](index.html)
+- [What FLUX saves and how](overview.html)
 - [Methodology: the eight rules every number passes](methodology.html)
 - [Per-segment bands, mechanisms, and what changes them](segments.html)
 - [Honest comparison, including where FLUX loses](comparison.html)

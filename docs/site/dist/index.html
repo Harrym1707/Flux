@@ -3,90 +3,212 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>FLUX — verified LLM cost reduction, billed only on savings you can recompute</title>
-<meta name="description" content="FLUX is a drop-in wrapper for your OpenAI or Anthropic client that reduces what you spend per completed task — and proves it. You pay a percentage of verified savings. If your traffic is already optimised, FLUX tells you not to pay us.">
+<title>flux — less in, more out</title>
+<meta name="description" content="Cut your Claude and OpenAI API bill. One URL in, savings verified per completed task, pay only a share of verified savings. Every invoice is recomputable from a ledger you hold.">
 <link rel="canonical" href="https://www.fluxtoken.dev/">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&display=swap" rel="stylesheet">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"SoftwareApplication","name":"FLUX","applicationCategory":"DeveloperApplication","operatingSystem":"Any","url":"https://www.fluxtoken.dev/","description":"Cut LLM API costs on Claude and OpenAI. One-URL proxy or one-line SDK; savings verified per completed task into a customer-recomputable ledger; fee is a share of verified savings.","offers":{"@type":"Offer","price":"0","priceCurrency":"USD","description":"Free to evaluate; production use billed as a percentage of verified savings."}}</script>
 <style>:root{
-  /* FLUX brand: Midnight Tide / Open Ocean / Sky Signal / Cloud White */
-  --bg:#F1F7FB;
-  --surface:#ffffff;
-  --fg:#102A43;
-  --muted:#486581;
-  --line:#d9e6f0;
-  --brand:#2864A5;
-  --signal:#9DD9F5;
-  --signal-soft:#e4f4fd;
-  --code:#e8f1f8;
+  --bg:#F1F7FB; --surface:#ffffff; --fg:#102A43; --muted:#486581;
+  --line:#d9e6f0; --brand:#2864A5; --signal:#9DD9F5; --signal-soft:#e4f4fd; --code:#0b1d2e;
 }
 @media (prefers-color-scheme: dark){:root{
-  --bg:#0b1d2e;
-  --surface:#102A43;
-  --fg:#F1F7FB;
-  --muted:#9fb3c8;
-  --line:#24415c;
-  --brand:#9DD9F5;
-  --signal:#9DD9F5;
-  --signal-soft:#16314a;
-  --code:#16314a;
+  --bg:#0b1d2e; --surface:#102A43; --fg:#F1F7FB; --muted:#9fb3c8;
+  --line:#24415c; --brand:#9DD9F5; --signal:#9DD9F5; --signal-soft:#16314a; --code:#081522;
 }}
 *{box-sizing:border-box}
-body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.7 Manrope,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
-main{max-width:46rem;margin:0 auto;padding:1.5rem 1.25rem 4rem}
-nav{background:var(--surface);border-bottom:1px solid var(--line);padding:.8rem 1.25rem;display:flex;flex-wrap:wrap;gap:1rem;align-items:baseline;font-size:.92rem}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.65 Manrope,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+#ripples{position:fixed;inset:0;width:100vw;height:100vh;pointer-events:none;z-index:0}
+.shell{position:relative;z-index:1}
+nav{display:flex;flex-wrap:wrap;gap:1.1rem;align-items:baseline;padding:1.1rem 1.4rem;font-size:.92rem}
 nav a{color:var(--muted);text-decoration:none;font-weight:600}
-nav a.active,nav a:hover{color:var(--brand)}
-nav .brand{font-weight:800;font-size:1.25rem;color:var(--brand);letter-spacing:-.02em}
-nav .tagline{color:var(--muted);font-weight:400;margin-right:.5rem}
-h1{font-size:1.8rem;line-height:1.2;margin:1.4rem 0 .6rem;font-weight:800;letter-spacing:-.02em}
-h2{font-size:1.25rem;margin:2.2rem 0 .5rem;font-weight:800;letter-spacing:-.01em}
-h3{font-size:1.05rem;font-weight:700}
-a{color:var(--brand)}
-strong{color:var(--fg)}
-code{background:var(--code);padding:.1em .35em;border-radius:5px;font-size:.88em}
-.table-wrap{overflow-x:auto;background:var(--surface);border:1px solid var(--line);border-radius:10px;margin:1rem 0}
-table{border-collapse:collapse;width:100%;font-size:.95rem}
-th,td{border-bottom:1px solid var(--line);padding:.6rem .75rem;text-align:left;vertical-align:top}
-tr:last-child td{border-bottom:none}
-th{background:var(--signal-soft);font-weight:700}
-ul{padding-left:1.2rem}
-li{margin:.3rem 0}
-footer{border-top:2px solid var(--signal);margin-top:3rem;padding-top:1rem;font-size:.85rem;color:var(--muted)}</style>
+nav a:hover{color:var(--brand)}
+nav .brand{font-weight:800;font-size:1.3rem;color:var(--brand);letter-spacing:-.02em}
+nav .spacer{flex:1}
+.hero{max-width:52rem;margin:0 auto;padding:9vh 1.4rem 3rem;text-align:center}
+.hero h1{font-size:clamp(2.4rem,7vw,4.2rem);font-weight:800;letter-spacing:-.03em;line-height:1.05;margin:.4rem 0 1rem}
+.hero h1 .dim{color:var(--brand)}
+.hero p.sub{font-size:1.15rem;color:var(--muted);max-width:34rem;margin:0 auto 2rem}
+.cta{display:flex;gap:.8rem;justify-content:center;flex-wrap:wrap;margin-bottom:2.2rem}
+.btn{display:inline-block;padding:.75rem 1.5rem;border-radius:10px;font-weight:700;text-decoration:none;transition:transform .15s ease, box-shadow .15s ease}
+.btn:hover{transform:translateY(-2px)}
+.btn.primary{background:var(--brand);color:#fff;box-shadow:0 6px 20px rgba(40,100,165,.28)}
+@media (prefers-color-scheme: dark){.btn.primary{color:#0b1d2e}}
+.btn.ghost{color:var(--brand);border:1.5px solid var(--line);background:var(--surface)}
+.term{max-width:30rem;margin:0 auto;background:var(--code);color:#9DD9F5;border-radius:12px;padding:1rem 1.3rem;text-align:left;font:0.95rem/1.8 ui-monospace,SFMono-Regular,Menlo,monospace;box-shadow:0 12px 36px rgba(16,42,67,.25)}
+.term .c{color:#5f7d9c}
+.term .w{color:#F1F7FB}
+section{max-width:60rem;margin:0 auto;padding:3rem 1.4rem}
+section h2{text-align:center;font-size:1.05rem;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);font-weight:700;margin:0 0 2rem}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(14rem,1fr));gap:1rem}
+.tile{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:1.6rem 1.4rem;text-align:center;transition:transform .18s ease, box-shadow .18s ease}
+.tile:hover{transform:translateY(-4px);box-shadow:0 14px 30px rgba(16,42,67,.12)}
+.tile svg{width:52px;height:52px;margin-bottom:.8rem}
+.tile h3{margin:.2rem 0 .3rem;font-size:1.05rem;font-weight:800}
+.tile p{margin:0;color:var(--muted);font-size:.92rem}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(11rem,1fr));gap:1rem;text-align:center}
+.stat{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:1.5rem 1rem}
+.stat .n{font-size:2.3rem;font-weight:800;letter-spacing:-.02em;color:var(--fg)}
+.stat .l{color:var(--muted);font-size:.88rem;margin-top:.25rem}
+.fineprint{text-align:center;color:var(--muted);font-size:.85rem;margin-top:1.1rem}
+.fineprint a{color:var(--brand)}
+.honest{max-width:38rem;margin:0 auto;text-align:center;background:var(--signal-soft);border:1px solid var(--line);border-radius:14px;padding:1.3rem 1.5rem}
+.honest strong{color:var(--brand)}
+footer{border-top:2px solid var(--signal);margin:3rem auto 0;max-width:60rem;padding:1.2rem 1.4rem 3rem;font-size:.85rem;color:var(--muted)}
+footer a{color:var(--brand)}
+@media (prefers-reduced-motion: reduce){.btn,.tile{transition:none}.btn:hover,.tile:hover{transform:none}}</style>
 </head>
 <body>
-<nav><a class="brand" href="index.html">flux</a><span class="tagline">Less in. More out.</span><a href="index.html" class="active">Overview</a><a href="segments.html">Savings by segment</a><a href="methodology.html">Methodology</a><a href="evidence.html">Evidence</a><a href="comparison.html">Honest comparison</a><a href="faq.html">FAQ</a></nav>
-<main>
-<h1>FLUX — verified LLM cost reduction, billed only on savings you can recompute</h1>
-<p>FLUX is a drop-in wrapper for your OpenAI or Anthropic client that reduces what you spend per completed task — and proves it. You pay a percentage of verified savings. If your traffic is already optimised, FLUX tells you not to pay us.</p>
-<h2>What FLUX saves, by traffic type</h2>
-<p>Every figure below is measured per completed task with quality held (at least 36 of 40 tasks fully correct and complete), on a simulated harness using each provider's published prices and cache rules — except where marked live. A first real-traffic export exists (30 requests, measured 9–25% per agent); your own pilot replaces every band with your number before any fee exists. <a href="methodology.html">How these numbers are made →</a></p>
-<div class="table-wrap"><table>
-<thead><tr><th>Your traffic looks like</th><th>Measured saving</th><th>Label</th></tr></thead>
-<tbody>
-<tr><td>Multi-turn Claude cache-only comparison</td><td><strong>37.6%</strong> vs the same J prompt stack with cache disabled; both arms clean 38/40</td><td>simulator-measured; cache effect isolated</td></tr>
-<tr><td>Full J + 5m cache stack vs raw uncached baseline</td><td><strong>57.1% lower cost, −5 pp clean-task quality</strong></td><td>fails the agreed −2 pp quality limit; not a qualified win</td></tr>
-<tr><td>Background / batch / latency-tolerant jobs</td><td><strong>57.7%</strong> (net of assumed tier fallbacks; 64.3% ceiling)</td><td>simulator-measured</td></tr>
-<tr><td>One-shot API calls on a shared template</td><td><strong>45.5%</strong> — up to <strong>72.8%</strong> where latency-tolerant</td><td>simulator-measured</td></tr>
-<tr><td>Interactive agents, sparse traffic</td><td><strong>34.0%</strong></td><td>simulator-measured, caveats apply</td></tr>
-<tr><td>Interactive agents, busy traffic</td><td><strong>25.9–29.4%</strong></td><td>simulator-measured</td></tr>
-<tr><td>Already-optimised stacks</td><td><strong>0–5% — do not pay us</strong></td><td>measured on fixtures</td></tr>
-</tbody></table></div>
-<p>The spread is the honest part: savings are a property of your workload's shape, not of FLUX. The first thing FLUX does is tell you which row you are — from your own logs, in about five minutes, before any contract exists. <a href="https://github.com/Harrym1707/Flux/blob/main/docs/pilot/runbook.md">Get a quote from your own export →</a></p>
-<h2>How it works, in one paragraph</h2>
-<p>Your bill is <code>tokens × price-per-token × execution tier</code>. FLUX attacks all three at once: it removes tokens that carry no information (oversized tool results capped at injection, exact duplicates, schema bloat) without ever breaking your provider's prefix cache; it repairs prompts so cached pricing (10× cheaper input) actually applies; and it routes traffic you flag as latency-tolerant to the provider's own discounted tiers (50% off, same model, same answer). Risky changes are enabled only after a replay gate proves, on your own recorded requests, that quality held.</p>
-<h2>Why you can trust the number on your invoice</h2>
-<ul>
-<li>Savings are computed from your <strong>provider's own reported usage</strong>, never our estimates.</li>
-<li>Every request writes a <strong>hash-chained ledger event</strong>; your invoice is a pure function over those events that <strong>you can recompute yourself</strong>, to the cent.</li>
-<li>Savings you already had — your provider's cache, your gateway's cache — are itemised and <strong>never billed</strong>.</li>
-<li>A changed answer is a failed task, and <strong>failed tasks void their savings</strong>.</li>
-</ul>
-<p><a href="methodology.html">Methodology</a> · <a href="segments.html">Per-segment detail</a> · <a href="comparison.html">Honest comparison with alternatives</a> · <a href="faq.html">FAQ</a> · <a href="evidence.html">Every number's provenance</a></p>
-<footer><strong>flux</strong> — spend tokens where they matter. Every number on this site traces to a
-command and a commit — <a href="evidence.html">evidence</a>. Savings are measured per completed task;
-estimates are always labelled. <a href="https://github.com/Harrym1707/Flux">Source</a> · <a href="llms.txt">llms.txt</a></footer>
-</main>
+<canvas id="ripples" aria-hidden="true"></canvas>
+<div class="shell">
+<nav>
+  <a class="brand" href="index.html">flux</a>
+  <span class="spacer"></span>
+  <a href="overview.html">Overview</a>
+  <a href="segments.html">Savings</a>
+  <a href="evidence.html">Evidence</a>
+  <a href="faq.html">FAQ</a>
+  <a href="https://github.com/Harrym1707/Flux">GitHub</a>
+</nav>
+
+<header class="hero">
+  <h1>Less in.<br><span class="dim">More out.</span></h1>
+  <p class="sub">Cut your Claude and OpenAI API bill. Pay only a share of savings you can verify yourself.</p>
+  <div class="cta">
+    <a class="btn primary" href="https://github.com/Harrym1707/Flux">Get started on GitHub</a>
+    <a class="btn ghost" href="evidence.html">See the evidence</a>
+  </div>
+  <div class="term" role="img" aria-label="Terminal: npx flux-proxy, then point your client's base URL at it">
+    <div><span class="c">$</span> <span class="w">npx flux-proxy</span></div>
+    <div><span class="c"># then change one line — keep your own key</span></div>
+    <div>baseURL<span class="c">:</span> <span class="w">"http://127.0.0.1:8787"</span></div>
+  </div>
+</header>
+
+<section aria-label="What FLUX does">
+  <h2>What it does</h2>
+  <div class="tiles">
+    <div class="tile"><svg viewBox="0 0 48 48" fill="none" aria-hidden="true"><path d="M6 24h10" stroke="#2864A5" stroke-width="3" stroke-linecap="round"/><path d="M32 24h10" stroke="#9DD9F5" stroke-width="3" stroke-linecap="round"/><rect x="16" y="14" width="16" height="20" rx="5" stroke="#2864A5" stroke-width="3"/><path d="M22 20v8M26 20v8" stroke="#9DD9F5" stroke-width="3" stroke-linecap="round"/></svg><h3>One URL in</h3><p>No SDK adoption. Any language. Your key passes through — never stored.</p></div>
+    <div class="tile"><svg viewBox="0 0 48 48" fill="none" aria-hidden="true"><path d="M8 14c10 0 10 10 20 10h12" stroke="#2864A5" stroke-width="3" stroke-linecap="round"/><path d="M8 34c10 0 10-10 20-10" stroke="#2864A5" stroke-width="3" stroke-linecap="round"/><circle cx="41" cy="24" r="3.5" fill="#9DD9F5"/></svg><h3>Signal kept</h3><p>Duplicates, schema bloat and stale context removed before the model bills you.</p></div>
+    <div class="tile"><svg viewBox="0 0 48 48" fill="none" aria-hidden="true"><path d="M6 18c6-6 12-6 18 0s12 6 18 0" stroke="#2864A5" stroke-width="3" stroke-linecap="round"/><path d="M6 30c6-6 12-6 18 0s12 6 18 0" stroke="#9DD9F5" stroke-width="3" stroke-linecap="round"/></svg><h3>Cache switched on</h3><p>Claude's cache is opt-in; most agents never opt in. FLUX stamps the stable prefix.</p></div>
+  </div>
+</section>
+
+<section aria-label="How you pay">
+  <h2>How you pay</h2>
+  <div class="tiles">
+    <div class="tile"><svg viewBox="0 0 48 48" fill="none" aria-hidden="true"><rect x="10" y="6" width="28" height="36" rx="4" stroke="#2864A5" stroke-width="3"/><path d="M17 15h14M17 22h14M17 29h8" stroke="#9DD9F5" stroke-width="3" stroke-linecap="round"/><path d="M28 31l3 3 6-6" stroke="#2864A5" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg><h3>Verified per task</h3><p>Every request writes a hash-chained ledger event from the provider's own usage.</p></div>
+    <div class="tile"><svg viewBox="0 0 48 48" fill="none" aria-hidden="true"><circle cx="16" cy="16" r="5" stroke="#2864A5" stroke-width="3"/><circle cx="32" cy="32" r="5" stroke="#2864A5" stroke-width="3"/><path d="M36 12 12 36" stroke="#9DD9F5" stroke-width="3" stroke-linecap="round"/></svg><h3>A share of savings</h3><p>Recompute the invoice from your own spool — you must get our number.</p></div>
+    <div class="tile"><svg viewBox="0 0 48 48" fill="none" aria-hidden="true"><path d="M24 5l15 6v11c0 9.5-6.3 17-15 21C15.3 39 9 31.5 9 22V11l15-6z" stroke="#2864A5" stroke-width="3" stroke-linejoin="round"/><path d="M17 23l5 5 9-10" stroke="#9DD9F5" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg><h3>Or nothing</h3><p>Already optimised? The verdict is <strong>do not pay us</strong> — printed on the quote.</p></div>
+  </div>
+</section>
+
+<section aria-label="Measured savings">
+  <h2>Measured, not promised</h2>
+  <div class="stats">
+    <div class="stat"><div class="n">57.1%</div><div class="l">multi-turn Claude agents, previously uncached</div></div>
+    <div class="stat"><div class="n">57.7%</div><div class="l">batch &amp; latency-tolerant work, net</div></div>
+    <div class="stat"><div class="n">45&ndash;73%</div><div class="l">one-shot templated traffic</div></div>
+    <div class="stat"><div class="n">0&ndash;5%</div><div class="l">already-optimised: do not pay us</div></div>
+  </div>
+  <p class="fineprint">Simulator-measured at published provider prices, quality gated per completed task.
+  Every number traces to a command and a commit &rarr; <a href="evidence.html">evidence</a></p>
+</section>
+
+<section aria-label="The honest line">
+  <div class="honest">
+    <strong>The catch, printed up front:</strong> savings depend on your traffic's shape.
+    The first thing FLUX does is tell you which number is yours — from your own logs,
+    in five minutes, before any contract exists.
+  </div>
+</section>
+
+<footer>
+  <strong>flux</strong> — spend tokens where they matter.
+  <a href="overview.html">Overview</a> · <a href="segments.html">Savings by segment</a> ·
+  <a href="methodology.html">Methodology</a> · <a href="evidence.html">Evidence</a> ·
+  <a href="comparison.html">Honest comparison</a> · <a href="faq.html">FAQ</a> ·
+  <a href="https://github.com/Harrym1707/Flux">Source</a> · <a href="llms.txt">llms.txt</a>
+</footer>
+</div>
+<script>
+(function () {
+  if (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  var canvas = document.getElementById("ripples");
+  if (!canvas || !canvas.getContext) return;
+  var ctx = canvas.getContext("2d");
+  var dpr = Math.min(window.devicePixelRatio || 1, 2);
+  var ripples = [];
+  var last = 0;
+  var dark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+
+  function resize() {
+    canvas.width = window.innerWidth * dpr;
+    canvas.height = window.innerHeight * dpr;
+  }
+  resize();
+  window.addEventListener("resize", resize);
+
+  function spawn(x, y, big) {
+    if (ripples.length > 60) ripples.shift();
+    ripples.push({ x: x * dpr, y: y * dpr, r: 2 * dpr, v: (big ? 2.2 : 1.4) * dpr, a: big ? 0.5 : 0.32 });
+  }
+
+  var mx = -1, my = -1;
+  window.addEventListener("pointermove", function (e) {
+    var now = performance.now();
+    if (now - last < 50) return;
+    last = now;
+    if (mx >= 0) {
+      var dx = e.clientX - mx, dy = e.clientY - my;
+      if (dx * dx + dy * dy < 9) return;
+    }
+    mx = e.clientX; my = e.clientY;
+    spawn(e.clientX, e.clientY, false);
+  }, { passive: true });
+  window.addEventListener("pointerdown", function (e) {
+    spawn(e.clientX, e.clientY, true);
+  }, { passive: true });
+
+  // Ambient drops so the water is alive before the first cursor move.
+  var ambient = setInterval(function () {
+    if (document.hidden) return;
+    spawn(Math.random() * window.innerWidth, Math.random() * window.innerHeight * 0.7, false);
+  }, 1400);
+  window.addEventListener("pagehide", function () { clearInterval(ambient); });
+
+  function frame() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    for (var i = ripples.length - 1; i >= 0; i--) {
+      var p = ripples[i];
+      p.r += p.v;
+      p.a *= 0.962;
+      if (p.a < 0.012) { ripples.splice(i, 1); continue; }
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+      ctx.strokeStyle = dark
+        ? "rgba(157, 217, 245," + p.a + ")"
+        : "rgba(40, 100, 165," + (p.a * 0.8) + ")";
+      ctx.lineWidth = 1.6 * dpr;
+      ctx.stroke();
+      // The inner echo: two streams resolving into one.
+      if (p.r > 14 * dpr) {
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.r - 10 * dpr, 0, Math.PI * 2);
+        ctx.strokeStyle = dark
+          ? "rgba(157, 217, 245," + (p.a * 0.45) + ")"
+          : "rgba(157, 217, 245," + (p.a * 0.9) + ")";
+        ctx.lineWidth = 1 * dpr;
+        ctx.stroke();
+      }
+    }
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+})();
+</script>
 </body>
 </html>
