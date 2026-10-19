@@ -254,6 +254,11 @@ async function liveCompletion(provider: Provider, req: AnyObject): Promise<AnyOb
         "content-type": "application/json",
         "x-api-key": ANTHROPIC_KEY!,
         "anthropic-version": "2023-06-01",
+        // A user-scoped key (sk-ant-usr-...) must name the workspace to bill;
+        // a workspace-scoped key needs no header and ignores this.
+        ...(process.env.ANTHROPIC_WORKSPACE_ID
+          ? { "anthropic-workspace-id": process.env.ANTHROPIC_WORKSPACE_ID }
+          : {}),
       }]
     : [`${OPENAI_BASE_URL}/responses`, {
         "content-type": "application/json",
