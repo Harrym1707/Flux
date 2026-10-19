@@ -40,6 +40,14 @@ byte-stably, schemas are slimmed. Sparse traffic adds the 1-hour cache TTL
 **What changes it:** how oversized your tool results actually are (our fixture's
 are highly compressible; your yield scales with yours), and the pending
 per-model cache-minimum fix, which may lower the sparse figure on some models.
+**On Claude the ceiling is different — and higher.** Anthropic's prompt
+cache is opt-in, and agents that never place `cache_control` re-pay full
+rate for their whole conversation history every turn (our first live export
+measured exactly that: a five-turn agent with zero cache traffic). FLUX
+stamps the stable prefix with a 5-minute-TTL breakpoint and the measured
+band is **57.1%** against that uncached baseline (simulator-measured,
+96% cache hits, quality unchanged — the stamp is metadata-only). If you
+already place your own breakpoints, FLUX defers and never claims this.
 **This is also where we tell you our ceiling:** if someone promises an
 interactive agent 70%, ask for their per-task evidence.
 
