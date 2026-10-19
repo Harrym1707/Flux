@@ -190,7 +190,7 @@ footer a{color:var(--brand)}
     var dx = e.clientX - mx, dy = e.clientY - my;
     mx = e.clientX; my = e.clientY;
     var speed = Math.min(Math.sqrt(dx * dx + dy * dy), 60);
-    drop(e.clientX, e.clientY, 180 + speed * 14, 3);
+    drop(e.clientX, e.clientY, 60 + speed * 4, 2);
   }, { passive: true });
 
   // --- Clicks strike: a surge plus a lightning bolt -------------------------
@@ -208,8 +208,7 @@ footer a{color:var(--brand)}
     bolts.push({ points: points, born: performance.now() });
   }
   window.addEventListener("pointerdown", function (e) {
-    drop(e.clientX, e.clientY, 1600, 6);
-    makeBolt(e.clientX, e.clientY);
+    drop(e.clientX, e.clientY, 600, 5);
     makeBolt(e.clientX, e.clientY);
   }, { passive: true });
 
@@ -225,11 +224,11 @@ footer a{color:var(--brand)}
     el.addEventListener("pointerenter", function () {
       if (pulse) clearInterval(pulse); // a re-enter must never stack intervals
       var c = centerOf(el);
-      drop(c[0], c[1], 1400, 5);
+      drop(c[0], c[1], 520, 5);
       pulse = setInterval(function () {
         var c2 = centerOf(el);
-        drop(c2[0], c2[1], 650, 4);
-      }, 520);
+        drop(c2[0], c2[1], 240, 4);
+      }, 900);
     });
     el.addEventListener("pointerleave", function () {
       if (pulse) { clearInterval(pulse); pulse = null; }
@@ -238,10 +237,10 @@ footer a{color:var(--brand)}
 
   var ambient = setInterval(function () {
     if (document.hidden) return;
-    drop(Math.random() * window.innerWidth, Math.random() * window.innerHeight, 520, 4);
-  }, 1700);
+    drop(Math.random() * window.innerWidth, Math.random() * window.innerHeight, 200, 4);
+  }, 2800);
   window.addEventListener("pagehide", function () { clearInterval(ambient); });
-  drop(window.innerWidth * 0.5, window.innerHeight * 0.3, 1600, 6);
+  drop(window.innerWidth * 0.5, window.innerHeight * 0.3, 600, 6);
 
   // --- Dramatic brand rendering ---------------------------------------------
   // Light mode paints with the DARK inks (Open Ocean waves, Midnight filaments,
@@ -261,7 +260,7 @@ footer a{color:var(--brand)}
       var row = y * W;
       for (var x = 1; x < W - 1; x++) {
         var i = row + x;
-        cur[i] = ((prev[i - 1] + prev[i + 1] + prev[i - W] + prev[i + W]) * 0.5 - cur[i]) * 0.986;
+        cur[i] = ((prev[i - 1] + prev[i + 1] + prev[i - W] + prev[i + W]) * 0.5 - cur[i]) * 0.981;
       }
     }
     var tmp = prev; prev = cur; cur = tmp;
@@ -276,16 +275,16 @@ footer a{color:var(--brand)}
         var shade = (prev[i2 - 1] - prev[i2 + 1]) + (prev[i2 - W] - prev[i2 + W]);
         var p = i2 * 4;
         var mag = shade < 0 ? -shade : shade;
-        if (mag < 0.12) { data[p + 3] = 0; continue; }
-        if (mag > 26) {
-          // Filament: the electric core where waves collide.
-          var fa = Math.min((mag - 26) * 6, 235);
+        if (mag < 0.5) { data[p + 3] = 0; continue; }
+        if (mag > 22) {
+          // Filament: the electric core where waves collide — a whisper now.
+          var fa = Math.min((mag - 22) * 2.2, 80);
           data[p] = filC[0]; data[p + 1] = filC[1]; data[p + 2] = filC[2]; data[p + 3] = fa;
         } else if (shade > 0) {
-          var a = Math.min(shade * 9, 200);
+          var a = Math.min(shade * 3, 64);
           data[p] = waveC[0]; data[p + 1] = waveC[1]; data[p + 2] = waveC[2]; data[p + 3] = a;
         } else {
-          var a2 = Math.min(mag * 6, 150);
+          var a2 = Math.min(mag * 2, 44);
           data[p] = troughC[0]; data[p + 1] = troughC[1]; data[p + 2] = troughC[2]; data[p + 3] = a2;
         }
       }
@@ -303,7 +302,7 @@ footer a{color:var(--brand)}
       var bolt = bolts[b];
       var age = (now - bolt.born) / 260;
       if (age >= 1) { bolts.splice(b, 1); continue; }
-      var alpha = (1 - age) * 0.9;
+      var alpha = (1 - age) * 0.4;
       ctx.beginPath();
       ctx.moveTo(bolt.points[0][0], bolt.points[0][1]);
       for (var k = 1; k < bolt.points.length; k++) {
@@ -312,7 +311,7 @@ footer a{color:var(--brand)}
       ctx.strokeStyle = boltC + alpha + ")";
       ctx.lineWidth = 2;
       ctx.shadowColor = boltC + "0.8)";
-      ctx.shadowBlur = 12;
+      ctx.shadowBlur = 6;
       ctx.stroke();
       ctx.shadowBlur = 0;
     }
