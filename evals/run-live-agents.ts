@@ -3,7 +3,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { withFlux, type FluxTokenReductionConfig } from "../packages/sdk-js/src/index.js";
 import {
+  publishedModelPrices,
   recomputeInvoice,
+  resolveModelId,
   verifyLedgerChain,
   type LedgerRecord,
 } from "../packages/core/src/index.js";
@@ -83,6 +85,63 @@ const providers: Provider[] = LIVE ? [liveProvider!] : ["anthropic", "openai"];
 function modelFor(provider: Provider): string {
   if (LIVE && provider === liveProvider && process.env.FLUX_LIVE_MODEL) return process.env.FLUX_LIVE_MODEL;
   return DEFAULT_MODEL[provider];
+}
+
+function anthropicHeaders(): Record<string, string> {
+  return {
+    "content-type": "application/json",
+    "x-api-key": ANTHROPIC_KEY!,
+    "anthropic-version": "2023-06-01",
+    // A user-scoped key (sk-ant-usr-...) must name the workspace to bill;
+    // a workspace-scoped key needs no header and ignores this.
+    ...(ANTHROPIC_WORKSPACE_ID ? { "anthropic-workspace-id": ANTHROPIC_WORKSPACE_ID } : {}),
+  };
+}
+
+/**
+ * LIVE Anthropic preflight: ask the API which models this workspace actually
+ * serves, and pick one the catalogue can price — guessing an id costs a whole
+ * failed run, and running an uncatalogued model could only produce unpriced
+ * events, which would be a pipeline demo dressed up as a measurement.
+ */
+async function pickAnthropicModel(): Promise<string> {
+  const explicit = process.env.FLUX_LIVE_MODEL;
+  let ids: string[] = [];
+  try {
+    const res = await fetch("https://api.anthropic.com/v1/models?limit=100", {
+      headers: anthropicHeaders(),
+      signal: AbortSignal.timeout(30_000),
+    });
+    if (res.ok) {
+      const body = (await res.json()) as { data?: Array<{ id?: unknown }> };
+      ids = (body.data ?? [])
+        .map((m) => m.id)
+        .filter((id): id is string => typeof id === "string");
+    }
+  } catch {
+    // Listing is best-effort; fall through to the explicit/default id.
+  }
+  if (explicit !== undefined) {
+    if (ids.length > 0 && !ids.includes(explicit)) {
+      console.log(`warning: FLUX_LIVE_MODEL=${explicit} is not in this workspace's model list; trying it anyway.`);
+    }
+    return explicit;
+  }
+  if (ids.length === 0) return DEFAULT_MODEL.anthropic;
+  const priced = ids.filter((id) =>
+    resolveModelId(publishedModelPrices, "anthropic", id).status === "resolved");
+  const newestOf = (family: string) => priced.filter((id) => id.includes(family)).sort().reverse()[0];
+  const chosen = newestOf("sonnet") ?? newestOf("haiku") ?? newestOf("opus") ?? priced.sort().reverse()[0];
+  if (chosen !== undefined) {
+    console.log(`Workspace models: ${ids.join(", ")}`);
+    console.log(`Selected ${chosen} — newest id with a catalogued rate.\n`);
+    return chosen;
+  }
+  throw new Error(
+    "None of this workspace's models has a catalogued rate, so every event would be unpriced. " +
+    `Available ids: ${ids.join(", ")}. Catalogue a dated, sourced rate for one of them ` +
+    "(packages/core/src/model-prices.ts), or pass FLUX_LIVE_MODEL=<id> to force one.",
+  );
 }
 
 type AnyObject = Record<string, unknown>;
@@ -271,16 +330,7 @@ function stubbedCompletion(provider: Provider, req: AnyObject): AnyObject {
 
 async function liveCompletion(provider: Provider, req: AnyObject): Promise<AnyObject> {
   const [url, headers]: [string, Record<string, string>] = provider === "anthropic"
-    ? ["https://api.anthropic.com/v1/messages", {
-        "content-type": "application/json",
-        "x-api-key": ANTHROPIC_KEY!,
-        "anthropic-version": "2023-06-01",
-        // A user-scoped key (sk-ant-usr-...) must name the workspace to bill;
-        // a workspace-scoped key needs no header and ignores this.
-        ...(ANTHROPIC_WORKSPACE_ID
-          ? { "anthropic-workspace-id": ANTHROPIC_WORKSPACE_ID }
-          : {}),
-      }]
+    ? ["https://api.anthropic.com/v1/messages", anthropicHeaders()]
     : [`${OPENAI_BASE_URL}/responses`, {
         "content-type": "application/json",
         authorization: `Bearer ${OPENAI_KEY}`,
@@ -321,7 +371,9 @@ function readLedger(path: string): LedgerRecord[] {
 }
 
 console.log(`=== FLUX live-agent run — mode: ${LIVE
-  ? `LIVE (${liveProvider} ${modelFor(liveProvider!)}${liveProvider === "openai" && OPENAI_BASE_URL !== "https://api.openai.com/v1" ? ` via ${OPENAI_BASE_URL}` : ""})`
+  ? liveProvider === "anthropic"
+    ? `LIVE (anthropic, model ${process.env.FLUX_LIVE_MODEL ?? "picked at preflight from the workspace's own list"})`
+    : `LIVE (openai ${modelFor("openai")}${OPENAI_BASE_URL !== "https://api.openai.com/v1" ? ` via ${OPENAI_BASE_URL}` : ""})`
   : "LOCAL-STUB (no API key; both provider shapes)"} ===`);
 if (!LIVE) {
   console.log("No key set, so these numbers are a PIPELINE CHECK, not a savings claim.");
@@ -331,7 +383,7 @@ if (!LIVE) {
 const summary: Array<{ provider: Provider; agent: string; segment: string; requests: number; chainOk: boolean; billedUsd: number; verdict: string }> = [];
 
 for (const provider of providers) {
-  const model = modelFor(provider);
+  const model = LIVE && provider === "anthropic" ? await pickAnthropicModel() : modelFor(provider);
   for (const agent of agents) {
     const ledgerPath = join(ROOT, `${provider}-${agent.name}.jsonl`);
     const client = withFlux(makeClient(provider) as never, {
