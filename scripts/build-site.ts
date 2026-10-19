@@ -188,6 +188,7 @@ function layout(page: { file: string; nav: string }, body: string, title: string
 <title>${escapeHtml(title)}</title>
 <meta name="description" content="${escapeHtml(description)}">
 <link rel="canonical" href="${ORIGIN}/${htmlName === "index.html" ? "" : htmlName}">
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&display=swap" rel="stylesheet">
@@ -243,6 +244,15 @@ for (const page of PAGES) {
 }
 
 writeFileSync(path.join(outDir, "llms.txt"), readFileSync(path.join(siteDir, "llms.txt"), "utf8"), "utf8");
+// The brand mark as favicon: two streams resolve into one; the sky-blue
+// endpoint is the signal worth keeping. Drawn bold so it survives 16px.
+writeFileSync(path.join(outDir, "favicon.svg"), `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+<rect width="64" height="64" rx="14" fill="#2864A5"/>
+<path d="M10 20c14 0 14 12 28 12h10" stroke="#F1F7FB" stroke-width="6" stroke-linecap="round" fill="none"/>
+<path d="M10 44c14 0 14-12 28-12" stroke="#F1F7FB" stroke-width="6" stroke-linecap="round" fill="none" opacity="0.72"/>
+<circle cx="52" cy="32" r="6" fill="#9DD9F5"/>
+</svg>
+`, "utf8");
 // GitHub Pages reads the custom domain from a CNAME file in the deploy root.
 if (!ORIGIN.includes("REPLACE-WITH-YOUR-DOMAIN")) {
   writeFileSync(path.join(outDir, "CNAME"), `${new URL(ORIGIN).host}\n`, "utf8");
@@ -277,6 +287,8 @@ for (const [marker, why] of [
   if (!landing.includes(marker)) failures.push(`index.html: ${why}`);
 }
 if ((landing.match(/<svg /g) ?? []).length < 6) failures.push("index.html: expected at least 6 icons");
+if (!landing.includes('rel="icon"')) failures.push("index.html: favicon link missing");
+if (!readFileSync(path.join(outDir, "favicon.svg"), "utf8").includes("#9DD9F5")) failures.push("favicon.svg: missing the signal dot");
 const faqHtml = readFileSync(path.join(outDir, "faq.html"), "utf8");
 if (!faqHtml.includes("application/ld+json") || !faqHtml.includes("FAQPage")) failures.push("faq.html: missing FAQ structured data");
 if (failures.length > 0) {
