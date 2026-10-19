@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>FLUX — verified LLM cost reduction, billed only on savings you can recompute</title>
+<meta name="description" content="FLUX is a drop-in wrapper for your OpenAI or Anthropic client that reduces what you spend per completed task — and proves it. You pay a percentage of verified savings. If your traffic is already optimised, FLUX tells you not to pay us.">
+<link rel="canonical" href="https://www.fluxtoken.dev/">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>:root{
+  /* FLUX brand: Midnight Tide / Open Ocean / Sky Signal / Cloud White */
+  --bg:#F1F7FB;
+  --surface:#ffffff;
+  --fg:#102A43;
+  --muted:#486581;
+  --line:#d9e6f0;
+  --brand:#2864A5;
+  --signal:#9DD9F5;
+  --signal-soft:#e4f4fd;
+  --code:#e8f1f8;
+}
+@media (prefers-color-scheme: dark){:root{
+  --bg:#0b1d2e;
+  --surface:#102A43;
+  --fg:#F1F7FB;
+  --muted:#9fb3c8;
+  --line:#24415c;
+  --brand:#9DD9F5;
+  --signal:#9DD9F5;
+  --signal-soft:#16314a;
+  --code:#16314a;
+}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.7 Manrope,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+main{max-width:46rem;margin:0 auto;padding:1.5rem 1.25rem 4rem}
+nav{background:var(--surface);border-bottom:1px solid var(--line);padding:.8rem 1.25rem;display:flex;flex-wrap:wrap;gap:1rem;align-items:baseline;font-size:.92rem}
+nav a{color:var(--muted);text-decoration:none;font-weight:600}
+nav a.active,nav a:hover{color:var(--brand)}
+nav .brand{font-weight:800;font-size:1.25rem;color:var(--brand);letter-spacing:-.02em}
+nav .tagline{color:var(--muted);font-weight:400;margin-right:.5rem}
+h1{font-size:1.8rem;line-height:1.2;margin:1.4rem 0 .6rem;font-weight:800;letter-spacing:-.02em}
+h2{font-size:1.25rem;margin:2.2rem 0 .5rem;font-weight:800;letter-spacing:-.01em}
+h3{font-size:1.05rem;font-weight:700}
+a{color:var(--brand)}
+strong{color:var(--fg)}
+code{background:var(--code);padding:.1em .35em;border-radius:5px;font-size:.88em}
+.table-wrap{overflow-x:auto;background:var(--surface);border:1px solid var(--line);border-radius:10px;margin:1rem 0}
+table{border-collapse:collapse;width:100%;font-size:.95rem}
+th,td{border-bottom:1px solid var(--line);padding:.6rem .75rem;text-align:left;vertical-align:top}
+tr:last-child td{border-bottom:none}
+th{background:var(--signal-soft);font-weight:700}
+ul{padding-left:1.2rem}
+li{margin:.3rem 0}
+footer{border-top:2px solid var(--signal);margin-top:3rem;padding-top:1rem;font-size:.85rem;color:var(--muted)}</style>
+</head>
+<body>
+<nav><a class="brand" href="index.html">flux</a><span class="tagline">Less in. More out.</span><a href="index.html" class="active">Overview</a><a href="segments.html">Savings by segment</a><a href="methodology.html">Methodology</a><a href="evidence.html">Evidence</a><a href="comparison.html">Honest comparison</a><a href="faq.html">FAQ</a></nav>
+<main>
+<h1>FLUX — verified LLM cost reduction, billed only on savings you can recompute</h1>
+<p>FLUX is a drop-in wrapper for your OpenAI or Anthropic client that reduces what you spend per completed task — and proves it. You pay a percentage of verified savings. If your traffic is already optimised, FLUX tells you not to pay us.</p>
+<h2>What FLUX saves, by traffic type</h2>
+<p>Every figure below is measured per completed task with quality held (at least 36 of 40 tasks fully correct and complete), on a simulated harness using each provider's published prices and cache rules — except where marked live. A first real-traffic export exists (30 requests, measured 9–25% per agent); your own pilot replaces every band with your number before any fee exists. <a href="methodology.html">How these numbers are made →</a></p>
+<div class="table-wrap"><table>
+<thead><tr><th>Your traffic looks like</th><th>Measured saving</th><th>Label</th></tr></thead>
+<tbody>
+<tr><td>Multi-turn Claude cache-only comparison</td><td><strong>37.6%</strong> vs the same J prompt stack with cache disabled; both arms clean 38/40</td><td>simulator-measured; cache effect isolated</td></tr>
+<tr><td>Full J + 5m cache stack vs raw uncached baseline</td><td><strong>57.1% lower cost, −5 pp clean-task quality</strong></td><td>fails the agreed −2 pp quality limit; not a qualified win</td></tr>
+<tr><td>Background / batch / latency-tolerant jobs</td><td><strong>57.7%</strong> (net of assumed tier fallbacks; 64.3% ceiling)</td><td>simulator-measured</td></tr>
+<tr><td>One-shot API calls on a shared template</td><td><strong>45.5%</strong> — up to <strong>72.8%</strong> where latency-tolerant</td><td>simulator-measured</td></tr>
+<tr><td>Interactive agents, sparse traffic</td><td><strong>34.0%</strong></td><td>simulator-measured, caveats apply</td></tr>
+<tr><td>Interactive agents, busy traffic</td><td><strong>25.9–29.4%</strong></td><td>simulator-measured</td></tr>
+<tr><td>Already-optimised stacks</td><td><strong>0–5% — do not pay us</strong></td><td>measured on fixtures</td></tr>
+</tbody></table></div>
+<p>The spread is the honest part: savings are a property of your workload's shape, not of FLUX. The first thing FLUX does is tell you which row you are — from your own logs, in about five minutes, before any contract exists. <a href="https://github.com/Harrym1707/Flux/blob/main/docs/pilot/runbook.md">Get a quote from your own export →</a></p>
+<h2>How it works, in one paragraph</h2>
+<p>Your bill is <code>tokens × price-per-token × execution tier</code>. FLUX attacks all three at once: it removes tokens that carry no information (oversized tool results capped at injection, exact duplicates, schema bloat) without ever breaking your provider's prefix cache; it repairs prompts so cached pricing (10× cheaper input) actually applies; and it routes traffic you flag as latency-tolerant to the provider's own discounted tiers (50% off, same model, same answer). Risky changes are enabled only after a replay gate proves, on your own recorded requests, that quality held.</p>
+<h2>Why you can trust the number on your invoice</h2>
+<ul>
+<li>Savings are computed from your <strong>provider's own reported usage</strong>, never our estimates.</li>
+<li>Every request writes a <strong>hash-chained ledger event</strong>; your invoice is a pure function over those events that <strong>you can recompute yourself</strong>, to the cent.</li>
+<li>Savings you already had — your provider's cache, your gateway's cache — are itemised and <strong>never billed</strong>.</li>
+<li>A changed answer is a failed task, and <strong>failed tasks void their savings</strong>.</li>
+</ul>
+<p><a href="methodology.html">Methodology</a> · <a href="segments.html">Per-segment detail</a> · <a href="comparison.html">Honest comparison with alternatives</a> · <a href="faq.html">FAQ</a> · <a href="evidence.html">Every number's provenance</a></p>
+<footer><strong>flux</strong> — spend tokens where they matter. Every number on this site traces to a
+command and a commit — <a href="evidence.html">evidence</a>. Savings are measured per completed task;
+estimates are always labelled. <a href="https://github.com/Harrym1707/Flux">Source</a> · <a href="llms.txt">llms.txt</a></footer>
+</main>
+</body>
+</html>

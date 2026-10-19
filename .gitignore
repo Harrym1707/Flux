@@ -1,5 +1,8 @@
 node_modules
 dist
+# The built website IS committed: the Pages workflow uploads it verbatim.
+!docs/site/dist
+!docs/site/dist/**
 packages/sdk-js/pkg/
 *.tgz
 .env

@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Evidence — every published number, traced</title>
+<meta name="description" content="Each figure on this site maps to the command that produces it and the commit it was verified at. Reproduce any of them from the repo root. (Numbers were independently re-verified by a checker separate from the implementer at each listed commit; the harness run prints every row below.)">
+<link rel="canonical" href="https://www.fluxtoken.dev/evidence.html">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>:root{
+  /* FLUX brand: Midnight Tide / Open Ocean / Sky Signal / Cloud White */
+  --bg:#F1F7FB;
+  --surface:#ffffff;
+  --fg:#102A43;
+  --muted:#486581;
+  --line:#d9e6f0;
+  --brand:#2864A5;
+  --signal:#9DD9F5;
+  --signal-soft:#e4f4fd;
+  --code:#e8f1f8;
+}
+@media (prefers-color-scheme: dark){:root{
+  --bg:#0b1d2e;
+  --surface:#102A43;
+  --fg:#F1F7FB;
+  --muted:#9fb3c8;
+  --line:#24415c;
+  --brand:#9DD9F5;
+  --signal:#9DD9F5;
+  --signal-soft:#16314a;
+  --code:#16314a;
+}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.7 Manrope,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+main{max-width:46rem;margin:0 auto;padding:1.5rem 1.25rem 4rem}
+nav{background:var(--surface);border-bottom:1px solid var(--line);padding:.8rem 1.25rem;display:flex;flex-wrap:wrap;gap:1rem;align-items:baseline;font-size:.92rem}
+nav a{color:var(--muted);text-decoration:none;font-weight:600}
+nav a.active,nav a:hover{color:var(--brand)}
+nav .brand{font-weight:800;font-size:1.25rem;color:var(--brand);letter-spacing:-.02em}
+nav .tagline{color:var(--muted);font-weight:400;margin-right:.5rem}
+h1{font-size:1.8rem;line-height:1.2;margin:1.4rem 0 .6rem;font-weight:800;letter-spacing:-.02em}
+h2{font-size:1.25rem;margin:2.2rem 0 .5rem;font-weight:800;letter-spacing:-.01em}
+h3{font-size:1.05rem;font-weight:700}
+a{color:var(--brand)}
+strong{color:var(--fg)}
+code{background:var(--code);padding:.1em .35em;border-radius:5px;font-size:.88em}
+.table-wrap{overflow-x:auto;background:var(--surface);border:1px solid var(--line);border-radius:10px;margin:1rem 0}
+table{border-collapse:collapse;width:100%;font-size:.95rem}
+th,td{border-bottom:1px solid var(--line);padding:.6rem .75rem;text-align:left;vertical-align:top}
+tr:last-child td{border-bottom:none}
+th{background:var(--signal-soft);font-weight:700}
+ul{padding-left:1.2rem}
+li{margin:.3rem 0}
+footer{border-top:2px solid var(--signal);margin-top:3rem;padding-top:1rem;font-size:.85rem;color:var(--muted)}</style>
+</head>
+<body>
+<nav><a class="brand" href="index.html">flux</a><span class="tagline">Less in. More out.</span><a href="index.html">Overview</a><a href="segments.html">Savings by segment</a><a href="methodology.html">Methodology</a><a href="evidence.html" class="active">Evidence</a><a href="comparison.html">Honest comparison</a><a href="faq.html">FAQ</a></nav>
+<main>
+<h1>Evidence — every published number, traced</h1>
+<p>Each figure on this site maps to the command that produces it and the commit it was verified at. Reproduce any of them from the repo root. (Numbers were independently re-verified by a checker separate from the implementer at each listed commit; the harness run prints every row below.)</p>
+<p>Harness: <code>node --import tsx evals/run-agent-ab.ts</code> · tests: <code>./node_modules/.bin/vitest run</code> (320 passing) · gates: the three suites under <code>evals/run-*-triage.ts</code> and <code>evals/run-analysis-regression.ts</code> against freshly generated fixtures (27/27).</p>
+<div class="table-wrap"><table>
+<thead><tr><th>Published figure</th><th>Where it comes from</th><th>Verified at</th></tr></thead>
+<tbody>
+<tr><td>Async 64.3% ceiling / <strong>57.7% net</strong> (quote the net)</td><td>arm K rows, async-eligible segment: ceiling assumes 0% tier fallback; net assumes 10% default + 5% 429-retry, priced per event at the SERVED tier</td><td><code>4e51734</code></td></tr>
+<tr><td>Interactive 25.9–29.4%</td><td>arm J across openai-30s / openai-600s / anthropic-5m blocks, clean 38/40</td><td><code>c7b03d4</code>, re-verified <code>4e51734</code></td></tr>
+<tr><td>Proxy mode: zero-code integration</td><td><code>packages/sdk-js/src/proxy.ts</code> + <code>evals/run-proxy.ts</code>; e2e tests cover reduction-before-forward, byte-identical passthrough, SSE streaming with usage parsed after the last byte, per-app hash chains, credential passthrough</td><td><code>d31b125</code></td></tr>
+<tr><td>Multi-turn Claude cache-only comparison: 37.6%</td><td>corrected arm M compares J + 5m stamp with the identical J prompt stack and cache disabled; both arms clean 38/40, and 200/200 stamped requests are metadata-only. This isolates the cache effect; it is simulator evidence, not a full-stack quality-safe win</td><td><code>6249f86</code> + current harness correction</td></tr>
+<tr><td>Full J + 5m stack vs raw uncached A: 57.1% lower simulated cost</td><td>clean-task quality falls 40/40 to 38/40 (−5 pp), so this comparison fails the agreed −2 pp limit and must not be presented as a qualified win</td><td><code>6249f86</code> + current harness correction</td></tr>
+<tr><td>Sparse interactive 34.0%</td><td>arm L, 1h cache TTL via the shipped <code>cacheTtl</code> stamp (stable-prefix placement), 600s spacing</td><td><code>67eeac6</code> (re-verified after the placement fix <code>ec191c5</code>; was 34.0% at <code>cbbffb9</code>)</td></tr>
+<tr><td>First real-traffic export: 9–25% measured per agent</td><td><code>evals/run-live-agents.ts</code>, 30 requests on claude-sonnet-5-5, hash-chained spools audited; a smoke run, NOT a band — lossy levers recorded-unbilled pending gate verdicts</td><td><code>d84e256</code> run 2026-10-19</td></tr>
+<tr><td>One-shot 45.5% / 72.8%</td><td>one-shot section, arms H and I ($0.569 → $0.310 / $0.155)</td><td><code>7b08666</code>, re-verified <code>4e51734</code></td></tr>
+<tr><td>Provider cache's own 35–40% (never claimed by FLUX)</td><td>&quot;what the cache itself is worth&quot; section of the harness output</td><td><code>33028df</code> onward</td></tr>
+<tr><td>&quot;Do not pay us&quot; 0–5%</td><td>support-assistant fixture, 77% pre-cached, triage verdict</td><td><code>ff04a70</code></td></tr>
+<tr><td>Replay gate approving fresh-cap at 0.00 quality delta and rejecting the 2000-token output cap at −5.50pp</td><td><code>evals/run-replay-gate-freshcap.ts</code></td><td><code>ab5b4c7</code></td></tr>
+<tr><td>Ledger determinism, exclusions, recomputable invoice</td><td><code>packages/core/src/savings-ledger.test.ts</code>; canonical-invoice contract</td><td><code>597e842</code>, <code>10407bf</code></td></tr>
+</tbody></table></div>
+<h2>Open items (also stated wherever the affected number appears)</h2>
+<ul>
+<li>Per-model cacheable minimums not yet simulated → 34.0% may overstate on some models.</li>
+<li>Anthropic batch rate uncatalogued → async figures OpenAI-priced; Anthropic batch events are correctly *unpriced*, never zeroed.</li>
+<li>Package freshness gate and automated CJS smoke not yet in the build script (the CJS tarball was smoke-tested manually at <code>4e51734</code>).</li>
+<li><strong>The banded figures are simulator-measured.</strong> A first real-traffic export exists (30 requests, see the table) and found one lever losing money on one-shot traffic — fixed at <code>ec191c5</code> and re-verified. The bands stay simulator-labelled until a pilot-scale export replaces them.</li>
+</ul>
+<h2>Independent sources cited on the comparison page</h2>
+<ul>
+<li>codepointer.dev — 614M-token replay of rtk/headroom/caveman: 3.7% actual.</li>
+<li>archestra.ai — progressive disclosure: ~77% modelled vs ~13% measured.</li>
+<li>RouterArena (arXiv:2510.00202) — independent router leaderboard.</li>
+<li>Anthropic &amp; OpenAI published pricing pages — all rates in <code>packages/core/src/model-prices.ts</code> carry source URL and capture date.</li>
+</ul>
+<footer><strong>flux</strong> — spend tokens where they matter. Every number on this site traces to a
+command and a commit — <a href="evidence.html">evidence</a>. Savings are measured per completed task;
+estimates are always labelled. <a href="https://github.com/Harrym1707/Flux">Source</a> · <a href="llms.txt">llms.txt</a></footer>
+</main>
+</body>
+</html>

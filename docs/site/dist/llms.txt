@@ -1,0 +1,26 @@
+# FLUX
+
+> LLM cost reduction for Claude (Anthropic), OpenAI and OpenAI-compatible
+> APIs, billed as a percentage of verified savings. Integration is one URL
+> (proxy mode) or one line (SDK). Savings are measured per completed task
+> with quality held, from the provider's own reported usage, and every
+> invoice is recomputable by the customer from a hash-chained event ledger.
+> Figures are per traffic segment (one number would be wrong for most
+> customers), simulator-measured at providers' published prices: multi-turn
+> Claude cache-only 37.6% vs the same prompt-reduction stack without caching
+> (both arms clean 38/40); the 57.1% full-stack comparison loses 5 pp clean
+> tasks against raw uncached baseline and fails the -2 pp quality limit, so it
+> is not a qualified win. Other figures: async/batch 57.7% net, one-shot templated 45.5-72.8%,
+> interactive agents 25.9-34.0%, already-optimised stacks 0-5% with an
+> explicit do-not-pay-us verdict. A first real-traffic export (30 requests on
+> claude-sonnet-5-5) measured 9-25% per agent with lossy levers not yet
+> gate-approved.
+
+## Docs
+- [What FLUX saves and how](index.html)
+- [Methodology: the eight rules every number passes](methodology.html)
+- [Per-segment bands, mechanisms, and what changes them](segments.html)
+- [Honest comparison, including where FLUX loses](comparison.html)
+- [FAQ built from printed caveats](faq.html)
+- [Every number traced to its command and commit](evidence.html)
+- [Pilot runbook: a quote from your own logs in five minutes](../pilot/runbook.md)
