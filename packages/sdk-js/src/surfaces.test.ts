@@ -170,11 +170,14 @@ describe("anthropic messages.create surface", () => {
     const response = await client.messages.create({
       model: "claude-sonnet-5-5-20260514",
       max_tokens: 1_024,
+      system: "You are terse.",
       messages: [{ role: "user", content: "hi" }],
     });
     expect(response.content[0].text).toBe("ok");
-    // The cacheTtl lever stamped the request FLUX actually sent.
-    expect(JSON.stringify(seen[0]!.messages)).toContain('"cache_control":{"type":"ephemeral","ttl":"1h"}');
+    // The cacheTtl lever stamped the STABLE prefix of the request FLUX sent:
+    // the system prompt, never the varying one-shot message.
+    expect(JSON.stringify(seen[0]!.system)).toContain('"cache_control":{"type":"ephemeral","ttl":"1h"}');
+    expect(JSON.stringify(seen[0]!.messages)).not.toContain("cache_control");
 
     const records = readRecords(path);
     expect(records).toHaveLength(1);

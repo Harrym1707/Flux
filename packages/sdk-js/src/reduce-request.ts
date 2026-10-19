@@ -123,10 +123,14 @@ export type FluxTokenReductionConfig = {
   executionTier?: "flex";
   /**
    * Anthropic prompt-cache TTL for traffic too sparse for the default cache.
-   * "1h" stamps `cache_control: {type: "ephemeral", ttl: "1h"}` on the last
-   * content block of the last message of an Anthropic-shaped request (a
-   * `claude-*` model with a `messages` array), so the cached prefix survives
-   * for an hour instead of five minutes. The economics are a trade, not a free
+   * "1h" stamps `cache_control: {type: "ephemeral", ttl: "1h"}` on the STABLE
+   * prefix of an Anthropic-shaped request (a `claude-*` model with a
+   * `messages` array): always on the system prompt when one exists, and on
+   * the last message only for multi-turn requests, whose history is re-sent
+   * verbatim next turn. A one-shot request with no system prompt is never
+   * stamped — its prefix never repeats, so a breakpoint could only buy write
+   * premiums (the first live export measured exactly that loss). The cached
+   * prefix survives for an hour instead of five minutes. The economics are a trade, not a free
    * discount: 1h cache writes bill at 2x the base input rate (5m: 1.25x) while
    * reads stay at 0.1x, so it pays exactly when calls arrive MORE than ~5
    * minutes but less than an hour apart - the regime where the 5m cache
@@ -548,14 +552,26 @@ function reduceMessageContent(
 /**
  * Stamp the 1h prompt-cache TTL on an Anthropic-shaped request, copy-on-write.
  *
- * Returns true when a breakpoint was stamped. The request must look like an
- * Anthropic Messages call (a claude model with a non-empty `messages` array)
- * and must not already carry any cache_control anywhere: a caller who placed
- * their own breakpoints has chosen their caching, and silently doubling their
- * write rate would change their bill behind their back. The stamp lands on the
- * last content block of the last message, so the entire prompt prefix above it
- * is what gets the hour. A string body is lifted into the equivalent single
- * text block, which the Anthropic API documents as the same request.
+ * Returns true when at least one breakpoint was stamped. The request must look
+ * like an Anthropic Messages call (a claude model with a non-empty `messages`
+ * array) and must not already carry any cache_control anywhere: a caller who
+ * placed their own breakpoints has chosen their caching, and silently doubling
+ * their write rate would change their bill behind their back.
+ *
+ * PLACEMENT is what decides whether this lever earns or loses money, and the
+ * first live export falsified the old rule (last block of the last message):
+ * on one-shot templated traffic the last message varies per request, so every
+ * request paid the 2x write premium and no request ever read — a measured loss.
+ * The rule now follows what is actually stable:
+ *
+ * - A system prompt is stable across the workload, so it always gets a
+ *   breakpoint (a string body is lifted into the equivalent single text
+ *   block, which the Anthropic API documents as the same request). Tools
+ *   precede system in the cached prefix, so this caches both.
+ * - On a MULTI-turn request the full history including the newest message is
+ *   re-sent verbatim next turn, so the last message also gets a breakpoint —
+ *   next turn reads it and extends. A one-shot request gets no message
+ *   breakpoint: there is nothing stable below the system prompt.
  */
 function stampAnthropicCacheTtl(next: AnyObject): boolean {
   const model = typeof next.model === "string" ? next.model.toLowerCase() : "";
@@ -569,36 +585,64 @@ function stampAnthropicCacheTtl(next: AnyObject): boolean {
   if (next.cache_control !== undefined) return false;
   const carriesCacheControl = (value: unknown): boolean =>
     (JSON.stringify(value ?? null) ?? "").includes('"cache_control"');
-  if (carriesCacheControl(next.messages) || carriesCacheControl(next.system)) return false;
-
-  const cacheControl = { type: "ephemeral", ttl: "1h" };
-  const messages = [...next.messages];
-  const lastIndex = messages.length - 1;
-  const last = messages[lastIndex];
-  if (!isPlainObject(last)) return false;
-  const content = last.content;
-  if (typeof content === "string") {
-    // An empty or whitespace-only body cannot carry a breakpoint: Anthropic
-    // rejects text blocks without visible content, so the stamp would turn a
-    // valid request into a 400.
-    if (content.trim() === "") return false;
-    messages[lastIndex] = {
-      ...last,
-      content: [{ type: "text", text: content, cache_control: cacheControl }],
-    };
-  } else if (Array.isArray(content) && content.length > 0) {
-    const blocks = [...content];
-    const lastBlock = blocks[blocks.length - 1];
-    if (!isPlainObject(lastBlock)) return false;
-    // A whitespace-only final text block is skipped for the same reason.
-    if (typeof lastBlock.text === "string" && lastBlock.text.trim() === "") return false;
-    blocks[blocks.length - 1] = { ...lastBlock, cache_control: cacheControl };
-    messages[lastIndex] = { ...last, content: blocks };
-  } else {
+  if (carriesCacheControl(next.messages) || carriesCacheControl(next.system) ||
+      carriesCacheControl(next.tools)) {
     return false;
   }
-  next.messages = messages;
-  return true;
+
+  const cacheControl = { type: "ephemeral", ttl: "1h" };
+  let stamped = false;
+
+  // The stable template: system (which also pulls tools into the cached prefix).
+  if (typeof next.system === "string" && next.system.trim() !== "") {
+    next.system = [{ type: "text", text: next.system, cache_control: cacheControl }];
+    stamped = true;
+  } else if (Array.isArray(next.system) && next.system.length > 0) {
+    const blocks = [...next.system];
+    const lastBlock = blocks[blocks.length - 1];
+    if (isPlainObject(lastBlock) &&
+        !(typeof lastBlock.text === "string" && lastBlock.text.trim() === "")) {
+      blocks[blocks.length - 1] = { ...lastBlock, cache_control: cacheControl };
+      next.system = blocks;
+      stamped = true;
+    }
+  }
+
+  // The settled conversation: only multi-turn requests re-send their newest
+  // message verbatim on the next turn, so only they get a message breakpoint.
+  if (next.messages.length >= 2) {
+    const messages = [...next.messages];
+    const lastIndex = messages.length - 1;
+    const last = messages[lastIndex];
+    if (isPlainObject(last)) {
+      const content = last.content;
+      if (typeof content === "string") {
+        // An empty or whitespace-only body cannot carry a breakpoint: Anthropic
+        // rejects text blocks without visible content, so the stamp would turn
+        // a valid request into a 400.
+        if (content.trim() !== "") {
+          messages[lastIndex] = {
+            ...last,
+            content: [{ type: "text", text: content, cache_control: cacheControl }],
+          };
+          next.messages = messages;
+          stamped = true;
+        }
+      } else if (Array.isArray(content) && content.length > 0) {
+        const blocks = [...content];
+        const lastBlock = blocks[blocks.length - 1];
+        if (isPlainObject(lastBlock) &&
+            !(typeof lastBlock.text === "string" && lastBlock.text.trim() === "")) {
+          blocks[blocks.length - 1] = { ...lastBlock, cache_control: cacheControl };
+          messages[lastIndex] = { ...last, content: blocks };
+          next.messages = messages;
+          stamped = true;
+        }
+      }
+    }
+  }
+
+  return stamped;
 }
 
 /**
@@ -791,9 +835,10 @@ export function reduceRequest(
           lossless: true,
           // The saving is a rate change (fewer cold rewrites), not tokens removed.
           estimatedTokensSaved: 0,
-          detail: "Stamped cache_control {type: 'ephemeral', ttl: '1h'} on the last content block, so the " +
-            "cached prefix outlives sparse traffic. Writes bill at 2x base input (5m: 1.25x), reads at 0.1x: " +
-            "this pays only when calls arrive more than ~5 minutes apart, and the caller must flag that " +
+          detail: "Stamped cache_control {type: 'ephemeral', ttl: '1h'} on the stable prefix (system prompt; " +
+            "plus the last message on multi-turn requests, whose history repeats next turn), so the cached " +
+            "prefix outlives sparse traffic. Writes bill at 2x base input (5m: 1.25x), reads at 0.1x: this " +
+            "pays only when calls arrive more than ~5 minutes apart, and the caller must flag that " +
             "workload - it is never set by default.",
         });
       }

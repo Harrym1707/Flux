@@ -404,13 +404,15 @@ describe("cacheTtl 1h stamping", () => {
     ],
   });
 
-  it("stamps cache_control {ttl: '1h'} on the last block of the last message", () => {
+  it("stamps the system prompt (lifted into a block) and, on multi-turn, the last message", () => {
     const { request: reduced, summary } = reduceRequest(anthropicRequest(), { cacheTtl: "1h" });
+    const system = (reduced as Record<string, unknown>).system as Array<Record<string, unknown>>;
+    expect(system).toEqual([
+      { type: "text", text: "You are a support agent.", cache_control: { type: "ephemeral", ttl: "1h" } },
+    ]);
     const messages = (reduced as Record<string, unknown>).messages as Array<Record<string, unknown>>;
-    const last = messages[messages.length - 1]!;
-    const blocks = last.content as Array<Record<string, unknown>>;
+    const blocks = messages[messages.length - 1]!.content as Array<Record<string, unknown>>;
     expect(blocks[blocks.length - 1]!.cache_control).toEqual({ type: "ephemeral", ttl: "1h" });
-    // A string body is lifted into the equivalent single text block, verbatim.
     expect(blocks[blocks.length - 1]!.text).toBe("Summarise the account history.");
     expect(summary.changes.map((change) => change.lever)).toContain("cache-ttl-1h");
     // A rate change, not a prompt change: nothing was removed.
@@ -426,6 +428,31 @@ describe("cacheTtl 1h stamping", () => {
     const blocks = messages[messages.length - 1]!.content as Array<Record<string, unknown>>;
     expect(blocks[0]).toEqual({ type: "text", text: "First." });
     expect(blocks[1]).toEqual({ type: "text", text: "Second.", cache_control: { type: "ephemeral", ttl: "1h" } });
+  });
+
+  it("never stamps a one-shot request with no system prompt: its prefix never repeats", () => {
+    // The first live export measured this exact shape losing money under the
+    // old last-message placement: 8 writes at the 2x premium, 0 reads.
+    const request = {
+      model: "claude-sonnet-4-5",
+      messages: [{ role: "user", content: "Classify this ticket." }],
+    };
+    const { request: reduced, summary } = reduceRequest(request, { cacheTtl: "1h" });
+    expect(reduced).toBe(request);
+    expect(summary.changes).toHaveLength(0);
+  });
+
+  it("stamps ONLY the system prompt on a one-shot request that has one", () => {
+    const request = {
+      model: "claude-sonnet-4-5",
+      system: "You are a classifier.",
+      messages: [{ role: "user", content: "Classify this ticket." }],
+    };
+    const { request: reduced } = reduceRequest(request, { cacheTtl: "1h" });
+    const system = (reduced as Record<string, unknown>).system as Array<Record<string, unknown>>;
+    expect(system[0]!.cache_control).toEqual({ type: "ephemeral", ttl: "1h" });
+    // The varying message carries no breakpoint, so it never bills a write premium.
+    expect(JSON.stringify((reduced as Record<string, unknown>).messages)).not.toContain("cache_control");
   });
 
   it("leaves non-Anthropic requests untouched", () => {
