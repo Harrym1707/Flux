@@ -305,7 +305,8 @@ for (const [marker, why] of [
   ["FIRST LIVE EXPORT", "the receipt is missing"],
   ["NET VERIFIED SAVINGS", "the receipt total row is missing"],
   ["37.6%", "the clean cache figure missing"],
-  ['id="reduce-btn"', "the live reducer demo missing"],
+  ['id="reducer"', "the reduction performance missing"],
+  ['data-chip', "the performance folds missing"],
 ] as const) {
   if (!landing.includes(marker)) failures.push(`index.html: ${why}`);
 }

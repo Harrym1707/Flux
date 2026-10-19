@@ -34,31 +34,52 @@ a{color:var(--ink)}
 
 @media (prefers-reduced-motion: reduce){.rise,.exchange .call,.exchange .response,.total-side .figure{opacity:1;transform:none;transition:none}html{scroll-behavior:auto}}
 
-/* ---------- hero: column on one line, 27% axis, mostly empty ---------- */
-.hero-wrap{position:relative;min-height:100svh;overflow:hidden}
+/* ---------- hero: the poster. Type enacts the product. ---------- */
+.hero-wrap{position:relative;min-height:96svh;overflow:hidden}
 #field{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;filter:blur(.8px)}
-.hero{position:relative;min-height:100svh}
-.hero .mark{position:absolute;top:56px;left:var(--axis);width:40px;height:40px}
-.hero .signin{position:absolute;top:56px;right:var(--s4);font-size:13px;color:var(--muted);text-decoration:none}
+.hero{position:relative;min-height:96svh;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;padding:var(--s7) var(--s4)}
+.hero .mark{position:absolute;top:40px;left:var(--s4);width:44px;height:44px}
+.hero .signin{position:absolute;top:52px;right:var(--s4);font-size:13px;color:var(--muted);text-decoration:none}
 .hero .signin:hover{color:var(--accent)}
-.hero .col{position:absolute;top:276px;left:var(--axis);width:380px}
-.hero h1{font-size:30px;font-weight:600;line-height:1.25;letter-spacing:-.01em;margin:0 0 var(--s2)}
-.hero .sub{font-size:16px;line-height:1.5;color:var(--muted);margin:0 0 28px}
-.hero .actions{display:flex;align-items:center;gap:var(--s3)}
+.hero .col{max-width:60rem}
+.hero h1{margin:0 0 var(--s3);line-height:1}
+.hero h1 .in{display:block;font-size:clamp(20px,3vw,30px);font-weight:600;letter-spacing:.02em;color:var(--muted);opacity:.8;margin-bottom:var(--s1)}
+.hero h1 .out{display:block;font-size:clamp(64px,11vw,120px);font-weight:800;letter-spacing:-.045em;background:linear-gradient(135deg,#FFFFFF 15%,#9DD9F5 85%);-webkit-background-clip:text;background-clip:text;color:transparent}
+.hero .sub{font-size:20px;line-height:1.5;color:var(--muted);margin:0 auto 36px;max-width:34rem}
+.hero .actions{display:flex;align-items:center;justify-content:center;gap:var(--s3)}
 .btn{display:inline-block;padding:12px 22px;border-radius:var(--radius);font-weight:700;font-size:16px;text-decoration:none;background:var(--accent);color:var(--accent-ink);transition:background .18s ease}
 .btn:hover{background:#c9ecfc}
 .arrowlink{font-size:16px;color:var(--ink);text-decoration:none;border-bottom:1px solid var(--line)}
 .arrowlink:hover{color:var(--accent);border-color:var(--accent)}
 .arrowlink::after{content:" \2192"}
-/* the first demonstration peeks in on the axis */
-.hero .peek{position:absolute;bottom:0;left:var(--axis);width:560px;max-width:calc(100vw - 48px)}
 @media (max-width:760px){
   :root{--axis:24px}
-  .hero .mark{top:32px}
-  .hero .col{top:30svh;width:auto;right:24px}
-  .hero h1{font-size:24px}
-  .hero .peek{width:auto;right:24px}
+  .hero{min-height:84svh}
+  .hero .sub{font-size:17px}
 }
+
+/* ---------- the bands: the numbers, called out at poster size ---------- */
+.bands{padding:var(--s7) var(--s4)}
+.bandrow{display:grid;grid-template-columns:repeat(auto-fit,minmax(16rem,1fr));gap:var(--s4);max-width:72rem;margin:0 auto}
+.band .n{font-size:clamp(72px,8.5vw,128px);font-weight:800;letter-spacing:-.04em;line-height:.9;color:var(--accent)}
+.band .n span{font-size:.45em;font-weight:800}
+.band p{font-size:16px;line-height:1.5;color:var(--muted);max-width:30ch;margin:var(--s2) 0 0}
+.bandcap{text-align:center;font-size:16px;color:var(--muted);max-width:46rem;margin:var(--s6) auto 0}
+.bandcap a{color:var(--accent)}
+.bandcap strong{color:var(--ink)}
+
+/* ---------- the demo theatre ---------- */
+.demo-sect{padding:var(--s7) var(--s4)}
+.axis-col-wide{max-width:60rem;margin:0 auto}
+.demo-sect h2{text-align:center}
+.fold{display:inline;transition:opacity .6s ease}
+.fold.folding{opacity:.25;text-decoration:line-through}
+.fold.folded{opacity:1;text-decoration:none;color:var(--accent)}
+.statusline{font-size:13px;color:var(--muted);min-height:1.2em}
+.chipfly{position:absolute;background:var(--accent);color:var(--accent-ink);font-size:13px;font-weight:700;border-radius:999px;padding:6px 14px;pointer-events:none;opacity:0;transform:translateY(6px);transition:opacity .4s ease,transform .4s ease;white-space:nowrap;z-index:3}
+.chipfly.show{opacity:1;transform:translateY(0)}
+#reducer{position:relative}
+#reducer pre{max-height:380px;overflow:auto}
 
 /* ---------- fragments: the product's own conventions ---------- */
 [data-ui]{background:var(--surface);border:1px solid var(--line);border-radius:8px;font-size:13px;overflow:hidden;max-width:100%}
@@ -178,29 +199,50 @@ section h2{font-size:30px;font-weight:800;letter-spacing:-.01em;margin:0 0 var(-
   <span class="mark"><svg viewBox="0 0 48 48" fill="none" aria-hidden="true"><path d="M8 14c10 0 10 10 20 10h12" stroke="#2864A5" stroke-width="3.5" stroke-linecap="round"/><path d="M8 34c10 0 10-10 20-10" stroke="#2864A5" stroke-width="3.5" stroke-linecap="round" opacity=".75"/><circle cx="41" cy="24" r="4" fill="#9DD9F5"/></svg></span>
   <a class="signin" href="https://github.com/Harrym1707/Flux">GitHub</a>
   <div class="col">
-    <h1>Less in. More out.<br>Your bill, verifiably smaller.</h1>
-    <p class="sub">FLUX removes the tokens that carry no information before they bill you, and meters the saving into a ledger you can recompute yourself. The fee is a share of verified savings &mdash; sometimes the verdict is don&rsquo;t pay us.</p>
+    <h1><span class="in">Less in.</span><span class="out">More out.</span></h1>
+    <p class="sub">FLUX strips the tokens that carry no information before they bill you &mdash; and proves the saving in a ledger you can recompute yourself.</p>
     <div class="actions">
       <a class="btn" href="https://github.com/Harrym1707/Flux">Get started</a>
       <a class="arrowlink" href="evidence.html">See the evidence</a>
     </div>
   </div>
-  <div class="peek">
-    <div data-ui id="reducer">
-      <div class="bar"><span>reducer &mdash; live</span><span class="pill"><span id="tok-count">106</span> tokens</span></div>
-      <pre>{"model":<span class="key">"claude-sonnet-5-5"</span>,"system":"You are a careful assistant. Cite sources.",
- "messages":[{"role":"user","content":"Excerpts for case 7:
-   Records 0-19: settlement entry nominal, reconciliation standard, no notification sent, annotation routine.
-   <span class="dup">Records 0-19: settlement entry nominal, reconciliation standard, no notification sent, annotation routine.</span>
-   Question: what does clause 7 require?"}]}</pre>
-      <div class="footrow">
-        <button class="ui-btn" id="reduce-btn" type="button">Reduce this request</button>
-        <span class="ok" id="same-note">exact duplicate removed &mdash; the response cannot change <svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true" style="vertical-align:-1px"><path d="M2.5 8.5 6 12 13.5 4" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
-      </div>
-    </div>
-  </div>
 </header>
 </div>
+
+<section aria-label="Measured bands" class="bands">
+  <div class="bandrow rise">
+    <div class="band"><div class="n">73<span>%</span></div><p>top of the one-shot templated band &mdash; relocate one timestamp and the cache pays you back</p></div>
+    <div class="band"><div class="n">57.7<span>%</span></div><p>net on batch and latency-tolerant work, billed from the tier the provider actually served</p></div>
+    <div class="band"><div class="n">37.6<span>%</span></div><p>from switching Claude&rsquo;s cache on &mdash; same answers, quality untouched, measured both ways</p></div>
+  </div>
+  <p class="bandcap rise">Simulator-measured at published provider prices, quality gated per completed task &mdash; and sometimes the verdict is <strong>do not pay us</strong>. Every number traces to a runnable command &rarr; <a href="evidence.html">evidence</a>.</p>
+</section>
+
+<section aria-label="The reduction, performed" class="demo-sect">
+  <div class="axis-col-wide">
+  <h2 class="rise">Watch a request lose its waste.</h2>
+  <div data-ui id="reducer" class="rise">
+    <div class="bar"><span>reducer &mdash; a busy agent&rsquo;s turn 5</span>
+      <span class="pill"><span id="tok-count">1102</span> tokens &middot; $<span id="cost-count">0.00220</span></span></div>
+    <pre id="demo-body">{"model":<span class="key">"claude-sonnet-5-5"</span>,
+ "tools":[ <span class="fold" data-chip="12 tool schemas compacted" data-after="[ 12 tools, schemas minified ]">{"name":"lookup_0","description":"Look up records in subsystem 0&hellip;","input_schema":{"$schema":"http://json-schema.org/draft-07/schema#","type":"object","additionalProperties":false,"properties":{"id":{"type":"string"}}}}, &hellip;11 more verbose schemas&hellip;</span> ],
+ "system":"You are a careful assistant. Cite sources. Escalate anything risky.",
+ "messages":[
+   {"role":"user","content":"Step 1: inspect account 1001."},
+   {"role":"assistant","content":"<span class="fold" data-chip="stale history compacted, byte-stable" data-after="[ digest: 2,140 bytes, errors + file paths kept ]">Records 0-19: settlement entry nominal, reconciliation standard, no notification sent, annotation routine. Records 0-19: settlement entry nominal, reconciliation standard, no notification sent, annotation routine. Records 0-19: settlement entry nominal, reconciliation standard, no notification sent, annotation routine.</span>"},
+   {"role":"user","content":"Step 2: reconcile the ledger entries.
+     Records 0-19: settlement entry nominal, reconciliation standard, no notification sent, annotation routine.
+     <span class="fold" data-chip="exact duplicate removed" data-after="">Records 0-19: settlement entry nominal, reconciliation standard, no notification sent, annotation routine.</span>"},
+   {"role":"tool","content":"<span class="fold" data-chip="fresh result capped before it bills" data-after="[ headline + 2 errors kept &middot; 18,644 bytes capped ]">Row 1 of 400: settlement nominal&hellip; Row 2 of 400: settlement nominal&hellip; Row 3 of 400&hellip; (397 more rows)</span>"},
+   {"role":"user","content":"Investigate account 1009 and summarise."}]}</pre>
+    <div class="footrow">
+      <span class="statusline" id="demo-status">watching&hellip;</span>
+      <span class="ok" id="same-note">response identical &mdash; lossless levers only; lossy ones wait for your replay gate <svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true" style="vertical-align:-1px"><path d="M2.5 8.5 6 12 13.5 4" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+    </div>
+  </div>
+  <p class="bandcap rise">An illustration of the levers on a typical request, token counts computed from these very bytes; the measured bands are above, the method is <a href="methodology.html">published</a>.</p>
+  </div>
+</section>
 
 <section aria-label="How it works">
   <div class="axis-col">
@@ -401,31 +443,85 @@ Anthropic SDK: new Anthropic({ baseURL: "http://127.0.0.1:8787" })</pre>
 <script>
 (function () {
   var reduced = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  // The live thing: strike the duplicate from the request, count honestly.
-  var btn = document.getElementById("reduce-btn");
-  var counter = document.getElementById("tok-count");
-  if (btn && counter) {
-    var done = false;
-    btn.addEventListener("click", function () {
-      if (done) {
-        document.querySelectorAll(".dup").forEach(function (el) { el.classList.remove("struck"); });
-        counter.textContent = "106";
-        document.getElementById("same-note").classList.remove("show");
-        btn.textContent = "Reduce this request";
-        done = false; return;
+  // The performance: when the panel scrolls into view, FLUX passes over the
+  // request — each fold collapses, a chip names the lever, and the token and
+  // cost meters run down. Counts come from the panel's own bytes. Loops.
+  var panel = document.getElementById("reducer");
+  var tokEl = document.getElementById("tok-count");
+  var costEl = document.getElementById("cost-count");
+  var statusEl = document.getElementById("demo-status");
+  var sameEl = document.getElementById("same-note");
+  var STEPS = [{"chip":"12 tool schemas compacted","tokens":238},{"chip":"stale history compacted, byte-stable","tokens":227},{"chip":"exact duplicate removed","tokens":27},{"chip":"fresh result capped before it bills","tokens":497}];
+  var FROM = 1102, RATE = 0.000002;
+  function setMeters(tokens) {
+    tokEl.textContent = String(Math.round(tokens)).replace(/B(?=(d{3})+(?!d))/g, ",");
+    costEl.textContent = (tokens * RATE).toFixed(5);
+  }
+  function chipAt(el, text) {
+    var chip = document.createElement("span");
+    chip.className = "chipfly"; chip.textContent = text;
+    panel.appendChild(chip);
+    var pr = panel.getBoundingClientRect(), er = el.getBoundingClientRect();
+    chip.style.left = Math.min(Math.max(er.left - pr.left, 12), pr.width - 230) + "px";
+    chip.style.top = (er.top - pr.top - 8) + "px";
+    requestAnimationFrame(function(){ chip.classList.add("show"); });
+    setTimeout(function(){ chip.classList.remove("show"); setTimeout(function(){ chip.remove(); }, 450); }, 2100);
+  }
+  function runPerformance() {
+    var folds = Array.prototype.slice.call(document.querySelectorAll("#reducer .fold"));
+    var tokens = FROM; setMeters(tokens);
+    sameEl.classList.remove("show");
+    folds.forEach(function (f) { f.classList.remove("folding", "folded"); f.textContent = f.getAttribute("data-raw"); });
+    statusEl.textContent = "request received — " + tokEl.textContent + " tokens";
+    var i = 0;
+    function step() {
+      if (i >= folds.length) {
+        statusEl.textContent = "sent. " + tokEl.textContent + " tokens billed.";
+        sameEl.classList.add("show");
+        setTimeout(runPerformance, 5200);
+        return;
       }
-      document.querySelectorAll(".dup").forEach(function (el) { el.classList.add("struck"); });
-      document.getElementById("same-note").classList.add("show");
-      btn.textContent = "Put it back";
-      done = true;
-      if (reduced) { counter.textContent = "79"; return; }
-      var from = 106, to = 79, t0 = performance.now();
+      var f = folds[i], meta = STEPS[i]; i += 1;
+      f.classList.add("folding");
+      chipAt(f, meta.chip + "  −" + meta.tokens.toLocaleString() + " tok");
+      statusEl.textContent = meta.chip;
+      var target = tokens - meta.tokens, start = tokens, t0 = performance.now();
       (function tick(now) {
-        var k = Math.min((now - t0) / 650, 1);
-        counter.textContent = String(Math.round(from + (to - from) * k));
+        var k = Math.min((now - t0) / 700, 1);
+        setMeters(start + (target - start) * k);
         if (k < 1) requestAnimationFrame(tick);
       })(t0);
+      tokens = target;
+      setTimeout(function () {
+        var after = f.getAttribute("data-after");
+        f.textContent = after; f.classList.remove("folding");
+        if (after !== "") f.classList.add("folded");
+        setTimeout(step, 900);
+      }, 800);
+    }
+    setTimeout(step, 1400);
+  }
+  if (panel && tokEl) {
+    document.querySelectorAll("#reducer .fold").forEach(function (f) {
+      f.setAttribute("data-raw", f.textContent);
     });
+    if (reduced) {
+      // Reduced motion: show the finished state, meters at the after values.
+      document.querySelectorAll("#reducer .fold").forEach(function (f, idx) {
+        var after = f.getAttribute("data-after");
+        f.textContent = after === "" ? "" : after; f.classList.add("folded");
+      });
+      setMeters(113);
+      statusEl.textContent = "reduced: 1,102 → 113 tokens";
+      sameEl.classList.add("show");
+    } else if ("IntersectionObserver" in window) {
+      var seen = false;
+      new IntersectionObserver(function (es, obs) {
+        es.forEach(function (e) {
+          if (e.isIntersecting && !seen) { seen = true; runPerformance(); obs.disconnect(); }
+        });
+      }, { threshold: 0.35 }).observe(panel);
+    } else { runPerformance(); }
   }
   // Entrances: each section's parts rise 12px as they arrive.
   if (!reduced && "IntersectionObserver" in window) {
