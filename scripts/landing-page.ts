@@ -84,7 +84,7 @@ export function renderLanding(origin: string, repoUrl: string): string {
   var reduced = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   var ctx = canvas.getContext("2d");
   var wrap = canvas.parentElement;
-  var dpr = Math.min(window.devicePixelRatio || 1, 2);
+  var dpr = Math.min(window.devicePixelRatio || 1, 1.75);
   var W = 0, H = 0;
   function resize() {
     W = wrap.clientWidth; H = wrap.clientHeight;
@@ -94,10 +94,14 @@ export function renderLanding(origin: string, repoUrl: string): string {
   resize();
   var rt; window.addEventListener("resize", function(){ clearTimeout(rt); rt = setTimeout(resize, 150); });
 
-  // The wave-sheet: rows of one surface receding to a horizon. Perspective
-  // does the 3D: far rows sit close together, small and faint; near rows are
-  // tall, spaced and bold. The cursor pushes energy into the surface.
-  var ROWS = 14;
+  // A 3D particle surface: a grid of glowing points on a rolling height
+  // field, perspective-projected. Far rows crowd into a bright haze; near
+  // rows spread into readable waves. The cursor pushes a swell through it.
+  var COLS = 150, ROWSZ = 42, FOV = 320, CAMY = 120;
+  var stars = [];
+  for (var i = 0; i < 70; i++) {
+    stars.push([Math.random(), Math.random(), 1 + Math.random() * 1.6, Math.random() * 6.28, 0.3 + Math.random() * 1.2]);
+  }
   var mx = -9999, my = -9999, smx = -9999, smy = -9999;
   window.addEventListener("pointermove", function (e) {
     var b = wrap.getBoundingClientRect();
@@ -105,55 +109,71 @@ export function renderLanding(origin: string, repoUrl: string): string {
   }, { passive: true });
   window.addEventListener("pointerleave", function(){ mx = -9999; my = -9999; });
 
-  function rowTrace(i, t) {
-    var depth = i / (ROWS - 1);                   // 0 = horizon, 1 = nearest
-    var persp = 0.18 + Math.pow(depth, 1.7) * 0.82;
-    var baseY = H * (0.30 + Math.pow(depth, 1.45) * 0.62);
-    var amp = (6 + 30 * persp);
-    var step = Math.max(4, Math.floor(W / 300) * 3);
-    ctx.beginPath();
-    for (var x = 0; x <= W; x += step) {
-      // the sheet is one surface: x and depth feed the same field
-      var u = (x - W / 2) / (persp * 900);        // perspective-corrected x
-      var dx = x - smx, dy = baseY - smy;
-      var e = Math.exp(-(dx * dx + dy * dy) / (2 * 200 * 200));
-      var a = amp * (0.4 + 1.8 * e);
-      var ph = t * 0.9;
-      var y = baseY
-        + Math.sin(u * 2.3 + ph + depth * 4.0) * a * 0.5
-        + Math.sin(u * 5.1 - ph * 1.4 + depth * 7.0) * a * 0.28
-        + Math.sin(u * 11.0 + ph * 2.2) * a * 0.12
-        + Math.sin(u * 0.7 - ph * 0.5) * a * 0.35;
-      if (x === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
-    }
-    return { persp: persp, depth: depth };
-  }
   function draw(t) {
     ctx.clearRect(0, 0, W, H);
-    ctx.globalCompositeOperation = "source-over"; // ink on paper
-    for (var i = 0; i < ROWS; i++) {
-      var m = rowTrace(i, t);
-      // halo pass: soft, widens as the surface nears the viewer
-      ctx.strokeStyle = "rgba(40,100,165," + (0.05 + 0.10 * m.persp) + ")";
-      ctx.lineWidth = 2 + 5 * m.persp;
-      ctx.stroke();
-      // core pass: the drawn line of the surface
-      var near = m.depth > 0.75;
-      rowTrace(i, t);
-      ctx.strokeStyle = near
-        ? "rgba(16,42,67," + (0.18 + 0.30 * m.persp) + ")"
-        : "rgba(40,100,165," + (0.12 + 0.30 * m.persp) + ")";
-      ctx.lineWidth = 0.8 + 1.1 * m.persp;
-      ctx.stroke();
+    // ambient drifting sparkles
+    ctx.globalCompositeOperation = "lighter";
+    for (var si = 0; si < stars.length; si++) {
+      var st = stars[si];
+      var tw = 0.25 + 0.6 * Math.abs(Math.sin(t * st[4] + st[3]));
+      ctx.fillStyle = "rgba(157,217,245," + (tw * 0.5) + ")";
+      ctx.fillRect(st[0] * W, st[1] * H, st[2], st[2]);
     }
+    var cx = W / 2, horizon = H * 0.34;
+    for (var zi = ROWSZ - 1; zi >= 0; zi--) {
+      var z = 60 + zi * 19;
+      var scale = FOV / (FOV + z);
+      var rowAlpha = 0.16 + 0.55 * scale;
+      var size = Math.max(1, 2.4 * scale);
+      // colour: far rows ocean-blue haze, near rows bright sky
+      var mixv = Math.min(1, scale * 1.35);
+      var r = Math.round(40 + (157 - 40) * mixv);
+      var g = Math.round(100 + (217 - 100) * mixv);
+      var b2 = Math.round(165 + (245 - 165) * mixv);
+      ctx.fillStyle = "rgba(" + r + "," + g + "," + b2 + "," + rowAlpha + ")";
+      for (var xi = 0; xi < COLS; xi++) {
+        var xw = (xi / (COLS - 1) - 0.5) * 1900;
+        var amp = 26 + 34 * (1 - scale);
+        var h =
+          Math.sin(xw * 0.0042 + t * 1.1 + z * 0.012) * amp * 0.5 +
+          Math.sin(xw * 0.0095 - t * 0.7 + z * 0.02) * amp * 0.3 +
+          Math.sin(xw * 0.021 + t * 1.9) * amp * 0.14 +
+          Math.sin(xw * 0.0016 + z * 0.004 - t * 0.35) * amp * 0.45;
+        var sx = cx + xw * scale;
+        if (sx < -8 || sx > W + 8) continue;
+        var sy = horizon + (CAMY - h) * scale;
+        // the swell: the surface rises and brightens under the cursor
+        var ddx = sx - smx, ddy = sy - smy;
+        var pulse = Math.exp(-(ddx * ddx + ddy * ddy) / (2 * 150 * 150));
+        if (pulse > 0.03) {
+          sy -= pulse * 26 * scale;
+          ctx.fillStyle = "rgba(210,238,252," + Math.min(1, rowAlpha + pulse * 0.8) + ")";
+          ctx.fillRect(sx, sy, size + pulse * 1.6, size + pulse * 1.6);
+          ctx.fillStyle = "rgba(" + r + "," + g + "," + b2 + "," + rowAlpha + ")";
+        } else {
+          // crests catch more light
+          var crest = h > amp * 0.55 ? 0.25 : 0;
+          if (crest > 0) {
+            ctx.fillStyle = "rgba(200,235,252," + (rowAlpha + crest) + ")";
+            ctx.fillRect(sx, sy, size, size);
+            ctx.fillStyle = "rgba(" + r + "," + g + "," + b2 + "," + rowAlpha + ")";
+          } else {
+            ctx.fillRect(sx, sy, size, size);
+          }
+        }
+      }
+    }
+    ctx.globalCompositeOperation = "source-over";
   }
-  if (reduced) { smx = -9999; smy = -9999; draw(12.0); return; }
+  if (reduced) { draw(21.0); return; }
   var vis = true;
   new IntersectionObserver(function (es) { es.forEach(function (e) { vis = e.isIntersecting; }); }).observe(wrap);
+  var lastF = 0;
   (function frame(now) {
     requestAnimationFrame(frame);
-    if (document.hidden || !vis) return;
-    smx += (mx - smx) * 0.1; smy += (my - smy) * 0.1;
+    if (document.hidden || !vis || now - lastF < 28) return;
+    lastF = now;
+    smx += (mx - smx) * 0.08; smy += (my - smy) * 0.08;
     draw(now / 1000);
   })(0);
 })();`;
@@ -323,18 +343,25 @@ a{color:var(--ink)}
 @media (prefers-reduced-motion: reduce){.rise,.exchange .call,.exchange .response,.total-side .figure{opacity:1;transform:none;transition:none}html{scroll-behavior:auto}}
 
 /* ---------- hero: the poster. Type enacts the product. ---------- */
-.hero-wrap{position:relative;min-height:96svh;overflow:hidden}
+.hero-wrap{position:relative;min-height:96svh;overflow:hidden;background:#050D1A}
 #field{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
 .hero{position:relative;min-height:96svh;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;padding:var(--s7) var(--s4)}
 .hero .mark{position:absolute;top:40px;left:var(--s4);width:44px;height:44px}
-.hero .signin{position:absolute;top:52px;right:var(--s4);font-size:13px;color:var(--muted);text-decoration:none}
+.hero .signin{position:absolute;top:52px;right:var(--s4);font-size:13px;color:#9FB3C8;text-decoration:none;z-index:2}
 .hero .signin:hover{color:var(--accent)}
 .hero .col{max-width:60rem}
 .hero h1{margin:0 0 var(--s3);line-height:1}
-.hero h1 .in{display:block;font-size:clamp(20px,3vw,30px);font-weight:600;letter-spacing:.02em;color:var(--muted);opacity:.8;margin-bottom:var(--s1)}
-.hero h1 .out{display:block;font-size:clamp(64px,11vw,120px);font-weight:800;letter-spacing:-.045em;background:linear-gradient(135deg,#102A43 10%,#2864A5 70%,#4E8FC7 100%);-webkit-background-clip:text;background-clip:text;color:transparent}
-.hero .sub{font-size:20px;line-height:1.5;color:var(--muted);margin:0 auto 36px;max-width:34rem}
+.hero h1 .in{display:block;font-size:clamp(20px,3vw,30px);font-weight:600;letter-spacing:.02em;color:#9FB3C8;opacity:.9;margin-bottom:var(--s1)}
+.hero h1 .out{display:block;font-size:clamp(64px,11vw,120px);font-weight:800;letter-spacing:-.045em;background:linear-gradient(135deg,#FFFFFF 15%,#9DD9F5 85%);-webkit-background-clip:text;background-clip:text;color:transparent}
+.hero .sub{font-size:20px;line-height:1.5;color:#B8CBDC;margin:0 auto 36px;max-width:34rem}
 .hero .actions{display:flex;align-items:center;justify-content:center;gap:var(--s3)}
+.hero .btn{background:var(--accent);color:#081522}
+.hero .btn:hover{background:#c9ecfc}
+.hero .arrowlink{color:#D7E9F7;border-bottom-color:#24415C}
+.hero .arrowlink:hover{color:var(--accent);border-color:var(--accent)}
+.hero .mark{z-index:2}
+.hero .mark svg path{stroke:#9DD9F5}
+.hero .mark svg circle{fill:#F1F7FB}
 .btn{display:inline-block;padding:12px 22px;border-radius:var(--radius);font-weight:700;font-size:16px;text-decoration:none;background:var(--ink);color:#F1F7FB;transition:background .18s ease}
 .btn:hover{background:var(--ocean)}
 .arrowlink{font-size:16px;color:var(--ocean);text-decoration:none;border-bottom:1px solid var(--line)}
