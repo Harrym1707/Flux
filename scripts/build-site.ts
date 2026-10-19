@@ -203,6 +203,10 @@ for (const page of PAGES) {
 }
 
 writeFileSync(path.join(outDir, "llms.txt"), readFileSync(path.join(siteDir, "llms.txt"), "utf8"), "utf8");
+// GitHub Pages reads the custom domain from a CNAME file in the deploy root.
+if (!ORIGIN.includes("REPLACE-WITH-YOUR-DOMAIN")) {
+  writeFileSync(path.join(outDir, "CNAME"), `${new URL(ORIGIN).host}\n`, "utf8");
+}
 writeFileSync(path.join(outDir, "robots.txt"), `User-agent: *\nAllow: /\n\nSitemap: ${ORIGIN}/sitemap.xml\n`, "utf8");
 const today = new Date().toISOString().slice(0, 10);
 writeFileSync(path.join(outDir, "sitemap.xml"),
