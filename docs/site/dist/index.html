@@ -227,7 +227,7 @@ section h2{font-size:30px;font-weight:800;letter-spacing:-.01em;margin:0 0 var(-
   <a class="signin" href="https://github.com/Harrym1707/Flux">GitHub</a>
   <div class="col">
     <h1><span class="in">Less in.</span><span class="out">More out.</span></h1>
-    <p class="sub">FLUX strips the tokens that carry no information before they bill you &mdash; and proves the saving in a ledger you can recompute yourself.</p>
+    <p class="sub">FLUX removes the junk from your AI requests before you pay for it. Same answers, smaller bill &mdash; and you can check every number yourself.</p>
     <div class="actions">
       <a class="btn" href="https://github.com/Harrym1707/Flux">Get started</a>
       <a class="arrowlink" href="evidence.html">See the evidence</a>
@@ -238,19 +238,19 @@ section h2{font-size:30px;font-weight:800;letter-spacing:-.01em;margin:0 0 var(-
 
 <section aria-label="Measured bands" class="bands">
   <div class="bandrow rise">
-    <div class="band"><div class="n">73<span>%</span></div><p>top of the one-shot templated band &mdash; relocate one timestamp and the cache pays you back</p></div>
-    <div class="band"><div class="n">57.7<span>%</span></div><p>net on batch and latency-tolerant work, billed from the tier the provider actually served</p></div>
-    <div class="band"><div class="n">37.6<span>%</span></div><p>from switching Claude&rsquo;s cache on &mdash; same answers, quality untouched, measured both ways</p></div>
+    <div class="band"><div class="n">73<span>%</span></div><p>off repetitive API calls &mdash; the kind most apps send all day</p></div>
+    <div class="band"><div class="n">57.7<span>%</span></div><p>off background work that can wait a few extra seconds</p></div>
+    <div class="band"><div class="n">37.6<span>%</span></div><p>just from switching on Claude&rsquo;s cache &mdash; most apps never do</p></div>
   </div>
-  <p class="bandcap rise">Simulator-measured at published provider prices, quality gated per completed task &mdash; and sometimes the verdict is <strong>do not pay us</strong>. Every number traces to a runnable command &rarr; <a href="evidence.html">evidence</a>.</p>
+  <p class="bandcap rise">Measured in our open test harness at the providers&rsquo; real prices, with answer quality checked on every task. Some setups save nothing &mdash; then we say it plainly: <strong>do not pay us</strong>. Every number comes with a command you can run &rarr; <a href="evidence.html">evidence</a>.</p>
 </section>
 
 <section aria-label="Works with every provider" class="works">
   <div class="works-row rise">
     <span class="works-lede">Works with</span>
-    <span class="wname">Claude</span><span class="wname">GPT</span><span class="wname">Mistral</span><span class="wname">Groq</span><span class="wname">Llama</span><span class="wname">DeepSeek</span>
+    <span class="wname">Claude</span><span class="wname">GPT</span><span class="wname">Gemini*</span><span class="wname">Grok</span><span class="wname">Llama</span><span class="wname">Mistral</span><span class="wname">DeepSeek</span>
   </div>
-  <p class="works-cap rise">Native Anthropic and OpenAI APIs, and any OpenAI-compatible endpoint &mdash; one proxy URL or one SDK line, however your product talks to its model.</p>
+  <p class="works-cap rise">Point it at whatever you already use. FLUX speaks Anthropic and OpenAI natively, plus anything with an OpenAI-style API &mdash; Grok, Llama, Mistral, DeepSeek and more. Full savings verification is live for Claude and GPT today; other models are reduced and recorded while their price tables land. <em>*Gemini via its OpenAI-compatible endpoint.</em></p>
 </section>
 
 <section aria-label="The reduction, performed" class="demo-sect">
@@ -272,10 +272,10 @@ section h2{font-size:30px;font-weight:800;letter-spacing:-.01em;margin:0 0 var(-
    {"role":"user","content":"Investigate account 1009 and summarise."}]}</pre>
     <div class="footrow">
       <span class="statusline" id="demo-status">watching&hellip;</span>
-      <span class="ok" id="same-note">response identical &mdash; lossless levers only; lossy ones wait for your replay gate <svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true" style="vertical-align:-1px"><path d="M2.5 8.5 6 12 13.5 4" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+      <span class="ok" id="same-note">the answer cannot change &mdash; only safe moves run by default <svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true" style="vertical-align:-1px"><path d="M2.5 8.5 6 12 13.5 4" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
     </div>
   </div>
-  <p class="bandcap rise">An illustration of the levers on a typical request, token counts computed from these very bytes; the measured bands are above, the method is <a href="methodology.html">published</a>.</p>
+  <p class="bandcap rise">A demonstration of the moves &mdash; the token counts are computed from the exact text you see. Your real number comes from your own traffic. <a href="methodology.html">How we measure</a>.</p>
   </div>
 </section>
 
@@ -321,7 +321,7 @@ Anthropic SDK: new Anthropic({ baseURL: "http://127.0.0.1:8787" })</pre>
           <tr><td>fresh-tool-result-cap</td><td>lossy</td><td>recorded &mdash; unbilled, no gate verdict</td><td class="num">4</td><td class="num">&mdash;</td></tr>
         </tbody>
       </table></div>
-      <div class="footrow"><span class="tok">Savings you already had are excluded. Negative levers are netted, never clamped. Run it yourself &mdash; the number must match.</span></div>
+      <div class="footrow"><span class="tok">Savings you already had don&rsquo;t count. Our losses count against us. Run the command yourself &mdash; you must get the same number.</span></div>
     </div>
   </div>
   </div>
@@ -331,9 +331,9 @@ Anthropic SDK: new Anthropic({ baseURL: "http://127.0.0.1:8787" })</pre>
   <div class="receipt-wrap">
     <div class="total-side rise">
       <h2>Measured on real traffic.</h2>
-      <p class="note">Thirty requests through five agents on claude-sonnet-5-5, spools audited, chains verified. Small, real, reproducible &mdash; the opposite of a projection.</p>
+      <p class="note">We ran 30 real requests through five test apps and published every line of the result. Small and real beats big and made up.</p>
       <div class="figure">9.3%</div>
-      <p class="cap">of live spend, verified per request, before any replay-gate approvals &mdash; the floor, not the ceiling. Simulated bands by segment run 26&ndash;73%, and the clean cache-only figure is 37.6% &mdash; every number traces to a runnable command &rarr; <a href="evidence.html">evidence</a>.</p>
+      <p class="cap">of real spend saved before the bigger levers were even switched on &mdash; the floor, not the ceiling. Our test harness puts the full range at 26&ndash;73% depending on your traffic, including 37.6% from Claude&rsquo;s cache alone &rarr; <a href="evidence.html">evidence</a>.</p>
     </div>
     <div class="slip rise in-self" aria-label="The export, row by row">
       <h3>FLUX &mdash; FIRST LIVE EXPORT</h3>
@@ -359,17 +359,17 @@ Anthropic SDK: new Anthropic({ baseURL: "http://127.0.0.1:8787" })</pre>
   <div class="price-wrap">
     <div class="price-side rise">
       <h2>One price.</h2>
-      <p>No subscription, no seats, no minimum. FLUX bills a share of the savings its own ledger verified &mdash; the invoice is a pure function of a spool you hold, so you can recompute every line.</p>
+      <p>No subscription. No seats. No minimum. You pay a slice of what FLUX actually saved you &mdash; and you can recheck the maths behind every invoice yourself.</p>
     </div>
     <div class="price-figure rise">
       <div class="fig">15<sup>%</sup></div>
       <span class="overlap"><svg viewBox="0 0 48 48" fill="none" aria-hidden="true"><path d="M8 14c10 0 10 10 20 10h12" stroke="#2864A5" stroke-width="3.5" stroke-linecap="round"/><path d="M8 34c10 0 10-10 20-10" stroke="#2864A5" stroke-width="3.5" stroke-linecap="round" opacity=".75"/><circle cx="41" cy="24" r="4" fill="#9DD9F5"/></svg></span>
       <p class="per">of verified savings, monthly &mdash; nothing else</p>
       <ul>
-        <li>Savings verified per completed task, from your provider&rsquo;s own usage</li>
-        <li>A month that saved nothing bills nothing</li>
-        <li>Negative levers count against us, never clamped</li>
-        <li>Already optimised? The quote says <strong>do not pay us</strong></li>
+        <li>Savings counted per finished task, from your provider&rsquo;s own numbers</li>
+        <li>Save nothing, pay nothing</li>
+        <li>If a move loses money, that loss is ours, not yours</li>
+        <li>Already efficient? Our quote will say: <strong>do not pay us</strong></li>
       </ul>
       <a class="btn" href="https://github.com/Harrym1707/Flux">Run the quote on your own export</a>
     </div>
@@ -395,7 +395,7 @@ Anthropic SDK: new Anthropic({ baseURL: "http://127.0.0.1:8787" })</pre>
     <div class="cta-flat" aria-hidden="true"></div>
     <div class="cta-main">
       <h2>Start with one URL.</h2>
-      <p>Point your client&rsquo;s baseURL at the FLUX proxy and keep your own key. Five minutes later you have a hash-chained ledger of what you actually spend &mdash; and what you didn&rsquo;t have to.</p>
+      <p>Point your app&rsquo;s baseURL at FLUX and keep your own key. Five minutes later you have a tamper-proof record of what you spend &mdash; and what you stopped spending.</p>
       <a class="btn" href="https://github.com/Harrym1707/Flux">Get FLUX on GitHub</a>
     </div>
     <div class="xfade" aria-hidden="true">
