@@ -17,6 +17,11 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile=false
-      - run: pnpm test
+      # Build FIRST: the sdk-js tests import @flux/core from its dist output,
+      # so a clean checkout must compile before vitest can collect them.
       - run: pnpm build
+      - run: pnpm test
       - run: pnpm typecheck:evals
+      # The website generator verifies its own output (unrendered markdown,
+      # missing titles or tables, and absent FAQ structured data all fail).
+      - run: node --import tsx scripts/build-site.ts
