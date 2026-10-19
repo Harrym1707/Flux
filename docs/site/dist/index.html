@@ -36,7 +36,7 @@ a{color:var(--ink)}
 
 /* ---------- hero: the poster. Type enacts the product. ---------- */
 .hero-wrap{position:relative;min-height:96svh;overflow:hidden}
-#field{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;filter:blur(.8px)}
+#field{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
 .hero{position:relative;min-height:96svh;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;padding:var(--s7) var(--s4)}
 .hero .mark{position:absolute;top:40px;left:var(--s4);width:44px;height:44px}
 .hero .signin{position:absolute;top:52px;right:var(--s4);font-size:13px;color:var(--muted);text-decoration:none}
@@ -67,6 +67,14 @@ a{color:var(--ink)}
 .bandcap{text-align:center;font-size:16px;color:var(--muted);max-width:46rem;margin:var(--s6) auto 0}
 .bandcap a{color:var(--accent)}
 .bandcap strong{color:var(--ink)}
+
+/* ---------- works-with: names in the text face, one quiet row ---------- */
+.works{padding:var(--s6) var(--s4)}
+.works-row{display:flex;align-items:baseline;justify-content:space-between;gap:var(--s3);max-width:72rem;margin:0 auto;flex-wrap:wrap}
+.works-lede{font-size:16px;color:var(--muted)}
+.wname{font-size:22px;font-weight:700;letter-spacing:-.01em;color:var(--ink)}
+.works-cap{text-align:center;font-size:16px;color:var(--muted);max-width:46rem;margin:var(--s4) auto 0}
+@media (max-width:760px){.works-row{justify-content:flex-start;gap:var(--s3)}.wname{font-size:18px}}
 
 /* ---------- the demo theatre ---------- */
 .demo-sect{padding:var(--s7) var(--s4)}
@@ -237,6 +245,14 @@ section h2{font-size:30px;font-weight:800;letter-spacing:-.01em;margin:0 0 var(-
   <p class="bandcap rise">Simulator-measured at published provider prices, quality gated per completed task &mdash; and sometimes the verdict is <strong>do not pay us</strong>. Every number traces to a runnable command &rarr; <a href="evidence.html">evidence</a>.</p>
 </section>
 
+<section aria-label="Works with every provider" class="works">
+  <div class="works-row rise">
+    <span class="works-lede">Works with</span>
+    <span class="wname">Claude</span><span class="wname">GPT</span><span class="wname">Mistral</span><span class="wname">Groq</span><span class="wname">Llama</span><span class="wname">DeepSeek</span>
+  </div>
+  <p class="works-cap rise">Native Anthropic and OpenAI APIs, and any OpenAI-compatible endpoint &mdash; one proxy URL or one SDK line, however your product talks to its model.</p>
+</section>
+
 <section aria-label="The reduction, performed" class="demo-sect">
   <div class="axis-col-wide">
   <h2 class="rise">Watch a request lose its waste.</h2>
@@ -398,66 +414,90 @@ Anthropic SDK: new Anthropic({ baseURL: "http://127.0.0.1:8787" })</pre>
 
 <script>
 (function () {
-  if (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
   var canvas = document.getElementById("field");
-  if (!canvas || !canvas.getContext) return;
-  var ctx = canvas.getContext("2d");
-  var SCALE = 2, W = 0, H = 0, cur, prev, img, off, offCtx;
+  if (!canvas) return;
+  var reduced = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  var gl = canvas.getContext("webgl", { antialias: false, depth: false, stencil: false });
+  if (!gl) { canvas.remove(); return; }
   var wrap = canvas.parentElement;
+
+  var VSH = "attribute vec2 p;void main(){gl_Position=vec4(p,0.,1.);}";
+  var FSH =
+    "precision highp float;" +
+    "uniform vec2 R;uniform float T;uniform vec2 M;" +
+    "float hash(vec2 q){return fract(sin(dot(q,vec2(127.1,311.7)))*43758.5453);}" +
+    "float noise(vec2 q){vec2 i=floor(q),f=fract(q);f=f*f*(3.-2.*f);" +
+    " return mix(mix(hash(i),hash(i+vec2(1,0)),f.x),mix(hash(i+vec2(0,1)),hash(i+vec2(1,1)),f.x),f.y);}" +
+    "float fbm(vec2 q){float a=.5,s=0.;for(int k=0;k<4;k++){s+=a*noise(q);q*=2.03;a*=.5;}return s;}" +
+    "void main(){" +
+    " vec2 uv=gl_FragCoord.xy/R;" +
+    " vec2 p=uv;p.x*=R.x/R.y;" +
+    " float t=T*.05;" +
+    " vec2 m=M;m.x*=R.x/R.y;" +
+    " float bend=.35*exp(-length(p-m)*2.6);" +
+    " float warp=fbm(vec2(p.x*2.1+t*.7,p.y*3.1-t*.3))*.65+bend;" +
+    " float flow=fbm(vec2(p.x*1.3-t,p.y*2.1+warp));" +
+    " float band=sin((p.y*2.6+flow*2.4-p.x*.35)*3.14159);" +
+    " float silk=pow(abs(band),7.0);" +
+    " float body=smoothstep(-.7,1.,band);" +
+    " vec3 deep=vec3(.031,.082,.133);" +
+    " vec3 ocean=vec3(.157,.392,.647);" +
+    " vec3 sky=vec3(.616,.851,.961);" +
+    " vec3 col=deep+ocean*body*.32+sky*silk*.55;" +
+    " float g=exp(-length((uv-vec2(.80,.74))*vec2(1.7,1.1))*2.4);" +
+    " col+=sky*g*.30+vec3(1.)*g*g*.22;" +
+    " float g2=exp(-length((uv-vec2(.16,.22))*vec2(1.9,1.3))*2.8);" +
+    " col+=ocean*g2*.45;" +
+    " float v=exp(-length((uv-vec2(.5,.55))*vec2(1.15,1.5))*1.7);" +
+    " col=mix(col,deep,v*.62);" +
+    " gl_FragColor=vec4(col,1.);}";
+
+  function shader(type, src) {
+    var sh = gl.createShader(type); gl.shaderSource(sh, src); gl.compileShader(sh);
+    return gl.getShaderParameter(sh, gl.COMPILE_STATUS) ? sh : null;
+  }
+  var vs = shader(gl.VERTEX_SHADER, VSH), fs = shader(gl.FRAGMENT_SHADER, FSH);
+  if (!vs || !fs) { canvas.remove(); return; }
+  var prog = gl.createProgram();
+  gl.attachShader(prog, vs); gl.attachShader(prog, fs); gl.linkProgram(prog); gl.useProgram(prog);
+  var buf = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 3,-1, -1,3]), gl.STATIC_DRAW);
+  var loc = gl.getAttribLocation(prog, "p");
+  gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
+  var uR = gl.getUniformLocation(prog, "R"), uT = gl.getUniformLocation(prog, "T"), uM = gl.getUniformLocation(prog, "M");
+
+  var dpr = Math.min(window.devicePixelRatio || 1, 1.5);
   function resize() {
-    canvas.width = wrap.clientWidth; canvas.height = wrap.clientHeight;
-    W = Math.max(2, Math.ceil(canvas.width / SCALE)); H = Math.max(2, Math.ceil(canvas.height / SCALE));
-    cur = new Float32Array(W * H); prev = new Float32Array(W * H);
-    off = document.createElement("canvas"); off.width = W; off.height = H;
-    offCtx = off.getContext("2d"); img = offCtx.createImageData(W, H);
+    canvas.width = Math.round(wrap.clientWidth * dpr);
+    canvas.height = Math.round(wrap.clientHeight * dpr);
+    gl.viewport(0, 0, canvas.width, canvas.height);
   }
   resize();
   var rt; window.addEventListener("resize", function(){ clearTimeout(rt); rt = setTimeout(resize, 150); });
-  function drop(x, y, s, r) {
-    var b = wrap.getBoundingClientRect(); var lx = x - b.left, ly = y - b.top;
-    if (lx < 0 || ly < 0 || lx > b.width || ly > b.height) return;
-    var cx = Math.round(lx / SCALE), cy = Math.round(ly / SCALE);
-    for (var yy = -r; yy <= r; yy++) for (var xx = -r; xx <= r; xx++) {
-      var d = Math.sqrt(xx * xx + yy * yy); if (d > r) continue;
-      var px = cx + xx, py = cy + yy;
-      if (px < 1 || py < 1 || px >= W - 1 || py >= H - 1) continue;
-      prev[py * W + px] += s * Math.cos((d / r) * Math.PI * 0.5);
-    }
-  }
-  var last = 0, mx = -99, my = -99;
+
+  var mx = 0.5, my = 0.6, tx = 0.5, ty = 0.6;
   window.addEventListener("pointermove", function (e) {
-    var now = performance.now(); if (now - last < 24) return; last = now;
-    var dx = e.clientX - mx, dy = e.clientY - my; mx = e.clientX; my = e.clientY;
-    drop(e.clientX, e.clientY, 60 + Math.min(Math.sqrt(dx*dx+dy*dy), 60) * 4, 2);
-  }, { passive: true });
-  var amb = setInterval(function () {
-    if (document.hidden) return;
     var b = wrap.getBoundingClientRect();
-    drop(b.left + Math.random() * b.width, b.top + Math.random() * b.height, 200, 4);
-  }, 2800);
-  window.addEventListener("pagehide", function(){ clearInterval(amb); });
-  var lastF = 0;
-  function frame(ts) {
-    requestAnimationFrame(frame);
-    if (ts - lastF < 28 || document.hidden) return; lastF = ts;
-    for (var y = 1; y < H - 1; y++) { var row = y * W;
-      for (var x = 1; x < W - 1; x++) { var i = row + x;
-        cur[i] = ((prev[i-1] + prev[i+1] + prev[i-W] + prev[i+W]) * 0.5 - cur[i]) * 0.981; } }
-    var t = prev; prev = cur; cur = t;
-    var data = img.data;
-    for (var y2 = 1; y2 < H - 1; y2++) { var r2 = y2 * W;
-      for (var x2 = 1; x2 < W - 1; x2++) { var i2 = r2 + x2;
-        var sh = (prev[i2-1] - prev[i2+1]) + (prev[i2-W] - prev[i2+W]);
-        var p = i2 * 4; var m = sh < 0 ? -sh : sh;
-        if (m < 0.5) { data[p+3] = 0; continue; }
-        var a = Math.min(m * 2.5, 48);
-        data[p] = 157; data[p+1] = 217; data[p+2] = 245; data[p+3] = a; } }
-    offCtx.putImageData(img, 0, 0);
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.imageSmoothingEnabled = true;
-    ctx.drawImage(off, 0, 0, canvas.width, canvas.height);
+    tx = (e.clientX - b.left) / Math.max(b.width, 1);
+    ty = 1 - (e.clientY - b.top) / Math.max(b.height, 1);
+  }, { passive: true });
+
+  function draw(t) {
+    gl.uniform2f(uR, canvas.width, canvas.height);
+    gl.uniform1f(uT, t);
+    gl.uniform2f(uM, mx, my);
+    gl.drawArrays(gl.TRIANGLES, 0, 3);
   }
-  requestAnimationFrame(frame);
+  if (reduced) { draw(37.0); return; } // one still frame of the current
+  var vis = true;
+  new IntersectionObserver(function (es) { es.forEach(function (e) { vis = e.isIntersecting; }); }).observe(wrap);
+  (function frame(now) {
+    requestAnimationFrame(frame);
+    if (document.hidden || !vis) return;
+    mx += (tx - mx) * 0.06; my += (ty - my) * 0.06; // the silk bends, it does not twitch
+    draw(now / 1000);
+  })(0);
 })();</script>
 <script>
 (function () {
