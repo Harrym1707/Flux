@@ -188,6 +188,12 @@ function layout(page: { file: string; nav: string }, body: string, title: string
 <title>${escapeHtml(title)}</title>
 <meta name="description" content="${escapeHtml(description)}">
 <link rel="canonical" href="${ORIGIN}/${htmlName === "index.html" ? "" : htmlName}">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="flux">
+<meta property="og:title" content="${escapeHtml(title)}">
+<meta property="og:description" content="${escapeHtml(description)}">
+<meta property="og:url" content="${ORIGIN}/${htmlName}">
+<meta name="twitter:card" content="summary">
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -257,7 +263,20 @@ writeFileSync(path.join(outDir, "favicon.svg"), `<svg xmlns="http://www.w3.org/2
 if (!ORIGIN.includes("REPLACE-WITH-YOUR-DOMAIN")) {
   writeFileSync(path.join(outDir, "CNAME"), `${new URL(ORIGIN).host}\n`, "utf8");
 }
-writeFileSync(path.join(outDir, "robots.txt"), `User-agent: *\nAllow: /\n\nSitemap: ${ORIGIN}/sitemap.xml\n`, "utf8");
+writeFileSync(path.join(outDir, "robots.txt"),
+  "# Answer-engine crawlers are explicitly welcome: every number on this site\n" +
+  "# traces to a runnable command, which is exactly what they should cite.\n" +
+  ["GPTBot", "OAI-SearchBot", "ChatGPT-User", "ClaudeBot", "Claude-SearchBot", "anthropic-ai",
+   "PerplexityBot", "Perplexity-User", "Google-Extended", "Applebot-Extended", "CCBot", "cohere-ai"]
+    .map((bot) => `User-agent: ${bot}\nAllow: /\n`).join("\n") +
+  `\nUser-agent: *\nAllow: /\n\nSitemap: ${ORIGIN}/sitemap.xml\n`, "utf8");
+
+// llms-full.txt: the whole site's substance in one file, the way answer
+// engines prefer to ingest it. Markdown sources concatenated verbatim.
+writeFileSync(path.join(outDir, "llms-full.txt"),
+  readFileSync(path.join(siteDir, "llms.txt"), "utf8") + "\n\n---\n\n" +
+  PAGES.map((page) => readFileSync(path.join(siteDir, page.file), "utf8")).join("\n\n---\n\n"),
+  "utf8");
 const today = new Date().toISOString().slice(0, 10);
 writeFileSync(path.join(outDir, "sitemap.xml"),
   `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n` +
@@ -289,6 +308,13 @@ for (const [marker, why] of [
 if ((landing.match(/<svg /g) ?? []).length < 6) failures.push("index.html: expected at least 6 icons");
 if (!landing.includes('rel="icon"')) failures.push("index.html: favicon link missing");
 if (!readFileSync(path.join(outDir, "favicon.svg"), "utf8").includes("#9DD9F5")) failures.push("favicon.svg: missing the signal dot");
+const robots = readFileSync(path.join(outDir, "robots.txt"), "utf8");
+for (const bot of ["GPTBot", "ClaudeBot", "PerplexityBot", "Google-Extended"]) {
+  if (!robots.includes(bot)) failures.push(`robots.txt: missing explicit allow for ${bot}`);
+}
+const llmsFull = readFileSync(path.join(outDir, "llms-full.txt"), "utf8");
+if (llmsFull.length < 5000 || !llmsFull.includes("37.6%")) failures.push("llms-full.txt: missing or missing the numbers");
+if (!landing.includes('property="og:title"')) failures.push("index.html: missing OpenGraph metadata");
 const faqHtml = readFileSync(path.join(outDir, "faq.html"), "utf8");
 if (!faqHtml.includes("application/ld+json") || !faqHtml.includes("FAQPage")) failures.push("faq.html: missing FAQ structured data");
 if (failures.length > 0) {

@@ -1,0 +1,31 @@
+name: Get a savings quote from your own traffic
+description: Attach a gateway export (LiteLLM / Helicone / Langfuse) or describe your stack — the quote includes the honest "do not pay us" verdict.
+title: "[pilot] Savings quote request"
+labels: ["pilot-request"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        The five-minute version, no issue needed: `npx -p @flux-ai/sdk flux-quote your-export.jsonl --format litellm`
+        runs entirely on your machine — prompts never leave it. Open this issue if you'd like us to walk through the result with you.
+  - type: dropdown
+    id: stack
+    attributes:
+      label: What does your LLM traffic run through?
+      options: [LiteLLM, Helicone, Langfuse, Direct Anthropic SDK, Direct OpenAI SDK, Other / mixed]
+    validations:
+      required: true
+  - type: input
+    id: spend
+    attributes:
+      label: Rough monthly LLM spend (any currency)
+      placeholder: "$4k/mo"
+  - type: textarea
+    id: shape
+    attributes:
+      label: What does the traffic look like?
+      placeholder: "Mostly a support agent on Claude, ~50k requests/day, multi-turn…"
+  - type: markdown
+    attributes:
+      value: |
+        **Never paste API keys, prompts, or customer data here.** Aggregate numbers only.

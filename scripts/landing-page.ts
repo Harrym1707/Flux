@@ -297,7 +297,22 @@ footer a{color:var(--brand)}
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&family=Fraunces:ital,wght@1,500&display=swap" rel="stylesheet">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="flux">
+<meta property="og:title" content="flux — less in, more out">
+<meta property="og:description" content="Cut your Claude and OpenAI API bill. One URL in, savings verified per completed task, pay only a share of verified savings.">
+<meta property="og:url" content="${origin}/">
+<meta name="twitter:card" content="summary">
 <script type="application/ld+json">${jsonLd}</script>
+<script type="application/ld+json">${JSON.stringify({
+    "@context": "https://schema.org",
+    "@type": "Organization",
+    name: "FLUX",
+    url: `${origin}/`,
+    logo: `${origin}/favicon.svg`,
+    sameAs: [repoUrl],
+    slogan: "Less in. More out.",
+  })}</script>
 <style>${CSS}</style>
 </head>
 <body>

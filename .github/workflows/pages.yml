@@ -33,3 +33,23 @@ jobs:
           path: docs/site/dist
       - id: deployment
         uses: actions/deploy-pages@v4
+
+  geo-audit:
+    needs: deploy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.15.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile=false
+      # The live site must keep its machine-readable GEO layer on every deploy:
+      # llms.txt / llms-full.txt, explicit crawler permission, structured data
+      # that parses, a sitemap whose entries resolve, and the published numbers.
+      - run: node --import tsx evals/run-geo-audit.ts
+        env:
+          FLUX_SITE_ORIGIN: https://www.fluxtoken.dev

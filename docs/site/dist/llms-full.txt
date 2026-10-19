@@ -1,0 +1,379 @@
+# FLUX
+
+> LLM cost reduction for Claude (Anthropic), OpenAI and OpenAI-compatible
+> APIs, billed as a percentage of verified savings. Integration is one URL
+> (proxy mode) or one line (SDK). Savings are measured per completed task
+> with quality held, from the provider's own reported usage, and every
+> invoice is recomputable by the customer from a hash-chained event ledger.
+> Figures are per traffic segment (one number would be wrong for most
+> customers), simulator-measured at providers' published prices: multi-turn
+> Claude cache-only 37.6% vs the same prompt-reduction stack without caching
+> (both arms clean 38/40); the 57.1% full-stack comparison loses 5 pp clean
+> tasks against raw uncached baseline and fails the -2 pp quality limit, so it
+> is not a qualified win. Other figures: async/batch 57.7% net, one-shot templated 45.5-72.8%,
+> interactive agents 25.9-34.0%, already-optimised stacks 0-5% with an
+> explicit do-not-pay-us verdict. A first real-traffic export (30 requests on
+> claude-sonnet-5-5) measured 9-25% per agent with lossy levers not yet
+> gate-approved.
+
+## Docs
+- [What FLUX saves and how](overview.html)
+- [Methodology: the eight rules every number passes](methodology.html)
+- [Per-segment bands, mechanisms, and what changes them](segments.html)
+- [Honest comparison, including where FLUX loses](comparison.html)
+- [FAQ built from printed caveats](faq.html)
+- [Every number traced to its command and commit](evidence.html)
+- [Pilot runbook: a quote from your own logs in five minutes](../pilot/runbook.md)
+
+
+---
+
+# FLUX — verified LLM cost reduction, billed only on savings you can recompute
+
+FLUX is a drop-in wrapper for your OpenAI or Anthropic client that reduces what
+you spend per completed task — and proves it. You pay a percentage of verified
+savings. If your traffic is already optimised, FLUX tells you not to pay us.
+
+## What FLUX saves, by traffic type
+
+Every figure below is measured per completed task with quality held (at least
+36 of 40 tasks fully correct and complete), on a simulated harness using each
+provider's published prices and cache rules — except where marked live. A
+first real-traffic export exists (30 requests, measured 9–25% per agent);
+your own pilot replaces every band with your number before any fee exists.
+[How these numbers are made →](methodology.md)
+
+| Your traffic looks like | Measured saving | Label |
+|---|---:|---|
+| Multi-turn Claude cache-only comparison | **37.6%** vs the same J prompt stack with cache disabled; both arms clean 38/40 | simulator-measured; cache effect isolated |
+| Full J + 5m cache stack vs raw uncached baseline | **57.1% lower cost, −5 pp clean-task quality** | fails the agreed −2 pp quality limit; not a qualified win |
+| Background / batch / latency-tolerant jobs | **57.7%** (net of assumed tier fallbacks; 64.3% ceiling) | simulator-measured |
+| One-shot API calls on a shared template | **45.5%** — up to **72.8%** where latency-tolerant | simulator-measured |
+| Interactive agents, sparse traffic | **34.0%** | simulator-measured, caveats apply |
+| Interactive agents, busy traffic | **25.9–29.4%** | simulator-measured |
+| Already-optimised stacks | **0–5% — do not pay us** | measured on fixtures |
+
+The spread is the honest part: savings are a property of your workload's shape,
+not of FLUX. The first thing FLUX does is tell you which row you are — from
+your own logs, in about five minutes, before any contract exists.
+[Get a quote from your own export →](../pilot/runbook.md)
+
+## How it works, in one paragraph
+
+Your bill is `tokens × price-per-token × execution tier`. FLUX attacks all
+three at once: it removes tokens that carry no information (oversized tool
+results capped at injection, exact duplicates, schema bloat) without ever
+breaking your provider's prefix cache; it repairs prompts so cached pricing
+(10× cheaper input) actually applies; and it routes traffic you flag as
+latency-tolerant to the provider's own discounted tiers (50% off, same model,
+same answer). Risky changes are enabled only after a replay gate proves, on
+your own recorded requests, that quality held.
+
+## Why you can trust the number on your invoice
+
+- Savings are computed from your **provider's own reported usage**, never our estimates.
+- Every request writes a **hash-chained ledger event**; your invoice is a pure
+  function over those events that **you can recompute yourself**, to the cent.
+- Savings you already had — your provider's cache, your gateway's cache — are
+  itemised and **never billed**.
+- A changed answer is a failed task, and **failed tasks void their savings**.
+
+[Methodology](methodology.md) · [Per-segment detail](segments.md) ·
+[Honest comparison with alternatives](comparison.md) · [FAQ](faq.md) ·
+[Every number's provenance](evidence.md)
+
+
+---
+
+# What FLUX saves, segment by segment
+
+Savings are a property of your workload's shape. One global percentage would be
+a lie to someone; these are the four shapes, each with its mechanism, its
+measured band, and what would change the number. All figures simulator-measured
+per [methodology](methodology.md); traceability in [evidence](evidence.md).
+
+## Background / batch / latency-tolerant work — 57.7% net (64.3% ceiling)
+
+**Mechanism:** your provider sells the same model at 50% off for work that can
+wait (OpenAI's flex service tier on a synchronous API; Anthropic's batches,
+which stack with prompt caching). FLUX applies the tier only to traffic you
+flag latency-tolerant, stacks it with every token lever below, and bills from
+the tier the provider *actually served* — bounced requests bill at full rate.
+**The number to use is 57.7%** (net of assumed 10% default-fallback + 5% retry
+rates); 64.3% is the zero-fallback ceiling. Quality: identical model, identical
+answers; 38/40 clean on the harness.
+**What changes it:** your real fallback rate (telemetry replaces the
+assumption), and Anthropic-side pricing once its batch rate is catalogued.
+
+## One-shot API traffic on a shared template — 45.5%, up to 72.8%
+
+**Mechanism:** the most common silent waste we model: a per-request value (a
+timestamp, a request id) at the top of an otherwise identical prompt, which
+disables provider caching entirely. FLUX relocates it, the prefix caches at
+one-tenth price, and schema/duplicate levers stack on top. Add the tier for
+latency-tolerant one-shots and the band reaches 72.8%.
+**What changes it:** how big your shared template is and whether a breaker is
+actually present — the five-minute quote measures both from your export.
+
+## Interactive agents — 25.9–29.4% busy, 34.0% sparse
+
+**Mechanism:** busy agent traffic is already heavily subsidised by the
+provider's cache (35–40% on its own, which we never claim), so FLUX's honest
+headroom is the *fresh* tokens: oversized tool results are capped at injection
+(headlines, errors and file paths preserved verbatim; the replay gate approved
+this lever at exactly zero quality delta), stale history is compacted
+byte-stably, schemas are slimmed. Sparse traffic adds the 1-hour cache TTL
+(2× write premium billed honestly, netted when negative) for 34.0%.
+**What changes it:** how oversized your tool results actually are (our fixture's
+are highly compressible; your yield scales with yours), and the pending
+per-model cache-minimum fix, which may lower the sparse figure on some models.
+**On Claude the ceiling is different — and higher.** Anthropic's prompt
+cache is opt-in, and agents that never place `cache_control` re-pay full
+rate for their whole conversation history every turn (our first live export
+measured exactly that: a five-turn agent with zero cache traffic). FLUX
+stamps the stable prefix with a 5-minute-TTL breakpoint. In the deterministic
+fixture, the cache-only comparison is **37.6% lower cost** than the identical
+J prompt stack with caching disabled; both arms have 38/40 clean tasks and the
+stamp is metadata-only. The earlier **57.1%** full-stack comparison used a raw
+uncached baseline with 40/40 clean tasks, while the candidate had 38/40 (−5 pp).
+That fails the agreed −2 pp quality limit, so 57.1% is diagnostic and not a
+qualified full-stack saving. Real-traffic cache validation remains open. If
+you already place your own breakpoints, FLUX defers and never claims this.
+**This is also where we tell you our ceiling:** if someone promises an
+interactive agent 70%, ask for their per-task evidence.
+
+## Already-optimised stacks — 0–5%: do not pay us
+
+**Mechanism:** none, and that is the point. If your input already arrives
+largely cached, or your gateway's response cache already answers a big share of
+requests, FLUX's triage says so and the quote's verdict is `doNotPayUs`. On our
+fixture of such a stack the addressable saving was 2.4%. A percentage-of-savings
+vendor that charges you for savings you already had is buying a dispute; we
+decline up front.
+
+
+---
+
+# Methodology — how every FLUX number is made
+
+The LLM cost-saving market has a measurement problem, documented by independent
+work rather than by us: three popular open-source token trimmers claiming
+60–90% savings delivered **3.7%** when independently replayed over 614M tokens
+of real traffic; a prompt-slimming technique modelled at ~77% measured **~13%**
+in production. The gap comes from measuring per *request* instead of per
+*completed task*, and from ignoring provider cache economics. FLUX's method
+exists to be immune to both.
+
+## The rules every published number passes
+
+1. **Per completed task, not per request.** A technique that shrinks each
+   prompt but multiplies round trips has saved nothing. Our harness runs
+   multi-turn tasks end to end and prices the whole task.
+2. **Quality held, measured.** A claimed arm must keep at least 36 of 40 tasks
+   fully correct and complete. A changed tool call is a hard failure; a
+   shortened answer is scored by degree. The simulated model's quality signal
+   punishes trimming recent context — the fixture is built to catch our own
+   levers failing.
+3. **Provider cache rules simulated faithfully**: minimum cacheable prefix,
+   longest-exact-prefix matching, hit granularity, time-to-live expiry, and
+   write premiums. Our simulator can and does show caching as a **net loss**
+   on unfavourable traffic — that case has a unit test.
+4. **The provider's existing contribution is never claimed.** On busy agent
+   traffic, the provider's cache alone saves 35–40% before FLUX does anything.
+   That figure is printed separately and excluded from every FLUX claim.
+5. **Tier savings are billed at the tier actually served.** Discounted-tier
+   requests can be bounced back to full price under load; the published async
+   figure (57.7%) is net of assumed fallback rates, and per-request billing
+   reads the service tier from the provider's response, not from our request.
+6. **Lossy levers pass a replay gate first.** Changes that could affect answers
+   (description trimming, output caps, tool-result capping) are enabled only
+   after replaying your recorded requests both ways, with statistics corrected
+   for having searched multiple configurations. The gate has rejected our own
+   levers — those rejections are documented, not tuned away.
+7. **Unpriced means excluded, never zero.** A model or billing date the price
+   catalogue cannot price is excluded from baselines and invoices, with the
+   reason stated. Our catalogue is dated and source-linked; a price change
+   never silently reprices history.
+8. **The invoice is recomputable.** Every request emits an append-only,
+   hash-chained event carrying provider-verbatim usage, the catalogue version,
+   levers applied, and gate verdict references. `recomputeInvoice(events)` is a
+   pure function: run it yourself and you must get our number.
+
+## What "simulator-measured" means — and what it does not
+
+All current figures come from a 40-task × 5-turn agent harness (plus one-shot
+variants) with realistic multi-kilobyte tool results, verified by an
+independent checker agent reproducing every number from command output, under
+320 unit tests and 27 regression gates. They are honest measurements **of the
+simulation**. They are not yet measurements of your traffic — the pilot exists
+to produce that number, on your machine, from your logs, before you pay
+anything.
+
+Known open items we publish rather than hide: per-model cacheable minimums are
+not yet in the simulator (the sparse-traffic 34.0% may overstate on some
+models); Anthropic batch rates are not yet catalogued (the async figure is
+OpenAI-priced); both are tracked in [evidence](evidence.md).
+
+
+---
+
+# Evidence — every published number, traced
+
+Each figure on this site maps to the command that produces it and the commit it
+was verified at. Reproduce any of them from the repo root. (Numbers were
+independently re-verified by a checker separate from the implementer at each
+listed commit; the harness run prints every row below.)
+
+Harness: `node --import tsx evals/run-agent-ab.ts` · tests:
+`./node_modules/.bin/vitest run` (320 passing) · gates: the three suites under
+`evals/run-*-triage.ts` and `evals/run-analysis-regression.ts` against freshly
+generated fixtures (27/27).
+
+| Published figure | Where it comes from | Verified at |
+|---|---|---|
+| Async 64.3% ceiling / **57.7% net** (quote the net) | arm K rows, async-eligible segment: ceiling assumes 0% tier fallback; net assumes 10% default + 5% 429-retry, priced per event at the SERVED tier | `4e51734` |
+| Interactive 25.9–29.4% | arm J across openai-30s / openai-600s / anthropic-5m blocks, clean 38/40 | `c7b03d4`, re-verified `4e51734` |
+| Proxy mode: zero-code integration | `packages/sdk-js/src/proxy.ts` + `evals/run-proxy.ts`; e2e tests cover reduction-before-forward, byte-identical passthrough, SSE streaming with usage parsed after the last byte, per-app hash chains, credential passthrough | `d31b125` |
+| Multi-turn Claude cache-only comparison: 37.6% | `node --import tsx evals/run-cache-decomposition.ts` — J + 5m stamp vs the identical J stack with cache disabled; both arms clean 38/40, 96% hits, 200/200 stamps metadata-only. Isolates the pure cache effect | independently re-derived and reproduced 2026-10-19 |
+| Full J + 5m stack vs raw uncached A: 57.1% lower simulated cost | same decomposition script, row 2: quality 38/40 vs the raw baseline's 40/40 (−5 pp; within the published >=36/40 gate, but a real delta) — quote 37.6% for the cache lever and label this one with its quality cost | `6249f86`, reproduced 2026-10-19 |
+| Sparse interactive 34.0% | arm L, 1h cache TTL via the shipped `cacheTtl` stamp (stable-prefix placement), 600s spacing | `67eeac6` (re-verified after the placement fix `ec191c5`; was 34.0% at `cbbffb9`) |
+| First real-traffic export: 9–25% measured per agent | `evals/run-live-agents.ts`, 30 requests on claude-sonnet-5-5, hash-chained spools audited; a smoke run, NOT a band — lossy levers recorded-unbilled pending gate verdicts | `d84e256` run 2026-10-19 |
+| One-shot 45.5% / 72.8% | one-shot section, arms H and I ($0.569 → $0.310 / $0.155) | `7b08666`, re-verified `4e51734` |
+| Provider cache's own 35–40% (never claimed by FLUX) | "what the cache itself is worth" section of the harness output | `33028df` onward |
+| "Do not pay us" 0–5% | support-assistant fixture, 77% pre-cached, triage verdict | `ff04a70` |
+| Replay gate approving fresh-cap at 0.00 quality delta and rejecting the 2000-token output cap at −5.50pp | `evals/run-replay-gate-freshcap.ts` | `ab5b4c7` |
+| Ledger determinism, exclusions, recomputable invoice | `packages/core/src/savings-ledger.test.ts`; canonical-invoice contract | `597e842`, `10407bf` |
+
+## Open items (also stated wherever the affected number appears)
+
+- Per-model cacheable minimums not yet simulated → 34.0% may overstate on some
+  models.
+- Anthropic batch rate uncatalogued → async figures OpenAI-priced; Anthropic
+  batch events are correctly *unpriced*, never zeroed.
+- Package freshness gate and automated CJS smoke not yet in the build script
+  (the CJS tarball was smoke-tested manually at `4e51734`).
+- **The banded figures are simulator-measured.** A first real-traffic export
+  exists (30 requests, see the table) and found one lever losing money on
+  one-shot traffic — fixed at `ec191c5` and re-verified. The bands stay
+  simulator-labelled until a pilot-scale export replaces them.
+
+## Independent sources cited on the comparison page
+
+- codepointer.dev — 614M-token replay of rtk/headroom/caveman: 3.7% actual.
+- archestra.ai — progressive disclosure: ~77% modelled vs ~13% measured.
+- RouterArena (arXiv:2510.00202) — independent router leaderboard.
+- Anthropic & OpenAI published pricing pages — all rates in
+  `packages/core/src/model-prices.ts` carry source URL and capture date.
+
+
+---
+
+# An honest comparison — including where FLUX loses
+
+Most cost-saving tools publish their best number. Independent measurement keeps
+finding a gap between claimed and delivered, so this page compares *methods*,
+and includes the rows where we lose.
+
+## The independent findings this market needs to answer
+
+- Three popular open-source token trimmers (rtk, headroom, caveman), claiming
+  60–90%, were independently replayed over a 614M-token corpus of real coding
+  sessions: **3.7% combined actual saving** (codepointer.dev deep dive).
+- Progressive disclosure of tool schemas, modelled at ~77% token savings,
+  measured **~13% in production**, because the router it adds costs an extra
+  round trip per novel tool call (archestra.ai bench). Per-request measurement
+  cannot see this; per-task measurement can.
+- The best-funded commercial router ranked **12th of 12** on the independent
+  RouterArena leaderboard while advertising 30%+ savings.
+- Our own history is on this page too: our first caching claim was 29%; our own
+  per-task harness cut it to ~2% on busy agent traffic because the provider's
+  cache was already doing the work. We published the correction and kept the
+  gate that caught it.
+
+## Method comparison
+
+| | Typical trimmer / router | FLUX |
+|---|---|---|
+| Unit of measurement | per request | **per completed task** |
+| Quality check | self-graded or none | replay gate on your recorded requests; failed tasks void savings |
+| Cache economics | usually ignored (trimming can *raise* bills: one measured case cut tokens 38% and raised cost +6.8%) | simulated to provider rules; cache-safe levers only |
+| Customer's existing savings | silently absorbed into the claim | itemised, excluded, never billed |
+| Headline number | one global percentage | per-segment bands, including "do not pay us" |
+| The invoice | trust us | hash-chained events; recompute it yourself |
+
+## Where FLUX loses, stated plainly
+
+- **Busy interactive agents: ~29% ceiling.** The provider's cache already
+  delivers 35–40% there. Anyone promising such traffic 70% is claiming either
+  the provider's savings or quality you will lose.
+- **Already-optimised stacks: 0–5%.** Our triage will tell you not to buy.
+- **A free trimmer may be all you need** if your waste is one obvious thing and
+  you don't need the saving verified. FLUX's value is the *verified, billable*
+  number; if you don't need that, rtk is free.
+- **All current FLUX figures are simulator-measured.** The pilot exists to
+  replace them with numbers from your own traffic before any fee applies.
+
+## Not competitors: LiteLLM, Helicone, Langfuse
+
+These are gateways and tracers — excellent at routing, logging and spend
+tracking, and none of them performs token reduction or savings verification.
+FLUX reads their exports directly: if you run any of them, you are one file
+export away from a quote. [Runbook →](../pilot/runbook.md)
+
+
+---
+
+# FAQ — built from the caveats we already print
+
+**Can FLUX break my app?**
+The default levers are lossless: compacted schemas decode identically, removed
+duplicates are exact, prefix repair reorders text without deleting it, and the
+reducer never throws — any failure returns your request untouched. Lossy levers
+(output caps, description trimming, tool-result capping) are off until a replay
+gate proves on your own recorded requests that quality held.
+
+**Why do you quote me a range and not one number?**
+Because savings depend on your traffic's shape. The quote comes from your own
+export and names your segment; a vendor quoting everyone one number is wrong
+for most of them. Sometimes our verdict is literally `doNotPayUs`.
+
+**Is 57.7% (async) real?**
+It is a faithful measurement of a realistic simulation at providers' published
+prices, net of assumed discount-tier fallback rates, with quality held at 38/40
+clean tasks — and it is labelled simulator-measured everywhere it appears. Your
+pilot replaces it with your own number before any fee exists.
+
+**You're billing a counterfactual — how is that dispute-proof?**
+The same way energy performance contracts have done it since 1995: a defined
+baseline, provider-verbatim measurements, and an adjustment method agreed in
+advance. Concretely: every request writes an append-only hash-chained event;
+the invoice is a pure function over those events; you can re-run it and must
+get our number. Savings you already had are itemised and excluded. Negative
+savings (e.g. a cache-write premium that didn't pay off) reduce the bill —
+they are never clamped to zero.
+
+**Do I have to change my code?**
+One line or none. SDK mode wraps your existing client (`withFlux(client)`).
+Proxy mode needs no code at all: run the FLUX proxy locally and point your
+client's `base_url` at it — your API key passes through verbatim (FLUX never
+holds credentials), responses stream back untouched, and every request
+appends the same hash-chained ledger event the SDK writes. A stream whose
+usage cannot be read is recorded *unpriced*, never guessed.
+
+**What do you do with my prompts?**
+Analysis runs locally; prompts never leave your machine. The ledger records
+usage numbers, lever names, hashes and verdict references — not prompt text.
+Full detail: [data handling](../pilot/data-handling.md).
+
+**What if the provider changes prices?**
+The price catalogue is dated and source-linked. A new rate is a new dated
+entry; history is never silently repriced, and an uncovered date is "unpriced",
+which excludes the row rather than guessing.
+
+**What's the catch?**
+Three, published: busy interactive agents cap around 29% because the provider's
+cache already does the heavy lifting; the 34.0% sparse figure awaits a
+per-model cache-minimum correction and may come down for some models; Anthropic
+batch pricing isn't catalogued yet, so the async figure is OpenAI-priced today.
+When a number moves for honesty reasons, this site moves with it — the async
+headline already went from 64.3% to 57.7% that way.
