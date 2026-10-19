@@ -115,7 +115,7 @@ footer a{color:var(--brand)}
 <section aria-label="Measured savings">
   <h2>Measured, not promised</h2>
   <div class="stats">
-    <div class="stat"><div class="n">57.1%</div><div class="l">multi-turn Claude agents, previously uncached</div></div>
+    <div class="stat"><div class="n">37.6%</div><div class="l">Claude cache switched on &mdash; same answers, quality unchanged</div></div>
     <div class="stat"><div class="n">57.7%</div><div class="l">batch &amp; latency-tolerant work, net</div></div>
     <div class="stat"><div class="n">45&ndash;73%</div><div class="l">one-shot templated traffic</div></div>
     <div class="stat"><div class="n">0&ndash;5%</div><div class="l">already-optimised: do not pay us</div></div>
@@ -148,9 +148,9 @@ footer a{color:var(--brand)}
   var ctx = canvas.getContext("2d");
   var dark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
 
-  // Height-field water: two buffers, wave equation, damping. Ripples
-  // propagate, interfere and reflect like water, not like drawn circles.
-  var SCALE = 4;
+  // Height-field energy: two buffers, wave equation, damping. Half resolution
+  // + smooth alpha ramps + a blurred upscale keep it fluid, not pixelated.
+  var SCALE = 2;
   var W = 0, H = 0, cur, prev, img, off, offCtx;
 
   function resize() {
@@ -184,50 +184,92 @@ footer a{color:var(--brand)}
     }
   }
 
+  // --- The cursor stirs the field ------------------------------------------
   var lastMove = 0, mx = -99, my = -99;
   window.addEventListener("pointermove", function (e) {
     var now = performance.now();
-    if (now - lastMove < 28) return;
+    if (now - lastMove < 24) return;
     lastMove = now;
     var dx = e.clientX - mx, dy = e.clientY - my;
     mx = e.clientX; my = e.clientY;
     var speed = Math.min(Math.sqrt(dx * dx + dy * dy), 60);
-    drop(e.clientX, e.clientY, 120 + speed * 10, 2);
+    drop(e.clientX, e.clientY, 180 + speed * 14, 3);
   }, { passive: true });
+
+  // --- Clicks strike: a surge plus a lightning bolt -------------------------
+  var bolts = [];
+  function makeBolt(x, y) {
+    var angle = Math.random() * Math.PI * 2;
+    var points = [[x, y]];
+    var px = x, py = y;
+    for (var i = 0; i < 9; i++) {
+      angle += (Math.random() - 0.5) * 1.1;
+      px += Math.cos(angle) * (18 + Math.random() * 16);
+      py += Math.sin(angle) * (18 + Math.random() * 16);
+      points.push([px, py]);
+    }
+    bolts.push({ points: points, born: performance.now() });
+  }
   window.addEventListener("pointerdown", function (e) {
-    drop(e.clientX, e.clientY, 900, 4);
+    drop(e.clientX, e.clientY, 1600, 6);
+    makeBolt(e.clientX, e.clientY);
+    makeBolt(e.clientX, e.clientY);
   }, { passive: true });
+
+  // --- Call-outs radiate from their own centre ------------------------------
+  // Hovering a CTA, tile or stat pulses energy outward from the BOX, not the
+  // cursor: the element becomes the source.
+  function centerOf(el) {
+    var r = el.getBoundingClientRect();
+    return [r.left + r.width / 2, r.top + r.height / 2];
+  }
+  Array.prototype.forEach.call(document.querySelectorAll(".btn, .tile, .stat, .term"), function (el) {
+    var pulse = null;
+    el.addEventListener("pointerenter", function () {
+      var c = centerOf(el);
+      drop(c[0], c[1], 1400, 5);
+      pulse = setInterval(function () {
+        var c2 = centerOf(el);
+        drop(c2[0], c2[1], 650, 4);
+      }, 520);
+    });
+    el.addEventListener("pointerleave", function () {
+      if (pulse) { clearInterval(pulse); pulse = null; }
+    });
+  });
 
   var ambient = setInterval(function () {
     if (document.hidden) return;
-    drop(Math.random() * window.innerWidth, Math.random() * window.innerHeight, 420, 3);
-  }, 1900);
+    drop(Math.random() * window.innerWidth, Math.random() * window.innerHeight, 520, 4);
+  }, 1700);
   window.addEventListener("pagehide", function () { clearInterval(ambient); });
-  drop(window.innerWidth * 0.5, window.innerHeight * 0.3, 900, 4);
+  drop(window.innerWidth * 0.5, window.innerHeight * 0.3, 1600, 6);
 
-  // Brand shading: troughs tint toward Open Ocean, crests toward Sky Signal.
-  var trough = dark ? [8, 20, 34] : [40, 100, 165];
-  var crest = dark ? [157, 217, 245] : [255, 255, 255];
-  var crestA = dark ? 3.2 : 4.5, troughA = dark ? 2.6 : 2.2;
+  // --- Dramatic brand rendering ---------------------------------------------
+  // Light mode paints with the DARK inks (Open Ocean waves, Midnight filaments,
+  // Sky Signal troughs); dark mode glows additively in Sky Signal and white.
+  var waveC = dark ? [157, 217, 245] : [40, 100, 165];
+  var filC = dark ? [255, 255, 255] : [16, 42, 67];
+  var troughC = dark ? [12, 24, 40] : [157, 217, 245];
+  var boltC = dark ? "rgba(157,217,245," : "rgba(40,100,165,";
 
   var lastFrame = 0;
   function frame(ts) {
     requestAnimationFrame(frame);
-    if (ts - lastFrame < 30 || document.hidden) return; // ~33fps is plenty for water
+    if (ts - lastFrame < 28 || document.hidden) return;
     lastFrame = ts;
 
-    // Wave equation over the interior; edges reflect.
     for (var y = 1; y < H - 1; y++) {
       var row = y * W;
       for (var x = 1; x < W - 1; x++) {
         var i = row + x;
-        var v = ((prev[i - 1] + prev[i + 1] + prev[i - W] + prev[i + W]) * 0.5 - cur[i]) * 0.985;
-        cur[i] = v;
+        cur[i] = ((prev[i - 1] + prev[i + 1] + prev[i - W] + prev[i + W]) * 0.5 - cur[i]) * 0.986;
       }
     }
     var tmp = prev; prev = cur; cur = tmp;
 
-    // Light from the upper-left plays on the slopes; flat water is invisible.
+    // Smooth ramps, no hard threshold: alpha grows continuously with slope,
+    // and steep interference lines ignite as bright filaments.
     var data = img.data;
     for (var y2 = 1; y2 < H - 1; y2++) {
       var row2 = y2 * W;
@@ -235,21 +277,50 @@ footer a{color:var(--brand)}
         var i2 = row2 + x2;
         var shade = (prev[i2 - 1] - prev[i2 + 1]) + (prev[i2 - W] - prev[i2 + W]);
         var p = i2 * 4;
-        if (shade > 0.4) {
-          var a = Math.min(shade * crestA, 170);
-          data[p] = crest[0]; data[p + 1] = crest[1]; data[p + 2] = crest[2]; data[p + 3] = a;
-        } else if (shade < -0.4) {
-          var a2 = Math.min(-shade * troughA, 120);
-          data[p] = trough[0]; data[p + 1] = trough[1]; data[p + 2] = trough[2]; data[p + 3] = a2;
+        var mag = shade < 0 ? -shade : shade;
+        if (mag < 0.12) { data[p + 3] = 0; continue; }
+        if (mag > 26) {
+          // Filament: the electric core where waves collide.
+          var fa = Math.min((mag - 26) * 6, 235);
+          data[p] = filC[0]; data[p + 1] = filC[1]; data[p + 2] = filC[2]; data[p + 3] = fa;
+        } else if (shade > 0) {
+          var a = Math.min(shade * 9, 200);
+          data[p] = waveC[0]; data[p + 1] = waveC[1]; data[p + 2] = waveC[2]; data[p + 3] = a;
         } else {
-          data[p + 3] = 0;
+          var a2 = Math.min(mag * 6, 150);
+          data[p] = troughC[0]; data[p + 1] = troughC[1]; data[p + 2] = troughC[2]; data[p + 3] = a2;
         }
       }
     }
     offCtx.putImageData(img, 0, 0);
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
+    ctx.filter = "blur(1.2px)";
+    ctx.globalCompositeOperation = dark ? "lighter" : "source-over";
     ctx.drawImage(off, 0, 0, canvas.width, canvas.height);
+    ctx.filter = "none";
+
+    // Lightning bolts flicker for a quarter second, re-jittered every frame.
+    var now = performance.now();
+    for (var b = bolts.length - 1; b >= 0; b--) {
+      var bolt = bolts[b];
+      var age = (now - bolt.born) / 260;
+      if (age >= 1) { bolts.splice(b, 1); continue; }
+      var alpha = (1 - age) * 0.9;
+      ctx.beginPath();
+      ctx.moveTo(bolt.points[0][0], bolt.points[0][1]);
+      for (var k = 1; k < bolt.points.length; k++) {
+        ctx.lineTo(bolt.points[k][0] + (Math.random() - 0.5) * 6, bolt.points[k][1] + (Math.random() - 0.5) * 6);
+      }
+      ctx.strokeStyle = boltC + alpha + ")";
+      ctx.lineWidth = 2;
+      ctx.shadowColor = boltC + "0.8)";
+      ctx.shadowBlur = 12;
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+    }
+    ctx.globalCompositeOperation = "source-over";
   }
   requestAnimationFrame(frame);
 })();
