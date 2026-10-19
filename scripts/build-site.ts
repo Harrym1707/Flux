@@ -295,17 +295,35 @@ for (const name of built) {
 }
 const landing = readFileSync(path.join(outDir, "index.html"), "utf8");
 for (const [marker, why] of [
-  ['id="ripples"', "ripple canvas missing"],
+  ['id="field"', "energy field canvas missing"],
   ["prefers-reduced-motion", "reduced-motion guard missing"],
-  ["Less in.", "hero promise missing"],
+  ["Less in. More out.", "hero promise missing"],
   ["npx flux-proxy", "the one-line install missing"],
-  ["do not pay us", "the honesty tile missing"],
+  ["do not pay us", "the do-not-pay-us admission missing"],
   ["evidence.html", "evidence link missing"],
   ["SoftwareApplication", "structured data missing"],
+  ["FIRST LIVE EXPORT", "the receipt is missing"],
+  ["NET VERIFIED SAVINGS", "the receipt total row is missing"],
+  ["37.6%", "the clean cache figure missing"],
+  ['id="reduce-btn"', "the live reducer demo missing"],
 ] as const) {
   if (!landing.includes(marker)) failures.push(`index.html: ${why}`);
 }
-if ((landing.match(/<svg /g) ?? []).length < 6) failures.push("index.html: expected at least 6 icons");
+if ((landing.match(/data-ui/g) ?? []).length < 4) failures.push("index.html: fewer than 4 product fragments");
+// The receipt's rows must truly sum to its printed total (the sheet's rule,
+// and ours): recompute from the printed figures.
+const slipValues = [...landing.matchAll(/class="val">(−?)\$([0-9.]+)</g)]
+  .map((m) => (m[1] === "−" ? -1 : 1) * Number(m[2]));
+const printedTotal = landing.match(/NET VERIFIED SAVINGS<\/span><span>(−?)\$([0-9.]+)/);
+if (slipValues.length < 8 || printedTotal === null) {
+  failures.push("index.html: receipt rows or total missing");
+} else {
+  const spend = slipValues.slice(0, 5).reduce((a, b) => a + b, 0);
+  const saved = slipValues.slice(5).reduce((a, b) => a + b, 0);
+  const total = (printedTotal[1] === "−" ? -1 : 1) * Number(printedTotal[2]);
+  if (Math.abs(saved - total) > 0.00005) failures.push(`index.html: receipt does not sum (rows ${saved} vs total ${total})`);
+  if (spend <= 0) failures.push("index.html: receipt spend rows missing");
+}
 if (!landing.includes('rel="icon"')) failures.push("index.html: favicon link missing");
 if (!readFileSync(path.join(outDir, "favicon.svg"), "utf8").includes("#9DD9F5")) failures.push("favicon.svg: missing the signal dot");
 const robots = readFileSync(path.join(outDir, "robots.txt"), "utf8");
@@ -315,10 +333,6 @@ for (const bot of ["GPTBot", "ClaudeBot", "PerplexityBot", "Google-Extended"]) {
 const llmsFull = readFileSync(path.join(outDir, "llms-full.txt"), "utf8");
 if (llmsFull.length < 5000 || !llmsFull.includes("37.6%")) failures.push("llms-full.txt: missing or missing the numbers");
 if (!landing.includes('property="og:title"')) failures.push("index.html: missing OpenGraph metadata");
-if (!landing.includes("Same response. Smaller bill.")) failures.push("index.html: savings-flow infographic missing");
-if (!landing.includes("animateMotion")) failures.push("index.html: infographic animation missing");
-if (!landing.includes("not a measurement")) failures.push("index.html: infographic honesty caption missing");
-if (!landing.includes("band-light")) failures.push("index.html: colour journey bands missing");
 const faqHtml = readFileSync(path.join(outDir, "faq.html"), "utf8");
 if (!faqHtml.includes("application/ld+json") || !faqHtml.includes("FAQPage")) failures.push("faq.html: missing FAQ structured data");
 if (failures.length > 0) {

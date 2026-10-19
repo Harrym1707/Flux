@@ -7,433 +7,453 @@
 <meta name="description" content="Cut your Claude and OpenAI API bill. One URL in, savings verified per completed task, pay only a share of verified savings. Every invoice is recomputable from a ledger you hold.">
 <link rel="canonical" href="https://www.fluxtoken.dev/">
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&family=Fraunces:ital,wght@1,500&display=swap" rel="stylesheet">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="flux">
 <meta property="og:title" content="flux — less in, more out">
-<meta property="og:description" content="Cut your Claude and OpenAI API bill. One URL in, savings verified per completed task, pay only a share of verified savings.">
+<meta property="og:description" content="Cut your Claude and OpenAI API bill. Savings verified per completed task; pay only a share of verified savings.">
 <meta property="og:url" content="https://www.fluxtoken.dev/">
 <meta name="twitter:card" content="summary">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&display=swap" rel="stylesheet">
 <script type="application/ld+json">{"@context":"https://schema.org","@type":"SoftwareApplication","name":"FLUX","applicationCategory":"DeveloperApplication","operatingSystem":"Any","url":"https://www.fluxtoken.dev/","description":"Cut LLM API costs on Claude and OpenAI. One-URL proxy or one-line SDK; savings verified per completed task into a customer-recomputable ledger; fee is a share of verified savings.","offers":{"@type":"Offer","price":"0","priceCurrency":"USD","description":"Free to evaluate; production use billed as a percentage of verified savings."}}</script>
 <script type="application/ld+json">{"@context":"https://schema.org","@type":"Organization","name":"FLUX","url":"https://www.fluxtoken.dev/","logo":"https://www.fluxtoken.dev/favicon.svg","sameAs":["https://github.com/Harrym1707/Flux"],"slogan":"Less in. More out."}</script>
 <style>:root{
-  /* Dark-first: Midnight Tide is the ground; Sky Signal is the energy. */
-  --bg:#081522; --surface:#102A43; --fg:#F1F7FB; --muted:#9fb3c8;
-  --line:#24415c; --brand:#9DD9F5; --brand-deep:#c9ecfc; --signal:#9DD9F5; --signal-soft:#16314a; --code:#060f19;
-  --s1:8px; --s2:16px; --s3:24px; --s4:32px; --s5:48px; --s6:64px; --s7:96px; --s8:128px;
+  --bg:#081522; --surface:#0E2133; --surface-2:#13293E; --ink:#F1F7FB; --muted:#9FB3C8;
+  --line:#24415C; --accent:#9DD9F5; --accent-ink:#081522; --ocean:#2864A5; --paper:#F1F7FB; --paper-ink:#102A43;
+  --s1:8px; --s2:16px; --s3:24px; --s4:32px; --s5:48px; --s6:64px; --s7:96px;
+  --axis:27vw; --radius:4px;
 }
 *{box-sizing:border-box}
-html{scroll-behavior:smooth}
-body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.5 Manrope,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
-.hero-wrap{position:relative;overflow:hidden}
-#ripples{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:0;filter:blur(0.8px);-webkit-mask-image:radial-gradient(ellipse 85% 62% at 50% 46%, transparent 44%, black 78%);mask-image:radial-gradient(ellipse 85% 62% at 50% 46%, transparent 44%, black 78%)}
-.shell{position:relative;z-index:1}
-nav{display:flex;flex-wrap:wrap;gap:var(--s3);align-items:baseline;padding:var(--s3) var(--s4);font-size:.95rem;max-width:72rem;margin:0 auto}
-nav a{color:var(--muted);text-decoration:none;font-weight:600;padding:var(--s1) 0;border-bottom:2px solid transparent;transition:color .15s ease,border-color .15s ease}
-nav a:hover{color:var(--brand);border-bottom-color:var(--signal)}
-nav .brand{font-weight:800;font-size:1.4rem;color:var(--brand);letter-spacing:-.02em;border-bottom:none}
-nav .spacer{flex:1}
-.hero{position:relative;z-index:1;min-height:88vh;display:flex;flex-direction:column;justify-content:center;align-items:center;max-width:56rem;margin:0 auto;padding:var(--s7) var(--s3);text-align:center}
-.kicker{font-size:.82rem;font-weight:700;letter-spacing:.3em;text-transform:uppercase;color:var(--signal);margin:0 0 var(--s4)}
-.hero h1{margin:0 0 var(--s3);line-height:1}
-.hero h1 .in{display:block;font-size:clamp(1.4rem,3.2vw,2rem);font-weight:600;letter-spacing:.02em;color:var(--muted);opacity:.75;margin-bottom:var(--s1)}
-.hero h1 .out{display:block;font-size:clamp(4rem,11vw,7.5rem);font-weight:800;letter-spacing:-.045em;background:linear-gradient(135deg,#FFFFFF 20%,#9DD9F5 80%);-webkit-background-clip:text;background-clip:text;color:transparent;text-shadow:none}
-.accent{font-family:Fraunces,Georgia,serif;font-style:italic;font-weight:500;font-size:1.3rem;color:#c9d9e8;margin:0 0 var(--s3)}
-.hero p.sub{font-size:1.1rem;line-height:1.6;color:var(--muted);max-width:30rem;margin:0 0 var(--s5)}
-.cta{display:flex;gap:var(--s2);justify-content:center;flex-wrap:wrap;margin:0 0 var(--s6)}
-.btn{display:inline-block;padding:var(--s2) var(--s4);border-radius:10px;font-weight:700;text-decoration:none;transition:background .18s ease,color .18s ease,border-color .18s ease,transform .15s ease,box-shadow .15s ease}
-.btn:hover{transform:translateY(-2px)}
-.btn.primary{background:var(--signal);color:#081522;box-shadow:0 0 28px rgba(157,217,245,.35)}
-.btn.primary:hover{background:var(--brand-deep);box-shadow:0 0 44px rgba(157,217,245,.55)}
-.btn.ghost{color:var(--brand);border:1.5px solid var(--line);background:rgba(16,42,67,.6)}
-.btn.ghost:hover{background:var(--signal-soft);border-color:var(--brand)}
-.term{width:min(30rem,100%);margin:0 auto;background:var(--code);color:#9DD9F5;border:1px solid var(--line);border-radius:12px;padding:var(--s3) var(--s4);text-align:left;font:0.95rem/1.8 ui-monospace,SFMono-Regular,Menlo,monospace;box-shadow:0 0 36px rgba(157,217,245,.12)}
-.term .c{color:#5f7d9c}
-.term .w{color:#F1F7FB}
-section{padding:var(--s7) var(--s3)}
-section > .inner{max-width:64rem;margin:0 auto}
-section h2{text-align:center;font-size:1rem;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);font-weight:700;margin:0 0 var(--s5)}
-/* The colour journey: deep focus to bright signal, section by section. */
-.band-lift{background:linear-gradient(180deg,#081522 0%,#0B1D2E 18%,#0B1D2E 100%)}
-.band-light{background:linear-gradient(180deg,#EAF4FB 0%,#F1F7FB 30%,#F1F7FB 100%);color:#102A43}
-.band-light h2{color:#2864A5}
-.band-light .muted,.band-light p{color:#486581}
-.band-ocean{background:linear-gradient(180deg,#0E2133 0%,#123150 60%,#0E2133 100%)}
-.band-deep{background:#081522}
-/* --- The savings flow infographic (Cloud White band) --- */
-.flow-wrap{overflow-x:auto}
-.flow{display:block;width:100%;max-width:58rem;min-width:40rem;margin:0 auto}
-.flow text{font-family:Manrope,sans-serif}
-.flow .lbl{font-size:12px;font-weight:700;fill:#486581}
-.flow .big{font-size:14px;font-weight:800;fill:#102A43}
-.flow .money{font-size:16px;font-weight:800}
-.flow-caption{text-align:center;font-size:.88rem;color:#486581;max-width:40rem;margin:var(--s3) auto 0}
-.flow-caption a{color:#2864A5}
-@media (prefers-reduced-motion: reduce){.flow .ani{display:none}.flow .static-note{display:block}}
-.flow .static-note{display:none}
-.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(15rem,1fr));gap:var(--s3)}
-.tile{background:#0E2133;border:1.5px solid var(--line);border-radius:16px;padding:var(--s4) var(--s3);text-align:center;transition:transform .18s ease,box-shadow .18s ease,border-color .18s ease}
-.tile:hover{transform:translateY(-4px);border-color:var(--signal);box-shadow:0 0 32px rgba(157,217,245,.22)}
-.tile svg{width:56px;height:56px;margin:0 0 var(--s2)}
-.tile h3{margin:0 0 var(--s1);font-size:1.1rem;font-weight:800}
-.tile p{margin:0;color:var(--muted);font-size:.95rem;line-height:1.5}
-.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(11rem,1fr));gap:var(--s3);text-align:center}
-.stat{background:#0E2133;border:1.5px solid var(--line);border-radius:16px;padding:var(--s4) var(--s2);transition:border-color .18s ease,box-shadow .18s ease}
-.stat:hover{border-color:var(--signal);box-shadow:0 0 32px rgba(157,217,245,.22)}
-.stat .n{font-size:2.5rem;font-weight:800;letter-spacing:-.02em;color:var(--signal);line-height:1}
-.stat .l{color:var(--muted);font-size:.9rem;line-height:1.5;margin-top:var(--s2)}
-.fineprint{text-align:center;color:var(--muted);font-size:.88rem;margin:var(--s4) auto 0;max-width:40rem}
-.fineprint a{color:var(--brand)}
-.honest{max-width:40rem;margin:0 auto;text-align:center;background:rgba(22,49,74,.8);border:1.5px solid var(--line);border-radius:16px;padding:var(--s4)}
-.honest strong{color:var(--brand)}
-footer{border-top:2px solid var(--signal);margin:var(--s7) auto 0;max-width:64rem;padding:var(--s4) var(--s3) var(--s7);font-size:.9rem;line-height:2;color:var(--muted)}
-footer a{color:var(--brand)}
-@media (prefers-reduced-motion: reduce){.btn,.tile,.stat,nav a{transition:none}.btn:hover,.tile:hover{transform:none}html{scroll-behavior:auto}}
-@media (max-width:640px){.hero{min-height:72vh;padding:var(--s6) var(--s3)}section{padding:var(--s6) var(--s3)}}</style>
+html{scroll-behavior:smooth;scrollbar-gutter:stable both-edges}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 Manrope,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+a{color:var(--ink)}
+.rise,.exchange .call,.exchange .response,.total-side .figure{opacity:0;transform:translateY(12px);transition:opacity .5s ease,transform .5s ease}
+.rise.in,.rise.in .call,.rise.in .response,.rise.in .figure{opacity:1;transform:none}
+.rise.in .response{transition-delay:.18s}
+
+@media (prefers-reduced-motion: reduce){.rise,.exchange .call,.exchange .response,.total-side .figure{opacity:1;transform:none;transition:none}html{scroll-behavior:auto}}
+
+/* ---------- hero: column on one line, 27% axis, mostly empty ---------- */
+.hero-wrap{position:relative;min-height:100svh;overflow:hidden}
+#field{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;filter:blur(.8px)}
+.hero{position:relative;min-height:100svh}
+.hero .mark{position:absolute;top:56px;left:var(--axis);width:40px;height:40px}
+.hero .signin{position:absolute;top:56px;right:var(--s4);font-size:13px;color:var(--muted);text-decoration:none}
+.hero .signin:hover{color:var(--accent)}
+.hero .col{position:absolute;top:276px;left:var(--axis);width:380px}
+.hero h1{font-size:30px;font-weight:600;line-height:1.25;letter-spacing:-.01em;margin:0 0 var(--s2)}
+.hero .sub{font-size:16px;line-height:1.5;color:var(--muted);margin:0 0 28px}
+.hero .actions{display:flex;align-items:center;gap:var(--s3)}
+.btn{display:inline-block;padding:12px 22px;border-radius:var(--radius);font-weight:700;font-size:16px;text-decoration:none;background:var(--accent);color:var(--accent-ink);transition:background .18s ease}
+.btn:hover{background:#c9ecfc}
+.arrowlink{font-size:16px;color:var(--ink);text-decoration:none;border-bottom:1px solid var(--line)}
+.arrowlink:hover{color:var(--accent);border-color:var(--accent)}
+.arrowlink::after{content:" \2192"}
+/* the first demonstration peeks in on the axis */
+.hero .peek{position:absolute;bottom:0;left:var(--axis);width:560px;max-width:calc(100vw - 48px)}
+@media (max-width:760px){
+  :root{--axis:24px}
+  .hero .mark{top:32px}
+  .hero .col{top:30svh;width:auto;right:24px}
+  .hero h1{font-size:24px}
+  .hero .peek{width:auto;right:24px}
+}
+
+/* ---------- fragments: the product's own conventions ---------- */
+[data-ui]{background:var(--surface);border:1px solid var(--line);border-radius:8px;font-size:13px;overflow:hidden;max-width:100%}
+[data-ui] .tblwrap{overflow-x:auto}
+[data-ui] table{min-width:540px}
+[data-ui] .bar{display:flex;align-items:center;justify-content:space-between;padding:10px 16px;border-bottom:1px solid var(--line);font-weight:700;font-size:13px;color:var(--muted)}
+[data-ui] .bar{min-width:0}
+[data-ui] .bar .pill{background:var(--surface-2);border:1px solid var(--line);border-radius:999px;padding:2px 10px;font-variant-numeric:tabular-nums;color:var(--ink);white-space:nowrap;flex:none}
+[data-ui] pre{margin:0;padding:14px 16px;overflow-x:auto;font:13px/1.65 ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--ink)}
+[data-ui] .tok{color:var(--muted)}
+[data-ui] .key{color:var(--accent)}
+[data-ui] .dup{transition:opacity .5s ease;text-decoration:line-through transparent}
+[data-ui] .dup.struck{opacity:.28;text-decoration:line-through}
+[data-ui] .footrow{display:flex;align-items:center;gap:12px;padding:10px 16px;border-top:1px solid var(--line)}
+[data-ui] .ui-btn{font:inherit;font-weight:700;font-size:13px;background:var(--surface-2);color:var(--ink);border:1px solid var(--line);border-radius:4px;padding:7px 14px;cursor:pointer}
+[data-ui] .ui-btn:hover{border-color:var(--accent);color:var(--accent)}
+[data-ui] .ok{font-size:13px;color:var(--accent);opacity:0;transition:opacity .4s ease}
+[data-ui] .ok.show{opacity:1}
+[data-ui] table{width:100%;border-collapse:collapse;font-size:13px}
+[data-ui] th,[data-ui] td{text-align:left;padding:8px 16px;border-top:1px solid var(--line);font-variant-numeric:tabular-nums}
+[data-ui] th{color:var(--muted);font-size:13px;border-top:none}
+[data-ui] td.num,[data-ui] th.num{text-align:right}
+.copy{font:12px/1 ui-monospace,monospace;background:none;border:1px solid var(--line);color:var(--muted);border-radius:4px;padding:4px 8px;cursor:pointer}
+.copy:hover{color:var(--accent);border-color:var(--accent)}
+
+/* ---------- sections ---------- */
+section{padding:var(--s7) var(--s4)}
+section h2{font-size:30px;font-weight:800;letter-spacing:-.01em;margin:0 0 var(--s6)}
+.axis-col{max-width:560px;margin:0 auto}
+@media (min-width:1100px){.axis-col{margin-left:var(--axis);margin-right:0}}
+
+/* call and response */
+.exchange{margin-bottom:88px}
+.exchange .lead{font-size:20px;font-weight:600;margin:0 0 var(--s2)}
+.exchange .call{background:var(--surface);border-radius:8px;position:relative}
+.exchange .call .copy{position:absolute;top:10px;right:10px}
+.exchange .response{margin-top:var(--s2);margin-left:56px}
+.exchange .response.breakout{margin-left:0;width:min(880px,calc(100vw - 64px))}
+@media (max-width:760px){.exchange .response{margin-left:0}}
+
+/* total and its receipt */
+.receipt-wrap{display:grid;grid-template-columns:1fr;gap:var(--s5);max-width:1080px;margin:0 auto}
+@media (min-width:980px){.receipt-wrap{grid-template-columns:1fr 440px;align-items:start}}
+.total-side{display:flex;flex-direction:column;min-height:560px}
+.total-side .note{font-size:16px;line-height:1.5;color:var(--muted);max-width:34ch;margin:var(--s2) 0 0}
+.total-side .figure{margin-top:auto;font-size:clamp(120px,15vw,240px);font-weight:800;letter-spacing:-.04em;line-height:.8}
+.total-side .cap{font-size:16px;color:var(--muted);margin-top:var(--s3);max-width:44ch}
+.total-side .cap a{color:var(--accent)}
+.slip{background:var(--paper);color:var(--paper-ink);width:100%;max-width:440px;padding:28px 24px 36px;font-variant-numeric:tabular-nums;clip-path:polygon(0 0,100% 0,100% calc(100% - 12px),95% 100%,90% calc(100% - 12px),85% 100%,80% calc(100% - 12px),75% 100%,70% calc(100% - 12px),65% 100%,60% calc(100% - 12px),55% 100%,50% calc(100% - 12px),45% 100%,40% calc(100% - 12px),35% 100%,30% calc(100% - 12px),25% 100%,20% calc(100% - 12px),15% 100%,10% calc(100% - 12px),5% 100%,0 calc(100% - 12px))}
+.slip h3{font-size:14px;letter-spacing:.04em;margin:0 0 6px;font-weight:800}
+.slip .meta{font-size:13px;color:#486581;margin:0 0 18px}
+.slip .grp{font-weight:800;font-size:13px;margin:14px 0 6px}
+.slip .row{display:flex;align-items:baseline;font-size:16px;line-height:1.9}
+.slip .row .desc{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.slip .row .lead-dots{flex:1;margin:0 8px;border-bottom:2px dotted #9fb3c8;transform:translateY(-4px)}
+.slip .row .val{font-weight:600}
+.slip .total-row{display:flex;justify-content:space-between;background:var(--paper-ink);color:var(--paper);font-weight:800;padding:10px 12px;margin-top:16px;font-size:16px}
+
+/* the price, very large */
+.price-wrap{display:grid;grid-template-columns:1fr;gap:var(--s5);max-width:1080px;margin:0 auto;min-height:80svh;align-content:center}
+@media (min-width:980px){.price-wrap{grid-template-columns:380px 1fr}}
+.price-side p{font-size:16px;line-height:1.6;color:var(--muted);max-width:38ch}
+.price-figure{position:relative}
+.price-figure .fig{font-size:clamp(120px,16vw,240px);font-weight:800;letter-spacing:-.04em;line-height:.85}
+.price-figure .fig sup{font-size:.5em;vertical-align:super}
+.price-figure .per{font-size:16px;color:var(--muted)}
+.price-figure .overlap{position:absolute;top:-8%;right:4%;width:120px;height:120px}
+.price-figure ul{list-style:none;margin:var(--s4) 0 0;padding:0;font-size:16px;line-height:2}
+.price-figure ul strong{color:var(--accent)}
+.price-figure .btn{margin-top:var(--s3)}
+
+/* faq: accordion of filled tiles, sticky heading */
+.faq-wrap{display:grid;grid-template-columns:1fr;gap:var(--s5);max-width:1080px;margin:0 auto}
+@media (min-width:980px){.faq-wrap{grid-template-columns:320px 1fr}.faq-wrap h2{position:sticky;top:96px;margin:0}}
+.faq-wrap h2{font-size:30px}
+.faq details{background:var(--surface);border-radius:var(--radius);margin-bottom:8px}
+.faq summary{list-style:none;cursor:pointer;display:flex;justify-content:space-between;align-items:center;min-height:72px;padding:0 24px;font-size:20px;font-weight:600}
+.faq summary::-webkit-details-marker{display:none}
+.faq .plus{position:relative;width:16px;height:16px;flex:none}
+.faq .plus::before,.faq .plus::after{content:"";position:absolute;background:var(--muted);left:0;top:7px;width:16px;height:3px;transition:transform .2s ease}
+.faq .plus::after{transform:rotate(90deg)}
+.faq details[open]{background:var(--accent);color:var(--accent-ink)}
+.faq details[open] .plus::before,.faq details[open] .plus::after{background:var(--accent-ink)}
+.faq details[open] .plus::after{transform:rotate(0)}
+.faq .answer{padding:0 24px 24px;font-size:16px;line-height:1.6;max-width:52ch}
+.faq details[open] .answer a{color:var(--accent-ink);font-weight:700}
+
+/* the action tile */
+.cta-row{display:grid;grid-template-columns:120px 1fr 120px;gap:12px;margin:0 calc(-1 * var(--s4))}
+.cta-row>*{height:360px;border-radius:var(--radius)}
+.cta-main{background:var(--accent);color:var(--accent-ink);display:flex;flex-direction:column;justify-content:center;padding:40px}
+.cta-main h2{font-size:30px;margin:0 0 var(--s2);color:var(--accent-ink)}
+.cta-main p{font-size:16px;line-height:1.6;margin:0 0 var(--s3);max-width:48ch}
+.cta-main .btn{background:var(--accent-ink);color:var(--accent);width:max-content}
+.cta-main .btn:hover{background:#163149}
+.cta-flat{background:var(--ocean)}
+.xfade{position:relative;overflow:hidden}
+.xfade img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:0;transition:opacity 1.6s ease}
+.xfade img.front{opacity:1}
+@media (max-width:860px){.cta-row{grid-template-columns:1fr;margin:0}.cta-row .cta-main{height:auto;min-height:300px}.cta-row .cta-flat,.cta-row .xfade{height:120px}}
+
+/* single quiet line footer */
+.quiet-foot{margin-top:30svh;padding:0 var(--s4) 30px;display:grid;grid-template-columns:1fr auto 1fr;align-items:baseline;font-size:13px;color:var(--muted)}
+.quiet-foot .links{display:flex;gap:24px;flex-wrap:wrap;justify-content:center}
+.quiet-foot a{color:var(--ink);text-decoration:none}
+.quiet-foot a:hover{color:var(--accent)}
+.quiet-foot .right{text-align:right}
+@media (max-width:760px){.quiet-foot{grid-template-columns:1fr;gap:8px;text-align:left}.quiet-foot .links{justify-content:flex-start}.quiet-foot .right{text-align:left}}
+@media (max-width:760px){section{padding:var(--s6) 24px}.slip{max-width:100%}.price-wrap{min-height:auto}.exchange .response.breakout{width:100%}}
+@media (max-width:980px){.price-wrap{min-height:auto}}</style>
 </head>
 <body>
-<div class="shell">
-<nav>
-  <a class="brand" href="index.html">flux</a>
-  <span class="spacer"></span>
-  <a href="overview.html">Overview</a>
-  <a href="segments.html">Savings</a>
-  <a href="evidence.html">Evidence</a>
-  <a href="faq.html">FAQ</a>
-  <a href="https://github.com/Harrym1707/Flux">GitHub</a>
-</nav>
 
 <div class="hero-wrap">
-<canvas id="ripples" aria-hidden="true"></canvas>
+<canvas id="field" aria-hidden="true"></canvas>
 <header class="hero">
-  <p class="kicker">Verified LLM cost reduction</p>
-  <h1><span class="in">Less in.</span><span class="out">More out.</span></h1>
-  <p class="accent">Signal, clarified.</p>
-  <p class="sub">Cut your Claude and OpenAI API bill. Pay only a share of savings you can verify yourself.</p>
-  <div class="cta">
-    <a class="btn primary" href="https://github.com/Harrym1707/Flux">Get started on GitHub</a>
-    <a class="btn ghost" href="evidence.html">See the evidence</a>
+  <span class="mark"><svg viewBox="0 0 48 48" fill="none" aria-hidden="true"><path d="M8 14c10 0 10 10 20 10h12" stroke="#2864A5" stroke-width="3.5" stroke-linecap="round"/><path d="M8 34c10 0 10-10 20-10" stroke="#2864A5" stroke-width="3.5" stroke-linecap="round" opacity=".75"/><circle cx="41" cy="24" r="4" fill="#9DD9F5"/></svg></span>
+  <a class="signin" href="https://github.com/Harrym1707/Flux">GitHub</a>
+  <div class="col">
+    <h1>Less in. More out.<br>Your bill, verifiably smaller.</h1>
+    <p class="sub">FLUX removes the tokens that carry no information before they bill you, and meters the saving into a ledger you can recompute yourself. The fee is a share of verified savings &mdash; sometimes the verdict is don&rsquo;t pay us.</p>
+    <div class="actions">
+      <a class="btn" href="https://github.com/Harrym1707/Flux">Get started</a>
+      <a class="arrowlink" href="evidence.html">See the evidence</a>
+    </div>
   </div>
-  <div class="term" role="img" aria-label="Terminal: npx flux-proxy, then point your client's base URL at it">
-    <div><span class="c">$</span> <span class="w">npx flux-proxy</span></div>
-    <div><span class="c"># then change one line — keep your own key</span></div>
-    <div>baseURL<span class="c">:</span> <span class="w">"http://127.0.0.1:8787"</span></div>
+  <div class="peek">
+    <div data-ui id="reducer">
+      <div class="bar"><span>reducer &mdash; live</span><span class="pill"><span id="tok-count">106</span> tokens</span></div>
+      <pre>{"model":<span class="key">"claude-sonnet-5-5"</span>,"system":"You are a careful assistant. Cite sources.",
+ "messages":[{"role":"user","content":"Excerpts for case 7:
+   Records 0-19: settlement entry nominal, reconciliation standard, no notification sent, annotation routine.
+   <span class="dup">Records 0-19: settlement entry nominal, reconciliation standard, no notification sent, annotation routine.</span>
+   Question: what does clause 7 require?"}]}</pre>
+      <div class="footrow">
+        <button class="ui-btn" id="reduce-btn" type="button">Reduce this request</button>
+        <span class="ok" id="same-note">exact duplicate removed &mdash; the response cannot change <svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true" style="vertical-align:-1px"><path d="M2.5 8.5 6 12 13.5 4" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+      </div>
+    </div>
   </div>
 </header>
 </div>
 
-<section class="band-lift" aria-label="What FLUX does">
-  <div class="inner">
-  <h2>What it does</h2>
-  <div class="tiles">
-    <div class="tile"><svg viewBox="0 0 48 48" fill="none" aria-hidden="true"><path d="M6 24h10" stroke="#2864A5" stroke-width="3" stroke-linecap="round"/><path d="M32 24h10" stroke="#9DD9F5" stroke-width="3" stroke-linecap="round"/><rect x="16" y="14" width="16" height="20" rx="5" stroke="#2864A5" stroke-width="3"/><path d="M22 20v8M26 20v8" stroke="#9DD9F5" stroke-width="3" stroke-linecap="round"/></svg><h3>One URL in</h3><p>No SDK adoption. Any language. Your key passes through — never stored.</p></div>
-    <div class="tile"><svg viewBox="0 0 48 48" fill="none" aria-hidden="true"><path d="M8 14c10 0 10 10 20 10h12" stroke="#2864A5" stroke-width="3" stroke-linecap="round"/><path d="M8 34c10 0 10-10 20-10" stroke="#2864A5" stroke-width="3" stroke-linecap="round"/><circle cx="41" cy="24" r="3.5" fill="#9DD9F5"/></svg><h3>Signal kept</h3><p>Duplicates, schema bloat and stale context removed before the model bills you.</p></div>
-    <div class="tile"><svg viewBox="0 0 48 48" fill="none" aria-hidden="true"><path d="M6 18c6-6 12-6 18 0s12 6 18 0" stroke="#2864A5" stroke-width="3" stroke-linecap="round"/><path d="M6 30c6-6 12-6 18 0s12 6 18 0" stroke="#9DD9F5" stroke-width="3" stroke-linecap="round"/></svg><h3>Cache switched on</h3><p>Claude's cache is opt-in; most agents never opt in. FLUX stamps the stable prefix.</p></div>
+<section aria-label="How it works">
+  <div class="axis-col">
+  <h2 class="rise">One URL. Three exchanges.</h2>
+
+  <div class="exchange rise">
+    <p class="lead">First, point your client at it.</p>
+    <div class="call"><button class="copy" type="button" data-copy="npx flux-proxy">copy</button><pre style="margin:0;padding:20px;font:13px/1.65 ui-monospace,Menlo,monospace;overflow-x:auto"><code>$ npx flux-proxy
+<span style="color:#9FB3C8"># then one line in your app &mdash; keep your own key</span>
+baseURL: <span style="color:#9DD9F5">"http://127.0.0.1:8787"</span></code></pre></div>
+    <div class="response" data-ui>
+      <div class="bar"><span>flux-proxy</span><span class="pill">running</span></div>
+      <pre>FLUX proxy listening on http://127.0.0.1:8787
+Ledger spools: ./flux-ledger <span class="tok">(one hash-chained JSONL per app + provider)</span>
+Anthropic SDK: new Anthropic({ baseURL: "http://127.0.0.1:8787" })</pre>
+    </div>
+  </div>
+
+  <div class="exchange rise">
+    <p class="lead">Then run your traffic as normal.</p>
+    <div class="call"><pre style="margin:0;padding:20px;font:13px/1.65 ui-monospace,Menlo,monospace;overflow-x:auto"><code>await anthropic.messages.create({ model, system, messages })  <span style="color:#9FB3C8">// unchanged</span></code></pre></div>
+    <div class="response" data-ui>
+      <div class="bar"><span>flux-ledger/my-app-anthropic.jsonl</span><span class="pill">hash-chained</span></div>
+      <pre>{"seq":0,"prevHash":"000&hellip;0","event":{"requestId":"a1f2&hellip;","model":"claude-sonnet-5-5",
+  "usage":{"inputTokens":1695,"outputTokens":412},"levers":[{"leverId":"duplicate-context-removal",
+  "kind":"lossless","savedUsd":0.00130,<span class="key">"basis":"estimated-baseline"</span>}],"status":"succeeded"}}</pre>
+    </div>
+  </div>
+
+  <div class="exchange rise">
+    <p class="lead">Last, recompute the invoice yourself.</p>
+    <div class="call"><button class="copy" type="button" data-copy="npx -p @flux-ai/sdk flux-quote flux-ledger/my-app-anthropic.jsonl">copy</button><pre style="margin:0;padding:20px;font:13px/1.65 ui-monospace,Menlo,monospace;overflow-x:auto"><code>$ flux-quote flux-ledger/my-app-anthropic.jsonl</code></pre></div>
+    <div class="response breakout" data-ui>
+      <div class="bar"><span>invoice &mdash; recomputed from your spool</span><span class="pill">verdict: charge</span></div>
+      <div class="tblwrap"><table>
+        <thead><tr><th>lever</th><th>kind</th><th>basis</th><th class="num">events</th><th class="num">saved</th></tr></thead>
+        <tbody>
+          <tr><td>duplicate-context-removal</td><td>lossless</td><td>estimated-baseline</td><td class="num">6</td><td class="num">$0.0086</td></tr>
+          <tr><td>tool-schema-compaction</td><td>lossless</td><td>estimated-baseline</td><td class="num">6</td><td class="num">$0.0054</td></tr>
+          <tr><td>execution-tier-flex</td><td>tier</td><td>measured</td><td class="num">8</td><td class="num">$0.0193</td></tr>
+          <tr><td>fresh-tool-result-cap</td><td>lossy</td><td>recorded &mdash; unbilled, no gate verdict</td><td class="num">4</td><td class="num">&mdash;</td></tr>
+        </tbody>
+      </table></div>
+      <div class="footrow"><span class="tok">Savings you already had are excluded. Negative levers are netted, never clamped. Run it yourself &mdash; the number must match.</span></div>
+    </div>
   </div>
   </div>
 </section>
 
-<section class="band-light" aria-label="How FLUX saves money">
-  <div class="inner">
-  <h2>Same response. Smaller bill.</h2>
-  <div class="flow-wrap">
-  <svg class="flow" viewBox="0 0 960 330" role="img" aria-label="Tokens flow into the flux funnel; waste is removed before billing; the model returns the same response; the bill shrinks from $1.00 to $0.62">
-    <!-- lane labels -->
-    <text class="lbl" x="40" y="86">YOUR REQUEST</text>
-    <text class="lbl" x="440" y="60" text-anchor="middle">FLUX</text>
-    <text class="lbl" x="700" y="86" text-anchor="middle">MODEL</text>
-    <text class="lbl" x="860" y="86" text-anchor="middle">RESPONSE</text>
-
-    <!-- the funnel: the brand's two streams resolving into one -->
-    <path d="M 330 110 C 400 110 420 150 480 155" fill="none" stroke="#2864A5" stroke-width="5" stroke-linecap="round"/>
-    <path d="M 330 200 C 400 200 420 160 480 155" fill="none" stroke="#2864A5" stroke-width="5" stroke-linecap="round"/>
-    <path d="M 480 155 H 560" fill="none" stroke="#2864A5" stroke-width="5" stroke-linecap="round"/>
-    <circle cx="566" cy="155" r="7" fill="#9DD9F5" stroke="#2864A5" stroke-width="2"/>
-
-    <!-- removed-waste bin -->
-    <path d="M 420 238 h 120 a6 6 0 0 1 6 6 v 40 a6 6 0 0 1 -6 6 h -120 a6 6 0 0 1 -6 -6 v -40 a6 6 0 0 1 6 -6 z" fill="#E4F4FD" stroke="#9DD9F5" stroke-width="2"/>
-    <text class="lbl" x="480" y="262" text-anchor="middle">removed before</text>
-    <text class="lbl" x="480" y="278" text-anchor="middle">it bills you</text>
-
-    <!-- model chip -->
-    <rect x="660" y="120" width="80" height="70" rx="12" fill="#102A43"/>
-    <circle cx="700" cy="145" r="10" fill="none" stroke="#9DD9F5" stroke-width="3"/>
-    <path d="M 685 172 h 30" stroke="#9DD9F5" stroke-width="3" stroke-linecap="round"/>
-
-    <!-- response card: the SAME response either way -->
-    <rect x="805" y="104" width="120" height="74" rx="12" fill="#ffffff" stroke="#d9e6f0" stroke-width="2"/>
-    <path d="M 822 128 h 86 M 822 142 h 66 M 822 156 h 76" stroke="#9fb3c8" stroke-width="4" stroke-linecap="round"/>
-    <path d="M 896 148 l 7 8 l 14 -16" fill="none" stroke="#2864A5" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
-    <text class="big" x="865" y="200" text-anchor="middle">Same response</text>
-
-    <!-- the bill shrinking -->
-    <text class="lbl" x="660" y="232">THE BILL</text>
-    <rect x="660" y="242" width="180" height="14" rx="7" fill="#d9e6f0"/>
-    <rect x="660" y="242" width="180" height="14" rx="7" fill="#2864A5">
-      <animate class="ani" attributeName="width" values="180;180;112;112" keyTimes="0;0.2;0.6;1" dur="4s" repeatCount="indefinite"/>
-    </rect>
-    <text class="money" x="660" y="286" fill="#486581" style="text-decoration:line-through">$1.00</text>
-    <text class="money" x="740" y="286" fill="#2864A5">$0.62</text>
-
-    <!-- animated tokens: the kept stream -->
-    <g class="ani">
-      <circle r="6" fill="#2864A5"><animateMotion dur="3.2s" begin="0s" repeatCount="indefinite" path="M 40 110 C 200 110 280 112 330 118 C 420 128 430 150 560 155 L 650 155"/></circle>
-      <circle r="6" fill="#2864A5"><animateMotion dur="3.2s" begin="0.8s" repeatCount="indefinite" path="M 40 150 C 200 150 300 152 480 155 L 650 155"/></circle>
-      <circle r="6" fill="#2864A5"><animateMotion dur="3.2s" begin="1.6s" repeatCount="indefinite" path="M 40 195 C 200 195 300 190 420 172 C 480 162 520 156 650 155"/></circle>
-      <circle r="6" fill="#2864A5"><animateMotion dur="3.2s" begin="2.4s" repeatCount="indefinite" path="M 40 132 C 200 132 300 136 480 153 L 650 155"/></circle>
-      <!-- the waste: diverted into the bin and gone -->
-      <circle r="6" fill="#9fb3c8"><animateMotion dur="3.2s" begin="0.4s" repeatCount="indefinite" path="M 40 170 C 200 170 330 180 420 210 C 450 222 465 234 470 252"/><animate attributeName="opacity" values="1;1;0" keyTimes="0;0.8;1" dur="3.2s" begin="0.4s" repeatCount="indefinite"/></circle>
-      <circle r="6" fill="#9fb3c8"><animateMotion dur="3.2s" begin="1.2s" repeatCount="indefinite" path="M 40 215 C 200 215 330 210 430 226 C 460 232 480 242 488 254"/><animate attributeName="opacity" values="1;1;0" keyTimes="0;0.8;1" dur="3.2s" begin="1.2s" repeatCount="indefinite"/></circle>
-      <circle r="6" fill="#9fb3c8"><animateMotion dur="3.2s" begin="2s" repeatCount="indefinite" path="M 40 95 C 200 95 320 120 410 190 C 440 214 455 232 462 250"/><animate attributeName="opacity" values="1;1;0" keyTimes="0;0.8;1" dur="3.2s" begin="2s" repeatCount="indefinite"/></circle>
-      <!-- the response pulse: same answer, every loop -->
-      <circle r="6" fill="#9DD9F5" stroke="#2864A5" stroke-width="2"><animateMotion dur="3.2s" begin="0s" repeatCount="indefinite" path="M 745 155 L 800 150"/></circle>
-    </g>
-    <text class="static-note lbl" x="480" y="40" text-anchor="middle">Tokens that carry no information are removed before they bill; the response is unchanged.</text>
-
-    <!-- token labels under the inflow -->
-    <text class="lbl" x="40" y="236">schema bloat &#183; duplicates &#183; stale history &#8594; removed</text>
-  </svg>
-  </div>
-  <p class="flow-caption">An illustration of the mechanism, not a measurement — the measured bands are
-  26&ndash;73% by traffic segment, every one traced to a runnable command &rarr; <a href="evidence.html">evidence</a>.</p>
+<section aria-label="The first live export">
+  <div class="receipt-wrap">
+    <div class="total-side rise">
+      <h2>Measured on real traffic.</h2>
+      <p class="note">Thirty requests through five agents on claude-sonnet-5-5, spools audited, chains verified. Small, real, reproducible &mdash; the opposite of a projection.</p>
+      <div class="figure">9.3%</div>
+      <p class="cap">of live spend, verified per request, before any replay-gate approvals &mdash; the floor, not the ceiling. Simulated bands by segment run 26&ndash;73%, and the clean cache-only figure is 37.6% &mdash; every number traces to a runnable command &rarr; <a href="evidence.html">evidence</a>.</p>
+    </div>
+    <div class="slip rise in-self" aria-label="The export, row by row">
+      <h3>FLUX &mdash; FIRST LIVE EXPORT</h3>
+      <p class="meta">2026-10-19 &middot; claude-sonnet-5-5 &middot; 30 requests &middot; 5 hash chains, all verified</p>
+      <p class="grp">SPEND, BY AGENT</p>
+      <div class="row"><span class="desc">coding-agent</span><span class="lead-dots"></span><span class="val">$0.0632</span></div>
+      <div class="row"><span class="desc">rag-docqa</span><span class="lead-dots"></span><span class="val">$0.0401</span></div>
+      <div class="row"><span class="desc">batch-classifier</span><span class="lead-dots"></span><span class="val">$0.0613</span></div>
+      <div class="row"><span class="desc">support-chat</span><span class="lead-dots"></span><span class="val">$0.0521</span></div>
+      <div class="row"><span class="desc">already-lean</span><span class="lead-dots"></span><span class="val">$0.0057</span></div>
+      <p class="grp">VERIFIED SAVINGS, BY LEVER</p>
+      <div class="row"><span class="desc">coding-agent — schemas + fresh-result cap</span><span class="lead-dots"></span><span class="val">$0.0215</span></div>
+      <div class="row"><span class="desc">rag-docqa — duplicate excerpt removed</span><span class="lead-dots"></span><span class="val">$0.0086</span></div>
+      <div class="row"><span class="desc">support-chat — tool-schema compaction</span><span class="lead-dots"></span><span class="val">$0.0054</span></div>
+      <div class="row"><span class="desc">batch-classifier — cache stamp, netted</span><span class="lead-dots"></span><span class="val">−$0.0148</span></div>
+      <div class="row"><span class="desc">already-lean — nothing to remove</span><span class="lead-dots"></span><span class="val">$0.0000</span></div>
+      <div class="total-row"><span>NET VERIFIED SAVINGS</span><span>$0.0207 &middot; 9.3%</span></div>
+    </div>
   </div>
 </section>
 
-<section class="band-ocean" aria-label="How you pay">
-  <div class="inner">
-  <h2>How you pay</h2>
-  <div class="tiles">
-    <div class="tile"><svg viewBox="0 0 48 48" fill="none" aria-hidden="true"><rect x="10" y="6" width="28" height="36" rx="4" stroke="#2864A5" stroke-width="3"/><path d="M17 15h14M17 22h14M17 29h8" stroke="#9DD9F5" stroke-width="3" stroke-linecap="round"/><path d="M28 31l3 3 6-6" stroke="#2864A5" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg><h3>Verified per task</h3><p>Every request writes a hash-chained ledger event from the provider's own usage.</p></div>
-    <div class="tile"><svg viewBox="0 0 48 48" fill="none" aria-hidden="true"><circle cx="16" cy="16" r="5" stroke="#2864A5" stroke-width="3"/><circle cx="32" cy="32" r="5" stroke="#2864A5" stroke-width="3"/><path d="M36 12 12 36" stroke="#9DD9F5" stroke-width="3" stroke-linecap="round"/></svg><h3>A share of savings</h3><p>Recompute the invoice from your own spool — you must get our number.</p></div>
-    <div class="tile"><svg viewBox="0 0 48 48" fill="none" aria-hidden="true"><path d="M24 5l15 6v11c0 9.5-6.3 17-15 21C15.3 39 9 31.5 9 22V11l15-6z" stroke="#2864A5" stroke-width="3" stroke-linejoin="round"/><path d="M17 23l5 5 9-10" stroke="#9DD9F5" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg><h3>Or nothing</h3><p>Already optimised? The verdict is <strong>do not pay us</strong> — printed on the quote.</p></div>
-  </div>
-  </div>
-</section>
-
-<section class="band-deep" aria-label="Measured savings">
-  <div class="inner">
-  <h2>Measured, not promised</h2>
-  <div class="stats">
-    <div class="stat"><div class="n">37.6%</div><div class="l">Claude cache switched on &mdash; same answers, quality unchanged</div></div>
-    <div class="stat"><div class="n">57.7%</div><div class="l">batch &amp; latency-tolerant work, net</div></div>
-    <div class="stat"><div class="n">45&ndash;73%</div><div class="l">one-shot templated traffic</div></div>
-    <div class="stat"><div class="n">0&ndash;5%</div><div class="l">already-optimised: do not pay us</div></div>
-  </div>
-  <p class="fineprint">Simulator-measured at published provider prices, quality gated per completed task.
-  Every number traces to a command and a commit &rarr; <a href="evidence.html">evidence</a></p>
+<section aria-label="Pricing">
+  <div class="price-wrap">
+    <div class="price-side rise">
+      <h2>One price.</h2>
+      <p>No subscription, no seats, no minimum. FLUX bills a share of the savings its own ledger verified &mdash; the invoice is a pure function of a spool you hold, so you can recompute every line.</p>
+    </div>
+    <div class="price-figure rise">
+      <div class="fig">15<sup>%</sup></div>
+      <span class="overlap"><svg viewBox="0 0 48 48" fill="none" aria-hidden="true"><path d="M8 14c10 0 10 10 20 10h12" stroke="#2864A5" stroke-width="3.5" stroke-linecap="round"/><path d="M8 34c10 0 10-10 20-10" stroke="#2864A5" stroke-width="3.5" stroke-linecap="round" opacity=".75"/><circle cx="41" cy="24" r="4" fill="#9DD9F5"/></svg></span>
+      <p class="per">of verified savings, monthly &mdash; nothing else</p>
+      <ul>
+        <li>Savings verified per completed task, from your provider&rsquo;s own usage</li>
+        <li>A month that saved nothing bills nothing</li>
+        <li>Negative levers count against us, never clamped</li>
+        <li>Already optimised? The quote says <strong>do not pay us</strong></li>
+      </ul>
+      <a class="btn" href="https://github.com/Harrym1707/Flux">Run the quote on your own export</a>
+    </div>
   </div>
 </section>
 
-<section class="band-deep" aria-label="The honest line">
-  <div class="inner">
-  <div class="honest">
-    <strong>The catch, printed up front:</strong> savings depend on your traffic's shape.
-    The first thing FLUX does is tell you which number is yours — from your own logs,
-    in five minutes, before any contract exists.
-  </div>
+<section aria-label="Questions">
+  <div class="faq-wrap">
+    <h2 class="rise">The catch, printed.</h2>
+    <div class="faq rise">
+      <details name="faq" open><summary>Can FLUX break my app?<span class="plus"></span></summary><div class="answer">The default levers are lossless: compacted schemas decode identically, removed duplicates are exact, prefix repair reorders without deleting, and the reducer never throws &mdash; a failure returns your request untouched. Lossy levers stay off until a replay gate proves on your own recorded requests that quality held. <a href="faq.html">Full answer</a></div></details>
+      <details name="faq"><summary>Why a range and not one number?<span class="plus"></span></summary><div class="answer">Savings depend on your traffic&rsquo;s shape. The quote comes from your own export and names your segment; sometimes the verdict is literally do not pay us. <a href="segments.html">The bands, by segment</a></div></details>
+      <details name="faq"><summary>How is billing a counterfactual dispute-proof?<span class="plus"></span></summary><div class="answer">The way energy performance contracts have done it since 1995: a defined baseline, provider-verbatim measurements, an agreed adjustment method. Every request writes an append-only hash-chained event; the invoice is a pure function over those events. <a href="methodology.html">Methodology</a></div></details>
+      <details name="faq"><summary>What do you do with my prompts?<span class="plus"></span></summary><div class="answer">Analysis runs locally; prompts never leave your machine. The ledger records usage numbers, lever names and hashes &mdash; not content. Your API key passes through the proxy verbatim and is never stored.</div></details>
+      <details name="faq"><summary>Where does FLUX lose?<span class="plus"></span></summary><div class="answer">Busy interactive agents cap around 29% before cache enablement; already-optimised stacks get 0&ndash;5% and a do-not-pay-us verdict; a free trimmer may be all you need if you don&rsquo;t need the saving verified. <a href="comparison.html">The honest comparison</a></div></details>
+      <details name="faq"><summary>Are these numbers real?<span class="plus"></span></summary><div class="answer">Every figure traces to a runnable command and a commit. The bands are simulator-measured at published provider prices and labelled so; the 9.3% receipt above is real traffic. Your pilot replaces all of it with your own number before any fee exists. <a href="evidence.html">Evidence</a></div></details>
+    </div>
   </div>
 </section>
 
-<footer>
-  <strong>flux</strong> — spend tokens where they matter.
-  <a href="overview.html">Overview</a> · <a href="segments.html">Savings by segment</a> ·
-  <a href="methodology.html">Methodology</a> · <a href="evidence.html">Evidence</a> ·
-  <a href="comparison.html">Honest comparison</a> · <a href="faq.html">FAQ</a> ·
-  <a href="https://github.com/Harrym1707/Flux">Source</a> · <a href="llms.txt">llms.txt</a>
+<section aria-label="Start">
+  <div class="cta-row rise">
+    <div class="cta-flat" aria-hidden="true"></div>
+    <div class="cta-main">
+      <h2>Start with one URL.</h2>
+      <p>Point your client&rsquo;s baseURL at the FLUX proxy and keep your own key. Five minutes later you have a hash-chained ledger of what you actually spend &mdash; and what you didn&rsquo;t have to.</p>
+      <a class="btn" href="https://github.com/Harrym1707/Flux">Get FLUX on GitHub</a>
+    </div>
+    <div class="xfade" aria-hidden="true">
+      <img class="front" src="https://picsum.photos/id/114/480/720" width="480" height="720" alt="Dark storm clouds over a faint mountain ridge (photo: Brian Gonzalez, Unsplash licence)" loading="lazy">
+      <img src="https://picsum.photos/id/765/480/720" width="480" height="720" alt="Night sky fading to an orange glow along a dark horizon (photo: Grant McIver, Unsplash licence)" loading="lazy">
+      <img src="https://picsum.photos/id/505/480/720" width="480" height="720" alt="Silhouetted figure on a dark ridge under twilight (photo: lee Scott, Unsplash licence)" loading="lazy">
+    </div>
+  </div>
+</section>
+
+<footer class="quiet-foot">
+  <span>flux &mdash; verified LLM cost reduction</span>
+  <span class="links"><a href="overview.html">Overview</a><a href="segments.html">Savings</a><a href="methodology.html">Methodology</a><a href="evidence.html">Evidence</a><a href="comparison.html">Comparison</a><a href="faq.html">FAQ</a><a href="https://github.com/Harrym1707/Flux">GitHub</a><a href="llms.txt">llms.txt</a></span>
+  <span class="right">2026 &middot; BUSL-1.1</span>
 </footer>
-</div>
+
 <script>
 (function () {
   if (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-  var canvas = document.getElementById("ripples");
+  var canvas = document.getElementById("field");
   if (!canvas || !canvas.getContext) return;
   var ctx = canvas.getContext("2d");
-  var dark = true; // the landing is dark-first: always the additive glow path
-
-  // Height-field energy: two buffers, wave equation, damping. Half resolution
-  // + smooth alpha ramps + a blurred upscale keep it fluid, not pixelated.
-  // Keep the simulation under ~250k cells so big displays stay smooth.
-  var SCALE = 2;
-  var W = 0, H = 0, cur, prev, img, off, offCtx;
-
+  var SCALE = 2, W = 0, H = 0, cur, prev, img, off, offCtx;
   var wrap = canvas.parentElement;
   function resize() {
-    canvas.width = wrap.clientWidth;
-    canvas.height = wrap.clientHeight;
-    W = Math.max(2, Math.ceil(canvas.width / SCALE));
-    H = Math.max(2, Math.ceil(canvas.height / SCALE));
-    cur = new Float32Array(W * H);
-    prev = new Float32Array(W * H);
-    off = document.createElement("canvas");
-    off.width = W; off.height = H;
-    offCtx = off.getContext("2d");
-    img = offCtx.createImageData(W, H);
+    canvas.width = wrap.clientWidth; canvas.height = wrap.clientHeight;
+    W = Math.max(2, Math.ceil(canvas.width / SCALE)); H = Math.max(2, Math.ceil(canvas.height / SCALE));
+    cur = new Float32Array(W * H); prev = new Float32Array(W * H);
+    off = document.createElement("canvas"); off.width = W; off.height = H;
+    offCtx = off.getContext("2d"); img = offCtx.createImageData(W, H);
   }
   resize();
-  var resizeTimer;
-  window.addEventListener("resize", function () {
-    clearTimeout(resizeTimer); resizeTimer = setTimeout(resize, 150);
-  });
-
-  function drop(clientX, clientY, strength, radius) {
-    var r = wrap.getBoundingClientRect();
-    var lx = clientX - r.left, ly = clientY - r.top;
-    if (lx < 0 || ly < 0 || lx > r.width || ly > r.height) return;
+  var rt; window.addEventListener("resize", function(){ clearTimeout(rt); rt = setTimeout(resize, 150); });
+  function drop(x, y, s, r) {
+    var b = wrap.getBoundingClientRect(); var lx = x - b.left, ly = y - b.top;
+    if (lx < 0 || ly < 0 || lx > b.width || ly > b.height) return;
     var cx = Math.round(lx / SCALE), cy = Math.round(ly / SCALE);
-    for (var y = -radius; y <= radius; y++) {
-      for (var x = -radius; x <= radius; x++) {
-        var d = Math.sqrt(x * x + y * y);
-        if (d > radius) continue;
-        var px = cx + x, py = cy + y;
-        if (px < 1 || py < 1 || px >= W - 1 || py >= H - 1) continue;
-        prev[py * W + px] += strength * Math.cos((d / radius) * Math.PI * 0.5);
-      }
+    for (var yy = -r; yy <= r; yy++) for (var xx = -r; xx <= r; xx++) {
+      var d = Math.sqrt(xx * xx + yy * yy); if (d > r) continue;
+      var px = cx + xx, py = cy + yy;
+      if (px < 1 || py < 1 || px >= W - 1 || py >= H - 1) continue;
+      prev[py * W + px] += s * Math.cos((d / r) * Math.PI * 0.5);
     }
   }
-
-  // --- The cursor stirs the field ------------------------------------------
-  var lastMove = 0, mx = -99, my = -99;
+  var last = 0, mx = -99, my = -99;
   window.addEventListener("pointermove", function (e) {
-    var now = performance.now();
-    if (now - lastMove < 24) return;
-    lastMove = now;
-    var dx = e.clientX - mx, dy = e.clientY - my;
-    mx = e.clientX; my = e.clientY;
-    var speed = Math.min(Math.sqrt(dx * dx + dy * dy), 60);
-    drop(e.clientX, e.clientY, 60 + speed * 4, 2);
+    var now = performance.now(); if (now - last < 24) return; last = now;
+    var dx = e.clientX - mx, dy = e.clientY - my; mx = e.clientX; my = e.clientY;
+    drop(e.clientX, e.clientY, 60 + Math.min(Math.sqrt(dx*dx+dy*dy), 60) * 4, 2);
   }, { passive: true });
-
-  // --- Clicks strike: a surge plus a lightning bolt -------------------------
-  var bolts = [];
-  function makeBolt(x, y) {
-    var angle = Math.random() * Math.PI * 2;
-    var points = [[x, y]];
-    var px = x, py = y;
-    for (var i = 0; i < 9; i++) {
-      angle += (Math.random() - 0.5) * 1.1;
-      px += Math.cos(angle) * (18 + Math.random() * 16);
-      py += Math.sin(angle) * (18 + Math.random() * 16);
-      points.push([px, py]);
-    }
-    bolts.push({ points: points, born: performance.now() });
-  }
-  window.addEventListener("pointerdown", function (e) {
-    var r = wrap.getBoundingClientRect();
-    if (e.clientY - r.top > r.height) return;
-    drop(e.clientX, e.clientY, 600, 5);
-    makeBolt(e.clientX - r.left, e.clientY - r.top);
-  }, { passive: true });
-
-  // --- Call-outs radiate from their own centre ------------------------------
-  // Hovering a CTA, tile or stat pulses energy outward from the BOX, not the
-  // cursor: the element becomes the source.
-  function centerOf(el) {
-    var r = el.getBoundingClientRect();
-    return [r.left + r.width / 2, r.top + r.height / 2];
-  }
-  Array.prototype.forEach.call(document.querySelectorAll(".hero .btn, .hero .term"), function (el) {
-    var pulse = null;
-    el.addEventListener("pointerenter", function () {
-      if (pulse) clearInterval(pulse); // a re-enter must never stack intervals
-      var c = centerOf(el);
-      drop(c[0], c[1], 520, 5);
-      pulse = setInterval(function () {
-        var c2 = centerOf(el);
-        drop(c2[0], c2[1], 240, 4);
-      }, 900);
-    });
-    el.addEventListener("pointerleave", function () {
-      if (pulse) { clearInterval(pulse); pulse = null; }
-    });
-  });
-
-  var ambient = setInterval(function () {
+  var amb = setInterval(function () {
     if (document.hidden) return;
-    var rr = wrap.getBoundingClientRect();
-    drop(rr.left + Math.random() * rr.width, rr.top + Math.random() * rr.height, 200, 4);
+    var b = wrap.getBoundingClientRect();
+    drop(b.left + Math.random() * b.width, b.top + Math.random() * b.height, 200, 4);
   }, 2800);
-  window.addEventListener("pagehide", function () { clearInterval(ambient); });
-  (function(){ var rr = wrap.getBoundingClientRect(); drop(rr.left + rr.width * 0.18, rr.top + rr.height * 0.25, 600, 6); })();
-
-  // --- Dramatic brand rendering ---------------------------------------------
-  // Light mode paints with the DARK inks (Open Ocean waves, Midnight filaments,
-  // Sky Signal troughs); dark mode glows additively in Sky Signal and white.
-  var waveC = [157, 217, 245];
-  var filC = [255, 255, 255];
-  var troughC = [40, 100, 165];
-  var boltC = "rgba(157,217,245,";
-
-  var lastFrame = 0;
+  window.addEventListener("pagehide", function(){ clearInterval(amb); });
+  var lastF = 0;
   function frame(ts) {
     requestAnimationFrame(frame);
-    if (ts - lastFrame < 28 || document.hidden) return;
-    lastFrame = ts;
-
-    for (var y = 1; y < H - 1; y++) {
-      var row = y * W;
-      for (var x = 1; x < W - 1; x++) {
-        var i = row + x;
-        cur[i] = ((prev[i - 1] + prev[i + 1] + prev[i - W] + prev[i + W]) * 0.5 - cur[i]) * 0.981;
-      }
-    }
-    var tmp = prev; prev = cur; cur = tmp;
-
-    // Smooth ramps, no hard threshold: alpha grows continuously with slope,
-    // and steep interference lines ignite as bright filaments.
+    if (ts - lastF < 28 || document.hidden) return; lastF = ts;
+    for (var y = 1; y < H - 1; y++) { var row = y * W;
+      for (var x = 1; x < W - 1; x++) { var i = row + x;
+        cur[i] = ((prev[i-1] + prev[i+1] + prev[i-W] + prev[i+W]) * 0.5 - cur[i]) * 0.981; } }
+    var t = prev; prev = cur; cur = t;
     var data = img.data;
-    for (var y2 = 1; y2 < H - 1; y2++) {
-      var row2 = y2 * W;
-      for (var x2 = 1; x2 < W - 1; x2++) {
-        var i2 = row2 + x2;
-        var shade = (prev[i2 - 1] - prev[i2 + 1]) + (prev[i2 - W] - prev[i2 + W]);
-        var p = i2 * 4;
-        var mag = shade < 0 ? -shade : shade;
-        if (mag < 0.5) { data[p + 3] = 0; continue; }
-        if (mag > 22) {
-          // Filament: the electric core where waves collide — a whisper now.
-          var fa = Math.min((mag - 22) * 2.2, 80);
-          data[p] = filC[0]; data[p + 1] = filC[1]; data[p + 2] = filC[2]; data[p + 3] = fa;
-        } else if (shade > 0) {
-          var a = Math.min(shade * 3, 64);
-          data[p] = waveC[0]; data[p + 1] = waveC[1]; data[p + 2] = waveC[2]; data[p + 3] = a;
-        } else {
-          var a2 = Math.min(mag * 2, 44);
-          data[p] = troughC[0]; data[p + 1] = troughC[1]; data[p + 2] = troughC[2]; data[p + 3] = a2;
-        }
-      }
-    }
+    for (var y2 = 1; y2 < H - 1; y2++) { var r2 = y2 * W;
+      for (var x2 = 1; x2 < W - 1; x2++) { var i2 = r2 + x2;
+        var sh = (prev[i2-1] - prev[i2+1]) + (prev[i2-W] - prev[i2+W]);
+        var p = i2 * 4; var m = sh < 0 ? -sh : sh;
+        if (m < 0.5) { data[p+3] = 0; continue; }
+        var a = Math.min(m * 2.5, 48);
+        data[p] = 157; data[p+1] = 217; data[p+2] = 245; data[p+3] = a; } }
     offCtx.putImageData(img, 0, 0);
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.imageSmoothingEnabled = true;
-    ctx.imageSmoothingQuality = "high";
-    ctx.globalCompositeOperation = "lighter";
     ctx.drawImage(off, 0, 0, canvas.width, canvas.height);
-
-    // Lightning bolts flicker for a quarter second, re-jittered every frame.
-    var now = performance.now();
-    for (var b = bolts.length - 1; b >= 0; b--) {
-      var bolt = bolts[b];
-      var age = (now - bolt.born) / 260;
-      if (age >= 1) { bolts.splice(b, 1); continue; }
-      var alpha = (1 - age) * 0.4;
-      ctx.beginPath();
-      ctx.moveTo(bolt.points[0][0], bolt.points[0][1]);
-      for (var k = 1; k < bolt.points.length; k++) {
-        ctx.lineTo(bolt.points[k][0] + (Math.random() - 0.5) * 6, bolt.points[k][1] + (Math.random() - 0.5) * 6);
-      }
-      ctx.strokeStyle = boltC + alpha + ")";
-      ctx.lineWidth = 2;
-      ctx.shadowColor = boltC + "0.8)";
-      ctx.shadowBlur = 6;
-      ctx.stroke();
-      ctx.shadowBlur = 0;
-    }
-    ctx.globalCompositeOperation = "source-over";
   }
   requestAnimationFrame(frame);
-})();
-</script>
+})();</script>
+<script>
+(function () {
+  var reduced = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  // The live thing: strike the duplicate from the request, count honestly.
+  var btn = document.getElementById("reduce-btn");
+  var counter = document.getElementById("tok-count");
+  if (btn && counter) {
+    var done = false;
+    btn.addEventListener("click", function () {
+      if (done) {
+        document.querySelectorAll(".dup").forEach(function (el) { el.classList.remove("struck"); });
+        counter.textContent = "106";
+        document.getElementById("same-note").classList.remove("show");
+        btn.textContent = "Reduce this request";
+        done = false; return;
+      }
+      document.querySelectorAll(".dup").forEach(function (el) { el.classList.add("struck"); });
+      document.getElementById("same-note").classList.add("show");
+      btn.textContent = "Put it back";
+      done = true;
+      if (reduced) { counter.textContent = "79"; return; }
+      var from = 106, to = 79, t0 = performance.now();
+      (function tick(now) {
+        var k = Math.min((now - t0) / 650, 1);
+        counter.textContent = String(Math.round(from + (to - from) * k));
+        if (k < 1) requestAnimationFrame(tick);
+      })(t0);
+    });
+  }
+  // Entrances: each section's parts rise 12px as they arrive.
+  if (!reduced && "IntersectionObserver" in window) {
+    var io = new IntersectionObserver(function (es) {
+      es.forEach(function (e) { if (e.isIntersecting) { e.target.classList.add("in"); io.unobserve(e.target); } });
+    }, { rootMargin: "-10% 0px" });
+    document.querySelectorAll(".rise").forEach(function (el) { io.observe(el); });
+  } else {
+    document.querySelectorAll(".rise").forEach(function (el) { el.classList.add("in"); });
+  }
+  // The signature move: the CTA photograph crossfades like light shifting.
+  var shots = document.querySelectorAll(".xfade img");
+  if (shots.length > 1 && !reduced) {
+    var at = 0;
+    setInterval(function () {
+      if (document.hidden) return;
+      shots[at].classList.remove("front"); at = (at + 1) % shots.length;
+      shots[at].classList.add("front");
+    }, 5200);
+  }
+  // Copy buttons on the calls.
+  document.querySelectorAll("[data-copy]").forEach(function (b) {
+    b.addEventListener("click", function () {
+      var txt = b.getAttribute("data-copy");
+      if (navigator.clipboard) navigator.clipboard.writeText(txt);
+      b.textContent = "copied"; setTimeout(function () { b.textContent = "copy"; }, 1200);
+    });
+  });
+})();</script>
 </body>
 </html>
