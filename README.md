@@ -26,7 +26,7 @@ Three things no other cost tool says on its front page:
 | Background / batch / latency-tolerant (OpenAI flex tier) | **57.7% net** (64.3% ceiling) | simulator-measured, billed from the SERVED tier |
 | One-shot templated API traffic | **45.5%**, up to 72.8% | simulator-measured |
 | Interactive agents (busy / sparse) | **25.9% / 34.0%** | simulator-measured |
-| First real-traffic export (30 requests, claude-sonnet-5-5) | **9–25% per agent** | measured on live API traffic |
+| Latest live export (30 requests, claude-sonnet-5-5) | **18.0% net** (agents 0–23%) | measured on live API traffic, every active agent billing |
 | Already-optimised stacks | **0–5%** | we tell you not to pay us |
 
 Every number traces to a command and a commit: see
@@ -37,6 +37,7 @@ own recorded requests — a failed task voids its savings.
 ## Quick start: proxy mode (no code changes)
 
 ```bash
+git clone https://github.com/Harrym1707/Flux && cd Flux
 node --import tsx evals/run-proxy.ts
 ```
 
@@ -59,7 +60,7 @@ proves on your own traffic that quality held.
 ## Quick start: SDK mode (one line)
 
 ```js
-import { withFlux } from "@flux-ai/sdk";
+import { withFlux } from "@flux-ai/sdk"; // npm publish pending — today: npm install ./packages/sdk-js/pkg
 
 const client = withFlux(new Anthropic(), {
   applicationId: "my-app",
@@ -104,13 +105,14 @@ You are one file export away from a quote, including the honest
 "do not pay us" verdict:
 
 ```bash
-flux-quote your-export.jsonl --format litellm
+node --import tsx evals/run-quote.ts your-export.jsonl --format litellm
+# (published as the flux-quote CLI once @flux-ai/sdk ships to npm)
 ```
 
 ## Reproduce every number
 
 ```bash
-./node_modules/.bin/vitest run          # 341 tests
+./node_modules/.bin/vitest run          # the full test suite
 node --import tsx evals/run-agent-ab.ts # the measurement harness, all arms
 node --import tsx evals/run-live-agents.ts  # five agents end-to-end (set ANTHROPIC_API_KEY for real traffic)
 ```
@@ -122,6 +124,9 @@ independent measurements of competing tools:
 [docs/site/faq.md](docs/site/faq.md)
 
 ## License
+
+The fee is **15% of verified savings, monthly — nothing else**. A month that
+saved nothing bills nothing.
 
 [Business Source License 1.1](LICENSE): free to read, evaluate, develop
 against, and use non-commercially. Production or commercial use requires a

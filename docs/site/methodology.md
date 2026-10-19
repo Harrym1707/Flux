@@ -48,7 +48,7 @@ exists to be immune to both.
 All current figures come from a 40-task × 5-turn agent harness (plus one-shot
 variants) with realistic multi-kilobyte tool results, verified by an
 independent checker agent reproducing every number from command output, under
-320 unit tests and 27 regression gates. They are honest measurements **of the
+341 unit tests and 27 regression gates. They are honest measurements **of the
 simulation**. They are not yet measurements of your traffic — the pilot exists
 to produce that number, on your machine, from your logs, before you pay
 anything.

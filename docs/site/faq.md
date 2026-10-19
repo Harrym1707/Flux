@@ -45,6 +45,11 @@ The price catalogue is dated and source-linked. A new rate is a new dated
 entry; history is never silently repriced, and an uncovered date is "unpriced",
 which excludes the row rather than guessing.
 
+**What does it cost?**
+15% of verified savings, monthly — nothing else. No subscription, no seats,
+no minimum. A month that saved nothing bills nothing, and negative lever
+months count against us.
+
 **What's the catch?**
 Three, published: busy interactive agents cap around 29% because the provider's
 cache already does the heavy lifting; the 34.0% sparse figure awaits a

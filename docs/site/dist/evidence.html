@@ -67,7 +67,7 @@ footer{border-top:2px solid var(--signal);margin-top:3rem;padding-top:1rem;font-
 <main>
 <h1>Evidence — every published number, traced</h1>
 <p>Each figure on this site maps to the command that produces it and the commit it was verified at. Reproduce any of them from the repo root. (Numbers were independently re-verified by a checker separate from the implementer at each listed commit; the harness run prints every row below.)</p>
-<p>Harness: <code>node --import tsx evals/run-agent-ab.ts</code> · tests: <code>./node_modules/.bin/vitest run</code> (320 passing) · gates: the three suites under <code>evals/run-*-triage.ts</code> and <code>evals/run-analysis-regression.ts</code> against freshly generated fixtures (27/27).</p>
+<p>Harness: <code>node --import tsx evals/run-agent-ab.ts</code> · tests: <code>./node_modules/.bin/vitest run</code> (341 passing) · gates: the three suites under <code>evals/run-*-triage.ts</code> and <code>evals/run-analysis-regression.ts</code> against freshly generated fixtures (27/27).</p>
 <div class="table-wrap"><table>
 <thead><tr><th>Published figure</th><th>Where it comes from</th><th>Verified at</th></tr></thead>
 <tbody>
@@ -78,7 +78,7 @@ footer{border-top:2px solid var(--signal);margin-top:3rem;padding-top:1rem;font-
 <tr><td>Multi-turn Claude cache-only comparison: 37.6%</td><td><code>node --import tsx evals/run-cache-decomposition.ts</code> — J + 5m stamp vs the identical J stack with cache disabled; both arms clean 38/40, 96% hits, 200/200 stamps metadata-only. Isolates the pure cache effect</td><td>independently re-derived and reproduced 2026-10-19</td></tr>
 <tr><td>Full J + 5m stack vs raw uncached A: 57.1% lower simulated cost</td><td>same decomposition script, row 2: quality 38/40 vs the raw baseline's 40/40 (−5 pp; within the published &gt;=36/40 gate, but a real delta) — quote 37.6% for the cache lever and label this one with its quality cost</td><td><code>6249f86</code>, reproduced 2026-10-19</td></tr>
 <tr><td>Sparse interactive 34.0%</td><td>arm L, 1h cache TTL via the shipped <code>cacheTtl</code> stamp (stable-prefix placement), 600s spacing</td><td><code>67eeac6</code> (re-verified after the placement fix <code>ec191c5</code>; was 34.0% at <code>cbbffb9</code>)</td></tr>
-<tr><td>First real-traffic export: 9–25% measured per agent</td><td><code>evals/run-live-agents.ts</code>, 30 requests on claude-sonnet-5-5, hash-chained spools audited; a smoke run, NOT a band — lossy levers recorded-unbilled pending gate verdicts</td><td><code>d84e256</code> run 2026-10-19</td></tr>
+<tr><td>First real-traffic export: 9.3% net of spend</td><td><code>evals/run-live-agents.ts</code>, 30 requests on claude-sonnet-5-5; a smoke run, NOT a band — lossy levers were recorded-unbilled and the old cache placement lost money (per-agent outcomes ranged −24% to +34% of that agent's spend)</td><td><code>d84e256</code> run 2026-10-19, superseded by the second export</td></tr>
 <tr><td>One-shot 45.5% / 72.8%</td><td>one-shot section, arms H and I ($0.569 → $0.310 / $0.155)</td><td><code>7b08666</code>, re-verified <code>4e51734</code></td></tr>
 <tr><td>Provider cache's own 35–40% (never claimed by FLUX)</td><td>&quot;what the cache itself is worth&quot; section of the harness output</td><td><code>33028df</code> onward</td></tr>
 <tr><td>&quot;Do not pay us&quot; 0–5%</td><td>support-assistant fixture, 77% pre-cached, triage verdict</td><td><code>ff04a70</code></td></tr>

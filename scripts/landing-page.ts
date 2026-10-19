@@ -39,9 +39,11 @@ export function renderLanding(origin: string, repoUrl: string): string {
   const SCHEMA_RAW = '{"name":"lookup_0","description":"Look up records in subsystem 0…","input_schema":{"$schema":"http://json-schema.org/draft-07/schema#","type":"object","additionalProperties":false,"properties":{"id":{"type":"string"}}}}, …11 more verbose schemas…'.repeat(4);
   const SCHEMA_AFTER = "[ 12 tools, schemas minified ]";
   const HISTORY_RAW = `${DUP_BLOCK} ${DUP_BLOCK} ${DUP_BLOCK}`.repeat(3);
-  const HISTORY_AFTER = "[ digest: 2,140 bytes, errors + file paths kept ]";
+  const HISTORY_AFTER = "[ digest kept: errors + file paths; rest summarised ]";
   const TOOLRES_RAW = "Row 1 of 400: settlement nominal… ".repeat(60);
-  const TOOLRES_AFTER = "[ headline + 2 errors kept · 18,644 bytes capped ]";
+  const HISTORY_BYTES = HISTORY_RAW.length.toLocaleString("en-US");
+  const TOOLRES_BYTES = TOOLRES_RAW.length.toLocaleString("en-US");
+  const TOOLRES_AFTER = "[ headline + errors kept; oversized body capped ]";
   const beforeTokens = approxTokens(STABLE + TAIL) + approxTokens(SCHEMA_RAW) + approxTokens(HISTORY_RAW) + approxTokens(DUP_BLOCK) * 2 + approxTokens(TOOLRES_RAW);
   const afterTokens = approxTokens(STABLE + TAIL) + approxTokens(SCHEMA_AFTER) + approxTokens(HISTORY_AFTER) + approxTokens(DUP_BLOCK) + approxTokens(TOOLRES_AFTER);
   // Priced at the catalogued Sonnet 5.5 input rate, $2 per million tokens.
@@ -170,7 +172,7 @@ export function renderLanding(origin: string, repoUrl: string): string {
   var STEPS = ${JSON.stringify(steps)};
   var FROM = ${beforeTokens}, RATE = ${INPUT_RATE};
   function setMeters(tokens) {
-    tokEl.textContent = String(Math.round(tokens)).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+    tokEl.textContent = String(Math.round(tokens)).replace(/\\B(?=(\\d{3})+(?!\\d))/g, ",");
     costEl.textContent = (tokens * RATE).toFixed(5);
   }
   function chipAt(el, text) {
@@ -192,7 +194,7 @@ export function renderLanding(origin: string, repoUrl: string): string {
     var i = 0;
     function step() {
       if (i >= folds.length) {
-        statusEl.textContent = "sent. " + tokEl.textContent + " tokens billed.";
+        statusEl.textContent = "forwarded &mdash; " + tokEl.textContent + " tokens would bill.";
         sameEl.classList.add("show");
         setTimeout(runPerformance, 5200);
         return;
@@ -426,7 +428,6 @@ a{color:var(--ink)}
 section{padding:var(--s7) var(--s4)}
 section h2{font-size:30px;font-weight:800;letter-spacing:-.01em;margin:0 0 var(--s6);position:relative;padding-bottom:18px}
 section h2::after{content:"";position:absolute;left:50%;transform:translateX(-50%);bottom:0;width:140px;height:12px;background:url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 140 12"><path d="M0 6 q6 -5 12 0 t12 0 q3 -9 6 0 t12 0 t12 0 q3 9 6 0 t12 0 t12 0 q6 -5 12 0 t12 0 t12 0" fill="none" stroke="%232864A5" stroke-width="1.6" opacity=".75"/></svg>') center/contain no-repeat}
-.demo-sect h2{text-align:center}
 .field-ocean h2::after{opacity:.9}
 
 .axis-col{max-width:560px;margin:0 auto}
@@ -528,7 +529,6 @@ section h2::after{content:"";position:absolute;left:50%;transform:translateX(-50
     operatingSystem: "Any",
     url: `${origin}/`,
     description: "Cut LLM API costs on Claude and OpenAI. One-URL proxy or one-line SDK; savings verified per completed task into a customer-recomputable ledger; fee is a share of verified savings.",
-    offers: { "@type": "Offer", price: "0", priceCurrency: "USD", description: "Free to evaluate; production use billed as a percentage of verified savings." },
   });
   const orgLd = JSON.stringify({
     "@context": "https://schema.org",
@@ -572,7 +572,7 @@ section h2::after{content:"";position:absolute;left:50%;transform:translateX(-50
   <a class="signin" href="${repoUrl}">GitHub</a>
   <div class="col">
     <h1><span class="in">Less in.</span><span class="out">More out.</span></h1>
-    <p class="sub">FLUX removes the junk from your AI requests before you pay for it. Same answers, smaller bill &mdash; and you can check every number yourself.</p>
+    <p class="sub">FLUX removes the junk from your AI requests before you pay for it. Same answers by default, smaller bill &mdash; and you can check every number yourself.</p>
     <div class="actions">
       <a class="btn" href="${repoUrl}">Get started</a>
       <a class="arrowlink" href="evidence.html">See the evidence</a>
@@ -583,9 +583,9 @@ section h2::after{content:"";position:absolute;left:50%;transform:translateX(-50
 
 <section aria-label="Measured bands" class="bands">
   <div class="bandrow rise">
-    <div class="band"><div class="n">73<span>%</span></div><p>off repetitive API calls &mdash; the kind most apps send all day</p></div>
+    <div class="band"><div class="n">45<span>&ndash;73%</span></div><p>off repetitive API calls &mdash; the top of the range when they can wait a few seconds</p></div>
     <div class="band"><div class="n">57.7<span>%</span></div><p>off background work that can wait a few extra seconds</p></div>
-    <div class="band"><div class="n">37.6<span>%</span></div><p>just from switching on Claude&rsquo;s cache &mdash; most apps never do</p></div>
+    <div class="band"><div class="n">37.6<span>%</span></div><p>just from switching on Claude&rsquo;s cache &mdash; many apps never do</p></div>
   </div>
   <p class="bandcap rise">Measured in our open test harness at the providers&rsquo; real prices, with answer quality checked on every task. Some setups save nothing &mdash; then we say it plainly: <strong>do not pay us</strong>. Every number comes with a command you can run &rarr; <a href="evidence.html">evidence</a>.</p>
 </section>
@@ -615,18 +615,18 @@ section h2::after{content:"";position:absolute;left:50%;transform:translateX(-50
  "system":"You are a careful assistant. Cite sources. Escalate anything risky.",
  "messages":[
    {"role":"user","content":"Step 1: inspect account 1001."},
-   {"role":"assistant","content":"<span class="fold" data-chip="stale history compacted, byte-stable" data-after="[ digest: 2,140 bytes, errors + file paths kept ]">${DUP_BLOCK} ${DUP_BLOCK} ${DUP_BLOCK}</span>"},
+   {"role":"assistant","content":"<span class="fold" data-chip="stale history compacted, byte-stable" data-after="[ digest kept: errors + file paths; rest summarised ]">${DUP_BLOCK} ${DUP_BLOCK} ${DUP_BLOCK}</span>"},
    {"role":"user","content":"Step 2: reconcile the ledger entries.
      ${DUP_BLOCK}
      <span class="fold" data-chip="exact duplicate removed" data-after="">${DUP_BLOCK}</span>"},
-   {"role":"tool","content":"<span class="fold" data-chip="fresh result capped before it bills" data-after="[ headline + 2 errors kept &middot; 18,644 bytes capped ]">Row 1 of 400: settlement nominal&hellip; Row 2 of 400: settlement nominal&hellip; Row 3 of 400&hellip; (397 more rows)</span>"},
+   {"role":"tool","content":"<span class="fold" data-chip="fresh result capped before it bills" data-after="[ headline + errors kept; oversized body capped ]">Row 1 of 400: settlement nominal&hellip; Row 2 of 400: settlement nominal&hellip; Row 3 of 400&hellip; (397 more rows)</span>"},
    {"role":"user","content":"Investigate account 1009 and summarise."}]}</pre>
     <div class="footrow">
       <span class="statusline" id="demo-status">watching&hellip;</span>
       <span class="ok" id="same-note">the answer cannot change &mdash; only safe moves run by default <svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true" style="vertical-align:-1px"><path d="M2.5 8.5 6 12 13.5 4" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
     </div>
   </div>
-  <p class="bandcap rise">A demonstration of the moves &mdash; the token counts are computed from the exact text you see. Your real number comes from your own traffic. <a href="methodology.html">How we measure</a>.</p>
+  <p class="bandcap rise">A demonstration of the moves &mdash; token counts computed at build time from the full sample request (abridged on screen). Your real number comes from your own traffic. <a href="methodology.html">How we measure</a>.</p>
   </div>
 </section>
 
@@ -636,7 +636,8 @@ section h2::after{content:"";position:absolute;left:50%;transform:translateX(-50
 
   <div class="exchange rise">
     <p class="lead">First, point your client at it.</p>
-    <div class="call"><button class="copy" type="button" data-copy="npx flux-proxy">copy</button><pre style="margin:0;padding:20px;font:13px/1.65 ui-monospace,Menlo,monospace;overflow-x:auto"><code>$ npx flux-proxy
+    <div class="call"><button class="copy" type="button" data-copy="git clone https://github.com/Harrym1707/Flux && cd Flux && node --import tsx evals/run-proxy.ts">copy</button><pre style="margin:0;padding:20px;font:13px/1.65 ui-monospace,Menlo,monospace;overflow-x:auto"><code>$ git clone https://github.com/Harrym1707/Flux && cd Flux
+$ node --import tsx evals/run-proxy.ts
 <span style="color:#9FB3C8"># then one line in your app &mdash; keep your own key</span>
 baseURL: <span style="color:#9DD9F5">"http://127.0.0.1:8787"</span></code></pre></div>
     <div class="response" data-ui>
@@ -660,7 +661,7 @@ Anthropic SDK: new Anthropic({ baseURL: "http://127.0.0.1:8787" })</pre>
 
   <div class="exchange rise">
     <p class="lead">Last, recompute the invoice yourself.</p>
-    <div class="call"><button class="copy" type="button" data-copy="npx -p @flux-ai/sdk flux-quote flux-ledger/my-app-anthropic.jsonl">copy</button><pre style="margin:0;padding:20px;font:13px/1.65 ui-monospace,Menlo,monospace;overflow-x:auto"><code>$ flux-quote flux-ledger/my-app-anthropic.jsonl</code></pre></div>
+    <div class="call"><button class="copy" type="button" data-copy="node --import tsx evals/run-invoice.ts flux-ledger/my-app-anthropic.jsonl">copy</button><pre style="margin:0;padding:20px;font:13px/1.65 ui-monospace,Menlo,monospace;overflow-x:auto"><code>$ node --import tsx evals/run-invoice.ts flux-ledger/my-app-anthropic.jsonl</code></pre></div>
     <div class="response breakout" data-ui>
       <div class="bar"><span>invoice &mdash; recomputed from your spool</span><span class="pill">verdict: charge</span></div>
       <div class="tblwrap"><table>
@@ -714,7 +715,7 @@ Anthropic SDK: new Anthropic({ baseURL: "http://127.0.0.1:8787" })</pre>
         <li>If a move loses money, that loss is ours, not yours</li>
         <li>Already efficient? Our quote will say: <strong>do not pay us</strong></li>
       </ul>
-      <a class="btn" href="${repoUrl}">Run the quote on your own export</a>
+      <a class="btn" href="${repoUrl}/blob/main/docs/pilot/runbook.md">Run the quote on your own export</a>
     </div>
   </div>
 </section>
@@ -725,7 +726,7 @@ Anthropic SDK: new Anthropic({ baseURL: "http://127.0.0.1:8787" })</pre>
     <div class="faq rise">
       <details name="faq" open><summary>Can FLUX break my app?<span class="plus"></span></summary><div class="answer-wrap"><div class="answer">The default levers are lossless: compacted schemas decode identically, removed duplicates are exact, prefix repair reorders without deleting, and the reducer never throws &mdash; a failure returns your request untouched. Lossy levers stay off until a replay gate proves on your own recorded requests that quality held. <a href="faq.html">Full answer</a></div></div></details>
       <details name="faq"><summary>Why a range and not one number?<span class="plus"></span></summary><div class="answer-wrap"><div class="answer">Savings depend on your traffic&rsquo;s shape. The quote comes from your own export and names your segment; sometimes the verdict is literally do not pay us. <a href="segments.html">The bands, by segment</a></div></div></details>
-      <details name="faq"><summary>How is billing a counterfactual dispute-proof?<span class="plus"></span></summary><div class="answer-wrap"><div class="answer">The way energy performance contracts have done it since 1995: a defined baseline, provider-verbatim measurements, an agreed adjustment method. Every request writes an append-only hash-chained event; the invoice is a pure function over those events. <a href="methodology.html">Methodology</a></div></div></details>
+      <details name="faq"><summary>How can you bill for money I didn&rsquo;t spend?<span class="plus"></span></summary><div class="answer-wrap"><div class="answer">The way energy performance contracts have done it since 1995: a defined baseline, provider-verbatim measurements, an agreed adjustment method. Every request writes an append-only hash-chained event; the invoice is a pure function over those events. <a href="methodology.html">Methodology</a></div></div></details>
       <details name="faq"><summary>What do you do with my prompts?<span class="plus"></span></summary><div class="answer-wrap"><div class="answer">Analysis runs locally; prompts never leave your machine. The ledger records usage numbers, lever names and hashes &mdash; not content. Your API key passes through the proxy verbatim and is never stored.</div></div></details>
       <details name="faq"><summary>Where does FLUX lose?<span class="plus"></span></summary><div class="answer-wrap"><div class="answer">Busy interactive agents cap around 29% before cache enablement; already-optimised stacks get 0&ndash;5% and a do-not-pay-us verdict; a free trimmer may be all you need if you don&rsquo;t need the saving verified. <a href="comparison.html">The honest comparison</a></div></div></details>
       <details name="faq"><summary>Are these numbers real?<span class="plus"></span></summary><div class="answer-wrap"><div class="answer">Every figure traces to a runnable command and a commit. The bands are simulator-measured at published provider prices and labelled so; the ${savedPct.toFixed(1)}% receipt above is real traffic. Your pilot replaces all of it with your own number before any fee exists. <a href="evidence.html">Evidence</a></div></div></details>
@@ -738,7 +739,7 @@ Anthropic SDK: new Anthropic({ baseURL: "http://127.0.0.1:8787" })</pre>
     <div class="cta-flat" aria-hidden="true"></div>
     <div class="cta-main">
       <h2>Start with one URL.</h2>
-      <p>Point your app&rsquo;s baseURL at FLUX and keep your own key. Five minutes later you have a tamper-proof record of what you spend &mdash; and what you stopped spending.</p>
+      <p>Point your app&rsquo;s baseURL at FLUX and keep your own key. Five minutes later you have a tamper-evident record of what you spend &mdash; and what you stopped spending.</p>
       <a class="btn" href="${repoUrl}">Get FLUX on GitHub</a>
     </div>
     <div class="xfade" aria-hidden="true">

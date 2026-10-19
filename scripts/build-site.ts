@@ -298,7 +298,7 @@ for (const [marker, why] of [
   ['id="field"', "energy field canvas missing"],
   ["prefers-reduced-motion", "reduced-motion guard missing"],
   ["Less in. More out.", "hero promise missing"],
-  ["npx flux-proxy", "the one-line install missing"],
+  ["evals/run-proxy.ts", "the install command missing"],
   ["do not pay us", "the do-not-pay-us admission missing"],
   ["evidence.html", "evidence link missing"],
   ["SoftwareApplication", "structured data missing"],

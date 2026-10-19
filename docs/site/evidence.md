@@ -6,7 +6,7 @@ independently re-verified by a checker separate from the implementer at each
 listed commit; the harness run prints every row below.)
 
 Harness: `node --import tsx evals/run-agent-ab.ts` · tests:
-`./node_modules/.bin/vitest run` (320 passing) · gates: the three suites under
+`./node_modules/.bin/vitest run` (341 passing) · gates: the three suites under
 `evals/run-*-triage.ts` and `evals/run-analysis-regression.ts` against freshly
 generated fixtures (27/27).
 
@@ -19,7 +19,7 @@ generated fixtures (27/27).
 | Multi-turn Claude cache-only comparison: 37.6% | `node --import tsx evals/run-cache-decomposition.ts` — J + 5m stamp vs the identical J stack with cache disabled; both arms clean 38/40, 96% hits, 200/200 stamps metadata-only. Isolates the pure cache effect | independently re-derived and reproduced 2026-10-19 |
 | Full J + 5m stack vs raw uncached A: 57.1% lower simulated cost | same decomposition script, row 2: quality 38/40 vs the raw baseline's 40/40 (−5 pp; within the published >=36/40 gate, but a real delta) — quote 37.6% for the cache lever and label this one with its quality cost | `6249f86`, reproduced 2026-10-19 |
 | Sparse interactive 34.0% | arm L, 1h cache TTL via the shipped `cacheTtl` stamp (stable-prefix placement), 600s spacing | `67eeac6` (re-verified after the placement fix `ec191c5`; was 34.0% at `cbbffb9`) |
-| First real-traffic export: 9–25% measured per agent | `evals/run-live-agents.ts`, 30 requests on claude-sonnet-5-5, hash-chained spools audited; a smoke run, NOT a band — lossy levers recorded-unbilled pending gate verdicts | `d84e256` run 2026-10-19 |
+| First real-traffic export: 9.3% net of spend | `evals/run-live-agents.ts`, 30 requests on claude-sonnet-5-5; a smoke run, NOT a band — lossy levers were recorded-unbilled and the old cache placement lost money (per-agent outcomes ranged −24% to +34% of that agent's spend) | `d84e256` run 2026-10-19, superseded by the second export |
 | One-shot 45.5% / 72.8% | one-shot section, arms H and I ($0.569 → $0.310 / $0.155) | `7b08666`, re-verified `4e51734` |
 | Provider cache's own 35–40% (never claimed by FLUX) | "what the cache itself is worth" section of the harness output | `33028df` onward |
 | "Do not pay us" 0–5% | support-assistant fixture, 77% pre-cached, triage verdict | `ff04a70` |
