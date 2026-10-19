@@ -44,10 +44,14 @@ per-model cache-minimum fix, which may lower the sparse figure on some models.
 cache is opt-in, and agents that never place `cache_control` re-pay full
 rate for their whole conversation history every turn (our first live export
 measured exactly that: a five-turn agent with zero cache traffic). FLUX
-stamps the stable prefix with a 5-minute-TTL breakpoint and the measured
-band is **57.1%** against that uncached baseline (simulator-measured,
-96% cache hits, quality unchanged — the stamp is metadata-only). If you
-already place your own breakpoints, FLUX defers and never claims this.
+stamps the stable prefix with a 5-minute-TTL breakpoint. In the deterministic
+fixture, the cache-only comparison is **37.6% lower cost** than the identical
+J prompt stack with caching disabled; both arms have 38/40 clean tasks and the
+stamp is metadata-only. The earlier **57.1%** full-stack comparison used a raw
+uncached baseline with 40/40 clean tasks, while the candidate had 38/40 (−5 pp).
+That fails the agreed −2 pp quality limit, so 57.1% is diagnostic and not a
+qualified full-stack saving. Real-traffic cache validation remains open. If
+you already place your own breakpoints, FLUX defers and never claims this.
 **This is also where we tell you our ceiling:** if someone promises an
 interactive agent 70%, ask for their per-task evidence.
 

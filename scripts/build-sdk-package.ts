@@ -232,7 +232,7 @@ const manifest = {
   name: workspaceManifest.name,
   version: workspaceManifest.version,
   description: "Cut LLM API costs on Claude and OpenAI: one-URL proxy or one-line SDK wrapper that reduces each request losslessly and meters VERIFIED savings into an append-only, customer-recomputable ledger. Pay only a share of verified savings.",
-  license: "MIT",
+  license: "BUSL-1.1",
   type: "module",
   main: "./index.cjs",
   module: "./index.js",

@@ -21,7 +21,8 @@ Three things no other cost tool says on its front page:
 
 | Workload | Band | Status |
 |---|---|---|
-| Multi-turn Claude agents with no `cache_control` (most of them) | **57.1%** | simulator-measured vs the uncached baseline a live export confirmed |
+| Multi-turn Claude, cache TTL only | **37.6%** | simulator-measured vs the same J prompt stack with cache disabled; both arms clean 38/40 |
+| Full J + 5m cache stack vs raw uncached baseline | **57.1% lower cost, but −5 pp clean-task quality** | diagnostic only; fails the agreed −2 pp quality limit and is not a qualified win |
 | Background / batch / latency-tolerant (OpenAI flex tier) | **57.7% net** (64.3% ceiling) | simulator-measured, billed from the SERVED tier |
 | One-shot templated API traffic | **45.5%**, up to 72.8% | simulator-measured |
 | Interactive agents (busy / sparse) | **25.9% / 34.0%** | simulator-measured |
@@ -122,4 +123,8 @@ independent measurements of competing tools:
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+[Business Source License 1.1](LICENSE): free to read, evaluate, develop
+against, and use non-commercially. Production or commercial use requires a
+commercial agreement — which is the point: FLUX charges a percentage of
+verified savings, nothing else. Each version converts to Apache 2.0 on its
+Change Date.

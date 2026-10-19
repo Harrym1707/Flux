@@ -731,6 +731,7 @@ type AnthropicShapedRun = {
   hitRate: number;
   successfulTasks: number;
   fullyGoodTasks: number;
+  taskQuality: Array<{ successful: boolean; clean: boolean }>;
   writtenInputTokens: number;
 };
 
@@ -791,6 +792,7 @@ function runAnthropicShapedArm(
   let suffixOnlyChecks = 0;
   let successfulTasks = 0;
   let fullyGoodTasks = 0;
+  const taskQuality: Array<{ successful: boolean; clean: boolean }> = [];
 
   // The same config minus the TTL, for the suffix-only byte control below.
   let configWithoutTtl: FluxTokenReductionConfig | undefined;
@@ -854,6 +856,7 @@ function runAnthropicShapedArm(
     }
     if (taskSucceeded) successfulTasks += 1;
     if (taskFullyGood) fullyGoodTasks += 1;
+    taskQuality.push({ successful: taskSucceeded, clean: taskFullyGood });
   }
 
   if (stampedCalls > 0 && suffixOnlyChecks !== stampedCalls) {
@@ -880,6 +883,7 @@ function runAnthropicShapedArm(
     hitRate: result.hitRate,
     successfulTasks,
     fullyGoodTasks,
+    taskQuality,
     writtenInputTokens: result.calls.reduce((sum, call) => sum + call.writtenInputTokens, 0),
   };
 }
@@ -968,6 +972,7 @@ function reportMultiTurnCacheArm(): void {
   console.log(`\n=== arm M: J + cacheTtl '5m' STAMPED, multi-turn vs UNCACHED baseline, tasks ${spacing}s apart ===`);
 
   const baseline = runAnthropicShapedArm(ARMS[0]!, spacing, ANTHROPIC_NO_CACHE);
+  const sameStackNoCache = runAnthropicShapedArm(ARM_J_BY_LABEL!, spacing, ANTHROPIC_NO_CACHE);
   const armM = runAnthropicShapedArm(ARM_M, spacing, ANTHROPIC_NO_CACHE);
 
   if (armM.stampedCalls !== expectedCalls || armM.totalCalls !== expectedCalls) {
@@ -976,6 +981,12 @@ function reportMultiTurnCacheArm(): void {
   }
   if (baseline.stampedCalls !== 0) {
     throw new Error(`Expected 0 stamped baseline requests, got ${baseline.stampedCalls}.`);
+  }
+  if (sameStackNoCache.stampedCalls !== 0) {
+    throw new Error(`Expected 0 stamped same-stack control requests, got ${sameStackNoCache.stampedCalls}.`);
+  }
+  if (JSON.stringify(sameStackNoCache.taskQuality) !== JSON.stringify(armM.taskQuality)) {
+    throw new Error("The cache TTL stamp changed quality relative to the identical no-cache stack.");
   }
   if (armM.policyName !== ANTHROPIC_CACHE_5M.name || baseline.policyName !== ANTHROPIC_NO_CACHE.name) {
     throw new Error(`Arm M policies wrong: stamped ${armM.policyName}, baseline ${baseline.policyName}.`);
@@ -987,10 +998,23 @@ function reportMultiTurnCacheArm(): void {
   );
 
   const saving = ((baseline.costUsd - armM.costUsd) / baseline.costUsd) * 100;
+  const cacheOnlySaving = ((sameStackNoCache.costUsd - armM.costUsd) / sameStackNoCache.costUsd) * 100;
+  const qualityDeltaPp = ((armM.fullyGoodTasks - baseline.fullyGoodTasks) / TASKS) * 100;
   console.log(`baseline  A uncached (no cache_control placed)  $${baseline.costUsd.toFixed(3)}   clean ${baseline.fullyGoodTasks}/${TASKS}`);
   console.log(
-    `lever     M = J + cacheTtl '5m' (stamped)       $${armM.costUsd.toFixed(3)}   vs uncached ${saving.toFixed(1)}%   ` +
+    `control   J without cache (same reducers)         $${sameStackNoCache.costUsd.toFixed(3)}   ` +
+    `clean ${sameStackNoCache.fullyGoodTasks}/${TASKS}`,
+  );
+  console.log(
+    `lever     M = J + cacheTtl '5m' (stamped)       $${armM.costUsd.toFixed(3)}   ` +
+    `cache-only vs J ${cacheOnlySaving.toFixed(1)}%   full-stack vs A ${saving.toFixed(1)}%   ` +
     `tool ok ${armM.successfulTasks}/${TASKS}   clean ${armM.fullyGoodTasks}/${TASKS}   hits ${(armM.hitRate * 100).toFixed(0)}%`,
+  );
+  console.log(
+    `quality gate vs A: clean-task change ${qualityDeltaPp.toFixed(1)} pp ` +
+    `(${baseline.fullyGoodTasks}/${TASKS} to ${armM.fullyGoodTasks}/${TASKS}); ` +
+    `${qualityDeltaPp < -2 ? "FAILS the -2 pp limit; do not claim the full-stack saving." :
+      "point estimate is within -2 pp, but no paired lower-95% bound is computed by this harness."}`,
   );
   console.log(
     "caveat: simulator-measured against the uncached baseline the first live export confirmed for " +
