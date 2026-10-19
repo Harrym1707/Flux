@@ -219,7 +219,7 @@ function faqJsonLd(markdown: string): string {
   const blocks = markdown.split(/\n\n+/);
   for (let i = 0; i < blocks.length; i += 1) {
     const match = blocks[i]!.match(/^\*\*(.+?)\*\*\n([\s\S]+)$/);
-    if (match) pairs.push({ q: match[1]!, a: match[2]!.replace(/\s+/g, " ").replace(/\[([^\]]+)\]\([^)]+\)/g, "$1").trim() });
+    if (match) pairs.push({ q: match[1]!, a: match[2]!.replace(/\s+/g, " ").replace(/\[([^\]]+)\]\([^)]+\)/g, "$1").replace(/\*\*/g, "").trim() });
   }
   if (pairs.length === 0) return "";
   const data = {
