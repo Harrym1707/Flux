@@ -22,6 +22,14 @@
 
 const approxTokens = (text: string): number => Math.ceil(text.length / 4);
 
+import { readFileSync } from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+const LOGO_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), "../docs/site/logos");
+/** Official marks (Simple Icons, CC0), served white; sized by CSS. */
+const logo = (slug: string): string =>
+  readFileSync(path.join(LOGO_DIR, slug + ".svg"), "utf8").replace("<svg ", '<svg aria-hidden="true" ');
+
 export function renderLanding(origin: string, repoUrl: string): string {
   // --- The hero demo's sample request: token counts computed from the bytes.
   const DUP_BLOCK = "Records 0-19: settlement entry nominal, reconciliation standard, no notification sent, annotation routine.";
@@ -68,87 +76,82 @@ export function renderLanding(origin: string, repoUrl: string): string {
   const CANVAS_JS = `
 (function () {
   var canvas = document.getElementById("field");
-  if (!canvas) return;
+  if (!canvas || !canvas.getContext) return;
   var reduced = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  var gl = canvas.getContext("webgl", { antialias: false, depth: false, stencil: false });
-  if (!gl) { canvas.remove(); return; }
+  var ctx = canvas.getContext("2d");
   var wrap = canvas.parentElement;
-
-  var VSH = "attribute vec2 p;void main(){gl_Position=vec4(p,0.,1.);}";
-  var FSH =
-    "precision highp float;" +
-    "uniform vec2 R;uniform float T;uniform vec2 M;" +
-    "float hash(vec2 q){return fract(sin(dot(q,vec2(127.1,311.7)))*43758.5453);}" +
-    "float noise(vec2 q){vec2 i=floor(q),f=fract(q);f=f*f*(3.-2.*f);" +
-    " return mix(mix(hash(i),hash(i+vec2(1,0)),f.x),mix(hash(i+vec2(0,1)),hash(i+vec2(1,1)),f.x),f.y);}" +
-    "float fbm(vec2 q){float a=.5,s=0.;for(int k=0;k<4;k++){s+=a*noise(q);q*=2.03;a*=.5;}return s;}" +
-    "void main(){" +
-    " vec2 uv=gl_FragCoord.xy/R;" +
-    " vec2 p=uv;p.x*=R.x/R.y;" +
-    " float t=T*.05;" +
-    " vec2 m=M;m.x*=R.x/R.y;" +
-    " float bend=.35*exp(-length(p-m)*2.6);" +
-    " float warp=fbm(vec2(p.x*2.1+t*.7,p.y*3.1-t*.3))*.65+bend;" +
-    " float flow=fbm(vec2(p.x*1.3-t,p.y*2.1+warp));" +
-    " float band=sin((p.y*2.6+flow*2.4-p.x*.35)*3.14159);" +
-    " float silk=pow(abs(band),7.0);" +
-    " float body=smoothstep(-.7,1.,band);" +
-    " vec3 deep=vec3(.031,.082,.133);" +
-    " vec3 ocean=vec3(.157,.392,.647);" +
-    " vec3 sky=vec3(.616,.851,.961);" +
-    " vec3 col=deep+ocean*body*.32+sky*silk*.55;" +
-    " float g=exp(-length((uv-vec2(.80,.74))*vec2(1.7,1.1))*2.4);" +
-    " col+=sky*g*.30+vec3(1.)*g*g*.22;" +
-    " float g2=exp(-length((uv-vec2(.16,.22))*vec2(1.9,1.3))*2.8);" +
-    " col+=ocean*g2*.45;" +
-    " float v=exp(-length((uv-vec2(.5,.55))*vec2(1.15,1.5))*1.7);" +
-    " col=mix(col,deep,v*.62);" +
-    " gl_FragColor=vec4(col,1.);}";
-
-  function shader(type, src) {
-    var sh = gl.createShader(type); gl.shaderSource(sh, src); gl.compileShader(sh);
-    return gl.getShaderParameter(sh, gl.COMPILE_STATUS) ? sh : null;
-  }
-  var vs = shader(gl.VERTEX_SHADER, VSH), fs = shader(gl.FRAGMENT_SHADER, FSH);
-  if (!vs || !fs) { canvas.remove(); return; }
-  var prog = gl.createProgram();
-  gl.attachShader(prog, vs); gl.attachShader(prog, fs); gl.linkProgram(prog); gl.useProgram(prog);
-  var buf = gl.createBuffer();
-  gl.bindBuffer(gl.ARRAY_BUFFER, buf);
-  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 3,-1, -1,3]), gl.STATIC_DRAW);
-  var loc = gl.getAttribLocation(prog, "p");
-  gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
-  var uR = gl.getUniformLocation(prog, "R"), uT = gl.getUniformLocation(prog, "T"), uM = gl.getUniformLocation(prog, "M");
-
-  var dpr = Math.min(window.devicePixelRatio || 1, 1.5);
+  var dpr = Math.min(window.devicePixelRatio || 1, 2);
+  var W = 0, H = 0;
   function resize() {
-    canvas.width = Math.round(wrap.clientWidth * dpr);
-    canvas.height = Math.round(wrap.clientHeight * dpr);
-    gl.viewport(0, 0, canvas.width, canvas.height);
+    W = wrap.clientWidth; H = wrap.clientHeight;
+    canvas.width = W * dpr; canvas.height = H * dpr;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   }
   resize();
   var rt; window.addEventListener("resize", function(){ clearTimeout(rt); rt = setTimeout(resize, 150); });
 
-  var mx = 0.5, my = 0.6, tx = 0.5, ty = 0.6;
+  // The waves: horizontal neural traces. Each has a base amplitude and wakes
+  // up as the cursor approaches — calm far away, alive under your hand.
+  var LINES = [
+    { y: 0.14, amp: 10, hue: "40,100,165",  alpha: 0.50, f: 1.00, spike: 0.9 },
+    { y: 0.24, amp: 14, hue: "157,217,245", alpha: 0.55, f: 0.80, spike: 1.3 },
+    { y: 0.34, amp: 8,  hue: "40,100,165",  alpha: 0.40, f: 1.25, spike: 0.7 },
+    { y: 0.50, amp: 16, hue: "157,217,245", alpha: 0.70, f: 0.65, spike: 1.6 },
+    { y: 0.66, amp: 8,  hue: "40,100,165",  alpha: 0.40, f: 1.15, spike: 0.7 },
+    { y: 0.76, amp: 13, hue: "157,217,245", alpha: 0.55, f: 0.85, spike: 1.2 },
+    { y: 0.87, amp: 10, hue: "40,100,165",  alpha: 0.50, f: 1.05, spike: 0.9 },
+  ];
+  var mx = -9999, my = -9999, smx = -9999, smy = -9999;
   window.addEventListener("pointermove", function (e) {
     var b = wrap.getBoundingClientRect();
-    tx = (e.clientX - b.left) / Math.max(b.width, 1);
-    ty = 1 - (e.clientY - b.top) / Math.max(b.height, 1);
+    mx = e.clientX - b.left; my = e.clientY - b.top;
   }, { passive: true });
+  window.addEventListener("pointerleave", function(){ mx = -9999; my = -9999; });
 
-  function draw(t) {
-    gl.uniform2f(uR, canvas.width, canvas.height);
-    gl.uniform1f(uT, t);
-    gl.uniform2f(uM, mx, my);
-    gl.drawArrays(gl.TRIANGLES, 0, 3);
+  function trace(line, t, energyFn) {
+    var baseY = line.y * H;
+    ctx.beginPath();
+    var step = Math.max(3, Math.floor(W / 420) * 3);
+    for (var x = 0; x <= W; x += step) {
+      var e = energyFn(x, baseY);                 // 0 calm .. 1 fully awake
+      var a = line.amp * (0.35 + 1.9 * e);        // the pulse: closer = taller
+      var ph = t * line.f;
+      var y = baseY
+        + Math.sin(x * 0.012 + ph * 2.1) * a * 0.55
+        + Math.sin(x * 0.027 - ph * 3.3) * a * 0.30
+        + Math.sin(x * 0.061 + ph * 5.2) * a * 0.15 * line.spike
+        // the EEG moment: a sharper beat that travels along the trace
+        + Math.sin(x * 0.004 - ph * 1.1) * Math.max(0, Math.sin(x * 0.09 - ph * 6.0)) * a * 0.5 * line.spike * (0.3 + e);
+      if (x === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    }
   }
-  if (reduced) { draw(37.0); return; } // one still frame of the current
+  function draw(t) {
+    ctx.clearRect(0, 0, W, H);
+    ctx.globalCompositeOperation = "lighter";
+    for (var i = 0; i < LINES.length; i++) {
+      var line = LINES[i];
+      var energy = function (x, baseY) {
+        var dx = x - smx, dy = baseY - smy;
+        return Math.exp(-(dx * dx + dy * dy) / (2 * 180 * 180));
+      };
+      // halo pass
+      trace(line, t, energy);
+      ctx.strokeStyle = "rgba(" + line.hue + "," + (line.alpha * 0.22) + ")";
+      ctx.lineWidth = 7; ctx.stroke();
+      // core pass
+      trace(line, t, energy);
+      ctx.strokeStyle = "rgba(" + line.hue + "," + line.alpha + ")";
+      ctx.lineWidth = 1.6; ctx.stroke();
+    }
+    ctx.globalCompositeOperation = "source-over";
+  }
+  if (reduced) { smx = -9999; smy = -9999; draw(12.0); return; }
   var vis = true;
   new IntersectionObserver(function (es) { es.forEach(function (e) { vis = e.isIntersecting; }); }).observe(wrap);
   (function frame(now) {
     requestAnimationFrame(frame);
     if (document.hidden || !vis) return;
-    mx += (tx - mx) * 0.06; my += (ty - my) * 0.06; // the silk bends, it does not twitch
+    smx += (mx - smx) * 0.1; smy += (my - smy) * 0.1;
     draw(now / 1000);
   })(0);
 })();`;
@@ -255,6 +258,40 @@ export function renderLanding(origin: string, repoUrl: string): string {
       shots[at].classList.add("front");
     }, 5200);
   }
+  // FAQ: glide open, and glide the previous one closed instead of snapping.
+  var faqs = Array.prototype.slice.call(document.querySelectorAll(".faq details"));
+  function setH(wrapEl, from, to, after) {
+    wrapEl.style.height = from + "px";
+    requestAnimationFrame(function () {
+      wrapEl.style.height = to + "px";
+      setTimeout(function () { wrapEl.style.height = ""; if (after) after(); }, 380);
+    });
+  }
+  faqs.forEach(function (d) {
+    var sum = d.querySelector("summary"), wrapEl = d.querySelector(".answer-wrap");
+    if (!sum || !wrapEl) return;
+    d.removeAttribute("name"); // we manage exclusivity ourselves, smoothly
+    sum.addEventListener("click", function (ev) {
+      ev.preventDefault();
+      if (reduced) { // instant, but still exclusive
+        faqs.forEach(function (o) { if (o !== d) o.open = false; });
+        d.open = !d.open; return;
+      }
+      if (d.open) {
+        setH(wrapEl, wrapEl.scrollHeight, 0, function () { d.open = false; });
+        return;
+      }
+      faqs.forEach(function (o) {
+        if (o !== d && o.open) {
+          var ow = o.querySelector(".answer-wrap");
+          setH(ow, ow.scrollHeight, 0, function () { o.open = false; });
+        }
+      });
+      d.open = true;
+      setH(wrapEl, 0, wrapEl.scrollHeight, null);
+    });
+  });
+
   // Copy buttons on the calls.
   document.querySelectorAll("[data-copy]").forEach(function (b) {
     b.addEventListener("click", function () {
@@ -320,9 +357,13 @@ a{color:var(--ink)}
 .works{padding:var(--s6) var(--s4)}
 .works-row{display:flex;align-items:baseline;justify-content:space-between;gap:var(--s3);max-width:72rem;margin:0 auto;flex-wrap:wrap}
 .works-lede{font-size:16px;color:var(--muted)}
-.wname{font-size:22px;font-weight:700;letter-spacing:-.01em;color:var(--ink)}
+.wlogo{display:inline-flex;align-items:center;gap:10px;color:var(--ink)}
+.wlogo svg{height:26px;width:auto;display:block}
+.wlogo svg path{fill:#F1F7FB}
+.wlogo span{font-size:18px;font-weight:700;letter-spacing:-.01em}
+.wlogo.wordmark span{font-size:22px}
 .works-cap{text-align:center;font-size:16px;color:var(--muted);max-width:46rem;margin:var(--s4) auto 0}
-@media (max-width:760px){.works-row{justify-content:flex-start;gap:var(--s3)}.wname{font-size:18px}}
+@media (max-width:760px){.works-row{display:grid;grid-template-columns:1fr 1fr;gap:var(--s3)}.works-lede{grid-column:1/-1}.wlogo svg{height:20px}.wlogo span{font-size:15px}.wlogo.wordmark span{font-size:15px}}
 
 /* ---------- the demo theatre ---------- */
 .demo-sect{padding:var(--s7) var(--s4)}
@@ -382,7 +423,11 @@ a{color:var(--ink)}
 
 /* ---------- sections ---------- */
 section{padding:var(--s7) var(--s4)}
-section h2{font-size:30px;font-weight:800;letter-spacing:-.01em;margin:0 0 var(--s6)}
+section h2{font-size:30px;font-weight:800;letter-spacing:-.01em;margin:0 0 var(--s6);position:relative;padding-bottom:18px}
+section h2::after{content:"";position:absolute;left:50%;transform:translateX(-50%);bottom:0;width:140px;height:12px;background:url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 140 12"><path d="M0 6 q6 -5 12 0 t12 0 q3 -9 6 0 t12 0 t12 0 q3 9 6 0 t12 0 t12 0 q6 -5 12 0 t12 0 t12 0" fill="none" stroke="%239DD9F5" stroke-width="1.6" opacity=".7"/></svg>') center/contain no-repeat}
+.demo-sect h2{text-align:center}
+.field-ocean h2::after{opacity:.9}
+.field-paper h2::after{background:url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 140 12"><path d="M0 6 q6 -5 12 0 t12 0 q3 -9 6 0 t12 0 t12 0 q3 9 6 0 t12 0 t12 0 q6 -5 12 0 t12 0 t12 0" fill="none" stroke="%232864A5" stroke-width="1.6" opacity=".8"/></svg>') center/contain no-repeat}
 .axis-col{max-width:560px;margin:0 auto}
 @media (min-width:1100px){.axis-col{margin-left:var(--axis);margin-right:0}}
 
@@ -429,6 +474,7 @@ section h2{font-size:30px;font-weight:800;letter-spacing:-.01em;margin:0 0 var(-
 /* faq: accordion of filled tiles, sticky heading */
 .faq-wrap{display:grid;grid-template-columns:1fr;gap:var(--s5);max-width:1080px;margin:0 auto}
 @media (min-width:980px){.faq-wrap{grid-template-columns:320px 1fr}.faq-wrap h2{position:sticky;top:96px;margin:0}}
+.faq-wrap h2::after,.receipt-wrap h2::after,.price-wrap h2::after{left:0;transform:none}
 .faq-wrap h2{font-size:30px}
 .faq details{background:var(--surface);border-radius:var(--radius);margin-bottom:8px}
 .faq summary{list-style:none;cursor:pointer;display:flex;justify-content:space-between;align-items:center;min-height:72px;padding:0 24px;font-size:20px;font-weight:600}
@@ -440,6 +486,8 @@ section h2{font-size:30px;font-weight:800;letter-spacing:-.01em;margin:0 0 var(-
 .faq details[open] .plus::before,.faq details[open] .plus::after{background:var(--accent-ink)}
 .faq details[open] .plus::after{transform:rotate(0)}
 .faq .answer{padding:0 24px 24px;font-size:16px;line-height:1.6;max-width:52ch}
+.faq .answer-wrap{overflow:hidden;transition:height .36s cubic-bezier(.4,0,.2,1)}
+@media (prefers-reduced-motion: reduce){.faq .answer-wrap{transition:none}}
 .faq details[open] .answer a{color:var(--accent-ink);font-weight:700}
 
 /* the action tile */
@@ -542,7 +590,13 @@ section h2{font-size:30px;font-weight:800;letter-spacing:-.01em;margin:0 0 var(-
 <section aria-label="Works with every provider" class="works">
   <div class="works-row rise">
     <span class="works-lede">Works with</span>
-    <span class="wname">Claude</span><span class="wname">GPT</span><span class="wname">Gemini*</span><span class="wname">Grok</span><span class="wname">Llama</span><span class="wname">Mistral</span><span class="wname">DeepSeek</span>
+    <span class="wlogo">${logo("anthropic")}<span>Claude</span></span>
+    <span class="wlogo wordmark"><span>OpenAI</span></span>
+    <span class="wlogo">${logo("googlegemini")}<span>Gemini*</span></span>
+    <span class="wlogo wordmark"><span>Grok</span></span>
+    <span class="wlogo">${logo("meta")}<span>Llama</span></span>
+    <span class="wlogo">${logo("mistralai")}<span>Mistral</span></span>
+    <span class="wlogo">${logo("deepseek")}<span>DeepSeek</span></span>
   </div>
   <p class="works-cap rise">Point it at whatever you already use. FLUX speaks Anthropic and OpenAI natively, plus anything with an OpenAI-style API &mdash; Grok, Llama, Mistral, DeepSeek and more. Full savings verification is live for Claude and GPT today; other models are reduced and recorded while their price tables land. <em>*Gemini via its OpenAI-compatible endpoint.</em></p>
 </section>
@@ -624,10 +678,10 @@ Anthropic SDK: new Anthropic({ baseURL: "http://127.0.0.1:8787" })</pre>
 <section aria-label="The first live export" class="field-paper">
   <div class="receipt-wrap">
     <div class="total-side rise">
-      <h2>Measured on real traffic.</h2>
-      <p class="note">We ran 30 real requests through five test apps and published every line of the result. Small and real beats big and made up.</p>
-      <div class="figure">${savedPct.toFixed(1)}%</div>
-      <p class="cap">of real spend saved before the bigger levers were even switched on &mdash; the floor, not the ceiling. Our test harness puts the full range at 26&ndash;73% depending on your traffic, including 37.6% from Claude&rsquo;s cache alone &rarr; <a href="evidence.html">evidence</a>.</p>
+      <h2>Proven, line by line.</h2>
+      <p class="note">Most savings claims are projections. Ours come with the receipt: we ran real requests, published every line, and the rows add up to the total &mdash; check them.</p>
+      <div class="figure">37.6%</div>
+      <p class="cap">saved by a single lever &mdash; switching Claude&rsquo;s cache on &mdash; measured both ways on identical prompts, answers unchanged. The receipt beside is our first, deliberately small live run (its ${savedPct.toFixed(1)}% is the floor, recorded before the strong levers were on). The full measured range is 26&ndash;73% by traffic type &rarr; <a href="evidence.html">evidence</a>.</p>
     </div>
     <div class="slip rise in-self" aria-label="The export, row by row">
       <h3>FLUX &mdash; FIRST LIVE EXPORT</h3>
@@ -666,12 +720,12 @@ Anthropic SDK: new Anthropic({ baseURL: "http://127.0.0.1:8787" })</pre>
   <div class="faq-wrap">
     <h2 class="rise">The catch, printed.</h2>
     <div class="faq rise">
-      <details name="faq" open><summary>Can FLUX break my app?<span class="plus"></span></summary><div class="answer">The default levers are lossless: compacted schemas decode identically, removed duplicates are exact, prefix repair reorders without deleting, and the reducer never throws &mdash; a failure returns your request untouched. Lossy levers stay off until a replay gate proves on your own recorded requests that quality held. <a href="faq.html">Full answer</a></div></details>
-      <details name="faq"><summary>Why a range and not one number?<span class="plus"></span></summary><div class="answer">Savings depend on your traffic&rsquo;s shape. The quote comes from your own export and names your segment; sometimes the verdict is literally do not pay us. <a href="segments.html">The bands, by segment</a></div></details>
-      <details name="faq"><summary>How is billing a counterfactual dispute-proof?<span class="plus"></span></summary><div class="answer">The way energy performance contracts have done it since 1995: a defined baseline, provider-verbatim measurements, an agreed adjustment method. Every request writes an append-only hash-chained event; the invoice is a pure function over those events. <a href="methodology.html">Methodology</a></div></details>
-      <details name="faq"><summary>What do you do with my prompts?<span class="plus"></span></summary><div class="answer">Analysis runs locally; prompts never leave your machine. The ledger records usage numbers, lever names and hashes &mdash; not content. Your API key passes through the proxy verbatim and is never stored.</div></details>
-      <details name="faq"><summary>Where does FLUX lose?<span class="plus"></span></summary><div class="answer">Busy interactive agents cap around 29% before cache enablement; already-optimised stacks get 0&ndash;5% and a do-not-pay-us verdict; a free trimmer may be all you need if you don&rsquo;t need the saving verified. <a href="comparison.html">The honest comparison</a></div></details>
-      <details name="faq"><summary>Are these numbers real?<span class="plus"></span></summary><div class="answer">Every figure traces to a runnable command and a commit. The bands are simulator-measured at published provider prices and labelled so; the ${savedPct.toFixed(1)}% receipt above is real traffic. Your pilot replaces all of it with your own number before any fee exists. <a href="evidence.html">Evidence</a></div></details>
+      <details name="faq" open><summary>Can FLUX break my app?<span class="plus"></span></summary><div class="answer-wrap"><div class="answer">The default levers are lossless: compacted schemas decode identically, removed duplicates are exact, prefix repair reorders without deleting, and the reducer never throws &mdash; a failure returns your request untouched. Lossy levers stay off until a replay gate proves on your own recorded requests that quality held. <a href="faq.html">Full answer</a></div></div></details>
+      <details name="faq"><summary>Why a range and not one number?<span class="plus"></span></summary><div class="answer-wrap"><div class="answer">Savings depend on your traffic&rsquo;s shape. The quote comes from your own export and names your segment; sometimes the verdict is literally do not pay us. <a href="segments.html">The bands, by segment</a></div></div></details>
+      <details name="faq"><summary>How is billing a counterfactual dispute-proof?<span class="plus"></span></summary><div class="answer-wrap"><div class="answer">The way energy performance contracts have done it since 1995: a defined baseline, provider-verbatim measurements, an agreed adjustment method. Every request writes an append-only hash-chained event; the invoice is a pure function over those events. <a href="methodology.html">Methodology</a></div></div></details>
+      <details name="faq"><summary>What do you do with my prompts?<span class="plus"></span></summary><div class="answer-wrap"><div class="answer">Analysis runs locally; prompts never leave your machine. The ledger records usage numbers, lever names and hashes &mdash; not content. Your API key passes through the proxy verbatim and is never stored.</div></div></details>
+      <details name="faq"><summary>Where does FLUX lose?<span class="plus"></span></summary><div class="answer-wrap"><div class="answer">Busy interactive agents cap around 29% before cache enablement; already-optimised stacks get 0&ndash;5% and a do-not-pay-us verdict; a free trimmer may be all you need if you don&rsquo;t need the saving verified. <a href="comparison.html">The honest comparison</a></div></div></details>
+      <details name="faq"><summary>Are these numbers real?<span class="plus"></span></summary><div class="answer-wrap"><div class="answer">Every figure traces to a runnable command and a commit. The bands are simulator-measured at published provider prices and labelled so; the ${savedPct.toFixed(1)}% receipt above is real traffic. Your pilot replaces all of it with your own number before any fee exists. <a href="evidence.html">Evidence</a></div></div></details>
     </div>
   </div>
 </section>
