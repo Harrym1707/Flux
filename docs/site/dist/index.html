@@ -9,7 +9,7 @@
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&family=Fraunces:ital,wght@1,500&display=swap" rel="stylesheet">
 <script type="application/ld+json">{"@context":"https://schema.org","@type":"SoftwareApplication","name":"FLUX","applicationCategory":"DeveloperApplication","operatingSystem":"Any","url":"https://www.fluxtoken.dev/","description":"Cut LLM API costs on Claude and OpenAI. One-URL proxy or one-line SDK; savings verified per completed task into a customer-recomputable ledger; fee is a share of verified savings.","offers":{"@type":"Offer","price":"0","priceCurrency":"USD","description":"Free to evaluate; production use billed as a percentage of verified savings."}}</script>
 <style>:root{
   /* Dark-first: Midnight Tide is the ground; Sky Signal is the energy. */
@@ -20,17 +20,21 @@
 *{box-sizing:border-box}
 html{scroll-behavior:smooth}
 body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.5 Manrope,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
-#ripples{position:fixed;inset:0;width:100vw;height:100vh;pointer-events:none;z-index:0;filter:blur(0.8px)}
+.hero-wrap{position:relative;overflow:hidden}
+#ripples{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:0;filter:blur(0.8px);-webkit-mask-image:radial-gradient(ellipse 85% 62% at 50% 46%, transparent 44%, black 78%);mask-image:radial-gradient(ellipse 85% 62% at 50% 46%, transparent 44%, black 78%)}
 .shell{position:relative;z-index:1}
 nav{display:flex;flex-wrap:wrap;gap:var(--s3);align-items:baseline;padding:var(--s3) var(--s4);font-size:.95rem;max-width:72rem;margin:0 auto}
 nav a{color:var(--muted);text-decoration:none;font-weight:600;padding:var(--s1) 0;border-bottom:2px solid transparent;transition:color .15s ease,border-color .15s ease}
 nav a:hover{color:var(--brand);border-bottom-color:var(--signal)}
 nav .brand{font-weight:800;font-size:1.4rem;color:var(--brand);letter-spacing:-.02em;border-bottom:none}
 nav .spacer{flex:1}
-.hero{min-height:82vh;display:flex;flex-direction:column;justify-content:center;align-items:center;max-width:52rem;margin:0 auto;padding:var(--s7) var(--s3);text-align:center}
-.hero h1{font-size:clamp(3rem,8vw,4.5rem);font-weight:800;letter-spacing:-.03em;line-height:1.05;margin:0 0 var(--s3);text-shadow:0 0 48px rgba(157,217,245,.25)}
-.hero h1 .dim{color:var(--brand)}
-.hero p.sub{font-size:1.2rem;line-height:1.5;color:var(--muted);max-width:32rem;margin:0 0 var(--s5)}
+.hero{position:relative;z-index:1;min-height:88vh;display:flex;flex-direction:column;justify-content:center;align-items:center;max-width:56rem;margin:0 auto;padding:var(--s7) var(--s3);text-align:center}
+.kicker{font-size:.82rem;font-weight:700;letter-spacing:.3em;text-transform:uppercase;color:var(--signal);margin:0 0 var(--s4)}
+.hero h1{margin:0 0 var(--s3);line-height:1}
+.hero h1 .in{display:block;font-size:clamp(1.4rem,3.2vw,2rem);font-weight:600;letter-spacing:.02em;color:var(--muted);opacity:.75;margin-bottom:var(--s1)}
+.hero h1 .out{display:block;font-size:clamp(4rem,11vw,7.5rem);font-weight:800;letter-spacing:-.045em;background:linear-gradient(135deg,#FFFFFF 20%,#9DD9F5 80%);-webkit-background-clip:text;background-clip:text;color:transparent;text-shadow:none}
+.accent{font-family:Fraunces,Georgia,serif;font-style:italic;font-weight:500;font-size:1.3rem;color:#c9d9e8;margin:0 0 var(--s3)}
+.hero p.sub{font-size:1.1rem;line-height:1.6;color:var(--muted);max-width:30rem;margin:0 0 var(--s5)}
 .cta{display:flex;gap:var(--s2);justify-content:center;flex-wrap:wrap;margin:0 0 var(--s6)}
 .btn{display:inline-block;padding:var(--s2) var(--s4);border-radius:10px;font-weight:700;text-decoration:none;transition:background .18s ease,color .18s ease,border-color .18s ease,transform .15s ease,box-shadow .15s ease}
 .btn:hover{transform:translateY(-2px)}
@@ -44,13 +48,13 @@ nav .spacer{flex:1}
 section{max-width:64rem;margin:0 auto;padding:var(--s7) var(--s3)}
 section h2{text-align:center;font-size:1rem;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);font-weight:700;margin:0 0 var(--s5)}
 .tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(15rem,1fr));gap:var(--s3)}
-.tile{background:rgba(16,42,67,.72);backdrop-filter:blur(2px);border:1.5px solid var(--line);border-radius:16px;padding:var(--s4) var(--s3);text-align:center;transition:transform .18s ease,box-shadow .18s ease,border-color .18s ease}
+.tile{background:#0E2133;border:1.5px solid var(--line);border-radius:16px;padding:var(--s4) var(--s3);text-align:center;transition:transform .18s ease,box-shadow .18s ease,border-color .18s ease}
 .tile:hover{transform:translateY(-4px);border-color:var(--signal);box-shadow:0 0 32px rgba(157,217,245,.22)}
 .tile svg{width:56px;height:56px;margin:0 0 var(--s2)}
 .tile h3{margin:0 0 var(--s1);font-size:1.1rem;font-weight:800}
 .tile p{margin:0;color:var(--muted);font-size:.95rem;line-height:1.5}
 .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(11rem,1fr));gap:var(--s3);text-align:center}
-.stat{background:rgba(16,42,67,.72);backdrop-filter:blur(2px);border:1.5px solid var(--line);border-radius:16px;padding:var(--s4) var(--s2);transition:border-color .18s ease,box-shadow .18s ease}
+.stat{background:#0E2133;border:1.5px solid var(--line);border-radius:16px;padding:var(--s4) var(--s2);transition:border-color .18s ease,box-shadow .18s ease}
 .stat:hover{border-color:var(--signal);box-shadow:0 0 32px rgba(157,217,245,.22)}
 .stat .n{font-size:2.5rem;font-weight:800;letter-spacing:-.02em;color:var(--signal);line-height:1}
 .stat .l{color:var(--muted);font-size:.9rem;line-height:1.5;margin-top:var(--s2)}
@@ -64,7 +68,6 @@ footer a{color:var(--brand)}
 @media (max-width:640px){.hero{min-height:72vh;padding:var(--s6) var(--s3)}section{padding:var(--s6) var(--s3)}}</style>
 </head>
 <body>
-<canvas id="ripples" aria-hidden="true"></canvas>
 <div class="shell">
 <nav>
   <a class="brand" href="index.html">flux</a>
@@ -76,8 +79,12 @@ footer a{color:var(--brand)}
   <a href="https://github.com/Harrym1707/Flux">GitHub</a>
 </nav>
 
+<div class="hero-wrap">
+<canvas id="ripples" aria-hidden="true"></canvas>
 <header class="hero">
-  <h1>Less in.<br><span class="dim">More out.</span></h1>
+  <p class="kicker">Verified LLM cost reduction</p>
+  <h1><span class="in">Less in.</span><span class="out">More out.</span></h1>
+  <p class="accent">Signal, clarified.</p>
   <p class="sub">Cut your Claude and OpenAI API bill. Pay only a share of savings you can verify yourself.</p>
   <div class="cta">
     <a class="btn primary" href="https://github.com/Harrym1707/Flux">Get started on GitHub</a>
@@ -89,6 +96,7 @@ footer a{color:var(--brand)}
     <div>baseURL<span class="c">:</span> <span class="w">"http://127.0.0.1:8787"</span></div>
   </div>
 </header>
+</div>
 
 <section aria-label="What FLUX does">
   <h2>What it does</h2>
@@ -147,14 +155,15 @@ footer a{color:var(--brand)}
   // Height-field energy: two buffers, wave equation, damping. Half resolution
   // + smooth alpha ramps + a blurred upscale keep it fluid, not pixelated.
   // Keep the simulation under ~250k cells so big displays stay smooth.
-  var SCALE = Math.max(2, Math.ceil(Math.sqrt((window.innerWidth * window.innerHeight) / 250000)));
+  var SCALE = 2;
   var W = 0, H = 0, cur, prev, img, off, offCtx;
 
+  var wrap = canvas.parentElement;
   function resize() {
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
-    W = Math.max(2, Math.ceil(window.innerWidth / SCALE));
-    H = Math.max(2, Math.ceil(window.innerHeight / SCALE));
+    canvas.width = wrap.clientWidth;
+    canvas.height = wrap.clientHeight;
+    W = Math.max(2, Math.ceil(canvas.width / SCALE));
+    H = Math.max(2, Math.ceil(canvas.height / SCALE));
     cur = new Float32Array(W * H);
     prev = new Float32Array(W * H);
     off = document.createElement("canvas");
@@ -169,7 +178,10 @@ footer a{color:var(--brand)}
   });
 
   function drop(clientX, clientY, strength, radius) {
-    var cx = Math.round(clientX / SCALE), cy = Math.round(clientY / SCALE);
+    var r = wrap.getBoundingClientRect();
+    var lx = clientX - r.left, ly = clientY - r.top;
+    if (lx < 0 || ly < 0 || lx > r.width || ly > r.height) return;
+    var cx = Math.round(lx / SCALE), cy = Math.round(ly / SCALE);
     for (var y = -radius; y <= radius; y++) {
       for (var x = -radius; x <= radius; x++) {
         var d = Math.sqrt(x * x + y * y);
@@ -208,8 +220,10 @@ footer a{color:var(--brand)}
     bolts.push({ points: points, born: performance.now() });
   }
   window.addEventListener("pointerdown", function (e) {
+    var r = wrap.getBoundingClientRect();
+    if (e.clientY - r.top > r.height) return;
     drop(e.clientX, e.clientY, 600, 5);
-    makeBolt(e.clientX, e.clientY);
+    makeBolt(e.clientX - r.left, e.clientY - r.top);
   }, { passive: true });
 
   // --- Call-outs radiate from their own centre ------------------------------
@@ -219,7 +233,7 @@ footer a{color:var(--brand)}
     var r = el.getBoundingClientRect();
     return [r.left + r.width / 2, r.top + r.height / 2];
   }
-  Array.prototype.forEach.call(document.querySelectorAll(".btn, .tile, .stat, .term"), function (el) {
+  Array.prototype.forEach.call(document.querySelectorAll(".hero .btn, .hero .term"), function (el) {
     var pulse = null;
     el.addEventListener("pointerenter", function () {
       if (pulse) clearInterval(pulse); // a re-enter must never stack intervals
@@ -237,10 +251,11 @@ footer a{color:var(--brand)}
 
   var ambient = setInterval(function () {
     if (document.hidden) return;
-    drop(Math.random() * window.innerWidth, Math.random() * window.innerHeight, 200, 4);
+    var rr = wrap.getBoundingClientRect();
+    drop(rr.left + Math.random() * rr.width, rr.top + Math.random() * rr.height, 200, 4);
   }, 2800);
   window.addEventListener("pagehide", function () { clearInterval(ambient); });
-  drop(window.innerWidth * 0.5, window.innerHeight * 0.3, 600, 6);
+  (function(){ var rr = wrap.getBoundingClientRect(); drop(rr.left + rr.width * 0.18, rr.top + rr.height * 0.25, 600, 6); })();
 
   // --- Dramatic brand rendering ---------------------------------------------
   // Light mode paints with the DARK inks (Open Ocean waves, Midnight filaments,
