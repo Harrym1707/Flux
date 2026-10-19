@@ -105,6 +105,25 @@ a{color:var(--ink)}
 .copy{font:12px/1 ui-monospace,monospace;background:none;border:1px solid var(--line);color:var(--muted);border-radius:4px;padding:4px 8px;cursor:pointer}
 .copy:hover{color:var(--accent);border-color:var(--accent)}
 
+/* ---------- colour fields: two chapter breaks, flat, full-bleed ---------- */
+.field-paper{background:var(--paper);color:var(--paper-ink)}
+.field-paper h2{color:var(--paper-ink)}
+.field-paper .total-side .note,.field-paper .total-side .cap{color:#486581}
+.field-paper .total-side .cap a{color:var(--ocean)}
+.field-paper .total-side .figure{color:var(--paper-ink)}
+.field-paper .slip{background:#ffffff}
+.field-ocean{background:var(--ocean);color:#F1F7FB}
+.field-ocean h2{color:#fff}
+.field-ocean p{color:#d7e9f7}
+.field-ocean .fig{color:#fff}
+.field-ocean .per{color:#eaf4fb}
+.field-ocean ul{color:#eaf4fb}
+.field-ocean ul strong{color:#fff;border-bottom:2px solid var(--accent)}
+.field-ocean .overlap path{stroke:#9DD9F5}
+.field-ocean .overlap circle{fill:#F1F7FB}
+.field-ocean .btn{background:#F1F7FB;color:var(--ocean)}
+.field-ocean .btn:hover{background:#fff}
+
 /* ---------- sections ---------- */
 section{padding:var(--s7) var(--s4)}
 section h2{font-size:30px;font-weight:800;letter-spacing:-.01em;margin:0 0 var(--s6)}
@@ -141,14 +160,14 @@ section h2{font-size:30px;font-weight:800;letter-spacing:-.01em;margin:0 0 var(-
 /* the price, very large */
 .price-wrap{display:grid;grid-template-columns:1fr;gap:var(--s5);max-width:1080px;margin:0 auto;min-height:80svh;align-content:center}
 @media (min-width:980px){.price-wrap{grid-template-columns:380px 1fr}}
-.price-side p{font-size:16px;line-height:1.6;color:var(--muted);max-width:38ch}
+.price-side p{font-size:16px;line-height:1.6;max-width:38ch}
 .price-figure{position:relative}
 .price-figure .fig{font-size:clamp(120px,16vw,240px);font-weight:800;letter-spacing:-.04em;line-height:.85}
 .price-figure .fig sup{font-size:.5em;vertical-align:super}
 .price-figure .per{font-size:16px;color:var(--muted)}
 .price-figure .overlap{position:absolute;top:-8%;right:4%;width:120px;height:120px}
 .price-figure ul{list-style:none;margin:var(--s4) 0 0;padding:0;font-size:16px;line-height:2}
-.price-figure ul strong{color:var(--accent)}
+
 .price-figure .btn{margin-top:var(--s3)}
 
 /* faq: accordion of filled tiles, sticky heading */
@@ -292,7 +311,7 @@ Anthropic SDK: new Anthropic({ baseURL: "http://127.0.0.1:8787" })</pre>
   </div>
 </section>
 
-<section aria-label="The first live export">
+<section aria-label="The first live export" class="field-paper">
   <div class="receipt-wrap">
     <div class="total-side rise">
       <h2>Measured on real traffic.</h2>
@@ -320,7 +339,7 @@ Anthropic SDK: new Anthropic({ baseURL: "http://127.0.0.1:8787" })</pre>
   </div>
 </section>
 
-<section aria-label="Pricing">
+<section aria-label="Pricing" class="field-ocean">
   <div class="price-wrap">
     <div class="price-side rise">
       <h2>One price.</h2>
