@@ -52,8 +52,27 @@ nav .spacer{flex:1}
 .term{width:min(30rem,100%);margin:0 auto;background:var(--code);color:#9DD9F5;border:1px solid var(--line);border-radius:12px;padding:var(--s3) var(--s4);text-align:left;font:0.95rem/1.8 ui-monospace,SFMono-Regular,Menlo,monospace;box-shadow:0 0 36px rgba(157,217,245,.12)}
 .term .c{color:#5f7d9c}
 .term .w{color:#F1F7FB}
-section{max-width:64rem;margin:0 auto;padding:var(--s7) var(--s3)}
+section{padding:var(--s7) var(--s3)}
+section > .inner{max-width:64rem;margin:0 auto}
 section h2{text-align:center;font-size:1rem;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);font-weight:700;margin:0 0 var(--s5)}
+/* The colour journey: deep focus to bright signal, section by section. */
+.band-lift{background:linear-gradient(180deg,#081522 0%,#0B1D2E 18%,#0B1D2E 100%)}
+.band-light{background:linear-gradient(180deg,#EAF4FB 0%,#F1F7FB 30%,#F1F7FB 100%);color:#102A43}
+.band-light h2{color:#2864A5}
+.band-light .muted,.band-light p{color:#486581}
+.band-ocean{background:linear-gradient(180deg,#0E2133 0%,#123150 60%,#0E2133 100%)}
+.band-deep{background:#081522}
+/* --- The savings flow infographic (Cloud White band) --- */
+.flow-wrap{overflow-x:auto}
+.flow{display:block;width:100%;max-width:58rem;min-width:40rem;margin:0 auto}
+.flow text{font-family:Manrope,sans-serif}
+.flow .lbl{font-size:12px;font-weight:700;fill:#486581}
+.flow .big{font-size:14px;font-weight:800;fill:#102A43}
+.flow .money{font-size:16px;font-weight:800}
+.flow-caption{text-align:center;font-size:.88rem;color:#486581;max-width:40rem;margin:var(--s3) auto 0}
+.flow-caption a{color:#2864A5}
+@media (prefers-reduced-motion: reduce){.flow .ani{display:none}.flow .static-note{display:block}}
+.flow .static-note{display:none}
 .tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(15rem,1fr));gap:var(--s3)}
 .tile{background:#0E2133;border:1.5px solid var(--line);border-radius:16px;padding:var(--s4) var(--s3);text-align:center;transition:transform .18s ease,box-shadow .18s ease,border-color .18s ease}
 .tile:hover{transform:translateY(-4px);border-color:var(--signal);box-shadow:0 0 32px rgba(157,217,245,.22)}
@@ -105,25 +124,96 @@ footer a{color:var(--brand)}
 </header>
 </div>
 
-<section aria-label="What FLUX does">
+<section class="band-lift" aria-label="What FLUX does">
+  <div class="inner">
   <h2>What it does</h2>
   <div class="tiles">
     <div class="tile"><svg viewBox="0 0 48 48" fill="none" aria-hidden="true"><path d="M6 24h10" stroke="#2864A5" stroke-width="3" stroke-linecap="round"/><path d="M32 24h10" stroke="#9DD9F5" stroke-width="3" stroke-linecap="round"/><rect x="16" y="14" width="16" height="20" rx="5" stroke="#2864A5" stroke-width="3"/><path d="M22 20v8M26 20v8" stroke="#9DD9F5" stroke-width="3" stroke-linecap="round"/></svg><h3>One URL in</h3><p>No SDK adoption. Any language. Your key passes through — never stored.</p></div>
     <div class="tile"><svg viewBox="0 0 48 48" fill="none" aria-hidden="true"><path d="M8 14c10 0 10 10 20 10h12" stroke="#2864A5" stroke-width="3" stroke-linecap="round"/><path d="M8 34c10 0 10-10 20-10" stroke="#2864A5" stroke-width="3" stroke-linecap="round"/><circle cx="41" cy="24" r="3.5" fill="#9DD9F5"/></svg><h3>Signal kept</h3><p>Duplicates, schema bloat and stale context removed before the model bills you.</p></div>
     <div class="tile"><svg viewBox="0 0 48 48" fill="none" aria-hidden="true"><path d="M6 18c6-6 12-6 18 0s12 6 18 0" stroke="#2864A5" stroke-width="3" stroke-linecap="round"/><path d="M6 30c6-6 12-6 18 0s12 6 18 0" stroke="#9DD9F5" stroke-width="3" stroke-linecap="round"/></svg><h3>Cache switched on</h3><p>Claude's cache is opt-in; most agents never opt in. FLUX stamps the stable prefix.</p></div>
   </div>
+  </div>
 </section>
 
-<section aria-label="How you pay">
+<section class="band-light" aria-label="How FLUX saves money">
+  <div class="inner">
+  <h2>Same response. Smaller bill.</h2>
+  <div class="flow-wrap">
+  <svg class="flow" viewBox="0 0 960 330" role="img" aria-label="Tokens flow into the flux funnel; waste is removed before billing; the model returns the same response; the bill shrinks from $1.00 to $0.62">
+    <!-- lane labels -->
+    <text class="lbl" x="40" y="86">YOUR REQUEST</text>
+    <text class="lbl" x="440" y="60" text-anchor="middle">FLUX</text>
+    <text class="lbl" x="700" y="86" text-anchor="middle">MODEL</text>
+    <text class="lbl" x="860" y="86" text-anchor="middle">RESPONSE</text>
+
+    <!-- the funnel: the brand's two streams resolving into one -->
+    <path d="M 330 110 C 400 110 420 150 480 155" fill="none" stroke="#2864A5" stroke-width="5" stroke-linecap="round"/>
+    <path d="M 330 200 C 400 200 420 160 480 155" fill="none" stroke="#2864A5" stroke-width="5" stroke-linecap="round"/>
+    <path d="M 480 155 H 560" fill="none" stroke="#2864A5" stroke-width="5" stroke-linecap="round"/>
+    <circle cx="566" cy="155" r="7" fill="#9DD9F5" stroke="#2864A5" stroke-width="2"/>
+
+    <!-- removed-waste bin -->
+    <path d="M 420 238 h 120 a6 6 0 0 1 6 6 v 40 a6 6 0 0 1 -6 6 h -120 a6 6 0 0 1 -6 -6 v -40 a6 6 0 0 1 6 -6 z" fill="#E4F4FD" stroke="#9DD9F5" stroke-width="2"/>
+    <text class="lbl" x="480" y="262" text-anchor="middle">removed before</text>
+    <text class="lbl" x="480" y="278" text-anchor="middle">it bills you</text>
+
+    <!-- model chip -->
+    <rect x="660" y="120" width="80" height="70" rx="12" fill="#102A43"/>
+    <circle cx="700" cy="145" r="10" fill="none" stroke="#9DD9F5" stroke-width="3"/>
+    <path d="M 685 172 h 30" stroke="#9DD9F5" stroke-width="3" stroke-linecap="round"/>
+
+    <!-- response card: the SAME response either way -->
+    <rect x="805" y="104" width="120" height="74" rx="12" fill="#ffffff" stroke="#d9e6f0" stroke-width="2"/>
+    <path d="M 822 128 h 86 M 822 142 h 66 M 822 156 h 76" stroke="#9fb3c8" stroke-width="4" stroke-linecap="round"/>
+    <path d="M 896 148 l 7 8 l 14 -16" fill="none" stroke="#2864A5" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+    <text class="big" x="865" y="200" text-anchor="middle">Same response</text>
+
+    <!-- the bill shrinking -->
+    <text class="lbl" x="660" y="232">THE BILL</text>
+    <rect x="660" y="242" width="180" height="14" rx="7" fill="#d9e6f0"/>
+    <rect x="660" y="242" width="180" height="14" rx="7" fill="#2864A5">
+      <animate class="ani" attributeName="width" values="180;180;112;112" keyTimes="0;0.2;0.6;1" dur="4s" repeatCount="indefinite"/>
+    </rect>
+    <text class="money" x="660" y="286" fill="#486581" style="text-decoration:line-through">$1.00</text>
+    <text class="money" x="740" y="286" fill="#2864A5">$0.62</text>
+
+    <!-- animated tokens: the kept stream -->
+    <g class="ani">
+      <circle r="6" fill="#2864A5"><animateMotion dur="3.2s" begin="0s" repeatCount="indefinite" path="M 40 110 C 200 110 280 112 330 118 C 420 128 430 150 560 155 L 650 155"/></circle>
+      <circle r="6" fill="#2864A5"><animateMotion dur="3.2s" begin="0.8s" repeatCount="indefinite" path="M 40 150 C 200 150 300 152 480 155 L 650 155"/></circle>
+      <circle r="6" fill="#2864A5"><animateMotion dur="3.2s" begin="1.6s" repeatCount="indefinite" path="M 40 195 C 200 195 300 190 420 172 C 480 162 520 156 650 155"/></circle>
+      <circle r="6" fill="#2864A5"><animateMotion dur="3.2s" begin="2.4s" repeatCount="indefinite" path="M 40 132 C 200 132 300 136 480 153 L 650 155"/></circle>
+      <!-- the waste: diverted into the bin and gone -->
+      <circle r="6" fill="#9fb3c8"><animateMotion dur="3.2s" begin="0.4s" repeatCount="indefinite" path="M 40 170 C 200 170 330 180 420 210 C 450 222 465 234 470 252"/><animate attributeName="opacity" values="1;1;0" keyTimes="0;0.8;1" dur="3.2s" begin="0.4s" repeatCount="indefinite"/></circle>
+      <circle r="6" fill="#9fb3c8"><animateMotion dur="3.2s" begin="1.2s" repeatCount="indefinite" path="M 40 215 C 200 215 330 210 430 226 C 460 232 480 242 488 254"/><animate attributeName="opacity" values="1;1;0" keyTimes="0;0.8;1" dur="3.2s" begin="1.2s" repeatCount="indefinite"/></circle>
+      <circle r="6" fill="#9fb3c8"><animateMotion dur="3.2s" begin="2s" repeatCount="indefinite" path="M 40 95 C 200 95 320 120 410 190 C 440 214 455 232 462 250"/><animate attributeName="opacity" values="1;1;0" keyTimes="0;0.8;1" dur="3.2s" begin="2s" repeatCount="indefinite"/></circle>
+      <!-- the response pulse: same answer, every loop -->
+      <circle r="6" fill="#9DD9F5" stroke="#2864A5" stroke-width="2"><animateMotion dur="3.2s" begin="0s" repeatCount="indefinite" path="M 745 155 L 800 150"/></circle>
+    </g>
+    <text class="static-note lbl" x="480" y="40" text-anchor="middle">Tokens that carry no information are removed before they bill; the response is unchanged.</text>
+
+    <!-- token labels under the inflow -->
+    <text class="lbl" x="40" y="236">schema bloat &#183; duplicates &#183; stale history &#8594; removed</text>
+  </svg>
+  </div>
+  <p class="flow-caption">An illustration of the mechanism, not a measurement — the measured bands are
+  26&ndash;73% by traffic segment, every one traced to a runnable command &rarr; <a href="evidence.html">evidence</a>.</p>
+  </div>
+</section>
+
+<section class="band-ocean" aria-label="How you pay">
+  <div class="inner">
   <h2>How you pay</h2>
   <div class="tiles">
     <div class="tile"><svg viewBox="0 0 48 48" fill="none" aria-hidden="true"><rect x="10" y="6" width="28" height="36" rx="4" stroke="#2864A5" stroke-width="3"/><path d="M17 15h14M17 22h14M17 29h8" stroke="#9DD9F5" stroke-width="3" stroke-linecap="round"/><path d="M28 31l3 3 6-6" stroke="#2864A5" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg><h3>Verified per task</h3><p>Every request writes a hash-chained ledger event from the provider's own usage.</p></div>
     <div class="tile"><svg viewBox="0 0 48 48" fill="none" aria-hidden="true"><circle cx="16" cy="16" r="5" stroke="#2864A5" stroke-width="3"/><circle cx="32" cy="32" r="5" stroke="#2864A5" stroke-width="3"/><path d="M36 12 12 36" stroke="#9DD9F5" stroke-width="3" stroke-linecap="round"/></svg><h3>A share of savings</h3><p>Recompute the invoice from your own spool — you must get our number.</p></div>
     <div class="tile"><svg viewBox="0 0 48 48" fill="none" aria-hidden="true"><path d="M24 5l15 6v11c0 9.5-6.3 17-15 21C15.3 39 9 31.5 9 22V11l15-6z" stroke="#2864A5" stroke-width="3" stroke-linejoin="round"/><path d="M17 23l5 5 9-10" stroke="#9DD9F5" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg><h3>Or nothing</h3><p>Already optimised? The verdict is <strong>do not pay us</strong> — printed on the quote.</p></div>
   </div>
+  </div>
 </section>
 
-<section aria-label="Measured savings">
+<section class="band-deep" aria-label="Measured savings">
+  <div class="inner">
   <h2>Measured, not promised</h2>
   <div class="stats">
     <div class="stat"><div class="n">37.6%</div><div class="l">Claude cache switched on &mdash; same answers, quality unchanged</div></div>
@@ -133,13 +223,16 @@ footer a{color:var(--brand)}
   </div>
   <p class="fineprint">Simulator-measured at published provider prices, quality gated per completed task.
   Every number traces to a command and a commit &rarr; <a href="evidence.html">evidence</a></p>
+  </div>
 </section>
 
-<section aria-label="The honest line">
+<section class="band-deep" aria-label="The honest line">
+  <div class="inner">
   <div class="honest">
     <strong>The catch, printed up front:</strong> savings depend on your traffic's shape.
     The first thing FLUX does is tell you which number is yours — from your own logs,
     in five minutes, before any contract exists.
+  </div>
   </div>
 </section>
 

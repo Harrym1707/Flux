@@ -315,6 +315,10 @@ for (const bot of ["GPTBot", "ClaudeBot", "PerplexityBot", "Google-Extended"]) {
 const llmsFull = readFileSync(path.join(outDir, "llms-full.txt"), "utf8");
 if (llmsFull.length < 5000 || !llmsFull.includes("37.6%")) failures.push("llms-full.txt: missing or missing the numbers");
 if (!landing.includes('property="og:title"')) failures.push("index.html: missing OpenGraph metadata");
+if (!landing.includes("Same response. Smaller bill.")) failures.push("index.html: savings-flow infographic missing");
+if (!landing.includes("animateMotion")) failures.push("index.html: infographic animation missing");
+if (!landing.includes("not a measurement")) failures.push("index.html: infographic honesty caption missing");
+if (!landing.includes("band-light")) failures.push("index.html: colour journey bands missing");
 const faqHtml = readFileSync(path.join(outDir, "faq.html"), "utf8");
 if (!faqHtml.includes("application/ld+json") || !faqHtml.includes("FAQPage")) failures.push("faq.html: missing FAQ structured data");
 if (failures.length > 0) {
