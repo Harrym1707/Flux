@@ -232,7 +232,7 @@ const manifest = {
   name: workspaceManifest.name,
   version: workspaceManifest.version,
   description: "Cut LLM API costs on Claude and OpenAI: one-URL proxy or one-line SDK wrapper that reduces each request losslessly and meters VERIFIED savings into an append-only, customer-recomputable ledger. Pay only a share of verified savings.",
-  license: "UNLICENSED",
+  license: "MIT",
   type: "module",
   main: "./index.cjs",
   module: "./index.js",
@@ -245,10 +245,11 @@ const manifest = {
     },
   },
   bin: { "flux-quote": "./bin/flux-quote.mjs", "flux-proxy": "./bin/flux-proxy.mjs" },
-  files: ["index.js", "index.cjs", "bin", "types", "README.md"],
+  files: ["index.js", "index.cjs", "bin", "types", "README.md", "LICENSE"],
   engines: { node: ">=18" },
 };
 writeFileSync(path.join(outDir, "package.json"), `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
+copyFileSync(path.join(root, "LICENSE"), path.join(outDir, "LICENSE"));
 
 writeFileSync(path.join(outDir, "README.md"), `# @flux-ai/sdk
 

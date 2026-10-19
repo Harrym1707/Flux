@@ -119,3 +119,7 @@ Method: [docs/site/methodology.md](docs/site/methodology.md) · segment bands:
 independent measurements of competing tools:
 [docs/site/comparison.md](docs/site/comparison.md) · FAQ:
 [docs/site/faq.md](docs/site/faq.md)
+
+## License
+
+MIT — see [LICENSE](LICENSE).
