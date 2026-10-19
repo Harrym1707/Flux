@@ -12,56 +12,51 @@
 <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&display=swap" rel="stylesheet">
 <script type="application/ld+json">{"@context":"https://schema.org","@type":"SoftwareApplication","name":"FLUX","applicationCategory":"DeveloperApplication","operatingSystem":"Any","url":"https://www.fluxtoken.dev/","description":"Cut LLM API costs on Claude and OpenAI. One-URL proxy or one-line SDK; savings verified per completed task into a customer-recomputable ledger; fee is a share of verified savings.","offers":{"@type":"Offer","price":"0","priceCurrency":"USD","description":"Free to evaluate; production use billed as a percentage of verified savings."}}</script>
 <style>:root{
-  --bg:#F1F7FB; --surface:#ffffff; --fg:#102A43; --muted:#486581;
-  --line:#d9e6f0; --brand:#2864A5; --brand-deep:#1d4f86; --signal:#9DD9F5; --signal-soft:#e4f4fd; --code:#0b1d2e;
-  /* 8pt spacing scale: every vertical measure is a multiple of 8. */
+  /* Dark-first: Midnight Tide is the ground; Sky Signal is the energy. */
+  --bg:#081522; --surface:#102A43; --fg:#F1F7FB; --muted:#9fb3c8;
+  --line:#24415c; --brand:#9DD9F5; --brand-deep:#c9ecfc; --signal:#9DD9F5; --signal-soft:#16314a; --code:#060f19;
   --s1:8px; --s2:16px; --s3:24px; --s4:32px; --s5:48px; --s6:64px; --s7:96px; --s8:128px;
 }
-@media (prefers-color-scheme: dark){:root{
-  --bg:#0b1d2e; --surface:#102A43; --fg:#F1F7FB; --muted:#9fb3c8;
-  --line:#24415c; --brand:#9DD9F5; --brand-deep:#bfe6fa; --signal:#9DD9F5; --signal-soft:#16314a; --code:#081522;
-}}
 *{box-sizing:border-box}
 html{scroll-behavior:smooth}
 body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.5 Manrope,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
-#ripples{position:fixed;inset:0;width:100vw;height:100vh;pointer-events:none;z-index:0}
+#ripples{position:fixed;inset:0;width:100vw;height:100vh;pointer-events:none;z-index:0;filter:blur(0.8px)}
 .shell{position:relative;z-index:1}
 nav{display:flex;flex-wrap:wrap;gap:var(--s3);align-items:baseline;padding:var(--s3) var(--s4);font-size:.95rem;max-width:72rem;margin:0 auto}
 nav a{color:var(--muted);text-decoration:none;font-weight:600;padding:var(--s1) 0;border-bottom:2px solid transparent;transition:color .15s ease,border-color .15s ease}
 nav a:hover{color:var(--brand);border-bottom-color:var(--signal)}
 nav .brand{font-weight:800;font-size:1.4rem;color:var(--brand);letter-spacing:-.02em;border-bottom:none}
 nav .spacer{flex:1}
-.hero{min-height:82vh;display:flex;flex-direction:column;justify-content:center;align-items:center;max-width:52rem;margin:0 auto;padding:var(--s7) var(--s3) var(--s7);text-align:center}
-.hero h1{font-size:clamp(3rem,8vw,4.5rem);font-weight:800;letter-spacing:-.03em;line-height:1.05;margin:0 0 var(--s3)}
+.hero{min-height:82vh;display:flex;flex-direction:column;justify-content:center;align-items:center;max-width:52rem;margin:0 auto;padding:var(--s7) var(--s3);text-align:center}
+.hero h1{font-size:clamp(3rem,8vw,4.5rem);font-weight:800;letter-spacing:-.03em;line-height:1.05;margin:0 0 var(--s3);text-shadow:0 0 48px rgba(157,217,245,.25)}
 .hero h1 .dim{color:var(--brand)}
 .hero p.sub{font-size:1.2rem;line-height:1.5;color:var(--muted);max-width:32rem;margin:0 0 var(--s5)}
 .cta{display:flex;gap:var(--s2);justify-content:center;flex-wrap:wrap;margin:0 0 var(--s6)}
 .btn{display:inline-block;padding:var(--s2) var(--s4);border-radius:10px;font-weight:700;text-decoration:none;transition:background .18s ease,color .18s ease,border-color .18s ease,transform .15s ease,box-shadow .15s ease}
 .btn:hover{transform:translateY(-2px)}
-.btn.primary{background:var(--brand);color:#fff;box-shadow:0 6px 20px rgba(40,100,165,.28)}
-.btn.primary:hover{background:var(--brand-deep);box-shadow:0 10px 26px rgba(40,100,165,.38)}
-@media (prefers-color-scheme: dark){.btn.primary{color:#0b1d2e}.btn.primary:hover{color:#0b1d2e}}
-.btn.ghost{color:var(--brand);border:1.5px solid var(--line);background:var(--surface)}
-.btn.ghost:hover{background:var(--signal-soft);border-color:var(--brand);color:var(--brand)}
-.term{width:min(30rem,100%);margin:0 auto;background:var(--code);color:#9DD9F5;border-radius:12px;padding:var(--s3) var(--s4);text-align:left;font:0.95rem/1.8 ui-monospace,SFMono-Regular,Menlo,monospace;box-shadow:0 12px 36px rgba(16,42,67,.25)}
+.btn.primary{background:var(--signal);color:#081522;box-shadow:0 0 28px rgba(157,217,245,.35)}
+.btn.primary:hover{background:var(--brand-deep);box-shadow:0 0 44px rgba(157,217,245,.55)}
+.btn.ghost{color:var(--brand);border:1.5px solid var(--line);background:rgba(16,42,67,.6)}
+.btn.ghost:hover{background:var(--signal-soft);border-color:var(--brand)}
+.term{width:min(30rem,100%);margin:0 auto;background:var(--code);color:#9DD9F5;border:1px solid var(--line);border-radius:12px;padding:var(--s3) var(--s4);text-align:left;font:0.95rem/1.8 ui-monospace,SFMono-Regular,Menlo,monospace;box-shadow:0 0 36px rgba(157,217,245,.12)}
 .term .c{color:#5f7d9c}
 .term .w{color:#F1F7FB}
 section{max-width:64rem;margin:0 auto;padding:var(--s7) var(--s3)}
 section h2{text-align:center;font-size:1rem;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);font-weight:700;margin:0 0 var(--s5)}
 .tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(15rem,1fr));gap:var(--s3)}
-.tile{background:var(--surface);border:1.5px solid var(--line);border-radius:16px;padding:var(--s4) var(--s3);text-align:center;transition:transform .18s ease,box-shadow .18s ease,border-color .18s ease,background .18s ease}
-.tile:hover{transform:translateY(-4px);box-shadow:0 14px 30px rgba(16,42,67,.12);border-color:var(--signal);background:var(--signal-soft)}
+.tile{background:rgba(16,42,67,.72);backdrop-filter:blur(2px);border:1.5px solid var(--line);border-radius:16px;padding:var(--s4) var(--s3);text-align:center;transition:transform .18s ease,box-shadow .18s ease,border-color .18s ease}
+.tile:hover{transform:translateY(-4px);border-color:var(--signal);box-shadow:0 0 32px rgba(157,217,245,.22)}
 .tile svg{width:56px;height:56px;margin:0 0 var(--s2)}
 .tile h3{margin:0 0 var(--s1);font-size:1.1rem;font-weight:800}
 .tile p{margin:0;color:var(--muted);font-size:.95rem;line-height:1.5}
 .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(11rem,1fr));gap:var(--s3);text-align:center}
-.stat{background:var(--surface);border:1.5px solid var(--line);border-radius:16px;padding:var(--s4) var(--s2);transition:border-color .18s ease,background .18s ease}
-.stat:hover{border-color:var(--signal);background:var(--signal-soft)}
-.stat .n{font-size:2.5rem;font-weight:800;letter-spacing:-.02em;color:var(--fg);line-height:1}
+.stat{background:rgba(16,42,67,.72);backdrop-filter:blur(2px);border:1.5px solid var(--line);border-radius:16px;padding:var(--s4) var(--s2);transition:border-color .18s ease,box-shadow .18s ease}
+.stat:hover{border-color:var(--signal);box-shadow:0 0 32px rgba(157,217,245,.22)}
+.stat .n{font-size:2.5rem;font-weight:800;letter-spacing:-.02em;color:var(--signal);line-height:1}
 .stat .l{color:var(--muted);font-size:.9rem;line-height:1.5;margin-top:var(--s2)}
 .fineprint{text-align:center;color:var(--muted);font-size:.88rem;margin:var(--s4) auto 0;max-width:40rem}
 .fineprint a{color:var(--brand)}
-.honest{max-width:40rem;margin:0 auto;text-align:center;background:var(--signal-soft);border:1.5px solid var(--line);border-radius:16px;padding:var(--s4)}
+.honest{max-width:40rem;margin:0 auto;text-align:center;background:rgba(22,49,74,.8);border:1.5px solid var(--line);border-radius:16px;padding:var(--s4)}
 .honest strong{color:var(--brand)}
 footer{border-top:2px solid var(--signal);margin:var(--s7) auto 0;max-width:64rem;padding:var(--s4) var(--s3) var(--s7);font-size:.9rem;line-height:2;color:var(--muted)}
 footer a{color:var(--brand)}
@@ -147,11 +142,12 @@ footer a{color:var(--brand)}
   var canvas = document.getElementById("ripples");
   if (!canvas || !canvas.getContext) return;
   var ctx = canvas.getContext("2d");
-  var dark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+  var dark = true; // the landing is dark-first: always the additive glow path
 
   // Height-field energy: two buffers, wave equation, damping. Half resolution
   // + smooth alpha ramps + a blurred upscale keep it fluid, not pixelated.
-  var SCALE = 2;
+  // Keep the simulation under ~250k cells so big displays stay smooth.
+  var SCALE = Math.max(2, Math.ceil(Math.sqrt((window.innerWidth * window.innerHeight) / 250000)));
   var W = 0, H = 0, cur, prev, img, off, offCtx;
 
   function resize() {
@@ -227,6 +223,7 @@ footer a{color:var(--brand)}
   Array.prototype.forEach.call(document.querySelectorAll(".btn, .tile, .stat, .term"), function (el) {
     var pulse = null;
     el.addEventListener("pointerenter", function () {
+      if (pulse) clearInterval(pulse); // a re-enter must never stack intervals
       var c = centerOf(el);
       drop(c[0], c[1], 1400, 5);
       pulse = setInterval(function () {
@@ -249,10 +246,10 @@ footer a{color:var(--brand)}
   // --- Dramatic brand rendering ---------------------------------------------
   // Light mode paints with the DARK inks (Open Ocean waves, Midnight filaments,
   // Sky Signal troughs); dark mode glows additively in Sky Signal and white.
-  var waveC = dark ? [157, 217, 245] : [40, 100, 165];
-  var filC = dark ? [255, 255, 255] : [16, 42, 67];
-  var troughC = dark ? [12, 24, 40] : [157, 217, 245];
-  var boltC = dark ? "rgba(157,217,245," : "rgba(40,100,165,";
+  var waveC = [157, 217, 245];
+  var filC = [255, 255, 255];
+  var troughC = [40, 100, 165];
+  var boltC = "rgba(157,217,245,";
 
   var lastFrame = 0;
   function frame(ts) {
@@ -297,10 +294,8 @@ footer a{color:var(--brand)}
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = "high";
-    ctx.filter = "blur(1.2px)";
-    ctx.globalCompositeOperation = dark ? "lighter" : "source-over";
+    ctx.globalCompositeOperation = "lighter";
     ctx.drawImage(off, 0, 0, canvas.width, canvas.height);
-    ctx.filter = "none";
 
     // Lightning bolts flicker for a quarter second, re-jittered every frame.
     var now = performance.now();
