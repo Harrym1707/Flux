@@ -340,7 +340,7 @@ a{color:var(--ink)}
 .field-ocean h2{color:#fff}
 .field-ocean p{color:#d7e9f7}
 .field-ocean .fig{color:#fff}
-.field-ocean .per{color:#eaf4fb}
+.field-ocean .price-figure .per{color:#eaf4fb}
 .field-ocean ul{color:#eaf4fb}
 .field-ocean ul strong{color:#fff;border-bottom:2px solid var(--accent)}
 .field-ocean .overlap path{stroke:#9DD9F5}
