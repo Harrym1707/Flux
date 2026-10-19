@@ -28,7 +28,7 @@ latency-tolerant one-shots and the band reaches 72.8%.
 **What changes it:** how big your shared template is and whether a breaker is
 actually present — the five-minute quote measures both from your export.
 
-## Interactive agents — 25.9–29.4% busy, 34.1% sparse
+## Interactive agents — 25.9–29.4% busy, 34.0% sparse
 
 **Mechanism:** busy agent traffic is already heavily subsidised by the
 provider's cache (35–40% on its own, which we never claim), so FLUX's honest
@@ -36,7 +36,7 @@ headroom is the *fresh* tokens: oversized tool results are capped at injection
 (headlines, errors and file paths preserved verbatim; the replay gate approved
 this lever at exactly zero quality delta), stale history is compacted
 byte-stably, schemas are slimmed. Sparse traffic adds the 1-hour cache TTL
-(2× write premium billed honestly, netted when negative) for 34.1%.
+(2× write premium billed honestly, netted when negative) for 34.0%.
 **What changes it:** how oversized your tool results actually are (our fixture's
 are highly compressible; your yield scales with yours), and the pending
 per-model cache-minimum fix, which may lower the sparse figure on some models.

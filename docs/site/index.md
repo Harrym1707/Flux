@@ -15,7 +15,7 @@ until your own pilot measures them. [How these numbers are made →](methodology
 |---|---:|---|
 | Background / batch / latency-tolerant jobs | **57.7%** (net of assumed tier fallbacks; 64.3% ceiling) | simulator-measured |
 | One-shot API calls on a shared template | **45.5%** — up to **72.8%** where latency-tolerant | simulator-measured |
-| Interactive agents, sparse traffic | **34.1%** | simulator-measured, caveats apply |
+| Interactive agents, sparse traffic | **34.0%** | simulator-measured, caveats apply |
 | Interactive agents, busy traffic | **25.9–29.4%** | simulator-measured |
 | Already-optimised stacks | **0–5% — do not pay us** | measured on fixtures |
 

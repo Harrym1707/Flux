@@ -6,7 +6,7 @@
 > customer from a hash-chained event ledger. Figures are per traffic segment
 > (one number would be wrong for most customers), currently simulator-measured
 > at providers' published prices: async/batch 57.7% net, one-shot templated
-> 45.5-72.8%, interactive agents 25.9-34.1%, already-optimised stacks 0-5%
+> 45.5-72.8%, interactive agents 25.9-34.0%, already-optimised stacks 0-5%
 > with an explicit do-not-pay-us verdict.
 
 ## Docs

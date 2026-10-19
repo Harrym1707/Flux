@@ -54,6 +54,6 @@ to produce that number, on your machine, from your logs, before you pay
 anything.
 
 Known open items we publish rather than hide: per-model cacheable minimums are
-not yet in the simulator (the sparse-traffic 34.1% may overstate on some
+not yet in the simulator (the sparse-traffic 34.0% may overstate on some
 models); Anthropic batch rates are not yet catalogued (the async figure is
 OpenAI-priced); both are tracked in [evidence](evidence.md).
