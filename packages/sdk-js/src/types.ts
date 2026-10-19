@@ -37,8 +37,8 @@ export type FluxRequestEvent = {
   /**
    * Provider-reported TTL split of the cache writes (Anthropic
    * usage.cache_creation). Present as a PAIR only when the provider reported
-   * the split; absent means unknown, and billing must treat unknown writes on a
-   * FLUX-placed cache_control at the 1h premium (dispute-safe), never as 5m.
+   * the split; absent means unknown, and billing uses FLUX's stamped TTL when
+   * available (otherwise the 1h premium, dispute-safe), never assumes 5m.
    */
   cacheWrite5mInputTokens?: number;
   cacheWrite1hInputTokens?: number;

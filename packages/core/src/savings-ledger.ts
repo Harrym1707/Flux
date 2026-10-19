@@ -26,8 +26,10 @@ import {
  *   economics on prefixes FLUX itself placed, and lossy levers whose replay
  *   gate verdict is "approved". Savings the customer already had (provider
  *   cache on appended history they placed or got by default, gateway caches)
- *   are recorded for transparency and never billed. Estimated token counts
- *   never bill anything.
+ *   are recorded for transparency and never billed. Token-reduction levers may
+ *   bill from an estimated baseline anchored to provider-verbatim usage, and
+ *   every such figure is labelled "estimated-baseline" on the lever and the
+ *   invoice line item — an estimate is never passed off as a measurement.
  * - Negative components are netted, never clamped: a 1h cache-write surcharge
  *   that never earned its reads shows up AGAINST FLUX on the invoice, and a
  *   net-non-positive period produces the "do_not_charge" verdict.
@@ -87,8 +89,8 @@ export type LedgerUsage = {
    * when the provider reported one (Anthropic usage.cache_creation). The two
    * buckets must sum exactly to cacheWriteInputTokens or the event is unpriced.
    * Absent means the split is UNKNOWN: writes on a FLUX-placed cache_control
-   * are then priced at the 1h premium (dispute-safe, counts against FLUX),
-   * never assumed to be 5m writes.
+   * use the TTL stamped by FLUX when it is recorded (otherwise the 1h premium,
+   * dispute-safe and counted against FLUX), never assumed to be 5m writes.
    */
   cacheWrite5mInputTokens?: number;
   cacheWrite1hInputTokens?: number;
@@ -214,6 +216,13 @@ export type LedgerPricingInput = {
    * means the customer already owned those economics; they are then excluded.
    */
   fluxPlacedCacheControl: boolean;
+  /**
+   * The TTL FLUX stamped, when fluxPlacedCacheControl is true. Decides how an
+   * ABSENT provider TTL split prices the writes: a "5m" stamp can only have
+   * produced 5m writes (1.25x), while "1h" or unspecified prices every write
+   * at the 1h premium (2x) — the dispute-safe reading for an hour-long stamp.
+   */
+  fluxPlacedTtl?: "5m" | "1h";
 };
 
 export type LedgerPricing =
@@ -247,11 +256,13 @@ export function priceLedgerUsage(catalogue: PriceCatalogue, input: LedgerPricing
     return { pricingStatus: "unpriced", reason: resolution.reason };
   }
 
-  // The cache-write TTL split decides which write rate bills. Three cases:
+  // The cache-write TTL split decides which write rate bills. The cases:
   // a reported split must sum exactly (a mismatched event is unpriced, never
-  // repaired); an absent split on a FLUX-placed cache_control prices EVERY
-  // write at the 1h premium, because FLUX stamped the 1h TTL and the benefit
-  // of the doubt belongs to the customer (dispute-safe); an absent split on
+  // repaired); an absent split on a FLUX-placed 1h stamp prices EVERY write
+  // at the 1h premium, because FLUX stamped the 1h TTL and the benefit of the
+  // doubt belongs to the customer (dispute-safe); an absent split on a
+  // FLUX-placed 5m stamp prices writes at the default 5m rate, because a 5m
+  // stamp can only have produced 5m writes; an absent split on
   // customer-placed caching keeps the default write rate, exactly as before.
   const split5m = input.usage.cacheWrite5mInputTokens;
   const split1h = input.usage.cacheWrite1hInputTokens;
@@ -265,7 +276,7 @@ export function priceLedgerUsage(catalogue: PriceCatalogue, input: LedgerPricing
   }
   const write1hForPricing = splitReported
     ? (split1h ?? 0)
-    : input.fluxPlacedCacheControl
+    : input.fluxPlacedCacheControl && input.fluxPlacedTtl !== "5m"
       ? input.usage.cacheWriteInputTokens
       : 0;
   const pricingUsage = {
@@ -341,7 +352,13 @@ export function auditEventPricing(event: BillableEvent, catalogue: PriceCatalogu
       ? { status: "verified" }
       : { status: "mismatch", field: "actualUsd", storedUsd: event.actualUsd, recomputedUsd: Number.NaN };
   }
-  const fluxPlacedCacheControl = event.levers.some((lever) => lever.kind === "provider_cache");
+  const cacheLever = event.levers.find((lever) => lever.kind === "provider_cache");
+  const fluxPlacedCacheControl = cacheLever !== undefined;
+  const fluxPlacedTtl = cacheLever?.leverId === "cache-ttl-5m"
+    ? "5m"
+    : cacheLever?.leverId === "cache-ttl-1h"
+      ? "1h"
+      : undefined;
   const priced = priceLedgerUsage(catalogue, {
     provider: event.provider,
     model: event.model,
@@ -349,6 +366,7 @@ export function auditEventPricing(event: BillableEvent, catalogue: PriceCatalogu
     executionMode: event.executionMode,
     usage: event.usage,
     fluxPlacedCacheControl,
+    ...(fluxPlacedTtl === undefined ? {} : { fluxPlacedTtl }),
   });
   if (priced.pricingStatus === "unpriced") {
     return event.pricingStatus === "unpriced"

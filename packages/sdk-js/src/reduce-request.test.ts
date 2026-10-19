@@ -455,6 +455,14 @@ describe("cacheTtl 1h stamping", () => {
     expect(JSON.stringify((reduced as Record<string, unknown>).messages)).not.toContain("cache_control");
   });
 
+  it("stamps ttl '5m' with its own lever id for multi-turn agents", () => {
+    const { request: reduced, summary } = reduceRequest(anthropicRequest(), { cacheTtl: "5m" });
+    const system = (reduced as Record<string, unknown>).system as Array<Record<string, unknown>>;
+    expect(system[0]!.cache_control).toEqual({ type: "ephemeral", ttl: "5m" });
+    expect(summary.changes.map((change) => change.lever)).toContain("cache-ttl-5m");
+    expect(summary.changes.some((change) => change.lever === "cache-ttl-1h")).toBe(false);
+  });
+
   it("leaves non-Anthropic requests untouched", () => {
     const request = { model: "gpt-5", messages: [{ role: "user", content: "Hello." }] };
     const { request: reduced, summary } = reduceRequest(request, { cacheTtl: "1h" });

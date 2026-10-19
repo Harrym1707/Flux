@@ -41,7 +41,7 @@ import type { FluxRequestEvent, FluxSavingsLedgerConfig } from "./types.js";
  */
 
 const EXECUTION_TIER_LEVERS = new Set(["execution-tier-flex"]);
-const CACHE_TTL_LEVER = "cache-ttl-1h";
+const CACHE_TTL_LEVERS = new Map<string, "5m" | "1h">([["cache-ttl-5m", "5m"], ["cache-ttl-1h", "1h"]]);
 const MEASURED_COMPOSITE_LEVER = "token-reduction-measured";
 const EXACT_CACHE_LEVER = "exact-response-cache";
 
@@ -59,12 +59,14 @@ function usageOf(event: FluxRequestEvent): LedgerUsage | undefined {
   }
   // The TTL split is recorded verbatim when the provider reported one; pricing
   // sum-checks it (a mismatched event is unpriced) and an ABSENT split on a
-  // FLUX-placed cache_control prices every write at the 1h premium.
+  // FLUX-placed cache_control prices every write at the stamped TTL's premium
+  // (1h stamp: 2x on every write, dispute-safe; 5m stamp: the 5m rate).
   const validCount = (count: unknown): count is number =>
     typeof count === "number" && Number.isFinite(count) && count >= 0;
   const splitReported = event.cacheWrite5mInputTokens !== undefined || event.cacheWrite1hInputTokens !== undefined;
   const splitValid = splitReported &&
     validCount(event.cacheWrite5mInputTokens ?? 0) && validCount(event.cacheWrite1hInputTokens ?? 0);
+  if (splitReported && !splitValid) return undefined;
   return {
     inputTokens: inputTokens!,
     outputTokens: outputTokens!,
@@ -88,12 +90,14 @@ export function billableEventFromRequest(
 ): BillableEvent {
   const provider = config.provider ?? "openai";
   const changes = event.reduction && !event.reduction.skipped ? event.reduction.changes : [];
-  const fluxPlacedCacheControl = changes.some((change) => change.lever === CACHE_TTL_LEVER);
+  const ttlChange = changes.find((change) => CACHE_TTL_LEVERS.has(change.lever));
+  const fluxPlacedCacheControl = ttlChange !== undefined;
+  const fluxPlacedTtl = ttlChange === undefined ? undefined : CACHE_TTL_LEVERS.get(ttlChange.lever);
   const executionMode = executionModeOf(event.responseServiceTier);
   const usage = usageOf(event);
 
   const pricing = usage === undefined
-    ? { pricingStatus: "unpriced" as const, reason: "The event carries no provider-verbatim usage." }
+    ? { pricingStatus: "unpriced" as const, reason: "The event carries no complete, valid provider-verbatim usage." }
     : priceLedgerUsage(catalogue, {
         provider,
         model: event.model,
@@ -101,6 +105,7 @@ export function billableEventFromRequest(
         executionMode,
         usage,
         fluxPlacedCacheControl,
+        ...(fluxPlacedTtl === undefined ? {} : { fluxPlacedTtl }),
       });
   const priced = pricing.pricingStatus === "priced" ? pricing : undefined;
 
@@ -126,9 +131,9 @@ export function billableEventFromRequest(
   }
 
   // Provider-cache economics on cache_control FLUX itself placed; may be negative.
-  if (priced?.cacheAttributedUsd !== undefined) {
+  if (priced?.cacheAttributedUsd !== undefined && ttlChange !== undefined) {
     levers.push({
-      leverId: CACHE_TTL_LEVER,
+      leverId: ttlChange.lever,
       kind: "provider_cache",
       savedUsd: priced.cacheAttributedUsd,
     });
@@ -160,7 +165,7 @@ export function billableEventFromRequest(
   // (>= 0.95) voids the estimate and the levers stay record-only.
   const tokenChanges = changes.filter((change) =>
     !EXECUTION_TIER_LEVERS.has(change.lever) &&
-    !(change.lever === CACHE_TTL_LEVER && priced?.cacheAttributedUsd !== undefined));
+    !(CACHE_TTL_LEVERS.has(change.lever) && priced?.cacheAttributedUsd !== undefined));
   const summary = event.reduction && !event.reduction.skipped ? event.reduction : undefined;
   const estimatedBefore = summary?.estimatedTokensBefore ?? 0;
   const estimatedRemoved = tokenChanges.reduce((sum, change) =>
@@ -197,7 +202,7 @@ export function billableEventFromRequest(
   // Rate levers (tier, cache TTL) bill through their own priced components
   // above; the measured composite covers only the token-removing changes.
   const measuredTokenChanges = changes.filter((change) =>
-    !EXECUTION_TIER_LEVERS.has(change.lever) && change.lever !== CACHE_TTL_LEVER);
+    !EXECUTION_TIER_LEVERS.has(change.lever) && !CACHE_TTL_LEVERS.has(change.lever));
   if (baselineUsd !== undefined && priced !== undefined && measuredTokenChanges.length > 0) {
     const lossy = measuredTokenChanges.filter((change) => !change.lossless);
     const verdicts = lossy.map((change) => config.gateVerdicts?.[change.lever]);

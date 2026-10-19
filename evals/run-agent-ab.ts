@@ -2,6 +2,7 @@ import { reduceRequest, serviceTierOf, type FluxTokenReductionConfig } from "../
 import {
   ANTHROPIC_CACHE_1H,
   ANTHROPIC_CACHE_5M,
+  ANTHROPIC_NO_CACHE,
   OPENAI_CACHE,
   approximateTokenCount,
   executionModeFromServiceTier,
@@ -713,7 +714,13 @@ const ARM_L: Arm = {
   config: { ...ARM_J_BY_LABEL.config, cacheTtl: "1h" },
 };
 
-const STAMP_BYTES = '"cache_control":{"type":"ephemeral","ttl":"1h"}';
+const ARM_M: Arm = {
+  label: "M. J + cacheTtl 5m (stamped, multi-turn)",
+  config: { ...ARM_J_BY_LABEL.config, cacheTtl: "5m" },
+};
+
+// Matches either TTL's stamp bytes; the lever id pins the exact TTL.
+const STAMP_BYTES = '"cache_control":{"type":"ephemeral","ttl":"';
 
 type AnthropicShapedRun = {
   label: string;
@@ -774,7 +781,11 @@ function withoutStampArtifacts(request: AnyObject): string {
   return JSON.stringify(clean);
 }
 
-function runAnthropicShapedArm(arm: Arm, spacing: number): AnthropicShapedRun {
+function runAnthropicShapedArm(
+  arm: Arm,
+  spacing: number,
+  unstampedPolicy: CachePolicy = ANTHROPIC_CACHE_5M,
+): AnthropicShapedRun {
   const simulated: SimulatedRequest[] = [];
   let stampedCalls = 0;
   let suffixOnlyChecks = 0;
@@ -800,12 +811,12 @@ function runAnthropicShapedArm(arm: Arm, spacing: number): AnthropicShapedRun {
       if (arm.config !== undefined) {
         const reduced = reduceRequest(original, arm.config);
         sent = reduced.request as AnyObject;
-        const changeRecorded = reduced.summary.changes.some((change) => change.lever === "cache-ttl-1h");
+        const changeRecorded = reduced.summary.changes.some((change) => change.lever.startsWith("cache-ttl-"));
         const bytesStamped = JSON.stringify({ system: sent.system ?? null, messages: sent.messages ?? [] })
           .includes(STAMP_BYTES);
         if (changeRecorded !== bytesStamped) {
           throw new Error(
-            `cache-ttl-1h bookkeeping mismatch at task ${taskIndex} turn ${turn}: ` +
+            `cache-ttl bookkeeping mismatch at task ${taskIndex} turn ${turn}: ` +
             `change record ${changeRecorded}, stamp bytes ${bytesStamped}.`,
           );
         }
@@ -849,12 +860,14 @@ function runAnthropicShapedArm(arm: Arm, spacing: number): AnthropicShapedRun {
     throw new Error(`Metadata-only control ran ${suffixOnlyChecks} times for ${stampedCalls} stamped requests.`);
   }
 
-  // The 1h policy is selected ONLY when every request in the run was observed
-  // to carry the stamp. No stamps, no 1h pricing; a mixed run is a bug.
+  // The stamped-TTL policy is selected ONLY when every request in the run was
+  // observed to carry the stamp, and the TTL comes from the arm's own config.
+  // No stamps price under the caller-supplied unstamped policy; a mixed run is a bug.
   const totalCalls = simulated.length;
   let policy: CachePolicy;
-  if (stampedCalls === totalCalls && totalCalls > 0) policy = ANTHROPIC_CACHE_1H;
-  else if (stampedCalls === 0) policy = ANTHROPIC_CACHE_5M;
+  if (stampedCalls === totalCalls && totalCalls > 0) {
+    policy = arm.config?.cacheTtl === "5m" ? ANTHROPIC_CACHE_5M : ANTHROPIC_CACHE_1H;
+  } else if (stampedCalls === 0) policy = unstampedPolicy;
   else throw new Error(`Mixed stamping (${stampedCalls}/${totalCalls}): refusing to pick a single cache policy.`);
 
   const result = simulateCache(simulated, policy, price.price, { countTokens: approximateTokenCount });
@@ -939,4 +952,52 @@ function reportStampedTtlArm(): void {
     "real-traffic validation still open.",
   );
 }
+/**
+ * Arm M: the multi-turn Anthropic cache lever. The honest baseline here is NO
+ * cache at all — Anthropic's cache is opt-in, and the first live export
+ * measured an unstamped five-turn agent with zero cache reads and zero
+ * writes, so an unstamped customer's history re-bills at full rate every
+ * turn. FLUX's 5m stamp (writes 1.25x, reads 0.1x) is what switches the cache
+ * on, and the stamp defers whenever the caller placed any cache_control of
+ * their own — so this saving is never claimed from a customer who already had
+ * caching.
+ */
+function reportMultiTurnCacheArm(): void {
+  const spacing = 30; // busy traffic: tasks half a minute apart, turns seconds apart
+  const expectedCalls = TASKS * TURNS_PER_TASK;
+  console.log(`\n=== arm M: J + cacheTtl '5m' STAMPED, multi-turn vs UNCACHED baseline, tasks ${spacing}s apart ===`);
+
+  const baseline = runAnthropicShapedArm(ARMS[0]!, spacing, ANTHROPIC_NO_CACHE);
+  const armM = runAnthropicShapedArm(ARM_M, spacing, ANTHROPIC_NO_CACHE);
+
+  if (armM.stampedCalls !== expectedCalls || armM.totalCalls !== expectedCalls) {
+    throw new Error(`Expected ${expectedCalls}/${expectedCalls} stamped arm M requests, got ` +
+      `${armM.stampedCalls}/${armM.totalCalls}.`);
+  }
+  if (baseline.stampedCalls !== 0) {
+    throw new Error(`Expected 0 stamped baseline requests, got ${baseline.stampedCalls}.`);
+  }
+  if (armM.policyName !== ANTHROPIC_CACHE_5M.name || baseline.policyName !== ANTHROPIC_NO_CACHE.name) {
+    throw new Error(`Arm M policies wrong: stamped ${armM.policyName}, baseline ${baseline.policyName}.`);
+  }
+  console.log(
+    `stamp audit: arm M ${armM.stampedCalls}/${armM.totalCalls} requests carry the 5m stamp (policy ` +
+    `${armM.policyName}); baseline ${baseline.stampedCalls}/${baseline.totalCalls} unstamped (policy ` +
+    `${baseline.policyName}); stamp verified metadata-only on every stamped request.`,
+  );
+
+  const saving = ((baseline.costUsd - armM.costUsd) / baseline.costUsd) * 100;
+  console.log(`baseline  A uncached (no cache_control placed)  $${baseline.costUsd.toFixed(3)}   clean ${baseline.fullyGoodTasks}/${TASKS}`);
+  console.log(
+    `lever     M = J + cacheTtl '5m' (stamped)       $${armM.costUsd.toFixed(3)}   vs uncached ${saving.toFixed(1)}%   ` +
+    `tool ok ${armM.successfulTasks}/${TASKS}   clean ${armM.fullyGoodTasks}/${TASKS}   hits ${(armM.hitRate * 100).toFixed(0)}%`,
+  );
+  console.log(
+    "caveat: simulator-measured against the uncached baseline the first live export confirmed for " +
+    "unstamped Claude traffic; the stamp defers to any caller-placed cache_control, so a customer " +
+    "who already caches is never billed for this. Real-traffic validation: re-run the live agents.",
+  );
+}
+
 reportStampedTtlArm();
+reportMultiTurnCacheArm();

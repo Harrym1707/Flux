@@ -319,3 +319,73 @@ describe("estimated-baseline billing for token-reduction levers", () => {
     expect(recomputeInvoice([billed]).netVerifiedSavingsUsd).toBeCloseTo(12, 10);
   });
 });
+
+describe("5m cacheTtl stamp billing", () => {
+  const version = catalogueVersion(publishedModelPrices);
+
+  it("prices FLUX-placed 5m writes at the 5m premium when the provider reports no split", () => {
+    const billed = billableEventFromRequest(
+      requestEvent({
+        model: "claude-sonnet-5-5-20260514",
+        inputTokens: 1_000_000, uncachedInputTokens: 0, cachedInputTokens: 0, cacheWriteInputTokens: 1_000_000,
+        reduction: {
+          estimatedTokensBefore: 10, estimatedTokensAfter: 10, estimatedTokensSaved: 0,
+          estimatedLosslessTokensSaved: 0, skipped: false,
+          changes: [{ lever: "cache-ttl-5m", lossless: true, estimatedTokensSaved: 0, detail: "" }],
+        },
+      }),
+      { path: "unused", provider: "anthropic" },
+      publishedModelPrices,
+      version,
+    );
+    // A 5m stamp can only have produced 5m writes: 1M at Sonnet 5.5's 2.5/M,
+    // never the 1h 4/M that a FLUX-placed 1h stamp conservatively assumes.
+    expect(billed.actualUsd).toBeCloseTo(2.5, 10);
+    const lever = billed.levers.find((l) => l.leverId === "cache-ttl-5m")!;
+    expect(lever.kind).toBe("provider_cache");
+    // All writes, no reads: 2 full-rate minus 2.5 written = -0.5, netted.
+    expect(lever.savedUsd).toBeCloseTo(-0.5, 10);
+  });
+
+  it("earns positive attributed savings when reads outweigh the 5m write premium", () => {
+    const billed = billableEventFromRequest(
+      requestEvent({
+        model: "claude-sonnet-5-5-20260514",
+        inputTokens: 1_000_000, uncachedInputTokens: 100_000, cachedInputTokens: 900_000, cacheWriteInputTokens: 0,
+        reduction: {
+          estimatedTokensBefore: 10, estimatedTokensAfter: 10, estimatedTokensSaved: 0,
+          estimatedLosslessTokensSaved: 0, skipped: false,
+          changes: [{ lever: "cache-ttl-5m", lossless: true, estimatedTokensSaved: 0, detail: "" }],
+        },
+      }),
+      { path: "unused", provider: "anthropic" },
+      publishedModelPrices,
+      version,
+    );
+    // 900K reads at 0.1/M instead of 2/M: 1.8 full-rate avoided minus 0.09 paid.
+    const lever = billed.levers.find((l) => l.leverId === "cache-ttl-5m")!;
+    expect(lever.savedUsd).toBeCloseTo(1.71, 10);
+    expect(recomputeInvoice([billed]).netVerifiedSavingsUsd).toBeCloseTo(1.71, 10);
+  });
+
+  it("fails closed rather than dropping a malformed provider TTL split", () => {
+    const billed = billableEventFromRequest(
+      requestEvent({
+        model: "claude-sonnet-5-5-20260514",
+        inputTokens: 1_000_000, uncachedInputTokens: 0, cachedInputTokens: 0, cacheWriteInputTokens: 1_000_000,
+        cacheWrite5mInputTokens: -1,
+        cacheWrite1hInputTokens: 1_000_001,
+        reduction: {
+          estimatedTokensBefore: 10, estimatedTokensAfter: 10, estimatedTokensSaved: 0,
+          estimatedLosslessTokensSaved: 0, skipped: false,
+          changes: [{ lever: "cache-ttl-5m", lossless: true, estimatedTokensSaved: 0, detail: "" }],
+        },
+      }),
+      { path: "unused", provider: "anthropic" },
+      publishedModelPrices,
+      version,
+    );
+    expect(billed.pricingStatus).toBe("unpriced");
+    expect(billed.actualUsd).toBeUndefined();
+  });
+});

@@ -285,6 +285,19 @@ describe("catalogue pinning", () => {
     expect(audit.status).toBe("catalogue_version_mismatch");
   });
 
+  it("re-audits a 5m cache stamp at the TTL recorded on the event", () => {
+    const stamped = event({
+      requestId: "cache-5m",
+      provider: "anthropic",
+      model: "claude-sonnet-5-5-20260514",
+      catalogueVersion: catalogueVersion(publishedModelPrices),
+      usage: { inputTokens: 1_000_000, outputTokens: 0, cachedInputTokens: 0, cacheWriteInputTokens: 1_000_000 },
+      actualUsd: 2.5,
+      levers: [{ leverId: "cache-ttl-5m", kind: "provider_cache", savedUsd: -0.5 }],
+    });
+    expect(auditEventPricing(stamped, publishedModelPrices)).toEqual({ status: "verified" });
+  });
+
   it("flags a stored cost that the pinned catalogue cannot reproduce, with zero tolerance", () => {
     const tampered = event({
       requestId: "r1",

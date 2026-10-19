@@ -122,25 +122,29 @@ export type FluxTokenReductionConfig = {
    */
   executionTier?: "flex";
   /**
-   * Anthropic prompt-cache TTL for traffic too sparse for the default cache.
-   * "1h" stamps `cache_control: {type: "ephemeral", ttl: "1h"}` on the STABLE
-   * prefix of an Anthropic-shaped request (a `claude-*` model with a
-   * `messages` array): always on the system prompt when one exists, and on
-   * the last message only for multi-turn requests, whose history is re-sent
-   * verbatim next turn. A one-shot request with no system prompt is never
-   * stamped — its prefix never repeats, so a breakpoint could only buy write
-   * premiums (the first live export measured exactly that loss). The cached
-   * prefix survives for an hour instead of five minutes. The economics are a trade, not a free
-   * discount: 1h cache writes bill at 2x the base input rate (5m: 1.25x) while
-   * reads stay at 0.1x, so it pays exactly when calls arrive MORE than ~5
-   * minutes but less than an hour apart - the regime where the 5m cache
-   * expires between calls and every call rewrites. Dense traffic should stay
-   * on the default. Applied only when the request carries no cache_control of
-   * its own: a caller who placed breakpoints has chosen their own caching and
-   * silently doubling their write rate would change their bill. Never set by
+   * Anthropic prompt-cache stamping. Anthropic's cache is OPT-IN: a Claude
+   * request with no cache_control gets no caching at all and re-pays full
+   * rate for its entire history every turn (the first live export measured a
+   * five-turn agent with zero cache traffic). This lever stamps
+   * `cache_control: {type: "ephemeral", ttl}` on the STABLE prefix of an
+   * Anthropic-shaped request (a `claude-*` model with a `messages` array):
+   * always on the system prompt when one exists, and on the last message only
+   * for multi-turn requests, whose history is re-sent verbatim next turn. A
+   * one-shot request with no system prompt is never stamped — its prefix
+   * never repeats, so a breakpoint could only buy write premiums (the first
+   * live export measured exactly that loss).
+   *
+   * Pick the TTL by call spacing. "5m" (writes 1.25x base, reads 0.1x) is the
+   * multi-turn agent setting: turns arrive seconds apart, so every turn after
+   * the first reads its history at a tenth of the price. "1h" (writes 2x)
+   * pays exactly when calls arrive MORE than ~5 minutes but less than an hour
+   * apart - the regime where a 5m entry expires between calls and every call
+   * rewrites. Applied only when the request carries no cache_control of its
+   * own: a caller who placed breakpoints has chosen their own caching and
+   * silently raising their write rate would change their bill. Never set by
    * default; like executionTier, it must be the caller's per-workload flag.
    */
-  cacheTtl?: "1h";
+  cacheTtl?: "5m" | "1h";
   countTokens?: TokenCounter;
   onReduction?: (summary: FluxReductionSummary) => void;
 };
@@ -573,7 +577,7 @@ function reduceMessageContent(
  *   next turn reads it and extends. A one-shot request gets no message
  *   breakpoint: there is nothing stable below the system prompt.
  */
-function stampAnthropicCacheTtl(next: AnyObject): boolean {
+function stampAnthropicCacheTtl(next: AnyObject, ttl: "5m" | "1h"): boolean {
   const model = typeof next.model === "string" ? next.model.toLowerCase() : "";
   if (!model.includes("claude")) return false;
   if (!Array.isArray(next.messages) || next.messages.length === 0) return false;
@@ -590,7 +594,7 @@ function stampAnthropicCacheTtl(next: AnyObject): boolean {
     return false;
   }
 
-  const cacheControl = { type: "ephemeral", ttl: "1h" };
+  const cacheControl = { type: "ephemeral", ttl };
   let stamped = false;
 
   // The stable template: system (which also pulls tools into the cached prefix).
@@ -827,19 +831,23 @@ export function reduceRequest(
     // Cache TTL, only on Anthropic-shaped requests that carry no cache_control
     // of their own. Like the execution tier this changes a billing RATE, not a
     // prompt: the same bytes are cached for an hour at a 2x write premium.
-    if (config.cacheTtl === "1h") {
-      const stamped = stampAnthropicCacheTtl(next);
+    if (config.cacheTtl === "5m" || config.cacheTtl === "1h") {
+      const ttl = config.cacheTtl;
+      const stamped = stampAnthropicCacheTtl(next, ttl);
       if (stamped) {
         changes.push({
-          lever: "cache-ttl-1h",
+          lever: `cache-ttl-${ttl}`,
           lossless: true,
-          // The saving is a rate change (fewer cold rewrites), not tokens removed.
+          // The saving is a rate change (cache reads at 0.1x), not tokens removed.
           estimatedTokensSaved: 0,
-          detail: "Stamped cache_control {type: 'ephemeral', ttl: '1h'} on the stable prefix (system prompt; " +
-            "plus the last message on multi-turn requests, whose history repeats next turn), so the cached " +
-            "prefix outlives sparse traffic. Writes bill at 2x base input (5m: 1.25x), reads at 0.1x: this " +
-            "pays only when calls arrive more than ~5 minutes apart, and the caller must flag that " +
-            "workload - it is never set by default.",
+          detail: `Stamped cache_control {type: 'ephemeral', ttl: '${ttl}'} on the stable prefix (system ` +
+            "prompt; plus the last message on multi-turn requests, whose history repeats next turn). " +
+            (ttl === "5m"
+              ? "Writes bill at 1.25x base input, reads at 0.1x: the multi-turn agent setting, since " +
+                "Anthropic's cache is opt-in and an unstamped agent re-pays full rate for its history " +
+                "every turn. The caller must flag the workload - it is never set by default."
+              : "Writes bill at 2x base input, reads at 0.1x: this pays only when calls arrive more " +
+                "than ~5 minutes apart, and the caller must flag that workload - it is never set by default."),
         });
       }
     }

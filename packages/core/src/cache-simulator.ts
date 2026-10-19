@@ -65,6 +65,22 @@ export const ANTHROPIC_CACHE_5M: CachePolicy = {
   readMultiplier: 0.1,
 };
 
+/**
+ * Anthropic with NO cache_control placed: the cache is opt-in, so nothing
+ * caches and every token bills at the full input rate. This is the measured
+ * reality of unstamped Claude traffic (the first live export recorded a
+ * five-turn agent with zero cache reads and zero writes), and therefore the
+ * honest baseline for valuing a FLUX-placed stamp.
+ */
+export const ANTHROPIC_NO_CACHE: CachePolicy = {
+  name: "anthropic-uncached",
+  minimumCacheableTokens: Number.MAX_SAFE_INTEGER,
+  incrementTokens: 1,
+  ttlSeconds: 0,
+  writeMultiplier: 1,
+  readMultiplier: 1,
+};
+
 /** The hour-long TTL, which doubles the write charge. */
 export const ANTHROPIC_CACHE_1H: CachePolicy = {
   name: "anthropic-ephemeral-1h",

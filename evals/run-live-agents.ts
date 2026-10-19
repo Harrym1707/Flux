@@ -176,6 +176,12 @@ type Agent = {
   name: string;
   segment: string;
   reduction: FluxTokenReductionConfig;
+  /**
+   * Anthropic-side cache stamp for this workload. Anthropic's cache is opt-in,
+   * so an unstamped Claude agent re-pays full rate for its whole history every
+   * turn; "5m" is the multi-turn setting (turns arrive seconds apart).
+   */
+  anthropicCacheTtl?: "5m" | "1h";
   requests: () => NeutralRequest[];
 };
 
@@ -185,6 +191,7 @@ const agents: Agent[] = [
     segment: "interactive (busy)",
     reduction: { toolSchemas: true, duplicateContext: true, repairCachePrefix: true, historyCompaction: true,
       freshToolResultCap: { maximumTokens: 600 } } as FluxTokenReductionConfig,
+    anthropicCacheTtl: "5m",
     requests: () => Array.from({ length: 5 }, (_, turn) => ({
       system: `Current time: 2026-10-13T09:0${turn}:00Z\n${PREAMBLE}`,
       tools: TOOLS,
@@ -245,11 +252,14 @@ const agents: Agent[] = [
   },
 ];
 
-/** The same agent, with its discount lever swapped to the provider's own. */
-function reductionFor(provider: Provider, base: FluxTokenReductionConfig): FluxTokenReductionConfig {
+/** The same agent, with its discount levers swapped to the provider's own. */
+function reductionFor(provider: Provider, agent: Agent): FluxTokenReductionConfig {
+  const base = agent.reduction;
   if (provider === "anthropic") {
     const { executionTier: _tier, ...rest } = base as FluxTokenReductionConfig & { executionTier?: "flex" };
-    return _tier === "flex" ? { ...rest, cacheTtl: "1h" } : rest;
+    if (_tier === "flex") return { ...rest, cacheTtl: "1h" };
+    if (agent.anthropicCacheTtl !== undefined) return { ...rest, cacheTtl: agent.anthropicCacheTtl };
+    return rest;
   }
   return base;
 }
@@ -388,7 +398,7 @@ for (const provider of providers) {
     const ledgerPath = join(ROOT, `${provider}-${agent.name}.jsonl`);
     const client = withFlux(makeClient(provider) as never, {
       applicationId: agent.name,
-      tokenReduction: reductionFor(provider, agent.reduction),
+      tokenReduction: reductionFor(provider, agent),
       ledger: { path: ledgerPath, provider },
     }) as unknown as {
       responses?: { create: (r: unknown) => Promise<unknown> };
