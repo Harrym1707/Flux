@@ -38,6 +38,7 @@ own recorded requests — a failed task voids its savings.
 
 ```bash
 git clone https://github.com/Harrym1707/Flux && cd Flux
+corepack enable && pnpm install && pnpm build
 node --import tsx evals/run-proxy.ts
 ```
 

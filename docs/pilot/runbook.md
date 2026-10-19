@@ -1,7 +1,7 @@
 # FLUX pilot runbook (one page)
 
 **What FLUX is.** An SDK wrapper that reduces LLM spend with cache-safe token
-reduction, prompt-cache placement, and execution-tier arbitrage — and bills 25%
+reduction, prompt-cache placement, and execution-tier arbitrage — and bills 15%
 of *verified* savings. Verified means: measured per completed task from
 provider-reported usage, quality held by a gated replay, recorded in an
 append-only hash-chained ledger you can recompute to the cent on your own
@@ -59,7 +59,7 @@ cache-prefix repair, output caps). Lossy levers stay off until step 3.
    across runs; tampering with any event is detected and the position named.
 2. Negative components **net against FLUX** (e.g. a 1h cache-write surcharge
    that never earned its reads), never clamped.
-3. Invoice = 25% of the net verified savings for the period, or
+3. Invoice = 15% of the net verified savings for the period, or
    **do_not_charge**.
 
 ---

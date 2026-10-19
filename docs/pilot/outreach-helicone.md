@@ -41,7 +41,7 @@ methodology shared.
 
 [sign-off]
 
-P.S. Business model, stated up front: 25% of verified savings only — measured
+P.S. Business model, stated up front: 15% of verified savings only — measured
 from provider-reported usage into an append-only ledger whose invoice you can
 recompute to the cent yourself, $0 when verified savings are $0. The quote is
 free and stays on your machine regardless.
@@ -62,5 +62,5 @@ free and stays on your machine regardless.
 | 26.0–29.4% / 45.5% / 64.3% | measured | run-agent-ab.ts at 4e9e774; async figure OpenAI-priced only |
 | "no upload, your machine" | code-enforced | quote-report.ts + packaged local bin, no network path |
 | Helicone export parsing works | implemented, fixture-tested | packages/core/src/helicone.ts; gateway-triage gate 9/9 |
-| 25% of verified savings / $0 verdict | implemented | savings-ledger.ts recomputeInvoice, do_not_charge verdict |
+| 15% of verified savings / $0 verdict | implemented | savings-ledger.ts recomputeInvoice, do_not_charge verdict |
 | 34.1% sparse-1h | omitted deliberately | simulator-measured only |

@@ -365,7 +365,9 @@ usage cannot be read is recorded *unpriced*, never guessed.
 **What do you do with my prompts?**
 Analysis runs locally; prompts never leave your machine. The ledger records
 usage numbers, lever names, hashes and verdict references — not prompt text.
-Full detail: [data handling](../pilot/data-handling.md).
+One optional exception you control: the SDK can POST usage metadata (never
+prompt text) to an endpoint **you configure yourself**; it is off unless you
+set it. Full detail: [data handling](../pilot/data-handling.md).
 
 **What if the provider changes prices?**
 The price catalogue is dated and source-linked. A new rate is a new dated
