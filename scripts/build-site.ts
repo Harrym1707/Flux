@@ -302,7 +302,7 @@ for (const [marker, why] of [
   ["do not pay us", "the do-not-pay-us admission missing"],
   ["evidence.html", "evidence link missing"],
   ["SoftwareApplication", "structured data missing"],
-  ["FIRST LIVE EXPORT", "the receipt is missing"],
+  ["LIVE EXPORT", "the receipt is missing"],
   ["NET VERIFIED SAVINGS", "the receipt total row is missing"],
   ["37.6%", "the clean cache figure missing"],
   ['id="reducer"', "the reduction performance missing"],

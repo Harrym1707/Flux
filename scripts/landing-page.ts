@@ -57,15 +57,17 @@ export function renderLanding(origin: string, repoUrl: string): string {
 
   // --- The receipt: the FIRST LIVE EXPORT, verbatim. Rows must truly sum.
   // 30 requests, claude-sonnet-5-5, 2026-10-19; spools audited in-session.
+  // Second live export, 2026-10-19: all five agents billing, cache lever
+  // earning live, the coding agent's gate-approved cap billing. Verbatim.
   const SPEND = [
-    ["coding-agent", 0.06318], ["rag-docqa", 0.04010], ["batch-classifier", 0.06134],
-    ["support-chat", 0.05207], ["already-lean", 0.00573],
+    ["coding-agent", 0.06914], ["rag-docqa", 0.04057], ["batch-classifier", 0.03551],
+    ["support-chat", 0.05225], ["already-lean", 0.00570],
   ] as const;
   const SAVED = [
-    ["coding-agent — schemas + fresh-result cap", 0.02150],
+    ["coding-agent — cap + schemas, net of cache", 0.02060],
+    ["batch-classifier — cache stamp, earning", 0.01015],
     ["rag-docqa — duplicate excerpt removed", 0.00861],
     ["support-chat — tool-schema compaction", 0.00537],
-    ["batch-classifier — cache stamp, netted", -0.01477],
     ["already-lean — nothing to remove", 0.0],
   ] as const;
   const spendTotal = SPEND.reduce((s, [, v]) => s + v, 0);
@@ -90,17 +92,10 @@ export function renderLanding(origin: string, repoUrl: string): string {
   resize();
   var rt; window.addEventListener("resize", function(){ clearTimeout(rt); rt = setTimeout(resize, 150); });
 
-  // The waves: horizontal neural traces. Each has a base amplitude and wakes
-  // up as the cursor approaches — calm far away, alive under your hand.
-  var LINES = [
-    { y: 0.14, amp: 10, hue: "40,100,165",  alpha: 0.35, f: 1.00, spike: 0.9 },
-    { y: 0.24, amp: 14, hue: "16,42,67",    alpha: 0.30, f: 0.80, spike: 1.3 },
-    { y: 0.34, amp: 8,  hue: "40,100,165",  alpha: 0.28, f: 1.25, spike: 0.7 },
-    { y: 0.50, amp: 16, hue: "40,100,165",  alpha: 0.45, f: 0.65, spike: 1.6 },
-    { y: 0.66, amp: 8,  hue: "16,42,67",    alpha: 0.26, f: 1.15, spike: 0.7 },
-    { y: 0.76, amp: 13, hue: "40,100,165",  alpha: 0.34, f: 0.85, spike: 1.2 },
-    { y: 0.87, amp: 10, hue: "16,42,67",    alpha: 0.30, f: 1.05, spike: 0.9 },
-  ];
+  // The wave-sheet: rows of one surface receding to a horizon. Perspective
+  // does the 3D: far rows sit close together, small and faint; near rows are
+  // tall, spaced and bold. The cursor pushes energy into the surface.
+  var ROWS = 14;
   var mx = -9999, my = -9999, smx = -9999, smy = -9999;
   window.addEventListener("pointermove", function (e) {
     var b = wrap.getBoundingClientRect();
@@ -108,42 +103,47 @@ export function renderLanding(origin: string, repoUrl: string): string {
   }, { passive: true });
   window.addEventListener("pointerleave", function(){ mx = -9999; my = -9999; });
 
-  function trace(line, t, energyFn) {
-    var baseY = line.y * H;
+  function rowTrace(i, t) {
+    var depth = i / (ROWS - 1);                   // 0 = horizon, 1 = nearest
+    var persp = 0.18 + Math.pow(depth, 1.7) * 0.82;
+    var baseY = H * (0.30 + Math.pow(depth, 1.45) * 0.62);
+    var amp = (6 + 30 * persp);
+    var step = Math.max(4, Math.floor(W / 300) * 3);
     ctx.beginPath();
-    var step = Math.max(3, Math.floor(W / 420) * 3);
     for (var x = 0; x <= W; x += step) {
-      var e = energyFn(x, baseY);                 // 0 calm .. 1 fully awake
-      var a = line.amp * (0.35 + 1.9 * e);        // the pulse: closer = taller
-      var ph = t * line.f;
+      // the sheet is one surface: x and depth feed the same field
+      var u = (x - W / 2) / (persp * 900);        // perspective-corrected x
+      var dx = x - smx, dy = baseY - smy;
+      var e = Math.exp(-(dx * dx + dy * dy) / (2 * 200 * 200));
+      var a = amp * (0.4 + 1.8 * e);
+      var ph = t * 0.9;
       var y = baseY
-        + Math.sin(x * 0.012 + ph * 2.1) * a * 0.55
-        + Math.sin(x * 0.027 - ph * 3.3) * a * 0.30
-        + Math.sin(x * 0.061 + ph * 5.2) * a * 0.15 * line.spike
-        // the EEG moment: a sharper beat that travels along the trace
-        + Math.sin(x * 0.004 - ph * 1.1) * Math.max(0, Math.sin(x * 0.09 - ph * 6.0)) * a * 0.5 * line.spike * (0.3 + e);
+        + Math.sin(u * 2.3 + ph + depth * 4.0) * a * 0.5
+        + Math.sin(u * 5.1 - ph * 1.4 + depth * 7.0) * a * 0.28
+        + Math.sin(u * 11.0 + ph * 2.2) * a * 0.12
+        + Math.sin(u * 0.7 - ph * 0.5) * a * 0.35;
       if (x === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
     }
+    return { persp: persp, depth: depth };
   }
   function draw(t) {
     ctx.clearRect(0, 0, W, H);
-    ctx.globalCompositeOperation = "source-over"; // ink on paper, not neon
-    for (var i = 0; i < LINES.length; i++) {
-      var line = LINES[i];
-      var energy = function (x, baseY) {
-        var dx = x - smx, dy = baseY - smy;
-        return Math.exp(-(dx * dx + dy * dy) / (2 * 180 * 180));
-      };
-      // halo pass
-      trace(line, t, energy);
-      ctx.strokeStyle = "rgba(" + line.hue + "," + (line.alpha * 0.22) + ")";
-      ctx.lineWidth = 7; ctx.stroke();
-      // core pass
-      trace(line, t, energy);
-      ctx.strokeStyle = "rgba(" + line.hue + "," + line.alpha + ")";
-      ctx.lineWidth = 1.6; ctx.stroke();
+    ctx.globalCompositeOperation = "source-over"; // ink on paper
+    for (var i = 0; i < ROWS; i++) {
+      var m = rowTrace(i, t);
+      // halo pass: soft, widens as the surface nears the viewer
+      ctx.strokeStyle = "rgba(40,100,165," + (0.05 + 0.10 * m.persp) + ")";
+      ctx.lineWidth = 2 + 5 * m.persp;
+      ctx.stroke();
+      // core pass: the drawn line of the surface
+      var near = m.depth > 0.75;
+      rowTrace(i, t);
+      ctx.strokeStyle = near
+        ? "rgba(16,42,67," + (0.18 + 0.30 * m.persp) + ")"
+        : "rgba(40,100,165," + (0.12 + 0.30 * m.persp) + ")";
+      ctx.lineWidth = 0.8 + 1.1 * m.persp;
+      ctx.stroke();
     }
-    ctx.globalCompositeOperation = "source-over";
   }
   if (reduced) { smx = -9999; smy = -9999; draw(12.0); return; }
   var vis = true;
@@ -430,7 +430,7 @@ section h2::after{content:"";position:absolute;left:50%;transform:translateX(-50
 .field-ocean h2::after{opacity:.9}
 
 .axis-col{max-width:560px;margin:0 auto}
-@media (min-width:1100px){.axis-col{margin-left:var(--axis);margin-right:0}}
+.axis-col{margin-left:auto;margin-right:auto}
 
 /* call and response */
 .exchange{margin-bottom:88px}
@@ -438,7 +438,8 @@ section h2::after{content:"";position:absolute;left:50%;transform:translateX(-50
 .exchange .call{background:var(--surface);border-radius:8px;position:relative;color:#F1F7FB}
 .exchange .call .copy{position:absolute;top:10px;right:10px}
 .exchange .response{margin-top:var(--s2);margin-left:56px}
-.exchange .response.breakout{margin-left:0;width:min(880px,calc(100vw - 64px))}
+.exchange .response.breakout{margin-left:calc((560px - min(880px, calc(100vw - 64px))) / 2);width:min(880px,calc(100vw - 64px))}
+@media (max-width:1000px){.exchange .response.breakout{margin-left:0}}
 @media (max-width:760px){.exchange .response{margin-left:0}}
 
 /* total and its receipt */
@@ -683,11 +684,11 @@ Anthropic SDK: new Anthropic({ baseURL: "http://127.0.0.1:8787" })</pre>
       <h2>Proven, line by line.</h2>
       <p class="note">Most savings claims are projections. Ours come with the receipt: we ran real requests, published every line, and the rows add up to the total &mdash; check them.</p>
       <div class="figure">37.6%</div>
-      <p class="cap">saved by a single lever &mdash; switching Claude&rsquo;s cache on &mdash; measured both ways on identical prompts, answers unchanged. The receipt beside is our first, deliberately small live run (its ${savedPct.toFixed(1)}% is the floor, recorded before the strong levers were on). The full measured range is 26&ndash;73% by traffic type &rarr; <a href="evidence.html">evidence</a>.</p>
+      <p class="cap">saved by a single lever &mdash; switching Claude&rsquo;s cache on &mdash; measured both ways on identical prompts, answers unchanged. The receipt beside is our latest small live run: ${savedPct.toFixed(1)}% of real spend saved and billing on every active agent, the cache lever earning live. The full measured range is 26&ndash;73% by traffic type &rarr; <a href="evidence.html">evidence</a>.</p>
     </div>
     <div class="slip rise in-self" aria-label="The export, row by row">
-      <h3>FLUX &mdash; FIRST LIVE EXPORT</h3>
-      <p class="meta">2026-10-19 &middot; claude-sonnet-5-5 &middot; 30 requests &middot; 5 hash chains, all verified</p>
+      <h3>FLUX &mdash; LIVE EXPORT</h3>
+      <p class="meta">Second export &middot; 2026-10-19 &middot; claude-sonnet-5-5 &middot; 30 requests &middot; 5 hash chains verified</p>
       <p class="grp">SPEND, BY AGENT</p>
       ${spendRows}
       <p class="grp">VERIFIED SAVINGS, BY LEVER</p>

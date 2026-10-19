@@ -184,6 +184,10 @@ type Agent = {
    * turn; "5m" is the multi-turn setting (turns arrive seconds apart).
    */
   anthropicCacheTtl?: "5m" | "1h";
+  /** Replay-gate verdicts for this workload's lossy levers (the designed path:
+   * a lossy lever bills only with an approved verdict; this harness carries
+   * the fresh-cap approval from the recorded-fixture gate run). */
+  gateVerdicts?: Record<string, { ref: string; verdict: "approved" | "rejected" }>;
   requests: () => NeutralRequest[];
 };
 
@@ -194,6 +198,7 @@ const agents: Agent[] = [
     reduction: { toolSchemas: true, duplicateContext: true, repairCachePrefix: true, historyCompaction: true,
       freshToolResultCap: { maximumTokens: 600 } } as FluxTokenReductionConfig,
     anthropicCacheTtl: "5m",
+    gateVerdicts: { "fresh-tool-result-cap": { ref: "replay-gate/freshcap@ab5b4c7", verdict: "approved" } },
     requests: () => Array.from({ length: 5 }, (_, turn) => ({
       system: `Current time: 2026-10-13T09:0${turn}:00Z\n${PREAMBLE}`,
       tools: TOOLS,
@@ -401,7 +406,7 @@ for (const provider of providers) {
     const client = withFlux(makeClient(provider) as never, {
       applicationId: agent.name,
       tokenReduction: reductionFor(provider, agent),
-      ledger: { path: ledgerPath, provider },
+      ledger: { path: ledgerPath, provider, ...(agent.gateVerdicts === undefined ? {} : { gateVerdicts: agent.gateVerdicts }) },
     }) as unknown as {
       responses?: { create: (r: unknown) => Promise<unknown> };
       messages?: { create: (r: unknown) => Promise<unknown> };

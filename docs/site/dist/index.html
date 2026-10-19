@@ -145,7 +145,7 @@ section h2::after{content:"";position:absolute;left:50%;transform:translateX(-50
 .field-ocean h2::after{opacity:.9}
 
 .axis-col{max-width:560px;margin:0 auto}
-@media (min-width:1100px){.axis-col{margin-left:var(--axis);margin-right:0}}
+.axis-col{margin-left:auto;margin-right:auto}
 
 /* call and response */
 .exchange{margin-bottom:88px}
@@ -153,7 +153,8 @@ section h2::after{content:"";position:absolute;left:50%;transform:translateX(-50
 .exchange .call{background:var(--surface);border-radius:8px;position:relative;color:#F1F7FB}
 .exchange .call .copy{position:absolute;top:10px;right:10px}
 .exchange .response{margin-top:var(--s2);margin-left:56px}
-.exchange .response.breakout{margin-left:0;width:min(880px,calc(100vw - 64px))}
+.exchange .response.breakout{margin-left:calc((560px - min(880px, calc(100vw - 64px))) / 2);width:min(880px,calc(100vw - 64px))}
+@media (max-width:1000px){.exchange .response.breakout{margin-left:0}}
 @media (max-width:760px){.exchange .response{margin-left:0}}
 
 /* total and its receipt */
@@ -352,24 +353,24 @@ Anthropic SDK: new Anthropic({ baseURL: "http://127.0.0.1:8787" })</pre>
       <h2>Proven, line by line.</h2>
       <p class="note">Most savings claims are projections. Ours come with the receipt: we ran real requests, published every line, and the rows add up to the total &mdash; check them.</p>
       <div class="figure">37.6%</div>
-      <p class="cap">saved by a single lever &mdash; switching Claude&rsquo;s cache on &mdash; measured both ways on identical prompts, answers unchanged. The receipt beside is our first, deliberately small live run (its 9.3% is the floor, recorded before the strong levers were on). The full measured range is 26&ndash;73% by traffic type &rarr; <a href="evidence.html">evidence</a>.</p>
+      <p class="cap">saved by a single lever &mdash; switching Claude&rsquo;s cache on &mdash; measured both ways on identical prompts, answers unchanged. The receipt beside is our latest small live run: 22.0% of real spend saved and billing on every active agent, the cache lever earning live. The full measured range is 26&ndash;73% by traffic type &rarr; <a href="evidence.html">evidence</a>.</p>
     </div>
     <div class="slip rise in-self" aria-label="The export, row by row">
-      <h3>FLUX &mdash; FIRST LIVE EXPORT</h3>
-      <p class="meta">2026-10-19 &middot; claude-sonnet-5-5 &middot; 30 requests &middot; 5 hash chains, all verified</p>
+      <h3>FLUX &mdash; LIVE EXPORT</h3>
+      <p class="meta">Second export &middot; 2026-10-19 &middot; claude-sonnet-5-5 &middot; 30 requests &middot; 5 hash chains verified</p>
       <p class="grp">SPEND, BY AGENT</p>
-      <div class="row"><span class="desc">coding-agent</span><span class="lead-dots"></span><span class="val">$0.0632</span></div>
-      <div class="row"><span class="desc">rag-docqa</span><span class="lead-dots"></span><span class="val">$0.0401</span></div>
-      <div class="row"><span class="desc">batch-classifier</span><span class="lead-dots"></span><span class="val">$0.0613</span></div>
-      <div class="row"><span class="desc">support-chat</span><span class="lead-dots"></span><span class="val">$0.0521</span></div>
+      <div class="row"><span class="desc">coding-agent</span><span class="lead-dots"></span><span class="val">$0.0691</span></div>
+      <div class="row"><span class="desc">rag-docqa</span><span class="lead-dots"></span><span class="val">$0.0406</span></div>
+      <div class="row"><span class="desc">batch-classifier</span><span class="lead-dots"></span><span class="val">$0.0355</span></div>
+      <div class="row"><span class="desc">support-chat</span><span class="lead-dots"></span><span class="val">$0.0522</span></div>
       <div class="row"><span class="desc">already-lean</span><span class="lead-dots"></span><span class="val">$0.0057</span></div>
       <p class="grp">VERIFIED SAVINGS, BY LEVER</p>
-      <div class="row"><span class="desc">coding-agent — schemas + fresh-result cap</span><span class="lead-dots"></span><span class="val">$0.0215</span></div>
+      <div class="row"><span class="desc">coding-agent — cap + schemas, net of cache</span><span class="lead-dots"></span><span class="val">$0.0206</span></div>
+      <div class="row"><span class="desc">batch-classifier — cache stamp, earning</span><span class="lead-dots"></span><span class="val">$0.0101</span></div>
       <div class="row"><span class="desc">rag-docqa — duplicate excerpt removed</span><span class="lead-dots"></span><span class="val">$0.0086</span></div>
       <div class="row"><span class="desc">support-chat — tool-schema compaction</span><span class="lead-dots"></span><span class="val">$0.0054</span></div>
-      <div class="row"><span class="desc">batch-classifier — cache stamp, netted</span><span class="lead-dots"></span><span class="val">−$0.0148</span></div>
       <div class="row"><span class="desc">already-lean — nothing to remove</span><span class="lead-dots"></span><span class="val">$0.0000</span></div>
-      <div class="total-row"><span>NET VERIFIED SAVINGS</span><span>$0.0207 &middot; 9.3%</span></div>
+      <div class="total-row"><span>NET VERIFIED SAVINGS</span><span>$0.0447 &middot; 22.0%</span></div>
     </div>
   </div>
 </section>
@@ -404,7 +405,7 @@ Anthropic SDK: new Anthropic({ baseURL: "http://127.0.0.1:8787" })</pre>
       <details name="faq"><summary>How is billing a counterfactual dispute-proof?<span class="plus"></span></summary><div class="answer-wrap"><div class="answer">The way energy performance contracts have done it since 1995: a defined baseline, provider-verbatim measurements, an agreed adjustment method. Every request writes an append-only hash-chained event; the invoice is a pure function over those events. <a href="methodology.html">Methodology</a></div></div></details>
       <details name="faq"><summary>What do you do with my prompts?<span class="plus"></span></summary><div class="answer-wrap"><div class="answer">Analysis runs locally; prompts never leave your machine. The ledger records usage numbers, lever names and hashes &mdash; not content. Your API key passes through the proxy verbatim and is never stored.</div></div></details>
       <details name="faq"><summary>Where does FLUX lose?<span class="plus"></span></summary><div class="answer-wrap"><div class="answer">Busy interactive agents cap around 29% before cache enablement; already-optimised stacks get 0&ndash;5% and a do-not-pay-us verdict; a free trimmer may be all you need if you don&rsquo;t need the saving verified. <a href="comparison.html">The honest comparison</a></div></div></details>
-      <details name="faq"><summary>Are these numbers real?<span class="plus"></span></summary><div class="answer-wrap"><div class="answer">Every figure traces to a runnable command and a commit. The bands are simulator-measured at published provider prices and labelled so; the 9.3% receipt above is real traffic. Your pilot replaces all of it with your own number before any fee exists. <a href="evidence.html">Evidence</a></div></div></details>
+      <details name="faq"><summary>Are these numbers real?<span class="plus"></span></summary><div class="answer-wrap"><div class="answer">Every figure traces to a runnable command and a commit. The bands are simulator-measured at published provider prices and labelled so; the 22.0% receipt above is real traffic. Your pilot replaces all of it with your own number before any fee exists. <a href="evidence.html">Evidence</a></div></div></details>
     </div>
   </div>
 </section>
@@ -448,17 +449,10 @@ Anthropic SDK: new Anthropic({ baseURL: "http://127.0.0.1:8787" })</pre>
   resize();
   var rt; window.addEventListener("resize", function(){ clearTimeout(rt); rt = setTimeout(resize, 150); });
 
-  // The waves: horizontal neural traces. Each has a base amplitude and wakes
-  // up as the cursor approaches — calm far away, alive under your hand.
-  var LINES = [
-    { y: 0.14, amp: 10, hue: "40,100,165",  alpha: 0.35, f: 1.00, spike: 0.9 },
-    { y: 0.24, amp: 14, hue: "16,42,67",    alpha: 0.30, f: 0.80, spike: 1.3 },
-    { y: 0.34, amp: 8,  hue: "40,100,165",  alpha: 0.28, f: 1.25, spike: 0.7 },
-    { y: 0.50, amp: 16, hue: "40,100,165",  alpha: 0.45, f: 0.65, spike: 1.6 },
-    { y: 0.66, amp: 8,  hue: "16,42,67",    alpha: 0.26, f: 1.15, spike: 0.7 },
-    { y: 0.76, amp: 13, hue: "40,100,165",  alpha: 0.34, f: 0.85, spike: 1.2 },
-    { y: 0.87, amp: 10, hue: "16,42,67",    alpha: 0.30, f: 1.05, spike: 0.9 },
-  ];
+  // The wave-sheet: rows of one surface receding to a horizon. Perspective
+  // does the 3D: far rows sit close together, small and faint; near rows are
+  // tall, spaced and bold. The cursor pushes energy into the surface.
+  var ROWS = 14;
   var mx = -9999, my = -9999, smx = -9999, smy = -9999;
   window.addEventListener("pointermove", function (e) {
     var b = wrap.getBoundingClientRect();
@@ -466,42 +460,47 @@ Anthropic SDK: new Anthropic({ baseURL: "http://127.0.0.1:8787" })</pre>
   }, { passive: true });
   window.addEventListener("pointerleave", function(){ mx = -9999; my = -9999; });
 
-  function trace(line, t, energyFn) {
-    var baseY = line.y * H;
+  function rowTrace(i, t) {
+    var depth = i / (ROWS - 1);                   // 0 = horizon, 1 = nearest
+    var persp = 0.18 + Math.pow(depth, 1.7) * 0.82;
+    var baseY = H * (0.30 + Math.pow(depth, 1.45) * 0.62);
+    var amp = (6 + 30 * persp);
+    var step = Math.max(4, Math.floor(W / 300) * 3);
     ctx.beginPath();
-    var step = Math.max(3, Math.floor(W / 420) * 3);
     for (var x = 0; x <= W; x += step) {
-      var e = energyFn(x, baseY);                 // 0 calm .. 1 fully awake
-      var a = line.amp * (0.35 + 1.9 * e);        // the pulse: closer = taller
-      var ph = t * line.f;
+      // the sheet is one surface: x and depth feed the same field
+      var u = (x - W / 2) / (persp * 900);        // perspective-corrected x
+      var dx = x - smx, dy = baseY - smy;
+      var e = Math.exp(-(dx * dx + dy * dy) / (2 * 200 * 200));
+      var a = amp * (0.4 + 1.8 * e);
+      var ph = t * 0.9;
       var y = baseY
-        + Math.sin(x * 0.012 + ph * 2.1) * a * 0.55
-        + Math.sin(x * 0.027 - ph * 3.3) * a * 0.30
-        + Math.sin(x * 0.061 + ph * 5.2) * a * 0.15 * line.spike
-        // the EEG moment: a sharper beat that travels along the trace
-        + Math.sin(x * 0.004 - ph * 1.1) * Math.max(0, Math.sin(x * 0.09 - ph * 6.0)) * a * 0.5 * line.spike * (0.3 + e);
+        + Math.sin(u * 2.3 + ph + depth * 4.0) * a * 0.5
+        + Math.sin(u * 5.1 - ph * 1.4 + depth * 7.0) * a * 0.28
+        + Math.sin(u * 11.0 + ph * 2.2) * a * 0.12
+        + Math.sin(u * 0.7 - ph * 0.5) * a * 0.35;
       if (x === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
     }
+    return { persp: persp, depth: depth };
   }
   function draw(t) {
     ctx.clearRect(0, 0, W, H);
-    ctx.globalCompositeOperation = "source-over"; // ink on paper, not neon
-    for (var i = 0; i < LINES.length; i++) {
-      var line = LINES[i];
-      var energy = function (x, baseY) {
-        var dx = x - smx, dy = baseY - smy;
-        return Math.exp(-(dx * dx + dy * dy) / (2 * 180 * 180));
-      };
-      // halo pass
-      trace(line, t, energy);
-      ctx.strokeStyle = "rgba(" + line.hue + "," + (line.alpha * 0.22) + ")";
-      ctx.lineWidth = 7; ctx.stroke();
-      // core pass
-      trace(line, t, energy);
-      ctx.strokeStyle = "rgba(" + line.hue + "," + line.alpha + ")";
-      ctx.lineWidth = 1.6; ctx.stroke();
+    ctx.globalCompositeOperation = "source-over"; // ink on paper
+    for (var i = 0; i < ROWS; i++) {
+      var m = rowTrace(i, t);
+      // halo pass: soft, widens as the surface nears the viewer
+      ctx.strokeStyle = "rgba(40,100,165," + (0.05 + 0.10 * m.persp) + ")";
+      ctx.lineWidth = 2 + 5 * m.persp;
+      ctx.stroke();
+      // core pass: the drawn line of the surface
+      var near = m.depth > 0.75;
+      rowTrace(i, t);
+      ctx.strokeStyle = near
+        ? "rgba(16,42,67," + (0.18 + 0.30 * m.persp) + ")"
+        : "rgba(40,100,165," + (0.12 + 0.30 * m.persp) + ")";
+      ctx.lineWidth = 0.8 + 1.1 * m.persp;
+      ctx.stroke();
     }
-    ctx.globalCompositeOperation = "source-over";
   }
   if (reduced) { smx = -9999; smy = -9999; draw(12.0); return; }
   var vis = true;
