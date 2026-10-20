@@ -1,5 +1,20 @@
 # FAQ — built from the caveats we already print
 
+**How do I install FLUX?**
+One command: `npx -y -p @flux-ai/sdk flux-proxy` starts a local proxy with a
+hash-chained ledger — then set your client's `baseURL` to
+`http://127.0.0.1:8787` (Anthropic) or `http://127.0.0.1:8787/v1` (OpenAI).
+No signup, no account, and your API key passes through without being stored.
+The full walk-through, including recomputing the invoice yourself, is on
+[Get started](start.md).
+
+**Does FLUX work with my language or framework?**
+Yes, if it can set a base URL — which is Python, TypeScript, Go, curl,
+LangChain, LlamaIndex, and effectively everything else. Proxy mode is
+language-agnostic by construction; the one-line SDK mode (`withFlux(client)`)
+is TypeScript/JavaScript today. It covers Claude (Anthropic), OpenAI, and any
+OpenAI-compatible endpoint.
+
 **Can FLUX break my app?**
 The default levers are lossless: compacted schemas decode identically, removed
 duplicates are exact, prefix repair reorders text without deleting it, and the

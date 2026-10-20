@@ -207,7 +207,11 @@ function layout(page: { file: string; nav: string }, body: string, title: string
 <meta property="og:title" content="${escapeHtml(title)}">
 <meta property="og:description" content="${escapeHtml(description)}">
 <meta property="og:url" content="${ORIGIN}/${htmlName}">
-<meta name="twitter:card" content="summary">
+<meta property="og:image" content="${ORIGIN}/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="${ORIGIN}/og.png">
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -283,6 +287,7 @@ for (const page of PAGES) {
 }
 
 writeFileSync(path.join(outDir, "llms.txt"), readFileSync(path.join(siteDir, "llms.txt"), "utf8"), "utf8");
+writeFileSync(path.join(outDir, "og.png"), readFileSync(path.join(siteDir, "og.png")));
 // The brand mark as favicon: two streams resolve into one; the sky-blue
 // endpoint is the signal worth keeping. Drawn bold so it survives 16px.
 writeFileSync(path.join(outDir, "favicon.svg"), `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">

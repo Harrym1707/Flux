@@ -570,6 +570,11 @@ section h2::after{content:"";position:absolute;left:50%;transform:translateX(-50
 <meta property="og:site_name" content="flux">
 <meta property="og:title" content="flux — less in, more out">
 <meta property="og:description" content="Cut your Claude and OpenAI API bill. Savings verified per completed task; pay only a share of verified savings.">
+<meta property="og:image" content="${origin}/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="${origin}/og.png">
 <meta property="og:url" content="${origin}/">
 <meta name="twitter:card" content="summary">
 <link rel="preconnect" href="https://fonts.googleapis.com">
