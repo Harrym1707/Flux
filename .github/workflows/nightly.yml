@@ -1,0 +1,69 @@
+# The R&D team's mechanical backbone: every night, re-prove every number.
+# A regression in savings, quality, ledger determinism, or the live site's
+# GEO surface opens (or updates) a single tracking issue instead of rotting
+# silently. Roadmap item 27.
+name: nightly-evals
+on:
+  schedule:
+    - cron: "41 2 * * *" # 02:41 UTC nightly
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  evals:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.15.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile=false
+      - run: pnpm build
+      - name: Full test suite
+        run: pnpm test
+      - name: Measurement harness, all arms
+        run: node --import tsx evals/run-agent-ab.ts
+      - name: Cache decomposition (the 37.6% claim)
+        run: node --import tsx evals/run-cache-decomposition.ts
+      - name: Proxy overhead (regression watch, generous CI bound)
+        run: node --import tsx evals/run-proxy-overhead.ts
+        env:
+          FLUX_OVERHEAD_REQUESTS: "150"
+      - name: GEO audit against the live site
+        run: node --import tsx evals/run-geo-audit.ts
+        env:
+          FLUX_SITE_ORIGIN: https://www.fluxtoken.dev
+      - name: Open or update the tracking issue on failure
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const title = "Nightly evals failed";
+            const body = [
+              `The nightly eval run failed on ${new Date().toISOString().slice(0, 10)}.`,
+              "",
+              `Run: ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
+              "",
+              "A published number may no longer reproduce. Per the honesty rules,",
+              "the affected figure must be corrected or re-verified before any new",
+              "claim ships.",
+            ].join("\n");
+            const open = await github.rest.issues.listForRepo({
+              ...context.repo, state: "open", labels: "nightly-evals",
+            });
+            if (open.data.length > 0) {
+              await github.rest.issues.createComment({
+                ...context.repo, issue_number: open.data[0].number, body,
+              });
+            } else {
+              await github.rest.issues.create({
+                ...context.repo, title, body, labels: ["nightly-evals"],
+              });
+            }
