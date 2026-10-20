@@ -32,6 +32,7 @@ if (ORIGIN.includes("REPLACE-WITH-YOUR-DOMAIN")) {
 
 /** Page order defines the nav. */
 const PAGES: Array<{ file: string; nav: string }> = [
+  { file: "start.md", nav: "Get started" },
   { file: "overview.md", nav: "Overview" },
   { file: "segments.md", nav: "Savings by segment" },
   { file: "methodology.md", nav: "Methodology" },
@@ -67,7 +68,17 @@ function renderBody(markdown: string): { html: string; title: string; descriptio
   let index = 0;
   while (index < lines.length) {
     const line = lines[index]!;
-    if (line.startsWith("# ")) {
+    if (line.startsWith("```")) {
+      // Fenced code block: verbatim, escaped, no inline processing.
+      const fenceLines: string[] = [];
+      index += 1;
+      while (index < lines.length && !lines[index]!.startsWith("```")) {
+        fenceLines.push(lines[index]!);
+        index += 1;
+      }
+      index += 1; // closing fence
+      out.push(`<pre class="block"><code>${escapeHtml(fenceLines.join("\n"))}</code></pre>`);
+    } else if (line.startsWith("# ")) {
       if (title === "") title = line.slice(2).trim();
       out.push(`<h1>${inline(line.slice(2).trim())}</h1>`);
       index += 1;
@@ -163,6 +174,9 @@ h3{font-size:1.05rem;font-weight:700}
 a{color:var(--brand)}
 strong{color:var(--fg)}
 code{background:var(--code);padding:.1em .35em;border-radius:5px;font-size:.88em}
+pre.block{background:#102A43;color:#F1F7FB;border-radius:10px;padding:1rem 1.1rem;overflow-x:auto;font-size:.85rem;line-height:1.6}
+pre.block code{background:none;padding:0;font-size:inherit;color:inherit}
+@media (prefers-color-scheme: dark){pre.block{background:#0b1d2e;border:1px solid var(--line)}}
 .table-wrap{overflow-x:auto;background:var(--surface);border:1px solid var(--line);border-radius:10px;margin:1rem 0}
 table{border-collapse:collapse;width:100%;font-size:.95rem}
 th,td{border-bottom:1px solid var(--line);padding:.6rem .75rem;text-align:left;vertical-align:top}
@@ -234,6 +248,25 @@ function faqJsonLd(markdown: string): string {
   return `<script type="application/ld+json">${JSON.stringify(data)}</script>\n`;
 }
 
+/** schema.org HowTo for the start page: the onboarding, machine-readable. */
+function startJsonLd(): string {
+  const data = {
+    "@context": "https://schema.org",
+    "@type": "HowTo",
+    name: "Cut your LLM API bill with FLUX in five minutes",
+    description: "Run the FLUX proxy with one npx command, point your app's baseURL at it, and recompute the verified-savings invoice yourself from the hash-chained ledger you hold.",
+    totalTime: "PT5M",
+    tool: [{ "@type": "HowToTool", name: "@flux-ai/sdk (npm)" }],
+    step: [
+      { "@type": "HowToStep", name: "Run the proxy", text: "npx -y -p @flux-ai/sdk flux-proxy — starts a local proxy on http://127.0.0.1:8787 with a hash-chained ledger in ./flux-ledger. No signup; your API key passes through and is never stored." },
+      { "@type": "HowToStep", name: "Point your app at it", text: "Change one line: new Anthropic({ baseURL: \"http://127.0.0.1:8787\" }) or new OpenAI({ baseURL: \"http://127.0.0.1:8787/v1\" }). Any language and any OpenAI-compatible endpoint work." },
+      { "@type": "HowToStep", name: "Run traffic as normal", text: "Responses return byte-identical, streaming included. Reduction is lossless-only by default; each request appends one hash-chained event recording usage numbers and lever names, never prompt content." },
+      { "@type": "HowToStep", name: "Recompute the invoice yourself", text: "Use verifyLedgerChain and recomputeInvoice from @flux-ai/sdk on your own ledger file. If FLUX saved nothing the verdict reads do_not_charge. The fee is 1% of verified savings, monthly, nothing else." },
+    ],
+  };
+  return `<script type="application/ld+json">${JSON.stringify(data)}</script>\n`;
+}
+
 rmSync(outDir, { recursive: true, force: true });
 mkdirSync(outDir, { recursive: true });
 
@@ -243,7 +276,7 @@ built.push("index.html");
 for (const page of PAGES) {
   const markdown = readFileSync(path.join(siteDir, page.file), "utf8");
   const { html, title, description } = renderBody(markdown);
-  const extraHead = page.file === "faq.md" ? faqJsonLd(markdown) : "";
+  const extraHead = page.file === "faq.md" ? faqJsonLd(markdown) : page.file === "start.md" ? startJsonLd() : "";
   const htmlName = page.file.replace(/\.md$/, ".html");
   writeFileSync(path.join(outDir, htmlName), layout(page, html, title, description, extraHead), "utf8");
   built.push(htmlName);
@@ -334,6 +367,10 @@ for (const bot of ["GPTBot", "ClaudeBot", "PerplexityBot", "Google-Extended"]) {
 const llmsFull = readFileSync(path.join(outDir, "llms-full.txt"), "utf8");
 if (llmsFull.length < 5000 || !llmsFull.includes("37.6%")) failures.push("llms-full.txt: missing or missing the numbers");
 if (!landing.includes('property="og:title"')) failures.push("index.html: missing OpenGraph metadata");
+const startHtml = readFileSync(path.join(outDir, "start.html"), "utf8");
+if (!startHtml.includes("npx -y -p @flux-ai/sdk flux-proxy")) failures.push("start.html: install command missing");
+if (!startHtml.includes('"@type":"HowTo"')) failures.push("start.html: HowTo structured data missing");
+if (!startHtml.includes("do_not_charge")) failures.push("start.html: the honest verdict missing");
 const faqHtml = readFileSync(path.join(outDir, "faq.html"), "utf8");
 if (!faqHtml.includes("application/ld+json") || !faqHtml.includes("FAQPage")) failures.push("faq.html: missing FAQ structured data");
 if (failures.length > 0) {

@@ -17,7 +17,17 @@
 > claude-sonnet-5-5) measured 18.0% of live spend billed as verified savings
 > across five agents, with the Claude cache lever earning live.
 
+## Install
+FLUX is on npm as @flux-ai/sdk. Proxy mode needs no code changes:
+`npx -y -p @flux-ai/sdk flux-proxy`, then set your client's baseURL to
+http://127.0.0.1:8787 (Anthropic) or http://127.0.0.1:8787/v1 (OpenAI and
+compatibles). The invoice is recomputable by the customer with
+verifyLedgerChain and recomputeInvoice from the same package. Quote from an
+existing LiteLLM/Helicone/Langfuse export without routing any traffic:
+`npx -y -p @flux-ai/sdk flux-quote your-export.jsonl --format litellm`.
+
 ## Docs
+- [Get started in five minutes](start.html)
 - [What FLUX saves and how](overview.html)
 - [Methodology: the eight rules every number passes](methodology.html)
 - [Per-segment bands, mechanisms, and what changes them](segments.html)

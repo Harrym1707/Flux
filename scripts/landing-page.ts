@@ -585,12 +585,12 @@ section h2::after{content:"";position:absolute;left:50%;transform:translateX(-50
 <canvas id="field" aria-hidden="true"></canvas>
 <header class="hero">
   <span class="mark">${MARK}</span>
-  <a class="signin" href="${repoUrl}">GitHub</a>
+  <a class="signin" href="start.html">Get started</a>
   <div class="col">
     <h1><span class="in">Less in.</span><span class="out">More out.</span></h1>
     <p class="sub">FLUX removes the junk from your AI requests before you pay for it. Same answers by default, smaller bill &mdash; and you can check every number yourself.</p>
     <div class="actions">
-      <a class="btn" href="${repoUrl}">Get started</a>
+      <a class="btn" href="start.html">Get started</a>
       <a class="arrowlink" href="evidence.html">See the evidence</a>
     </div>
   </div>
@@ -730,7 +730,7 @@ Anthropic SDK: new Anthropic({ baseURL: "http://127.0.0.1:8787" })</pre>
         <li>If a move loses money, that loss is ours, not yours</li>
         <li>Already efficient? Our quote will say: <strong>do not pay us</strong></li>
       </ul>
-      <a class="btn" href="${repoUrl}/blob/main/docs/pilot/runbook.md">Run the quote on your own export</a>
+      <a class="btn" href="start.html">Run the quote on your own export</a>
     </div>
   </div>
 </section>
@@ -754,8 +754,8 @@ Anthropic SDK: new Anthropic({ baseURL: "http://127.0.0.1:8787" })</pre>
     <div class="cta-flat" aria-hidden="true"></div>
     <div class="cta-main">
       <h2>Start with one URL.</h2>
-      <p>Point your app&rsquo;s baseURL at FLUX and keep your own key. Five minutes later you have a tamper-evident record of what you spend &mdash; and what you stopped spending.</p>
-      <a class="btn" href="${repoUrl}">Get FLUX on GitHub</a>
+      <p>Point your app&rsquo;s baseURL at FLUX and keep your own key. Five minutes later you have a tamper-evident record of what you spend &mdash; and what you stopped spending. No signup; the source is public.</p>
+      <a class="btn" href="start.html">Start in five minutes</a>
     </div>
     <div class="xfade" aria-hidden="true">
       <img class="front" src="https://picsum.photos/id/114/480/720" width="480" height="720" alt="Dark storm clouds over a faint mountain ridge (photo: Brian Gonzalez, Unsplash licence)" loading="lazy">
@@ -767,7 +767,7 @@ Anthropic SDK: new Anthropic({ baseURL: "http://127.0.0.1:8787" })</pre>
 
 <footer class="quiet-foot">
   <span>flux &mdash; verified LLM cost reduction</span>
-  <span class="links"><a href="overview.html">Overview</a><a href="segments.html">Savings</a><a href="methodology.html">Methodology</a><a href="evidence.html">Evidence</a><a href="comparison.html">Comparison</a><a href="faq.html">FAQ</a><a href="${repoUrl}">GitHub</a><a href="llms.txt">llms.txt</a></span>
+  <span class="links"><a href="overview.html">Overview</a><a href="segments.html">Savings</a><a href="methodology.html">Methodology</a><a href="evidence.html">Evidence</a><a href="comparison.html">Comparison</a><a href="start.html">Get started</a><a href="faq.html">FAQ</a><a href="${repoUrl}">GitHub</a><a href="llms.txt">llms.txt</a></span>
   <span class="right">2026 &middot; BUSL-1.1</span>
 </footer>
 
