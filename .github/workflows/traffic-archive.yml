@@ -1,0 +1,59 @@
+# Archives GitHub traffic stats before GitHub deletes them (14-day window),
+# plus npm download counts and the star count. One provider-verbatim JSON
+# snapshot per run under docs/metrics/traffic/ — the adoption ledger.
+#
+# Needs the TRAFFIC_PAT repo secret: a fine-grained PAT for this repo with
+# Administration: read (the traffic API requires it). The npm and star
+# numbers are public and need no auth.
+name: traffic-archive
+on:
+  schedule:
+    - cron: "17 6 * * 1,4" # Mon + Thu 06:17 UTC — twice weekly, well inside the 14-day window
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  archive:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Snapshot traffic, downloads, stars
+        env:
+          TRAFFIC_PAT: ${{ secrets.TRAFFIC_PAT }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          if [ -z "$TRAFFIC_PAT" ]; then
+            echo "::error::TRAFFIC_PAT secret is missing — create a fine-grained PAT (this repo, Administration: read) and save it as a repo secret named TRAFFIC_PAT."
+            exit 1
+          fi
+          mkdir -p docs/metrics/traffic
+          day=$(date -u +%F)
+          api() { curl -sf -H "Authorization: Bearer $TRAFFIC_PAT" -H "Accept: application/vnd.github+json" "https://api.github.com/repos/$REPO/$1"; }
+          views=$(api traffic/views)
+          clones=$(api traffic/clones)
+          referrers=$(api traffic/popular/referrers)
+          paths=$(api traffic/popular/paths)
+          stars=$(curl -sf "https://api.github.com/repos/$REPO" | jq '{stargazers_count, forks_count, subscribers_count}')
+          npm=$(curl -sf "https://api.npmjs.org/downloads/point/last-week/@flux-ai/sdk" || echo '{"error":"npm stats unavailable"}')
+          jq -n --arg fetchedAt "$(date -u +%FT%TZ)" \
+            --argjson views "$views" --argjson clones "$clones" \
+            --argjson referrers "$referrers" --argjson paths "$paths" \
+            --argjson repo "$stars" --argjson npmLastWeek "$npm" \
+            '{fetchedAt: $fetchedAt, views: $views, clones: $clones, referrers: $referrers, paths: $paths, repo: $repo, npmLastWeek: $npmLastWeek}' \
+            > "docs/metrics/traffic/$day.json"
+          echo "snapshot written: docs/metrics/traffic/$day.json"
+      - name: Commit the snapshot
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/metrics/traffic
+          if git diff --cached --quiet; then
+            echo "no change since last snapshot"
+          else
+            git commit -m "Traffic snapshot $(date -u +%F) [skip ci]"
+            git push
+          fi
