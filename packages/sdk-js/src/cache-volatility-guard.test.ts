@@ -1,0 +1,238 @@
+import { describe, expect, it } from "vitest";
+import { CachePrefixVolatilityGuard } from "./cache-volatility-guard.js";
+import { reduceRequest } from "./reduce-request.js";
+
+const PREAMBLE = "You are a careful coding agent. Cite sources, run the tests, escalate anything risky. ".repeat(20);
+
+/** A multi-turn agent request; `clock` injects per-turn churn into system. */
+function turn(turnIndex: number, clock?: string): Record<string, unknown> {
+  const messages: Array<Record<string, unknown>> = [];
+  for (let index = 0; index <= turnIndex; index += 1) {
+    messages.push({ role: "user", content: `Step ${index}: continue the refactor.` });
+    if (index < turnIndex) messages.push({ role: "assistant", content: `Done with step ${index}.` });
+  }
+  return {
+    model: "claude-sonnet-5-5",
+    max_tokens: 400,
+    system: clock === undefined ? PREAMBLE : `Current time: ${clock}\n${PREAMBLE}`,
+    messages,
+  };
+}
+
+describe("CachePrefixVolatilityGuard", () => {
+  it("stamps a conversation whose prefix is stable across turns", () => {
+    const guard = new CachePrefixVolatilityGuard();
+    for (let index = 0; index < 5; index += 1) {
+      expect(guard.observe(turn(index)).stamp).toBe(true);
+    }
+  });
+
+  it("suppresses from the first turn that reveals a churning system, and stays suppressed while it churns", () => {
+    const guard = new CachePrefixVolatilityGuard();
+    expect(guard.observe(turn(0, "09:00:00Z")).stamp).toBe(true); // nothing known yet
+    for (let index = 1; index < 6; index += 1) {
+      const decision = guard.observe(turn(index, `09:0${index}:00Z`));
+      expect(decision.stamp).toBe(false);
+      expect(decision.reason).toContain("tools/system changed");
+    }
+  });
+
+  it("resumes stamping after two consecutive stable turns (a one-off disturbance is forgiven)", () => {
+    const guard = new CachePrefixVolatilityGuard();
+    expect(guard.observe(turn(0, "09:00:00Z")).stamp).toBe(true);
+    expect(guard.observe(turn(1, "09:05:00Z")).stamp).toBe(false); // churn revealed
+    expect(guard.observe(turn(2, "09:05:00Z")).stamp).toBe(false); // first stable turn: still proving
+    expect(guard.observe(turn(3, "09:05:00Z")).stamp).toBe(true);  // second stable turn: resumed
+    expect(guard.observe(turn(4, "09:05:00Z")).stamp).toBe(true);
+  });
+
+  it("suppresses when the history is rewritten instead of extended", () => {
+    const guard = new CachePrefixVolatilityGuard();
+    expect(guard.observe(turn(2)).stamp).toBe(true);
+    const rewritten = turn(2) as { messages: Array<Record<string, unknown>> };
+    rewritten.messages[1] = { role: "assistant", content: "[summarised by the client framework]" };
+    const decision = guard.observe(rewritten);
+    expect(decision.stamp).toBe(false);
+    expect(decision.reason).toContain("history was rewritten");
+  });
+
+  it("keeps conversations independent: churn in one never suppresses another", () => {
+    const guard = new CachePrefixVolatilityGuard();
+    const other = { model: "claude-sonnet-5-5", system: PREAMBLE, messages: [{ role: "user", content: "unrelated" }] };
+    guard.observe(turn(0, "09:00:00Z"));
+    guard.observe(turn(1, "09:05:00Z")); // conversation A churns
+    expect(guard.observe(other).stamp).toBe(true);
+  });
+
+  it("stamps one-shot templated traffic (distinct conversations sharing a stable system)", () => {
+    const guard = new CachePrefixVolatilityGuard();
+    for (let index = 0; index < 4; index += 1) {
+      const request = {
+        model: "claude-sonnet-5-5",
+        system: PREAMBLE,
+        messages: [{ role: "user", content: `Ticket ${index}: classify this.` }],
+      };
+      expect(guard.observe(request).stamp).toBe(true);
+    }
+  });
+
+  it("evicts the least recently seen conversation at the cap", () => {
+    const guard = new CachePrefixVolatilityGuard(2);
+    guard.observe(turn(0, "09:00:00Z"));
+    guard.observe(turn(1, "09:05:00Z")); // conversation A is now volatile
+    guard.observe({ model: "m", system: "s", messages: [{ role: "user", content: "b" }] });
+    guard.observe({ model: "m", system: "s", messages: [{ role: "user", content: "c" }] }); // evicts A
+    // A returns: its volatility record is gone, so it is treated as new.
+    expect(guard.observe(turn(2, "09:10:00Z")).stamp).toBe(true);
+  });
+});
+
+describe("reduceRequest with the guard and the volatile-tail placement", () => {
+  const config = {
+    repairCachePrefix: true,
+    cacheTtl: "5m",
+  } as const;
+
+  it("splits a repaired system so the breakpoint covers only the stable text, and skips the message breakpoint", () => {
+    const request = turn(3, "2026-10-20T09:03:00Z");
+    const { request: reduced, summary } = reduceRequest(request, { ...config });
+    expect(summary.skipped).toBe(false);
+    const system = (reduced as { system: Array<{ text: string; cache_control?: unknown }> }).system;
+    expect(Array.isArray(system)).toBe(true);
+    expect(system).toHaveLength(2);
+    // The stable preamble carries the breakpoint; the relocated clock does not.
+    expect(system[0]!.cache_control).toEqual({ type: "ephemeral", ttl: "5m" });
+    expect(system[0]!.text).not.toContain("Current time");
+    expect(system[1]!.cache_control).toBeUndefined();
+    expect(system[1]!.text).toContain("Current time: 2026-10-20T09:03:00Z");
+    // Reordered, never removed: every original byte survives across the blocks.
+    expect(`${system[0]!.text}\n${system[1]!.text}`.split("\n").sort())
+      .toEqual((request.system as string).split("\n").sort());
+    // No breakpoint may sit after the volatile tail — so no message breakpoint.
+    const messages = JSON.stringify((reduced as { messages: unknown }).messages);
+    expect(messages).not.toContain("cache_control");
+  });
+
+  it("keeps the single-block stamp and the message breakpoint when the system has no volatile tail", () => {
+    const { request: reduced } = reduceRequest(turn(3), { ...config });
+    const system = (reduced as { system: Array<{ cache_control?: unknown }> }).system;
+    expect(system).toHaveLength(1);
+    expect(system[0]!.cache_control).toEqual({ type: "ephemeral", ttl: "5m" });
+    const messages = (reduced as { messages: Array<{ content: unknown }> }).messages;
+    expect(JSON.stringify(messages.at(-1))).toContain("cache_control");
+  });
+
+  it("stamps nothing when the whole system is volatile", () => {
+    const request = {
+      model: "claude-sonnet-5-5",
+      system: "Current time: 2026-10-20T09:03:00Z",
+      messages: [
+        { role: "user", content: "a" },
+        { role: "assistant", content: "b" },
+        { role: "user", content: "c" },
+      ],
+    };
+    const { request: reduced } = reduceRequest(request, { ...config });
+    expect(JSON.stringify(reduced)).not.toContain("cache_control");
+  });
+
+  it("withholds the stamp when the guard reports churn, and records why", () => {
+    const guard = new CachePrefixVolatilityGuard();
+    const shared = { ...config, cacheVolatilityGuard: guard };
+    const first = reduceRequest(turn(0, "09:00:00Z"), shared);
+    expect(JSON.stringify(first.request)).toContain("cache_control");
+    const second = reduceRequest(turn(1, "09:05:00Z"), shared);
+    expect(JSON.stringify(second.request)).not.toContain("cache_control");
+    const suppression = second.summary.changes.find((change) => change.lever === "cache-ttl-suppressed");
+    expect(suppression).toBeDefined();
+    expect(suppression!.detail).toContain("never reads");
+    expect(second.summary.changes.find((change) => change.lever === "cache-ttl-5m")).toBeUndefined();
+  });
+});
+
+/**
+ * Placement economics, modelled on Anthropic's documented billing rules
+ * (cache reads are exact-span prefix matches at 0.1x base input; writes bill
+ * the span at 1.25x for the 5m TTL; everything after the last breakpoint
+ * bills at 1x). This is the arithmetic the second live export measured: the
+ * old placement lost money on a volatile-clock agent; the fixed placement
+ * must earn on the same traffic.
+ */
+describe("stamp placement economics on a volatile-clock agent", () => {
+  const RATE = 2 / 1_000_000; // catalogued claude-sonnet-5-5 input rate, USD per token
+  const tokens = (text: string): number => Math.ceil(text.length / 4);
+
+  /** Serialize a stamped request into cumulative spans ending at each breakpoint. */
+  function breakpointSpans(request: Record<string, unknown>): { spans: string[]; full: string } {
+    let running = "";
+    const spans: string[] = [];
+    const walkBlocks = (blocks: unknown): void => {
+      if (typeof blocks === "string") { running += blocks; return; }
+      if (!Array.isArray(blocks)) return;
+      for (const block of blocks) {
+        const b = block as Record<string, unknown>;
+        running += typeof b.text === "string" ? b.text : JSON.stringify(b);
+        if (b.cache_control !== undefined) spans.push(running);
+      }
+    };
+    walkBlocks(request.system);
+    for (const message of request.messages as Array<Record<string, unknown>>) {
+      if (typeof message.content === "string") running += message.content;
+      else walkBlocks(message.content);
+    }
+    return { spans, full: running };
+  }
+
+  /** Price a turn sequence: exact-span reads at 0.1x, span writes at 1.25x, the rest at 1x. */
+  function price(turnsStamped: Array<Record<string, unknown>>): number {
+    const written = new Set<string>();
+    let cost = 0;
+    for (const request of turnsStamped) {
+      const { spans, full } = breakpointSpans(request);
+      let readChars = 0;
+      for (const span of spans) if (written.has(span)) readChars = Math.max(readChars, span.length);
+      const lastSpanChars = spans.length > 0 ? spans[spans.length - 1]!.length : 0;
+      const writeChars = Math.max(0, lastSpanChars - readChars);
+      const freshChars = full.length - lastSpanChars;
+      cost += tokens(full.slice(0, readChars)) * RATE * 0.1;
+      cost += tokens(full.slice(readChars, lastSpanChars)) * RATE * 1.25;
+      cost += tokens(full.slice(lastSpanChars)) * RATE;
+      for (const span of spans) written.add(span);
+    }
+    return cost;
+  }
+
+  it("the old placement loses money and the fixed placement earns, on identical traffic", () => {
+    const TURNS = 6;
+    // The live export's clock shape: a full ISO timestamp, which prefix
+    // repair recognises and relocates. (A clock repair cannot recognise is
+    // the volatility guard's job, covered above.)
+    const raw = Array.from({ length: TURNS }, (_, index) => turn(index, `2026-10-20T09:0${index}:00Z`));
+    const uncached = raw.reduce((sum, request) => {
+      const body = `${request.system as string}${(request.messages as Array<{ content: string }>).map((m) => m.content).join("")}`;
+      return sum + tokens(body) * RATE;
+    }, 0);
+
+    // OLD: one breakpoint over the whole system (volatile clock inside the
+    // cached span) plus one on the last message — the shipped behaviour the
+    // live export measured losing.
+    const oldStamped = raw.map((request) => ({
+      ...request,
+      system: [{ type: "text", text: request.system, cache_control: { type: "ephemeral", ttl: "5m" } }],
+      messages: (request.messages as Array<Record<string, unknown>>).map((message, index, all) =>
+        index === all.length - 1
+          ? { ...message, content: [{ type: "text", text: message.content, cache_control: { type: "ephemeral", ttl: "5m" } }] }
+          : message),
+    }));
+    const oldCost = price(oldStamped);
+
+    // NEW: the reducer's split placement on the same raw turns.
+    const newStamped = raw.map((request) =>
+      reduceRequest(request, { repairCachePrefix: true, cacheTtl: "5m" }).request as Record<string, unknown>);
+    const newCost = price(newStamped);
+
+    expect(oldCost).toBeGreaterThan(uncached);  // the measured loss
+    expect(newCost).toBeLessThan(uncached);     // the fix earns on the same traffic
+    expect(newCost).toBeLessThan(oldCost * 0.6);
+  });
+});

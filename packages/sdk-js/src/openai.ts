@@ -7,6 +7,7 @@ import {
 import { TelemetryClient } from "./telemetry.js";
 import { chooseRoute } from "./routing.js";
 import { ExactResponseCache } from "./exact-cache.js";
+import { CachePrefixVolatilityGuard } from "./cache-volatility-guard.js";
 import { reduceRequest } from "./reduce-request.js";
 import { createSavingsLedger, type SavingsLedger } from "./savings-ledger.js";
 import type {
@@ -150,6 +151,13 @@ export function withFlux<T extends AnyObject>(client: T, options: FluxOptions): 
   // surface, so a client used through chat and messages still writes a single
   // hash chain.
   const ledger: SavingsLedger | undefined = options.ledger ? createSavingsLedger(options.ledger) : undefined;
+  // One guard per wrapped client: conversations are watched across turns so
+  // the cache stamp is withheld from prefixes that churn (see
+  // cache-volatility-guard.ts). The caller may supply their own.
+  const tokenReduction = (options.tokenReduction?.cacheTtl !== undefined &&
+      options.tokenReduction.cacheVolatilityGuard === undefined)
+    ? { ...options.tokenReduction, cacheVolatilityGuard: new CachePrefixVolatilityGuard() }
+    : options.tokenReduction;
 
   const surfaceCreate = (surface: FluxSurface, target: AnyObject) =>
     async (request: AnyObject, ...rest: unknown[]) => {
@@ -176,8 +184,8 @@ export function withFlux<T extends AnyObject>(client: T, options: FluxOptions): 
         // getContext and classify above were given the caller's own request;
         // everything downstream uses the reduced one, because that is what gets
         // sent, cached and quality-checked.
-        const reduction = options.tokenReduction
-          ? reduceRequest(request, options.tokenReduction)
+        const reduction = tokenReduction
+          ? reduceRequest(request, tokenReduction)
           : undefined;
         const effectiveRequest = (reduction?.request ?? request) as AnyObject;
 

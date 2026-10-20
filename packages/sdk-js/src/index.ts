@@ -44,6 +44,7 @@ export type {
   PriceCatalogue,
 } from "../../core/dist/src/index.js";
 export { capToolResultBody, digestStaleBody, reduceRequest } from "./reduce-request.js";
+export { CachePrefixVolatilityGuard, type CacheStampDecision } from "./cache-volatility-guard.js";
 export type {
   FluxHistoryCompactionConfig,
   FluxReductionChange,

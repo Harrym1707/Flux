@@ -5,6 +5,7 @@ import {
   normalizeProviderUsage,
   responseServiceTier,
 } from "../../core/dist/src/index.js";
+import { CachePrefixVolatilityGuard } from "./cache-volatility-guard.js";
 import { reduceRequest, type FluxTokenReductionConfig } from "./reduce-request.js";
 import { createSavingsLedger, type SavingsLedger } from "./savings-ledger.js";
 import type { FluxRequestEvent } from "./types.js";
@@ -145,7 +146,13 @@ export function usageFromSse(provider: "anthropic" | "openai", sseText: string):
 
 /** Start the FLUX proxy. Resolves once the server is listening. */
 export function startFluxProxy(options: FluxProxyOptions): Promise<FluxProxy> {
-  const reduction = options.tokenReduction ?? LOSSLESS_DEFAULT;
+  const baseReduction = options.tokenReduction ?? LOSSLESS_DEFAULT;
+  // The proxy is long-lived, so it can watch conversations across requests:
+  // with the cache stamp enabled, a volatility guard suppresses stamping of
+  // prefixes that churn between turns (a measured live loss otherwise).
+  const reduction = (baseReduction.cacheTtl !== undefined && baseReduction.cacheVolatilityGuard === undefined)
+    ? { ...baseReduction, cacheVolatilityGuard: new CachePrefixVolatilityGuard() }
+    : baseReduction;
   const upstreams = {
     anthropic: (options.anthropicUpstream ?? "https://api.anthropic.com").replace(/\/$/, ""),
     openai: (options.openaiUpstream ?? "https://api.openai.com").replace(/\/$/, ""),

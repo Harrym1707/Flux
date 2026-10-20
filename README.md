@@ -80,7 +80,11 @@ Works with Anthropic `messages.create`, OpenAI `responses.create`, and
   unstamped Claude agent re-pays full rate for its entire conversation history
   every turn (our live export measured exactly that: zero cache traffic on a
   five-turn agent). FLUX stamps the stable prefix — writes 1.25×, reads 0.1× —
-  and defers whenever you placed your own `cache_control`.
+  and defers whenever you placed your own `cache_control`. Volatile values
+  (a per-turn clock, a request id) are kept outside the breakpoint, and a
+  conversation whose prefix churns between turns is never stamped at all: a
+  breakpoint that can never be read back only buys write premiums, so FLUX
+  refuses to place one.
 - **Fresh tool results are capped at injection**, before they bill once at the
   full input rate (headlines, errors and file paths survive verbatim; the
   replay gate approved this lever at zero quality delta).

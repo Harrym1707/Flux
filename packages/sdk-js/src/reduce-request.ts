@@ -145,6 +145,16 @@ export type FluxTokenReductionConfig = {
    * default; like executionTier, it must be the caller's per-workload flag.
    */
   cacheTtl?: "5m" | "1h";
+  /**
+   * Cross-turn volatility guard for the cache stamp (see
+   * cache-volatility-guard.ts). The reducer is a pure per-request function
+   * and cannot see that a conversation's prefix churns between turns; the
+   * guard can, and a churning prefix turns the stamp into pure write premium
+   * (the second live export measured exactly that loss). The proxy and
+   * withFlux install one automatically whenever cacheTtl is set; it is
+   * consulted with the RAW request before any stamp is placed.
+   */
+  cacheVolatilityGuard?: { observe(request: unknown): { stamp: boolean; reason?: string } };
   countTokens?: TokenCounter;
   onReduction?: (summary: FluxReductionSummary) => void;
 };
@@ -572,12 +582,20 @@ function reduceMessageContent(
  *   breakpoint (a string body is lifted into the equivalent single text
  *   block, which the Anthropic API documents as the same request). Tools
  *   precede system in the cached prefix, so this caches both.
+ * - When prefix repair moved per-request values (a clock, a request id) to
+ *   the end of a string system, the breakpoint must NOT cover them: the
+ *   second live export measured a per-turn loss from exactly that (every
+ *   turn a cache write, never a read). The system is split at the repair
+ *   boundary — stable text gets the breakpoint, the volatile tail follows as
+ *   an unstamped block (Anthropic's documented shared-prefix/varying-suffix
+ *   placement) — and no message breakpoint is placed, because a message
+ *   breakpoint's prefix would include the volatile tail and never match.
  * - On a MULTI-turn request the full history including the newest message is
  *   re-sent verbatim next turn, so the last message also gets a breakpoint —
  *   next turn reads it and extends. A one-shot request gets no message
  *   breakpoint: there is nothing stable below the system prompt.
  */
-function stampAnthropicCacheTtl(next: AnyObject, ttl: "5m" | "1h"): boolean {
+function stampAnthropicCacheTtl(next: AnyObject, ttl: "5m" | "1h", systemVolatileTail: string[]): boolean {
   const model = typeof next.model === "string" ? next.model.toLowerCase() : "";
   if (!model.includes("claude")) return false;
   if (!Array.isArray(next.messages) || next.messages.length === 0) return false;
@@ -596,11 +614,32 @@ function stampAnthropicCacheTtl(next: AnyObject, ttl: "5m" | "1h"): boolean {
 
   const cacheControl = { type: "ephemeral", ttl };
   let stamped = false;
+  // When repair relocated per-request values to the end of the system string,
+  // the breakpoint must stop before them; any breakpoint placed after them
+  // (including one on the last message) could never be read back.
+  let volatileTailPresent = false;
 
   // The stable template: system (which also pulls tools into the cached prefix).
   if (typeof next.system === "string" && next.system.trim() !== "") {
-    next.system = [{ type: "text", text: next.system, cache_control: cacheControl }];
-    stamped = true;
+    const tailText = systemVolatileTail.join("\n");
+    if (systemVolatileTail.length > 0 && tailText.trim() !== "" &&
+        (next.system === tailText || next.system.endsWith(`\n${tailText}`))) {
+      volatileTailPresent = true;
+      const stable = next.system === tailText ? "" : next.system.slice(0, -(tailText.length + 1));
+      if (stable.trim() !== "") {
+        next.system = [
+          { type: "text", text: stable, cache_control: cacheControl },
+          { type: "text", text: tailText },
+        ];
+        stamped = true;
+      }
+      // An all-volatile system has no stable prefix to stamp: nothing is
+      // stamped anywhere on this request (a breakpoint could only buy the
+      // write premium, which is the measured loss this rule exists to stop).
+    } else {
+      next.system = [{ type: "text", text: next.system, cache_control: cacheControl }];
+      stamped = true;
+    }
   } else if (Array.isArray(next.system) && next.system.length > 0) {
     const blocks = [...next.system];
     const lastBlock = blocks[blocks.length - 1];
@@ -613,8 +652,10 @@ function stampAnthropicCacheTtl(next: AnyObject, ttl: "5m" | "1h"): boolean {
   }
 
   // The settled conversation: only multi-turn requests re-send their newest
-  // message verbatim on the next turn, so only they get a message breakpoint.
-  if (next.messages.length >= 2) {
+  // message verbatim on the next turn, so only they get a message breakpoint —
+  // and never when a volatile tail sits in the system, because this
+  // breakpoint's prefix would include that tail and could never match.
+  if (!volatileTailPresent && next.messages.length >= 2) {
     const messages = [...next.messages];
     const lastIndex = messages.length - 1;
     const last = messages[lastIndex];
@@ -729,11 +770,15 @@ export function reduceRequest(
     // cached prefix on Anthropic traffic while the identical prompt is
     // repaired on OpenAI traffic. A block-array `system` is left untouched -
     // reordering caller-placed blocks is not ours to do.
+    // Lines prefix repair moved to the end of a string `system`: the cache
+    // stamp must not cover them (see stampAnthropicCacheTtl).
+    let systemVolatileTail: string[] = [];
     const reduceSystemText = (text: string, label: "instructions" | "system"): string => {
       let current = reduceText(text, config, countTokens, changes, label);
       if (config.repairCachePrefix) {
         const repaired = repairPrefix(current);
         if (repaired.moved.length > 0) {
+          if (label === "system") systemVolatileTail = repaired.moved;
           current = repaired.text;
           changes.push({
             lever: "cache-prefix-repair",
@@ -833,7 +878,20 @@ export function reduceRequest(
     // prompt: the same bytes are cached for an hour at a 2x write premium.
     if (config.cacheTtl === "5m" || config.cacheTtl === "1h") {
       const ttl = config.cacheTtl;
-      const stamped = stampAnthropicCacheTtl(next, ttl);
+      // The guard sees the RAW request: FLUX's own deterministic levers must
+      // never be mistaken for client-side churn.
+      const decision = config.cacheVolatilityGuard?.observe(request) ?? { stamp: true };
+      const stamped = decision.stamp ? stampAnthropicCacheTtl(next, ttl, systemVolatileTail) : false;
+      if (!decision.stamp) {
+        changes.push({
+          lever: "cache-ttl-suppressed",
+          lossless: true,
+          // Nothing was changed; this records WHY no stamp was placed.
+          estimatedTokensSaved: 0,
+          detail: `Cache stamp withheld: ${decision.reason ?? "the conversation's prefix is not stable"}. ` +
+            "A breakpoint over a churning prefix buys write premiums and never reads — a measured loss, not a saving.",
+        });
+      }
       if (stamped) {
         changes.push({
           lever: `cache-ttl-${ttl}`,
