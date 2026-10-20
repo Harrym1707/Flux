@@ -48,7 +48,7 @@ entry; history is never silently repriced, and an uncovered date is "unpriced",
 which excludes the row rather than guessing.
 
 **What does it cost?**
-15% of verified savings, monthly — nothing else. No subscription, no seats,
+1% of verified savings, monthly — nothing else. No subscription, no seats,
 no minimum. A month that saved nothing bills nothing, and negative lever
 months count against us.
 

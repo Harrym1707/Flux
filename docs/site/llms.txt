@@ -12,7 +12,7 @@
 > tasks against raw uncached baseline and fails the -2 pp quality limit, so it
 > is not a qualified win. Other figures: async/batch 57.7% net, one-shot templated 45.5-72.8%,
 > interactive agents 25.9-34.0%, already-optimised stacks 0-5% with an
-> explicit do-not-pay-us verdict. The fee is 15% of verified savings,
+> explicit do-not-pay-us verdict. The fee is 1% of verified savings,
 > monthly, nothing else; a month that saved nothing bills nothing. The latest real-traffic export (30 requests on
 > claude-sonnet-5-5) measured 18.0% of live spend billed as verified savings
 > across five agents, with the Claude cache lever earning live.

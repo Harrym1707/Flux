@@ -44,7 +44,7 @@ I'll share the full methodology either way.
 [sign-off]
 
 P.S. The business model, for transparency: if a pilot goes ahead, FLUX bills
-15% of *verified* savings — measured per completed task from provider-reported
+1% of *verified* savings — measured per completed task from provider-reported
 usage, recorded in a hash-chained ledger you can recompute yourself, with a
 built-in "do_not_charge" verdict when the net is zero or negative. The quote
 run is free and local either way.
@@ -60,5 +60,5 @@ run is free and local either way.
 | 45.5% one-shot | measured | arm H at 4e9e774 |
 | 64.3% async | measured | arm K at 4e9e774; OpenAI-priced only (Anthropic batch rate uncatalogued) — hence "OpenAI-priced" label in letter |
 | "no network calls, nothing uploaded" | code-enforced | quote-report.ts pure function; packaged bin makes no fetch |
-| 15% of verified savings, do_not_charge | implemented | savings-ledger.ts recomputeInvoice |
+| 1% of verified savings, do_not_charge | implemented | savings-ledger.ts recomputeInvoice |
 | 34.1% sparse-1h band | **omitted deliberately** | simulator-measured only; per-model cacheable minimums not landed — do not use in outreach |

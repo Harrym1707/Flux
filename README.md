@@ -126,7 +126,7 @@ independent measurements of competing tools:
 
 ## License
 
-The fee is **15% of verified savings, monthly — nothing else**. A month that
+The fee is **1% of verified savings, monthly — nothing else**. A month that
 saved nothing bills nothing.
 
 [Business Source License 1.1](LICENSE): free to read, evaluate, develop

@@ -96,14 +96,17 @@ export function renderLanding(origin: string, repoUrl: string): string {
 
   // Three particle wave surfaces layered down the page: ink on paper. Each
   // layer is a perspective-projected grid on its own rolling height field,
-  // with its own drift speed, so the layers slide over one another. The
-  // cursor pushes a swell through whichever surface it is near.
+  // with its own drift speed, so the layers slide over one another. Every
+  // row runs the full width of the viewport (the world x is derived from the
+  // screen x, so perspective still compresses the far rows), the surfaces
+  // are deep enough to touch, and the cursor pushes a swell through
+  // whichever surface it is near.
   var LAYERS = [
-    { horizon: 0.10, camY: 100, drift: 0.7, phase: 0.0, dark: 0.55, span: 1700 },
-    { horizon: 0.42, camY: 110, drift: 1.0, phase: 2.1, dark: 0.85, span: 1900 },
-    { horizon: 0.72, camY: 95,  drift: 0.55, phase: 4.4, dark: 0.70, span: 1800 },
+    { horizon: 0.02, cam: 0.35, drift: 0.7,  phase: 0.0, dark: 0.50 },
+    { horizon: 0.28, cam: 0.37, drift: 1.0,  phase: 2.1, dark: 0.85 },
+    { horizon: 0.55, cam: 0.36, drift: 0.55, phase: 4.4, dark: 0.66 },
   ];
-  var COLS = 120, ROWSZ = 26, FOV = 320;
+  var COLS = 130, ROWSZ = 30, FOV = 300;
   var mx = -9999, my = -9999, smx = -9999, smy = -9999;
   window.addEventListener("pointermove", function (e) {
     var b = wrap.getBoundingClientRect();
@@ -112,30 +115,30 @@ export function renderLanding(origin: string, repoUrl: string): string {
   window.addEventListener("pointerleave", function(){ mx = -9999; my = -9999; });
 
   function drawLayer(L, t) {
-    var cx = W / 2, horizon = H * L.horizon;
+    var cx = W / 2, horizon = H * L.horizon, camY = L.cam * H;
     for (var zi = ROWSZ - 1; zi >= 0; zi--) {
-      var z = 60 + zi * 22;
+      var z = 40 + zi * 26;
       var scale = FOV / (FOV + z);
-      var rowAlpha = (0.10 + 0.30 * scale) * L.dark;
-      var size = Math.max(1, 2.3 * scale);
+      var rowAlpha = (0.15 + 0.35 * scale) * L.dark;
+      var size = Math.max(1.2, 2.8 * scale);
       // far rows ocean-blue, near rows midnight ink
       var mixv = Math.min(1, scale * 1.3);
       var r = Math.round(40 + (16 - 40) * mixv);
       var g = Math.round(100 + (42 - 100) * mixv);
       var b2 = Math.round(165 + (67 - 165) * mixv);
       ctx.fillStyle = "rgba(" + r + "," + g + "," + b2 + "," + rowAlpha + ")";
+      var stag = (zi * 0.381966) % 1;
       for (var xi = 0; xi < COLS; xi++) {
-        var xw = (xi / (COLS - 1) - 0.5) * L.span;
-        var amp = 24 + 30 * (1 - scale);
+        var sx = ((xi + stag) / (COLS - 1)) * W;
+        var xw = (sx - cx) / scale;
+        var amp = 30 + 42 * (1 - scale);
         var tt = t * L.drift + L.phase;
         var h =
           Math.sin(xw * 0.0042 + tt * 1.1 + z * 0.012) * amp * 0.5 +
           Math.sin(xw * 0.0095 - tt * 0.7 + z * 0.02) * amp * 0.3 +
           Math.sin(xw * 0.021 + tt * 1.9) * amp * 0.14 +
           Math.sin(xw * 0.0016 + z * 0.004 - tt * 0.35) * amp * 0.45;
-        var sx = cx + xw * scale;
-        if (sx < -8 || sx > W + 8) continue;
-        var sy = horizon + (L.camY - h) * scale;
+        var sy = horizon + (camY - h) * scale;
         var ddx = sx - smx, ddy = sy - smy;
         var pulse = Math.exp(-(ddx * ddx + ddy * ddy) / (2 * 150 * 150));
         if (pulse > 0.03) {
@@ -720,7 +723,7 @@ Anthropic SDK: new Anthropic({ baseURL: "http://127.0.0.1:8787" })</pre>
       <p>No subscription. No seats. No minimum. You pay a slice of what FLUX actually saved you &mdash; and you can recheck the maths behind every invoice yourself.</p>
     </div>
     <div class="price-figure rise">
-      <div class="fig">15<sup>%</sup></div>
+      <div class="fig">1<sup>%</sup></div>
       <span class="overlap">${MARK}</span>
       <p class="per">of verified savings, monthly &mdash; nothing else</p>
       <ul>
