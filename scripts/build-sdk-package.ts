@@ -244,7 +244,7 @@ const manifest = {
       require: "./index.cjs",
     },
   },
-  bin: { "flux-quote": "./bin/flux-quote.mjs", "flux-proxy": "./bin/flux-proxy.mjs" },
+  bin: { "flux-quote": "bin/flux-quote.mjs", "flux-proxy": "bin/flux-proxy.mjs" },
   files: ["index.js", "index.cjs", "bin", "types", "README.md", "LICENSE"],
   engines: { node: ">=18" },
 };

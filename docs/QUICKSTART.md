@@ -5,9 +5,7 @@
 > and on [www.fluxtoken.dev](https://www.fluxtoken.dev). Short version:
 
 ```bash
-git clone https://github.com/Harrym1707/Flux && cd Flux
-corepack enable && pnpm install && pnpm build
-node --import tsx evals/run-proxy.ts
+npx -y -p @flux-ai/sdk flux-proxy
 ```
 
 Then point your client at it, keeping your own key:

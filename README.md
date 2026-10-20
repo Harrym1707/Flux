@@ -37,10 +37,11 @@ own recorded requests — a failed task voids its savings.
 ## Quick start: proxy mode (no code changes)
 
 ```bash
-git clone https://github.com/Harrym1707/Flux && cd Flux
-corepack enable && pnpm install && pnpm build
-node --import tsx evals/run-proxy.ts
+npx -y -p @flux-ai/sdk flux-proxy
 ```
+
+(Prefer building from source? `git clone https://github.com/Harrym1707/Flux && cd Flux`,
+then `corepack enable && pnpm install && pnpm build` and `node --import tsx evals/run-proxy.ts`.)
 
 Then change one line in your app:
 
@@ -61,7 +62,7 @@ proves on your own traffic that quality held.
 ## Quick start: SDK mode (one line)
 
 ```js
-import { withFlux } from "@flux-ai/sdk"; // npm publish pending — today: npm install ./packages/sdk-js/pkg
+import { withFlux } from "@flux-ai/sdk"; // npm install @flux-ai/sdk
 
 const client = withFlux(new Anthropic(), {
   applicationId: "my-app",
@@ -106,8 +107,7 @@ You are one file export away from a quote, including the honest
 "do not pay us" verdict:
 
 ```bash
-node --import tsx evals/run-quote.ts your-export.jsonl --format litellm
-# (published as the flux-quote CLI once @flux-ai/sdk ships to npm)
+npx -y -p @flux-ai/sdk flux-quote your-export.jsonl --format litellm
 ```
 
 ## Reproduce every number
