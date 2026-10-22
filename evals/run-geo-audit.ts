@@ -29,7 +29,7 @@ function check(name: string, ok: boolean, detail?: string): void {
 // --- Machine-readable entry points -----------------------------------------
 const llms = await fetchText("/llms.txt");
 check("llms.txt served", llms.status === 200);
-check("llms.txt carries the verified cache number", llms.text.includes("37.6%"));
+check("llms.txt carries the verified cache number", llms.text.includes("37.9%"));
 check("llms.txt carries the do-not-pay-us verdict", llms.text.includes("do-not-pay-us") || llms.text.includes("do not pay us"));
 
 const llmsFull = await fetchText("/llms-full.txt");
@@ -99,7 +99,7 @@ const faq = await fetchText("/faq.html");
 check("FAQ structured data present", faq.text.includes("FAQPage"));
 
 // --- Honesty invariants in the public layer ----------------------------------
-check("landing quotes the clean cache figure", landing.text.includes("37.6%"));
+check("landing quotes the clean cache figure", landing.text.includes("37.9%"));
 check("landing admits where FLUX loses", landing.text.includes("do not pay us"));
 check("evidence page linked from landing", landing.text.includes("evidence.html"));
 

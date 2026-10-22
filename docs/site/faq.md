@@ -69,7 +69,7 @@ months count against us.
 
 **What's the catch?**
 Three, published: busy interactive agents cap around 29% because the provider's
-cache already does the heavy lifting; the 34.0% sparse figure awaits a
+cache already does the heavy lifting; the 34.3% sparse figure awaits a
 per-model cache-minimum correction and may come down for some models; Anthropic
 batch pricing isn't catalogued yet, so the async figure is OpenAI-priced today.
 When a number moves for honesty reasons, this site moves with it — the async

@@ -22,7 +22,7 @@ Ledger spools: ./flux-ledger
 ```
 
 To switch on the Claude prompt-cache lever too (our single biggest measured
-saver, 37.6% on multi-turn traffic), start it as
+saver, 37.9% on multi-turn traffic), start it as
 `FLUX_PROXY_CACHE_TTL=5m npx -y -p @flux-ai/sdk flux-proxy`.
 
 ## Step 2 — point your app at it

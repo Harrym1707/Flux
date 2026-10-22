@@ -704,7 +704,7 @@ Anthropic SDK: new Anthropic({ baseURL: "http://127.0.0.1:8787" })</pre>
     <div class="total-side rise">
       <h2>Proven, line by line.</h2>
       <p class="note">Most savings claims are projections. Ours come with the receipt: we ran real requests, published every line, and the rows add up to the total &mdash; check them.</p>
-      <div class="figure">37.6%</div>
+      <div class="figure">37.9%</div>
       <p class="cap">saved by a single lever &mdash; switching Claude&rsquo;s cache on &mdash; measured both ways on identical prompts, answers unchanged. The receipt beside is our latest small live run: ${savedPct.toFixed(1)}% of real spend saved and billing on every active agent, the cache lever earning live. The full measured range is 26&ndash;73% by traffic type &rarr; <a href="evidence.html">evidence</a>.</p>
     </div>
     <div class="slip rise in-self" aria-label="The export, row by row">

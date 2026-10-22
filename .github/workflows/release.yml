@@ -1,0 +1,43 @@
+# Publishes @flux-ai/sdk with npm provenance: a cryptographic attestation that
+# the tarball was built from this public repo by this workflow — the direct
+# answer to "you're asking me to pipe my API key through an unaudited npx
+# package." Uses OIDC trusted publishing (no long-lived npm token to steal;
+# the LiteLLM compromise was exactly that credential class).
+#
+# One-time founder setup on npmjs.com: package @flux-ai/sdk -> Settings ->
+# Trusted Publisher -> GitHub Actions, repository Harrym1707/Flux, workflow
+# release.yml. Then publishing is: bump the version, tag v<version>, push the
+# tag.
+name: release
+on:
+  push:
+    tags: ["v*"]
+
+permissions: {}
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write # OIDC, required for --provenance
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.15.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+      - run: npm install -g npm@latest # trusted publishing needs npm >= 11.5.1
+      - run: pnpm install --frozen-lockfile=false
+      - run: pnpm build
+      - run: pnpm test
+      # Rebuild the publish artifact from source at this tag, then prove the
+      # cold-install surface still works: provenance must attest a tarball
+      # that genuinely comes from this commit, not a committed stale bundle.
+      - run: node --import tsx scripts/build-sdk-package.ts
+      - run: node --import tsx scripts/smoke-sdk-package.ts
+      - run: npm publish --provenance --access public
+        working-directory: packages/sdk-js/pkg

@@ -42,7 +42,7 @@ placed over a volatile prefix cost −$0.0063 across 8 turns, writes every
 turn, zero reads. It counted against us, we published it, and the fix is in
 the repo with a test that prices both placements.
 
-Honest numbers: 37.6% from correct cache placement alone (simulator, same
+Honest numbers: 37.9% from correct cache placement alone (simulator, same
 prompts both arms, labelled as such). 18.0% of real spend on a 30-request
 live run, receipt on the site line by line. If your stack already caches
 well, the quote output literally says "do not pay us" — that's a real
@@ -83,8 +83,8 @@ claims, so structure as method-first:
 2. The mechanism: hash-chained JSONL per app; invoice = pure function over
    events; verifyLedgerChain + recomputeInvoice in the published package;
    if your recompute disagrees with ours, yours wins.
-3. The numbers with tradeoffs: 37.6% cache-only (simulator, both arms clean
-   38/40); the 57.1% full-stack figure FAILS our own quality gate (−5pp) and
+3. The numbers with tradeoffs: 37.9% cache-only (simulator, both arms clean
+   38/40); the 57.3% full-stack figure FAILS our own quality gate (−5pp) and
    is published as a non-win; live run 18.0%; already-lean stacks 0–5% and a
    do-not-pay-us verdict.
 4. The loss: our own stamp lever lost $0.0063 live; root cause (volatile

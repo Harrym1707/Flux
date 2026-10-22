@@ -7,11 +7,11 @@
 > invoice is recomputable by the customer from a hash-chained event ledger.
 > Figures are per traffic segment (one number would be wrong for most
 > customers), simulator-measured at providers' published prices: multi-turn
-> Claude cache-only 37.6% vs the same prompt-reduction stack without caching
-> (both arms clean 38/40); the 57.1% full-stack comparison loses 5 pp clean
+> Claude cache-only 37.9% vs the same prompt-reduction stack without caching
+> (both arms clean 38/40); the 57.3% full-stack comparison loses 5 pp clean
 > tasks against raw uncached baseline and fails the -2 pp quality limit, so it
 > is not a qualified win. Other figures: async/batch 57.7% net, one-shot templated 45.5-72.8%,
-> interactive agents 25.9-34.0%, already-optimised stacks 0-5% with an
+> interactive agents 25.9-34.3%, already-optimised stacks 0-5% with an
 > explicit do-not-pay-us verdict. The fee is 1% of verified savings,
 > monthly, nothing else; a month that saved nothing bills nothing. The latest real-traffic export (30 requests on
 > claude-sonnet-5-5) measured 18.0% of live spend billed as verified savings
@@ -63,7 +63,7 @@ Ledger spools: ./flux-ledger
 ```
 
 To switch on the Claude prompt-cache lever too (our single biggest measured
-saver, 37.6% on multi-turn traffic), start it as
+saver, 37.9% on multi-turn traffic), start it as
 `FLUX_PROXY_CACHE_TTL=5m npx -y -p @flux-ai/sdk flux-proxy`.
 
 ## Step 2 — point your app at it
@@ -163,11 +163,11 @@ your own pilot replaces every band with your number before any fee exists.
 
 | Your traffic looks like | Measured saving | Label |
 |---|---:|---|
-| Multi-turn Claude cache-only comparison | **37.6%** vs the same J prompt stack with cache disabled; both arms clean 38/40 | simulator-measured; cache effect isolated |
-| Full J + 5m cache stack vs raw uncached baseline | **57.1% lower cost, −5 pp clean-task quality** | fails the agreed −2 pp quality limit; not a qualified win |
+| Multi-turn Claude cache-only comparison | **37.9%** vs the same J prompt stack with cache disabled; both arms clean 38/40 | simulator-measured; cache effect isolated |
+| Full J + 5m cache stack vs raw uncached baseline | **57.3% lower cost, −5 pp clean-task quality** | fails the agreed −2 pp quality limit; not a qualified win |
 | Background / batch / latency-tolerant jobs | **57.7%** (net of assumed tier fallbacks; 64.3% ceiling) | simulator-measured |
 | One-shot API calls on a shared template | **45.5%** — up to **72.8%** where latency-tolerant | simulator-measured |
-| Interactive agents, sparse traffic | **34.0%** | simulator-measured, caveats apply |
+| Interactive agents, sparse traffic | **34.3%** | simulator-measured, caveats apply |
 | Interactive agents, busy traffic | **25.9–29.4%** | simulator-measured |
 | Already-optimised stacks | **0–5% — do not pay us** | measured on fixtures |
 
@@ -233,7 +233,7 @@ latency-tolerant one-shots and the band reaches 72.8%.
 **What changes it:** how big your shared template is and whether a breaker is
 actually present — the five-minute quote measures both from your export.
 
-## Interactive agents — 25.9–29.4% busy, 34.0% sparse
+## Interactive agents — 25.9–29.4% busy, 34.3% sparse
 
 **Mechanism:** busy agent traffic is already heavily subsidised by the
 provider's cache (35–40% on its own, which we never claim), so FLUX's honest
@@ -241,7 +241,7 @@ headroom is the *fresh* tokens: oversized tool results are capped at injection
 (headlines, errors and file paths preserved verbatim; the replay gate approved
 this lever at exactly zero quality delta), stale history is compacted
 byte-stably, schemas are slimmed. Sparse traffic adds the 1-hour cache TTL
-(2× write premium billed honestly, netted when negative) for 34.0%.
+(2× write premium billed honestly, netted when negative) for 34.3%.
 **What changes it:** how oversized your tool results actually are (our fixture's
 are highly compressible; your yield scales with yours), and the pending
 per-model cache-minimum fix, which may lower the sparse figure on some models.
@@ -250,11 +250,11 @@ cache is opt-in, and agents that never place `cache_control` re-pay full
 rate for their whole conversation history every turn (our first live export
 measured exactly that: a five-turn agent with zero cache traffic). FLUX
 stamps the stable prefix with a 5-minute-TTL breakpoint. In the deterministic
-fixture, the cache-only comparison is **37.6% lower cost** than the identical
+fixture, the cache-only comparison is **37.9% lower cost** than the identical
 J prompt stack with caching disabled; both arms have 38/40 clean tasks and the
-stamp is metadata-only. The earlier **57.1%** full-stack comparison used a raw
+stamp is metadata-only. The earlier **57.3%** full-stack comparison used a raw
 uncached baseline with 40/40 clean tasks, while the candidate had 38/40 (−5 pp).
-That fails the agreed −2 pp quality limit, so 57.1% is diagnostic and not a
+That fails the agreed −2 pp quality limit, so 57.3% is diagnostic and not a
 qualified full-stack saving. Real-traffic cache validation remains open. If
 you already place your own breakpoints, FLUX defers and never claims this.
 **This is also where we tell you our ceiling:** if someone promises an
@@ -328,7 +328,7 @@ to produce that number, on your machine, from your logs, before you pay
 anything.
 
 Known open items we publish rather than hide: per-model cacheable minimums are
-not yet in the simulator (the sparse-traffic 34.0% may overstate on some
+not yet in the simulator (the sparse-traffic 34.3% may overstate on some
 models); Anthropic batch rates are not yet catalogued (the async figure is
 OpenAI-priced); both are tracked in [evidence](evidence.md).
 
@@ -343,7 +343,7 @@ independently re-verified by a checker separate from the implementer at each
 listed commit; the harness run prints every row below.)
 
 Harness: `node --import tsx evals/run-agent-ab.ts` · tests:
-`./node_modules/.bin/vitest run` (341 passing) · gates: the three suites under
+`./node_modules/.bin/vitest run` (354 passing) · gates: the three suites under
 `evals/run-*-triage.ts` and `evals/run-analysis-regression.ts` against freshly
 generated fixtures (27/27).
 
@@ -354,9 +354,9 @@ generated fixtures (27/27).
 | Proxy mode: zero-code integration | `packages/sdk-js/src/proxy.ts` + `evals/run-proxy.ts`; e2e tests cover reduction-before-forward, byte-identical passthrough, SSE streaming with usage parsed after the last byte, per-app hash chains, credential passthrough | `d31b125` |
 | Proxy overhead: adds ~22 ms p50 / ~24 ms p95 / ~30 ms p99 per request | `node --import tsx evals/run-proxy-overhead.ts` — proxied minus direct against the same instant loopback stub, 800 requests/arm at concurrency 8, ~31 KB agent request bodies, full lossless stack + 5m cache stamp + ledger append (darwin/arm64; absolute values vary by machine — rerun the command on yours). Against provider calls measured in seconds this is under 1% of request latency | run 2026-10-20 |
 | SECOND live export: 18.0% of real spend, every active agent billing | `evals/run-live-agents.ts` keyed rerun with the 5m cache stamp + the freshcap gate verdict wired: coding-agent $0.0206 (cap+schemas net of a −$0.0063 cache miss from its per-turn clock), batch-classifier +$0.0101 (cache stamp EARNING live, 6,286 reads), rag $0.0086, support $0.0054, already-lean $0 | run 2026-10-19, spools audited in session |
-| Multi-turn Claude cache-only comparison: 37.6% | `node --import tsx evals/run-cache-decomposition.ts` — J + 5m stamp vs the identical J stack with cache disabled; both arms clean 38/40, 96% hits, 200/200 stamps metadata-only. Isolates the pure cache effect | independently re-derived and reproduced 2026-10-19 |
-| Full J + 5m stack vs raw uncached A: 57.1% lower simulated cost | same decomposition script, row 2: quality 38/40 vs the raw baseline's 40/40 (−5 pp; within the published >=36/40 gate, but a real delta) — quote 37.6% for the cache lever and label this one with its quality cost | `6249f86`, reproduced 2026-10-19 |
-| Sparse interactive 34.0% | arm L, 1h cache TTL via the shipped `cacheTtl` stamp (stable-prefix placement), 600s spacing | `67eeac6` (re-verified after the placement fix `ec191c5`; was 34.0% at `cbbffb9`) |
+| Multi-turn Claude cache-only comparison: 37.9% | `node --import tsx evals/run-cache-decomposition.ts` — J + 5m stamp vs the identical J stack with cache disabled; both arms clean 38/40, 97% hits, 200/200 stamps metadata-only. Isolates the pure cache effect | re-verified `6f08b72` (was 37.6% at `6249f86`; moves with the newline fix below) |
+| Full J + 5m stack vs raw uncached A: 57.3% lower simulated cost | same decomposition script, row 2: quality 38/40 vs the raw baseline's 40/40 (−5 pp; within the published >=36/40 gate, but a real delta) — quote 37.9% for the cache lever and label this one with its quality cost | re-verified `6f08b72` (was 57.1% at `6249f86`) |
+| Sparse interactive 34.3% | arm L, 1h cache TTL via the shipped `cacheTtl` stamp (stable-prefix placement), 600s spacing | fixed and re-verified `6f08b72`: ab210c1's stable/tail split silently dropped the separating newline between the two blocks, a model-visible content change; arm L's own metadata-only guard had started hard-crashing on it (and the eval's comparison helper had never been updated for the two-block shape). Was 34.0% at `67eeac6`, unreproducible between `ab210c1` and `6f08b72`. |
 | First real-traffic export: 9.3% net of spend | `evals/run-live-agents.ts`, 30 requests on claude-sonnet-5-5; a smoke run, NOT a band — lossy levers were recorded-unbilled and the old cache placement lost money (per-agent outcomes ranged −24% to +34% of that agent's spend) | `d84e256` run 2026-10-19, superseded by the second export |
 | One-shot 45.5% / 72.8% | one-shot section, arms H and I ($0.569 → $0.310 / $0.155) | `7b08666`, re-verified `4e51734` |
 | Provider cache's own 35–40% (never claimed by FLUX) | "what the cache itself is worth" section of the harness output | `33028df` onward |
@@ -366,7 +366,7 @@ generated fixtures (27/27).
 
 ## Open items (also stated wherever the affected number appears)
 
-- Per-model cacheable minimums not yet simulated → 34.0% may overstate on some
+- Per-model cacheable minimums not yet simulated → 34.3% may overstate on some
   models.
 - Anthropic batch rate uncatalogued → async figures OpenAI-priced; Anthropic
   batch events are correctly *unpriced*, never zeroed.
@@ -514,7 +514,7 @@ months count against us.
 
 **What's the catch?**
 Three, published: busy interactive agents cap around 29% because the provider's
-cache already does the heavy lifting; the 34.0% sparse figure awaits a
+cache already does the heavy lifting; the 34.3% sparse figure awaits a
 per-model cache-minimum correction and may come down for some models; Anthropic
 batch pricing isn't catalogued yet, so the async figure is OpenAI-priced today.
 When a number moves for honesty reasons, this site moves with it — the async

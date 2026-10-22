@@ -342,7 +342,7 @@ for (const [marker, why] of [
   ["SoftwareApplication", "structured data missing"],
   ["LIVE EXPORT", "the receipt is missing"],
   ["NET VERIFIED SAVINGS", "the receipt total row is missing"],
-  ["37.6%", "the clean cache figure missing"],
+  ["37.9%", "the clean cache figure missing"],
   ['id="reducer"', "the reduction performance missing"],
   ['data-chip', "the performance folds missing"],
 ] as const) {
@@ -370,7 +370,7 @@ for (const bot of ["GPTBot", "ClaudeBot", "PerplexityBot", "Google-Extended"]) {
   if (!robots.includes(bot)) failures.push(`robots.txt: missing explicit allow for ${bot}`);
 }
 const llmsFull = readFileSync(path.join(outDir, "llms-full.txt"), "utf8");
-if (llmsFull.length < 5000 || !llmsFull.includes("37.6%")) failures.push("llms-full.txt: missing or missing the numbers");
+if (llmsFull.length < 5000 || !llmsFull.includes("37.9%")) failures.push("llms-full.txt: missing or missing the numbers");
 if (!landing.includes('property="og:title"')) failures.push("index.html: missing OpenGraph metadata");
 const startHtml = readFileSync(path.join(outDir, "start.html"), "utf8");
 if (!startHtml.includes("npx -y -p @flux-ai/sdk flux-proxy")) failures.push("start.html: install command missing");
