@@ -760,13 +760,22 @@ function withoutStampArtifacts(request: AnyObject): string {
     }
     return node;
   };
+  // Blocks are concatenated by the provider with no inserted separator, so
+  // flattening N text blocks back to the equivalent string is string
+  // concatenation in order, not a join. This covers both the single-block
+  // stamp and the stable/volatile-tail split placement.
   const flattenSingleTextBlock = (content: unknown): unknown => {
-    if (Array.isArray(content) && content.length === 1) {
-      const only = content[0] as AnyObject | undefined;
-      if (only !== undefined && only.type === "text" && typeof only.text === "string" &&
-          Object.keys(only).length === 2) {
-        return only.text;
+    if (Array.isArray(content) && content.length >= 1) {
+      const texts: string[] = [];
+      for (const block of content) {
+        const only = block as AnyObject | undefined;
+        if (only === undefined || only.type !== "text" || typeof only.text !== "string" ||
+            Object.keys(only).length !== 2) {
+          return content;
+        }
+        texts.push(only.text);
       }
+      return texts.join("");
     }
     return content;
   };

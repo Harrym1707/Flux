@@ -33,6 +33,8 @@ importers:
 
   apps/api: {}
 
+  packages/cli: {}
+
   packages/core: {}
 
   packages/providers: {}

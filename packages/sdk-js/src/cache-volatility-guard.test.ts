@@ -105,12 +105,39 @@ describe("reduceRequest with the guard and the volatile-tail placement", () => {
     expect(system[0]!.text).not.toContain("Current time");
     expect(system[1]!.cache_control).toBeUndefined();
     expect(system[1]!.text).toContain("Current time: 2026-10-20T09:03:00Z");
-    // Reordered, never removed: every original byte survives across the blocks.
-    expect(`${system[0]!.text}\n${system[1]!.text}`.split("\n").sort())
-      .toEqual((request.system as string).split("\n").sort());
+    // Reordered, never removed: concatenating the blocks with NO inserted
+    // separator (how the provider reads adjacent text blocks) must reproduce
+    // the repaired text exactly, byte for byte (repair itself reorders the
+    // clock line to the end, so the reference is the repaired text, not the
+    // pre-repair request).
+    expect(`${system[0]!.text}${system[1]!.text}`).toEqual(`${PREAMBLE}\nCurrent time: 2026-10-20T09:03:00Z`);
     // No breakpoint may sit after the volatile tail — so no message breakpoint.
     const messages = JSON.stringify((reduced as { messages: unknown }).messages);
     expect(messages).not.toContain("cache_control");
+  });
+
+  it("preserves the separating newline when the moved tail has two lines", () => {
+    // Regression: the stable/tail split once dropped the newline that used to
+    // sit between the stable text and the relocated line(s), gluing the last
+    // stable character to the first tail character — a silent content change,
+    // not just a cache-boundary change. Two moved lines makes that character
+    // loss visible even if a single-line tail happened to read fine.
+    const request = {
+      model: "claude-sonnet-5-5",
+      max_tokens: 400,
+      system: `Current time: 2026-10-20T09:03:00Z\nRequest id: 8f14e45f-cea6-4f9a-b123-456789abcdef\n${PREAMBLE}`,
+      messages: [
+        { role: "user", content: "Step 0: continue the refactor." },
+        { role: "assistant", content: "Done with step 0." },
+        { role: "user", content: "Step 1: continue the refactor." },
+      ],
+    };
+    const { request: reduced } = reduceRequest(request, { ...config });
+    const system = (reduced as { system: Array<{ text: string; cache_control?: unknown }> }).system;
+    expect(system).toHaveLength(2);
+    expect(`${system[0]!.text}${system[1]!.text}`).toEqual(
+      `${PREAMBLE}\nCurrent time: 2026-10-20T09:03:00Z\nRequest id: 8f14e45f-cea6-4f9a-b123-456789abcdef`,
+    );
   });
 
   it("keeps the single-block stamp and the message breakpoint when the system has no volatile tail", () => {
