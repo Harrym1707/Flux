@@ -625,7 +625,11 @@ function stampAnthropicCacheTtl(next: AnyObject, ttl: "5m" | "1h", systemVolatil
     if (systemVolatileTail.length > 0 && tailText.trim() !== "" &&
         (next.system === tailText || next.system.endsWith(`\n${tailText}`))) {
       volatileTailPresent = true;
-      const stable = next.system === tailText ? "" : next.system.slice(0, -(tailText.length + 1));
+      // Keep the separating newline attached to the stable block: the two
+      // blocks are concatenated by the provider with no inserted separator,
+      // so dropping it here would glue the stable text to the tail and
+      // change what the model reads, not just where the breakpoint sits.
+      const stable = next.system === tailText ? "" : next.system.slice(0, -tailText.length);
       if (stable.trim() !== "") {
         next.system = [
           { type: "text", text: stable, cache_control: cacheControl },
