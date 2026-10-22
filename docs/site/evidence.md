@@ -6,7 +6,7 @@ independently re-verified by a checker separate from the implementer at each
 listed commit; the harness run prints every row below.)
 
 Harness: `node --import tsx evals/run-agent-ab.ts` · tests:
-`./node_modules/.bin/vitest run` (341 passing) · gates: the three suites under
+`./node_modules/.bin/vitest run` (354 passing) · gates: the three suites under
 `evals/run-*-triage.ts` and `evals/run-analysis-regression.ts` against freshly
 generated fixtures (27/27).
 
@@ -17,9 +17,9 @@ generated fixtures (27/27).
 | Proxy mode: zero-code integration | `packages/sdk-js/src/proxy.ts` + `evals/run-proxy.ts`; e2e tests cover reduction-before-forward, byte-identical passthrough, SSE streaming with usage parsed after the last byte, per-app hash chains, credential passthrough | `d31b125` |
 | Proxy overhead: adds ~22 ms p50 / ~24 ms p95 / ~30 ms p99 per request | `node --import tsx evals/run-proxy-overhead.ts` — proxied minus direct against the same instant loopback stub, 800 requests/arm at concurrency 8, ~31 KB agent request bodies, full lossless stack + 5m cache stamp + ledger append (darwin/arm64; absolute values vary by machine — rerun the command on yours). Against provider calls measured in seconds this is under 1% of request latency | run 2026-10-20 |
 | SECOND live export: 18.0% of real spend, every active agent billing | `evals/run-live-agents.ts` keyed rerun with the 5m cache stamp + the freshcap gate verdict wired: coding-agent $0.0206 (cap+schemas net of a −$0.0063 cache miss from its per-turn clock), batch-classifier +$0.0101 (cache stamp EARNING live, 6,286 reads), rag $0.0086, support $0.0054, already-lean $0 | run 2026-10-19, spools audited in session |
-| Multi-turn Claude cache-only comparison: 37.6% | `node --import tsx evals/run-cache-decomposition.ts` — J + 5m stamp vs the identical J stack with cache disabled; both arms clean 38/40, 96% hits, 200/200 stamps metadata-only. Isolates the pure cache effect | independently re-derived and reproduced 2026-10-19 |
-| Full J + 5m stack vs raw uncached A: 57.1% lower simulated cost | same decomposition script, row 2: quality 38/40 vs the raw baseline's 40/40 (−5 pp; within the published >=36/40 gate, but a real delta) — quote 37.6% for the cache lever and label this one with its quality cost | `6249f86`, reproduced 2026-10-19 |
-| Sparse interactive 34.0% | arm L, 1h cache TTL via the shipped `cacheTtl` stamp (stable-prefix placement), 600s spacing | `67eeac6` (re-verified after the placement fix `ec191c5`; was 34.0% at `cbbffb9`) |
+| Multi-turn Claude cache-only comparison: 37.9% | `node --import tsx evals/run-cache-decomposition.ts` — J + 5m stamp vs the identical J stack with cache disabled; both arms clean 38/40, 97% hits, 200/200 stamps metadata-only. Isolates the pure cache effect | re-verified `6f08b72` (was 37.6% at `6249f86`; moves with the newline fix below) |
+| Full J + 5m stack vs raw uncached A: 57.3% lower simulated cost | same decomposition script, row 2: quality 38/40 vs the raw baseline's 40/40 (−5 pp; within the published >=36/40 gate, but a real delta) — quote 37.9% for the cache lever and label this one with its quality cost | re-verified `6f08b72` (was 57.1% at `6249f86`) |
+| Sparse interactive 34.3% | arm L, 1h cache TTL via the shipped `cacheTtl` stamp (stable-prefix placement), 600s spacing | fixed and re-verified `6f08b72`: ab210c1's stable/tail split silently dropped the separating newline between the two blocks, a model-visible content change; arm L's own metadata-only guard had started hard-crashing on it (and the eval's comparison helper had never been updated for the two-block shape). Was 34.0% at `67eeac6`, unreproducible between `ab210c1` and `6f08b72`. |
 | First real-traffic export: 9.3% net of spend | `evals/run-live-agents.ts`, 30 requests on claude-sonnet-5-5; a smoke run, NOT a band — lossy levers were recorded-unbilled and the old cache placement lost money (per-agent outcomes ranged −24% to +34% of that agent's spend) | `d84e256` run 2026-10-19, superseded by the second export |
 | One-shot 45.5% / 72.8% | one-shot section, arms H and I ($0.569 → $0.310 / $0.155) | `7b08666`, re-verified `4e51734` |
 | Provider cache's own 35–40% (never claimed by FLUX) | "what the cache itself is worth" section of the harness output | `33028df` onward |
@@ -29,7 +29,7 @@ generated fixtures (27/27).
 
 ## Open items (also stated wherever the affected number appears)
 
-- Per-model cacheable minimums not yet simulated → 34.0% may overstate on some
+- Per-model cacheable minimums not yet simulated → 34.3% may overstate on some
   models.
 - Anthropic batch rate uncatalogued → async figures OpenAI-priced; Anthropic
   batch events are correctly *unpriced*, never zeroed.
