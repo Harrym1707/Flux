@@ -17,6 +17,7 @@ export class TelemetryClient {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify(metadataEvent),
+      signal: AbortSignal.timeout(10_000),
     }).catch(() => {
       // Telemetry failure must not break customer inference.
     });

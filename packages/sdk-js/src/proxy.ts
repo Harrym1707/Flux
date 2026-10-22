@@ -60,13 +60,32 @@ const LOSSLESS_DEFAULT: FluxTokenReductionConfig = {
 };
 
 /** Headers that describe the hop, not the request; never forwarded. */
-const HOP_HEADERS = new Set(["host", "content-length", "connection", "accept-encoding", "transfer-encoding"]);
+const HOP_HEADERS = new Set([
+  "host", "content-length", "connection", "accept-encoding", "transfer-encoding",
+  "upgrade", "te", "trailer", "keep-alive", "proxy-authorization",
+]);
 
-function forwardHeaders(req: IncomingMessage): Record<string, string> {
+/**
+ * Copy the caller's headers for one upstream, scoped so a credential meant
+ * for one provider is never forwarded to the other: a client configured with
+ * BOTH an Anthropic x-api-key and an OpenAI Authorization bearer must not
+ * have the off-provider key ride along. x-api-key is Anthropic's header and
+ * never goes to OpenAI; Authorization is dropped for Anthropic exactly when
+ * an x-api-key is present (Anthropic's own OAuth users carry Authorization
+ * WITHOUT x-api-key, and that must keep working). FLUX's own routing header
+ * never leaves the machine.
+ */
+function forwardHeaders(req: IncomingMessage, provider: "anthropic" | "openai"): Record<string, string> {
   const out: Record<string, string> = {};
   for (const [name, value] of Object.entries(req.headers)) {
     if (HOP_HEADERS.has(name.toLowerCase()) || value === undefined) continue;
-    out[name] = Array.isArray(value) ? value.join(", ") : value;
+    out[name.toLowerCase()] = Array.isArray(value) ? value.join(", ") : value;
+  }
+  delete out["x-flux-application"];
+  if (provider === "openai") {
+    delete out["x-api-key"];
+  } else if (out["x-api-key"] !== undefined) {
+    delete out.authorization;
   }
   // Identity keeps the body parseable for usage extraction without a
   // decompression stage in the request path.
@@ -74,13 +93,35 @@ function forwardHeaders(req: IncomingMessage): Record<string, string> {
   return out;
 }
 
+/** Largest accepted request body: beyond this is a 413, not an OOM. */
+const BODY_CAP = 64 * 1024 * 1024;
+
+class BodyTooLargeError extends Error {
+  constructor() { super(`Request body exceeds the ${BODY_CAP / (1024 * 1024)} MB cap.`); }
+}
+
 function readBody(req: IncomingMessage): Promise<Buffer> {
   return new Promise((resolve, reject) => {
     const chunks: Buffer[] = [];
-    req.on("data", (chunk: Buffer) => chunks.push(chunk));
+    let received = 0;
+    req.on("data", (chunk: Buffer) => {
+      received += chunk.byteLength;
+      if (received > BODY_CAP) {
+        reject(new BodyTooLargeError());
+        req.destroy();
+        return;
+      }
+      chunks.push(chunk);
+    });
     req.on("end", () => resolve(Buffer.concat(chunks)));
     req.on("error", reject);
   });
+}
+
+/** The proxy serves loopback clients only; reject anything else (DNS rebinding). */
+function hostAllowed(req: IncomingMessage): boolean {
+  const host = (req.headers.host ?? "").toLowerCase().replace(/:\d+$/, "");
+  return host === "127.0.0.1" || host === "localhost" || host === "[::1]" || host === "";
 }
 
 type Surface = {
@@ -158,11 +199,27 @@ export function startFluxProxy(options: FluxProxyOptions): Promise<FluxProxy> {
     openai: (options.openaiUpstream ?? "https://api.openai.com").replace(/\/$/, ""),
   };
   const ledgers = new Map<string, SavingsLedger>();
+  const LEDGER_CAP = 200;
   const ledgerFor = (applicationId: string, provider: "anthropic" | "openai"): SavingsLedger => {
-    const key = `${applicationId}\n${provider}`;
-    const existing = ledgers.get(key);
-    if (existing !== undefined) return existing;
+    // Key by the SANITIZED name: two raw ids that sanitize to the same spool
+    // file must share one ledger instance, or their interleaved chain tails
+    // would fork the hash chain inside that file.
     const safeApp = applicationId.replace(/[^A-Za-z0-9._-]/g, "_").slice(0, 64) || "proxy";
+    const key = `${safeApp}\n${provider}`;
+    const existing = ledgers.get(key);
+    if (existing !== undefined) {
+      ledgers.delete(key);
+      ledgers.set(key, existing); // refresh LRU order
+      return existing;
+    }
+    // Bound the map: a client inventing application ids must not grow memory
+    // and open files without limit. Evicting is safe — a recreated ledger
+    // resumes its chain from the spool's tail.
+    while (ledgers.size >= LEDGER_CAP) {
+      const oldest = ledgers.keys().next().value;
+      if (oldest === undefined) break;
+      ledgers.delete(oldest);
+    }
     const ledger = createSavingsLedger({
       path: join(options.ledgerDirectory, `${safeApp}-${provider}.jsonl`),
       provider,
@@ -174,15 +231,25 @@ export function startFluxProxy(options: FluxProxyOptions): Promise<FluxProxy> {
   const handle = async (req: IncomingMessage, res: ServerResponse): Promise<void> => {
     const path = (req.url ?? "").split("?")[0]!;
 
+    // Loopback clients only: a browser page rebound to this origin must not
+    // be able to drive the proxy.
+    if (!hostAllowed(req)) {
+      res.writeHead(403, { "content-type": "application/json" });
+      res.end(JSON.stringify({ error: "FLUX proxy serves loopback clients only." }));
+      return;
+    }
+
     // Transparent GET passthrough (model lists, etc.): no reduction, no
     // ledger event, bytes forwarded both ways. The provider is picked the way
-    // the providers themselves do: x-api-key is Anthropic's header.
+    // the providers themselves do: x-api-key is Anthropic's header. The
+    // forwarded headers are scoped to that one provider — the other
+    // provider's credential never rides along.
     if (req.method === "GET" && path.startsWith("/v1/")) {
       const provider = req.headers["x-api-key"] !== undefined ? "anthropic" : "openai";
       let upstreamResponse: Response;
       try {
         upstreamResponse = await fetch(`${upstreams[provider]}${req.url}`, {
-          headers: forwardHeaders(req),
+          headers: forwardHeaders(req, provider),
           signal: AbortSignal.timeout(60_000),
         });
       } catch (cause) {
@@ -209,7 +276,16 @@ export function startFluxProxy(options: FluxProxyOptions): Promise<FluxProxy> {
       return;
     }
 
-    const rawBody = await readBody(req);
+    let rawBody: Buffer;
+    try {
+      rawBody = await readBody(req);
+    } catch (cause) {
+      if (cause instanceof BodyTooLargeError && !res.headersSent) {
+        res.writeHead(413, { "content-type": "application/json" });
+        res.end(JSON.stringify({ error: cause.message }));
+      }
+      return;
+    }
     let body: AnyObject | undefined;
     try {
       body = JSON.parse(rawBody.toString("utf8")) as AnyObject;
@@ -226,10 +302,24 @@ export function startFluxProxy(options: FluxProxyOptions): Promise<FluxProxy> {
     const { request: reducedRequest, summary } = reduceRequest(body, reduction);
     const sendBody = JSON.stringify(reducedRequest);
     const applicationIdHeader = req.headers["x-flux-application"];
-    const applicationId = (Array.isArray(applicationIdHeader) ? applicationIdHeader[0] : applicationIdHeader) ?? "proxy";
-    const headers = forwardHeaders(req);
-    delete headers["x-flux-application"];
+    const applicationId = ((Array.isArray(applicationIdHeader) ? applicationIdHeader[0] : applicationIdHeader) ?? "proxy").slice(0, 128);
+    const headers = forwardHeaders(req, surface.provider);
     headers["content-type"] = "application/json";
+
+    // The upstream call is aborted the moment the CLIENT goes away: a
+    // cancelled generation must stop billing the caller's key, not stream to
+    // completion against a dead socket. Timeouts are phased — one for
+    // connection+headers, then a rolling idle timeout per chunk — because a
+    // single whole-fetch deadline would cut off long legitimate streams.
+    const upstreamControl = new AbortController();
+    const abortUpstream = (reason: string): void => upstreamControl.abort(new Error(reason));
+    const onClientClose = (): void => {
+      if (!res.writableEnded) abortUpstream("client disconnected");
+    };
+    res.on("close", onClientClose);
+    const HEADER_TIMEOUT_MS = 120_000;
+    const IDLE_TIMEOUT_MS = 120_000;
+    let phaseTimer: NodeJS.Timeout = setTimeout(() => abortUpstream("upstream produced no response headers within 120s"), HEADER_TIMEOUT_MS);
 
     const startedAt = Date.now();
     let upstreamResponse: Response;
@@ -238,38 +328,79 @@ export function startFluxProxy(options: FluxProxyOptions): Promise<FluxProxy> {
         method: "POST",
         headers,
         body: sendBody,
-        signal: AbortSignal.timeout(600_000),
+        signal: upstreamControl.signal,
       });
     } catch (cause) {
-      res.writeHead(502, { "content-type": "application/json" });
-      res.end(JSON.stringify({ error: `Upstream unreachable: ${(cause as Error).message}` }));
+      clearTimeout(phaseTimer);
+      if (!res.headersSent && !res.destroyed) {
+        res.writeHead(502, { "content-type": "application/json" });
+        res.end(JSON.stringify({ error: `Upstream unreachable: ${(cause as Error).message}` }));
+      }
       return;
     }
+    clearTimeout(phaseTimer);
 
     const responseHeaders: Record<string, string> = {};
     upstreamResponse.headers.forEach((value, name) => {
       if (!HOP_HEADERS.has(name.toLowerCase())) responseHeaders[name] = value;
     });
+    if (res.destroyed) {
+      abortUpstream("client disconnected");
+      return;
+    }
     res.writeHead(upstreamResponse.status, responseHeaders);
 
     // Stream the provider's bytes through as they arrive, accumulating a copy
-    // (bounded) for usage extraction AFTER the client has everything.
+    // (bounded) for usage extraction AFTER the client has everything. The
+    // write path respects backpressure (a slow client must not buffer the
+    // whole response in memory), and a destroyed client socket both stops the
+    // loop and aborts the upstream read.
     const chunks: Buffer[] = [];
     let accumulated = 0;
     const ACCUMULATION_CAP = 32 * 1024 * 1024;
+    let clientLost = false;
     if (upstreamResponse.body !== null) {
       const reader = upstreamResponse.body.getReader();
-      for (;;) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        res.write(Buffer.from(value));
-        if (accumulated < ACCUMULATION_CAP) {
-          chunks.push(Buffer.from(value));
-          accumulated += value.byteLength;
+      try {
+        for (;;) {
+          phaseTimer = setTimeout(() => abortUpstream("upstream stream idle for 120s"), IDLE_TIMEOUT_MS);
+          let done: boolean;
+          let value: Uint8Array | undefined;
+          try {
+            ({ done, value } = await reader.read());
+          } finally {
+            clearTimeout(phaseTimer);
+          }
+          if (done) break;
+          if (res.destroyed) {
+            clientLost = true;
+            abortUpstream("client disconnected");
+            break;
+          }
+          const chunk = Buffer.from(value!);
+          const flushed = res.write(chunk);
+          if (accumulated < ACCUMULATION_CAP) {
+            chunks.push(chunk);
+            accumulated += chunk.byteLength;
+          }
+          if (!flushed) {
+            await new Promise<void>((proceed) => {
+              const onDrain = (): void => { res.off("close", onGone); proceed(); };
+              const onGone = (): void => { res.off("drain", onDrain); proceed(); };
+              res.once("drain", onDrain);
+              res.once("close", onGone);
+            });
+          }
         }
+      } catch {
+        // Aborted upstream read (client gone or idle timeout): fall through —
+        // whatever usage was accumulated still produces an honest ledger
+        // event for the tokens that were actually streamed and billed.
+        clientLost = res.destroyed;
       }
     }
-    res.end();
+    res.off("close", onClientClose);
+    if (!clientLost && !res.destroyed) res.end();
 
     // Ledger event, after the response is fully forwarded. Never throws.
     try {

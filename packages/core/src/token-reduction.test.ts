@@ -70,10 +70,26 @@ describe("dedupeRepeatedBlocks", () => {
     expect(result.notes).toEqual([]);
   });
 
-  it("treats blocks differing only in whitespace as duplicates", () => {
+  it("never dedupes blocks that differ only in whitespace (whitespace is content in code and YAML)", () => {
     const block = paragraph("ctx");
-    const result = dedupeRepeatedBlocks(24).reduce(`${block}\n\n${block.replace(/ /g, "  ")}`);
-    expect(result.notes).toHaveLength(1);
+    const doubled = `${block}\n\n${block.replace(/ /g, "  ")}`;
+    const result = dedupeRepeatedBlocks(24).reduce(doubled);
+    expect(result.text).toBe(doubled);
+    expect(result.notes).toEqual([]);
+  });
+
+  it("returns untouched text byte-identically, wide separators included", () => {
+    const text = `alpha block one\n\n\n\nbeta block two`;
+    const result = dedupeRepeatedBlocks(24).reduce(text);
+    expect(result.text).toBe(text);
+    expect(result.notes).toEqual([]);
+  });
+
+  it("never dedupes fenced code blocks, even exact repeats", () => {
+    const fence = "```json\n{ \"config\": \"the exact same fixture to compare\", \"padding\": \"yes yes yes\" }\n```";
+    const text = `${fence}\n\n${fence}`;
+    const result = dedupeRepeatedBlocks(24).reduce(text);
+    expect(result.text).toBe(text);
   });
 });
 
@@ -106,7 +122,7 @@ describe("collapseWhitespace", () => {
 describe("applyReducers", () => {
   it("accumulates savings across reducers", () => {
     const block = paragraph("ctx");
-    const text = `${block}\n\n\n\n${block}   `;
+    const text = `${block}\n\n\n\n${block}`;
     const result = applyReducers(text, [dedupeRepeatedBlocks(24), collapseWhitespace()]);
     expect(result.tokensAfter).toBeLessThan(result.tokensBefore);
     expect(result.outcomes).toHaveLength(2);

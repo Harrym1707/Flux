@@ -196,3 +196,134 @@ describe("usageFromSse", () => {
     expect(shaped.service_tier).toBe("flex");
   });
 });
+
+describe("FLUX proxy hardening (pre-launch security review)", () => {
+  const seen: Array<Record<string, any>> = [];
+  let upstream: { server: Server; url: string };
+  let proxy: FluxProxy;
+  let ledgerDir: string;
+
+  beforeAll(async () => {
+    upstream = await stubUpstream(seen);
+    ledgerDir = mkdtempSync(join(tmpdir(), "flux-proxy-sec-"));
+    proxy = await startFluxProxy({
+      ledgerDirectory: ledgerDir,
+      anthropicUpstream: upstream.url,
+      openaiUpstream: upstream.url,
+    });
+  });
+  afterAll(async () => {
+    await proxy.close();
+    upstream.server.close();
+  });
+
+  it("never forwards the other provider's credential (key scoping)", async () => {
+    seen.length = 0;
+    await fetch(`${proxy.url}/v1/messages`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-api-key": "sk-ant-demo",
+        "authorization": "Bearer sk-openai-demo",
+        "x-flux-application": "scoping-test",
+      },
+      body: JSON.stringify({ model: "claude-sonnet-5-5", max_tokens: 16, messages: [{ role: "user", content: "hi" }] }),
+    });
+    const anthropicCall = seen.find((s) => s.path === "/v1/messages")!;
+    expect(anthropicCall.headers["x-api-key"]).toBe("sk-ant-demo");
+    expect(anthropicCall.headers.authorization).toBeUndefined();
+    expect(anthropicCall.headers["x-flux-application"]).toBeUndefined();
+
+    seen.length = 0;
+    await fetch(`${proxy.url}/v1/chat/completions`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-api-key": "sk-ant-demo",
+        "authorization": "Bearer sk-openai-demo",
+      },
+      body: JSON.stringify({ model: "gpt-5", messages: [{ role: "user", content: "hi" }] }),
+    });
+    const openaiCall = seen[0]!;
+    expect(openaiCall.headers.authorization).toBe("Bearer sk-openai-demo");
+    expect(openaiCall.headers["x-api-key"]).toBeUndefined();
+  });
+
+  it("keeps Anthropic bearer-only auth working (no x-api-key present)", async () => {
+    seen.length = 0;
+    await fetch(`${proxy.url}/v1/messages`, {
+      method: "POST",
+      headers: { "content-type": "application/json", "authorization": "Bearer anthropic-oauth" },
+      body: JSON.stringify({ model: "claude-sonnet-5-5", max_tokens: 16, messages: [{ role: "user", content: "hi" }] }),
+    });
+    expect(seen[0]!.headers.authorization).toBe("Bearer anthropic-oauth");
+  });
+
+  it("rejects oversized bodies with 413 instead of buffering them", async () => {
+    const response = await fetch(`${proxy.url}/v1/messages`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: `{"model":"claude-sonnet-5-5","pad":"${"x".repeat(65 * 1024 * 1024)}"}`,
+    }).catch(() => undefined);
+    // Either a clean 413 or a dropped connection is acceptable; what must
+    // never happen is the proxy buffering the whole body and answering 200.
+    if (response !== undefined) expect([413, 400]).toContain(response.status);
+  });
+
+  it("rejects non-loopback Host headers (DNS rebinding)", async () => {
+    // fetch() forbids overriding Host; speak raw HTTP to set it.
+    const { request } = await import("node:http");
+    const status = await new Promise<number>((resolve, reject) => {
+      const r = request({
+        host: "127.0.0.1",
+        port: proxy.port,
+        method: "POST",
+        path: "/v1/messages",
+        headers: { "content-type": "application/json", host: "evil.example.com" },
+      }, (response) => resolve(response.statusCode ?? 0));
+      r.on("error", reject);
+      r.end(JSON.stringify({ model: "claude-sonnet-5-5", max_tokens: 16, messages: [{ role: "user", content: "hi" }] }));
+    });
+    expect(status).toBe(403);
+  });
+
+  it("shares one ledger (one chain) between raw app ids that sanitize alike", async () => {
+    for (const raw of ["app one", "app_one"]) {
+      await fetch(`${proxy.url}/v1/messages`, {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-flux-application": raw },
+        body: JSON.stringify({ model: "claude-sonnet-5-5", max_tokens: 16, messages: [{ role: "user", content: "hi" }] }),
+      });
+    }
+    const spool = readFileSync(join(ledgerDir, "app_one-anthropic.jsonl"), "utf8")
+      .trim().split("\n").map((line) => JSON.parse(line) as LedgerRecord);
+    expect(spool.length).toBe(2);
+    expect(verifyLedgerChain(spool).ok).toBe(true);
+  });
+
+  it("aborts the upstream request when the client disconnects mid-stream", async () => {
+    const abort = new AbortController();
+    const started = fetch(`${proxy.url}/v1/messages`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ model: "claude-sonnet-5-5", max_tokens: 16, stream: true, messages: [{ role: "user", content: "hi" }] }),
+      signal: abort.signal,
+    });
+    // Cancel as soon as headers arrive; the proxy must survive and keep
+    // serving (the stub stream is short, so this mainly asserts no crash and
+    // no write-after-destroy taking the server down).
+    try {
+      const response = await started;
+      abort.abort();
+      await response.arrayBuffer().catch(() => undefined);
+    } catch {
+      // aborted before headers — also fine
+    }
+    const after = await fetch(`${proxy.url}/v1/messages`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ model: "claude-sonnet-5-5", max_tokens: 16, messages: [{ role: "user", content: "still alive?" }] }),
+    });
+    expect(after.status).toBe(200);
+  });
+});

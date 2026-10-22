@@ -91,25 +91,32 @@ export function dedupeRepeatedBlocks(
     version: "1",
     risk: "lossless",
     reduce: (text) => {
-      const blocks = text.split(/\n{2,}/);
+      // Split KEEPING the separators: a text in which nothing was dropped
+      // must come back byte-identical, never re-joined with normalized
+      // blank lines. Duplicate keys are byte-exact — "lossless" means two
+      // blocks differing only in whitespace are different blocks (code and
+      // YAML make whitespace meaningful). Fenced code blocks are never
+      // deduped: a prompt may legitimately repeat a fixture to compare.
+      const parts = text.split(/(\n{2,})/);
       const seen = new Set<string>();
       const notes: string[] = [];
       const kept: string[] = [];
-      for (const block of blocks) {
-        const key = block.trim().replace(/\s+/g, " ");
-        if (key === "") {
-          kept.push(block);
-          continue;
-        }
+      let dropped = false;
+      for (let index = 0; index < parts.length; index += 2) {
+        const block = parts[index]!;
+        const separator = parts[index + 1] ?? "";
         const tokens = countTokens(block);
-        if (tokens >= minimumBlockTokens && seen.has(key)) {
-          notes.push(`Dropped a repeated ${tokens}-token block beginning "${key.slice(0, 60)}".`);
+        if (block.trim() !== "" && !block.includes("```") &&
+            tokens >= minimumBlockTokens && seen.has(block)) {
+          dropped = true;
+          notes.push(`Dropped a repeated ${tokens}-token block beginning "${block.trim().replace(/\s+/g, " ").slice(0, 60)}".`);
           continue;
         }
-        seen.add(key);
-        kept.push(block);
+        seen.add(block);
+        kept.push(block, separator);
       }
-      return { text: kept.join("\n\n"), notes };
+      if (!dropped) return { text, notes: [] };
+      return { text: kept.join(""), notes };
     },
   };
 }

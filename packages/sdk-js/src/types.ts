@@ -1,8 +1,13 @@
 import type { LedgerGateVerdict, PriceCatalogue } from "../../core/dist/src/index.js";
 import type { FluxReductionSummary, FluxTokenReductionConfig } from "./reduce-request.js";
 export type FluxTelemetryConfig = {
+  /**
+   * Where to POST usage metadata. Unset (the default) means telemetry is OFF
+   * and nothing is ever sent anywhere. There is no mode that sends content:
+   * events carry usage numbers and lever names, never prompts, and provider
+   * error text is masked before send.
+   */
   endpoint?: string;
-  mode?: "metadata_only" | "content";
 };
 
 export type FluxRequestEvent = {

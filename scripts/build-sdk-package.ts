@@ -199,6 +199,10 @@ import { join } from "node:path";
 import { startFluxProxy } from "../index.js";
 
 const port = Number(process.env.FLUX_PROXY_PORT ?? 8787);
+if (!Number.isInteger(port) || port < 0 || port > 65535) {
+  console.error(\`FLUX_PROXY_PORT must be a port number, got \${JSON.stringify(process.env.FLUX_PROXY_PORT)}.\`);
+  process.exit(1);
+}
 const ledgerDirectory = process.env.FLUX_PROXY_LEDGER_DIR ?? join(process.cwd(), "flux-ledger");
 mkdirSync(ledgerDirectory, { recursive: true });
 const cacheTtl = process.env.FLUX_PROXY_CACHE_TTL;
