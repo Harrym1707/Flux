@@ -8,7 +8,7 @@ import {
   type SimulatedRequest,
 } from "../packages/core/src/index.js";
 import { reduceRequest, type FluxTokenReductionConfig } from "../packages/sdk-js/src/index.js";
-import { wirePrompt } from "./agent-fixture.js";
+
 
 /**
  * The workload matrix: does FLUX reduce token spend on each of the
@@ -32,9 +32,15 @@ import { wirePrompt } from "./agent-fixture.js";
  *   caching off — which is the measured default state of Claude traffic
  *   (Anthropic's cache is opt-in; our live export recorded a five-turn agent
  *   with zero cache traffic).
- * - Costs come from the cache simulator at catalogued prices
- *   (claude-sonnet-5-5). The simulator models longest-prefix matching; all
- *   figures are SIMULATOR-MEASURED and labelled so wherever published.
+ * - The RAW arm is priced with caching unavailable (Anthropic's opt-in
+ *   default) via the cache simulator. The STAMPED arm is priced by a
+ *   breakpoint-exact model of the documented provider rules: a cache read
+ *   requires a previously written span (bytes up to a cache_control
+ *   breakpoint) to exactly prefix the request; writes bill 1.25x base input,
+ *   reads 0.1x, spans under the 1,024-token minimum never cache, entries
+ *   expire 300s after last use. The earlier longest-prefix simulator
+ *   overcharged shapes whose breakpoint deliberately stops before unique
+ *   content. All figures are SIMULATOR-MEASURED and labelled so.
  */
 
 type AnyObject = Record<string, unknown>;
@@ -178,40 +184,128 @@ function batchClassification(): Shaped[] {
 
 // --- Measurement -------------------------------------------------------------
 
+/** Wire text with the prefix property across turns: tools, then system, then
+ *  one JSON line per message, so an extended history string-extends the prior
+ *  turn's text and breakpoint spans are literal prefixes. */
+function wire(request: AnyObject): { full: string; spans: string[] } {
+  // The provider hashes CONTENT, not our JSON framing: cache_control is
+  // metadata, and a string body is documented as equivalent to its single
+  // text block. Flatten both before serialising, or turn N's stamped last
+  // message would spuriously mismatch turn N+1's resent plain-string copy.
+  const flatten = (message: unknown): unknown => {
+    if (typeof message !== "object" || message === null) return message;
+    const m = { ...(message as AnyObject) };
+    const content = m.content;
+    if (Array.isArray(content)) {
+      const texts: string[] = [];
+      let allText = true;
+      for (const block of content) {
+        const b = block as AnyObject;
+        if (b === null || typeof b !== "object" || b.type !== "text" || typeof b.text !== "string") { allText = false; break; }
+        texts.push(b.text);
+      }
+      if (allText) m.content = texts.join("");
+    }
+    return m;
+  };
+  const tools = `${JSON.stringify(request.tools ?? [])}\n`;
+  let stable = "";
+  let tail = "";
+  let systemBreak = false;
+  const system = request.system;
+  if (typeof system === "string") {
+    stable = system;
+  } else if (Array.isArray(system)) {
+    let afterBreak = false;
+    for (const block of system) {
+      const b = block as AnyObject;
+      const text = typeof b.text === "string" ? b.text : JSON.stringify(b);
+      if (afterBreak) tail += text;
+      else stable += text;
+      if (b.cache_control !== undefined) { systemBreak = true; afterBreak = true; }
+    }
+  }
+  const messages = (request.messages as unknown[]).map((m) => JSON.stringify(flatten(m))).join("\n");
+  const full = `${tools}${stable}${tail}\n${messages}`;
+  const spans: string[] = [];
+  if (systemBreak) spans.push(`${tools}${stable}`);
+  if (messages.includes('"cache_control"')) spans.push(full);
+  return { full, spans };
+}
+
+const MIN_CACHEABLE = 1_024; // claude-sonnet-5 documented minimum cacheable prefix
+const TTL_SECONDS = 300;
+const inputRate = price.price.inputPerMillion / 1_000_000;
+const outputRate = price.price.outputPerMillion / 1_000_000;
+
+/** Breakpoint-exact pricing of a stamped stream under the documented rules. */
+function priceStamped(stream: Array<{ atSeconds: number; full: string; spans: string[]; outputTokens: number }>): { costUsd: number; hitRate: number } {
+  const written = new Map<string, number>(); // span -> lastUsedAt
+  let cost = 0;
+  let cachedTokens = 0;
+  let totalInputTokens = 0;
+  const ordered = [...stream].sort((a, b) => a.atSeconds - b.atSeconds);
+  for (const entry of ordered) {
+    for (const [span, lastUsed] of written) {
+      if (entry.atSeconds - lastUsed > TTL_SECONDS) written.delete(span);
+    }
+    let readChars = 0;
+    for (const [span] of written) {
+      if (span.length > readChars && entry.full.startsWith(span)) readChars = span.length;
+    }
+    if (readChars > 0) written.set(entry.full.slice(0, readChars), entry.atSeconds);
+    const eligible = entry.spans.filter((span) => approximateTokenCount(span) >= MIN_CACHEABLE);
+    const lastSpanChars = eligible.length > 0 ? eligible[eligible.length - 1]!.length : 0;
+    const readTokens = approximateTokenCount(entry.full.slice(0, readChars));
+    const writeTokens = lastSpanChars > readChars
+      ? approximateTokenCount(entry.full.slice(readChars, lastSpanChars)) : 0;
+    const freshStart = Math.max(readChars, lastSpanChars);
+    const freshTokens = approximateTokenCount(entry.full.slice(freshStart));
+    cost += readTokens * inputRate * 0.1 + writeTokens * inputRate * 1.25 +
+      freshTokens * inputRate + entry.outputTokens * outputRate;
+    cachedTokens += readTokens;
+    totalInputTokens += readTokens + writeTokens + freshTokens;
+    for (const span of eligible) written.set(span, entry.atSeconds);
+  }
+  return { costUsd: cost, hitRate: totalInputTokens > 0 ? cachedTokens / totalInputTokens : 0 };
+}
+
 function measure(name: string, build: () => Shaped[]): void {
   const shaped = build();
 
-  const rawStream: SimulatedRequest[] = shaped.map((entry) => ({
-    atSeconds: entry.atSeconds, prompt: wirePrompt(entry.request), outputTokens: entry.outputTokens,
-  }));
+  const rawStream: SimulatedRequest[] = shaped.map((entry) => {
+    const { full } = wire(entry.request);
+    return { atSeconds: entry.atSeconds, prompt: full, outputTokens: entry.outputTokens };
+  });
   const raw = simulateCache(rawStream, ANTHROPIC_NO_CACHE, price.price, { countTokens: approximateTokenCount });
 
   let tokensBefore = 0;
   let tokensAfter = 0;
   const levers = new Map<string, number>();
-  const reducedStream: SimulatedRequest[] = shaped.map((entry) => {
+  const reducedStream = shaped.map((entry) => {
     const { request, summary } = reduceRequest(entry.request, { ...LOSSLESS, cacheTtl: "5m" });
     tokensBefore += summary.estimatedTokensBefore;
     tokensAfter += summary.estimatedTokensAfter;
     for (const change of summary.changes) levers.set(change.lever, (levers.get(change.lever) ?? 0) + 1);
-    return { atSeconds: entry.atSeconds, prompt: wirePrompt(request as AnyObject), outputTokens: entry.outputTokens };
+    return { atSeconds: entry.atSeconds, ...wire(request as AnyObject), outputTokens: entry.outputTokens };
   });
-  const reduced = simulateCache(reducedStream, ANTHROPIC_CACHE_5M, price.price, { countTokens: approximateTokenCount });
+  const reduced = priceStamped(reducedStream);
 
   const tokenPct = tokensBefore > 0 ? ((tokensBefore - tokensAfter) / tokensBefore) * 100 : 0;
-  const costPct = ((raw.totalCostUsd - reduced.totalCostUsd) / raw.totalCostUsd) * 100;
-  const leverList = [...levers.entries()].sort((a, b) => b[1] - a[1]).map(([id, count]) => `${id}×${count}`).join(", ");
+  const costPct = ((raw.totalCostUsd - reduced.costUsd) / raw.totalCostUsd) * 100;
+  const leverList = [...levers.entries()].sort((a, b) => b[1] - a[1]).map(([id, count]) => `${id}x${count}`).join(", ");
 
-  console.log(`${name.padEnd(22)} ${String(shaped.length).padStart(3)} req  tokens −${tokenPct.toFixed(1).padStart(5)}%  cost −${costPct.toFixed(1).padStart(5)}%  (raw $${raw.totalCostUsd.toFixed(4)} → $${reduced.totalCostUsd.toFixed(4)}, hits ${(reduced.hitRate * 100).toFixed(0)}%)`);
+  console.log(`${name.padEnd(22)} ${String(shaped.length).padStart(3)} req  tokens ${tokenPct >= 0 ? "-" : "+"}${Math.abs(tokenPct).toFixed(1).padStart(5)}%  cost ${costPct >= 0 ? "-" : "+"}${Math.abs(costPct).toFixed(1).padStart(5)}%  (raw $${raw.totalCostUsd.toFixed(4)} -> $${reduced.costUsd.toFixed(4)}, hits ${(reduced.hitRate * 100).toFixed(0)}%)`);
   console.log(`${"".padEnd(22)} levers: ${leverList}`);
-  if (reduced.totalCostUsd >= raw.totalCostUsd) {
-    console.log(`${"".padEnd(22)} WARNING: no net saving on this shape — a finding, not a failure; investigate before publishing.`);
+  if (reduced.costUsd >= raw.totalCostUsd) {
+    console.log(`${"".padEnd(22)} WARNING: no net saving on this shape - a finding, not a failure; investigate before publishing.`);
     process.exitCode = 1;
   }
 }
 
-console.log("FLUX workload matrix — lossless levers + 5m cache stamp vs unreduced/unstamped baseline");
-console.log(`simulator-measured at catalogued claude-sonnet-5-5 prices (${AT}); no lossy levers; quality unchanged by construction\n`);
+console.log("FLUX workload matrix - lossless levers + 5m cache stamp vs unreduced/unstamped baseline");
+console.log(`raw arm: cache simulator, caching unavailable (Anthropic's opt-in default); stamped arm: breakpoint-exact provider rules`);
+console.log(`catalogued claude-sonnet-5-5 prices (${AT}); no lossy levers; quality unchanged by construction\n`);
 measure("multi-agent team", multiAgentTeam);
 measure("autonomous agent", autonomousAgent);
 measure("memory agent", memoryAgent);
