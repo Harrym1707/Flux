@@ -1,6 +1,7 @@
 import {
   approximateTokenCount,
   dedupeRepeatedBlocks,
+  dedupeRepeatedLeadingBlock,
   minifyToolSchemas,
   publishedModelPrices,
   resolveModelId,
@@ -87,6 +88,30 @@ export type FluxTokenReductionConfig = {
    * never once per turn. `true` uses the defaults; pass an object to tune.
    */
   historyCompaction?: boolean | FluxHistoryCompactionConfig;
+  /**
+   * Replace a repeated LEADING block in same-role messages after the first
+   * with a short reference marker, keeping each message's differing
+   * remainder verbatim. This is the shape a continuous-learning /
+   * continuous-memory agent produces: the application glues the same
+   * memory or persistent-instruction block to the front of every turn, so
+   * the history carries N-1 byte-identical copies that no existing lever
+   * catches (`duplicateContext` only ever sees one message's text at a
+   * time, never the text several messages back that a later one repeats).
+   *
+   * LOSSY, unlike `duplicateContext`: the duplicate removed here is never
+   * adjacent to its twin, so a model that attends less to context far back
+   * in a long history may behave differently with the block present once
+   * near the start versus restated fresh every turn. This must be proven
+   * on the customer's own traffic through `replayGate` before it is ever
+   * billed, and is never enabled by default. The cut is always snapped to
+   * a line boundary (see `dedupeRepeatedLeadingBlock`), so a false match on
+   * two messages that merely open with the same few words can never
+   * truncate into the line where they actually differ. `true` uses the
+   * default 64-token minimum block size; pass an object to tune it. Applies
+   * only to messages whose content is a plain string or whose first content
+   * block is `{type: "text", text}`; anything else is left untouched.
+   */
+  crossTurnMemoryDedup?: boolean | { minimumBlockTokens?: number };
   /**
    * Cap oversized tool-result and assistant bodies at injection, BEFORE first
    * send. A fresh oversized result is billed once at the FULL input rate and
@@ -521,6 +546,78 @@ function compactStaleHistory(
   return next;
 }
 
+/** A message's leading text, for cross-turn memory matching: a plain string
+ *  `content`, or the text of a leading `{type: "text"}` content block. A
+ *  tool-result carrier's first block is `{type: "tool_result"}`, so it never
+ *  matches here. */
+function leadingText(message: AnyObject): string | undefined {
+  if (typeof message.content === "string") return message.content;
+  if (Array.isArray(message.content) && message.content.length > 0) {
+    const first = message.content[0];
+    if (isPlainObject(first) && first.type === "text" && typeof first.text === "string") return first.text;
+  }
+  return undefined;
+}
+
+/** Rewrite a message's leading text in place of whichever shape leadingText read it from. */
+function withLeadingText(message: AnyObject, text: string): AnyObject {
+  if (typeof message.content === "string") return { ...message, content: text };
+  const content = message.content as unknown[];
+  return { ...message, content: [{ ...(content[0] as AnyObject), text }, ...content.slice(1)] };
+}
+
+/**
+ * Cross-turn memory dedup: within the user turns of a message array, treats
+ * the first turn's leading text as canonical and replaces a repeated leading
+ * block in every later turn with a reference marker (see
+ * `dedupeRepeatedLeadingBlock`). Restricted to the `user` role: that is
+ * where a continuous-memory agent's application code re-injects its memory
+ * block, and keeping this lever off assistant and tool bodies (which the
+ * other, digest-based levers already reach) avoids two different reduction
+ * strategies fighting over the same bytes.
+ */
+function dedupeMemoryAcrossTurns(
+  input: unknown[],
+  options: { minimumBlockTokens?: number },
+  countTokens: TokenCounter,
+  changes: FluxReductionChange[],
+): unknown[] {
+  const minimumBlockTokens = options.minimumBlockTokens ?? 64;
+  if (!Number.isInteger(minimumBlockTokens) || minimumBlockTokens < 1) {
+    throw new Error("crossTurnMemoryDedup minimumBlockTokens must be a positive integer.");
+  }
+  const indices: number[] = [];
+  for (const [index, message] of input.entries()) {
+    if (!isPlainObject(message) || message.role !== "user") continue;
+    if (leadingText(message) === undefined) continue;
+    indices.push(index);
+  }
+  if (indices.length < 2) return input;
+
+  const texts = indices.map((index) => leadingText(input[index] as AnyObject)!);
+  const before = texts.reduce((sum, text) => sum + countTokens(text), 0);
+  const result = dedupeRepeatedLeadingBlock(texts, minimumBlockTokens, countTokens);
+  if (result.notes.length === 0) return input;
+  const after = result.texts.reduce((sum, text) => sum + countTokens(text), 0);
+
+  const next = [...input];
+  indices.forEach((index, position) => {
+    if (result.texts[position] === texts[position]) return;
+    next[index] = withLeadingText(next[index] as AnyObject, result.texts[position]!);
+  });
+
+  changes.push({
+    lever: "cross-turn-memory-dedup",
+    lossless: false,
+    estimatedTokensSaved: Math.max(0, before - after),
+    detail: `Replaced ${result.notes.length} repeated leading block(s) across user turns with reference ` +
+      "markers (the first turn's block, and every turn's own differing remainder, kept verbatim). This is a " +
+      "behaviour change, not a cache-rate change, so it needs a replay-gate pass on the customer's own traffic " +
+      "before the saving may be billed.",
+  });
+  return next;
+}
+
 function reduceText(
   text: string,
   config: FluxTokenReductionConfig,
@@ -829,6 +926,20 @@ export function reduceRequest(
       }
       if (Array.isArray(next.messages)) {
         next.messages = compactStaleHistory(next.messages, options, countTokens, changes);
+      }
+    }
+
+    // Cross-turn memory dedup, before the per-message pass below: it needs
+    // the RAW text of every user turn to find what repeats across them, and
+    // leaves a marker that the per-message pass's own (same-text) dedupe
+    // then simply passes through untouched.
+    if (config.crossTurnMemoryDedup) {
+      const memoryOptions = isPlainObject(config.crossTurnMemoryDedup) ? config.crossTurnMemoryDedup : {};
+      if (Array.isArray(next.input)) {
+        next.input = dedupeMemoryAcrossTurns(next.input, memoryOptions, countTokens, changes);
+      }
+      if (Array.isArray(next.messages)) {
+        next.messages = dedupeMemoryAcrossTurns(next.messages, memoryOptions, countTokens, changes);
       }
     }
 

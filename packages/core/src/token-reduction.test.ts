@@ -6,6 +6,7 @@ import {
   approximateTokenCount,
   collapseWhitespace,
   dedupeRepeatedBlocks,
+  dedupeRepeatedLeadingBlock,
   priceReduction,
   recommendOutputCap,
 } from "./token-reduction.js";
@@ -90,6 +91,78 @@ describe("dedupeRepeatedBlocks", () => {
     const text = `${fence}\n\n${fence}`;
     const result = dedupeRepeatedBlocks(24).reduce(text);
     expect(result.text).toBe(text);
+  });
+});
+
+describe("dedupeRepeatedLeadingBlock", () => {
+  const memory = paragraph("AGENT MEMORY: persistent facts about the account go here.");
+
+  it("replaces a repeated leading block in later turns, keeping the differing remainder verbatim", () => {
+    const texts = [
+      `${memory}\nTurn 0: handle request 0.`,
+      `${memory}\nTurn 1: handle request 1.`,
+      `${memory}\nTurn 2: handle request 2.`,
+    ];
+    const result = dedupeRepeatedLeadingBlock(texts, 24);
+    expect(result.texts[0]).toBe(texts[0]);
+    expect(result.texts[1]).toContain("Turn 1: handle request 1.");
+    expect(result.texts[1]).not.toContain("AGENT MEMORY");
+    expect(result.texts[2]).toContain("Turn 2: handle request 2.");
+    expect(result.notes).toHaveLength(2);
+  });
+
+  it("never cuts into a line that only coincidentally shares leading characters", () => {
+    // Both turns open with "Turn " before diverging at the digit: a naive
+    // character-level common prefix would eat into the digit's own line.
+    const texts = ["Turn 0: alpha.", "Turn 2: beta."];
+    const result = dedupeRepeatedLeadingBlock(texts, 1);
+    expect(result.texts[1]).toBe("Turn 2: beta.");
+    expect(result.notes).toEqual([]);
+  });
+
+  it("leaves texts alone when the shared block falls below the minimum", () => {
+    const texts = [`${memory}\nTurn 0.`, `${memory}\nTurn 1.`];
+    const result = dedupeRepeatedLeadingBlock(texts, 100_000);
+    expect(result.texts).toEqual(texts);
+    expect(result.notes).toEqual([]);
+  });
+
+  it("is a no-op on a single text", () => {
+    const result = dedupeRepeatedLeadingBlock([`${memory}\nTurn 0.`], 24);
+    expect(result.texts).toEqual([`${memory}\nTurn 0.`]);
+  });
+
+  it("is a no-op when nothing repeats", () => {
+    const texts = ["alpha context entirely its own.", "beta context, unrelated to alpha."];
+    const result = dedupeRepeatedLeadingBlock(texts, 1);
+    expect(result.texts).toEqual(texts);
+    expect(result.notes).toEqual([]);
+  });
+
+  it("never dedupes a leading block that contains a fenced code sample", () => {
+    const fence = "```json\n{ \"k\": \"v\" }\n```";
+    const texts = [`${fence}\nTurn 0.`, `${fence}\nTurn 1.`];
+    const result = dedupeRepeatedLeadingBlock(texts, 1);
+    expect(result.texts).toEqual(texts);
+  });
+
+  it("handles full containment (an earlier, shorter text fully repeated as a later text's prefix)", () => {
+    const short = paragraph("short canonical block");
+    const texts = [short, `${short} plus a continuation that is unique.`];
+    const result = dedupeRepeatedLeadingBlock(texts, 24);
+    expect(result.texts[1]).toContain("plus a continuation that is unique.");
+    expect(result.texts[1]).not.toContain("short canonical block");
+  });
+
+  it("is deterministic and idempotent: re-running on its own output changes nothing further", () => {
+    const texts = [
+      `${memory}\nTurn 0: handle request 0.`,
+      `${memory}\nTurn 1: handle request 1.`,
+      `${memory}\nTurn 2: handle request 2.`,
+    ];
+    const once = dedupeRepeatedLeadingBlock(texts, 24);
+    const twice = dedupeRepeatedLeadingBlock(once.texts, 24);
+    expect(twice.texts).toEqual(once.texts);
   });
 });
 

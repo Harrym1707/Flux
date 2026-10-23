@@ -164,6 +164,109 @@ describe("reduceRequest", () => {
   });
 });
 
+describe("cross-turn memory dedup", () => {
+  const MEMORY =
+    "AGENT MEMORY (persistent): user prefers metric units; deploy window is 14:00-16:00 UTC; the staging DB is " +
+    "read-only on Fridays; always page the on-call before schema changes. ".repeat(4);
+
+  function memoryRequest(turns: number, model = "claude-sonnet-5-5"): Record<string, unknown> {
+    const messages: unknown[] = [];
+    for (let turn = 0; turn < turns; turn += 1) {
+      messages.push({ role: "user", content: `${MEMORY}\nTurn ${turn}: handle today's request ${turn}.` });
+      messages.push({ role: "assistant", content: `Noted. Turn ${turn} handled.` });
+    }
+    return { model, max_tokens: 500, messages };
+  }
+
+  it("replaces the repeated memory block in later user turns and reports a lossy change", () => {
+    const { request: reduced, summary } = reduceRequest(memoryRequest(4), { crossTurnMemoryDedup: true });
+    const change = summary.changes.find((entry) => entry.lever === "cross-turn-memory-dedup")!;
+    expect(change.lossless).toBe(false);
+    expect(change.estimatedTokensSaved).toBeGreaterThan(0);
+    const messages = (reduced as Record<string, unknown>).messages as Array<{ role: string; content: string }>;
+    const userTurns = messages.filter((m) => m.role === "user");
+    expect(userTurns[0]!.content).toContain("AGENT MEMORY");
+    for (const turn of userTurns.slice(1)) {
+      expect(turn.content).not.toContain("AGENT MEMORY");
+      expect(turn.content).toMatch(/handle today's request \d\./);
+    }
+  });
+
+  it("never touches assistant turns, even though they also repeat", () => {
+    const { request: reduced } = reduceRequest(memoryRequest(4), { crossTurnMemoryDedup: true });
+    const messages = (reduced as Record<string, unknown>).messages as Array<{ role: string; content: string }>;
+    const assistantTurns = messages.filter((m) => m.role === "assistant");
+    expect(assistantTurns.every((m) => m.content.startsWith("Noted."))).toBe(true);
+  });
+
+  it("is off by default", () => {
+    const { summary } = reduceRequest(memoryRequest(4), {});
+    expect(summary.changes.some((entry) => entry.lever === "cross-turn-memory-dedup")).toBe(false);
+  });
+
+  it("does nothing with a single user turn", () => {
+    const original = memoryRequest(1);
+    const { request: reduced, summary } = reduceRequest(original, { crossTurnMemoryDedup: true });
+    expect(reduced).toEqual(original);
+    expect(summary.changes).toHaveLength(0);
+  });
+
+  it("stays stable turn over turn: a masked user message rewrites to the exact same bytes next turn", () => {
+    const four = reduceRequest(memoryRequest(4), { crossTurnMemoryDedup: true });
+    const five = reduceRequest(memoryRequest(5), { crossTurnMemoryDedup: true });
+    const fourMessages = (four.request as Record<string, unknown>).messages as unknown[];
+    const fiveMessages = (five.request as Record<string, unknown>).messages as unknown[];
+    expect(JSON.stringify(fiveMessages[0])).toBe(JSON.stringify(fourMessages[0]));
+    for (let index = 2; index < fourMessages.length; index += 2) {
+      expect(JSON.stringify(fiveMessages[index])).toBe(JSON.stringify(fourMessages[index]));
+    }
+  });
+
+  it("respects a custom minimumBlockTokens and skips below it", () => {
+    const { summary } = reduceRequest(memoryRequest(4), {
+      crossTurnMemoryDedup: { minimumBlockTokens: 100_000 },
+    });
+    expect(summary.changes.some((entry) => entry.lever === "cross-turn-memory-dedup")).toBe(false);
+  });
+
+  it("skips the whole reduction on an invalid minimumBlockTokens", () => {
+    const original = memoryRequest(4);
+    const { request: reduced, summary } = reduceRequest(original, {
+      crossTurnMemoryDedup: { minimumBlockTokens: -1 },
+    });
+    expect(reduced).toBe(original);
+    expect(summary.skipped).toBe(true);
+    expect(summary.skippedReason).toMatch(/positive integer/);
+  });
+
+  it("works on Responses-style `input` arrays too", () => {
+    const input = [
+      { role: "user", content: `${MEMORY}\nTurn 0: handle today's request 0.` },
+      { role: "assistant", content: "Noted." },
+      { role: "user", content: `${MEMORY}\nTurn 1: handle today's request 1.` },
+    ];
+    const { request: reduced } = reduceRequest({ model: "gpt-5", input }, { crossTurnMemoryDedup: true });
+    const resultInput = (reduced as Record<string, unknown>).input as Array<{ role: string; content: string }>;
+    expect(resultInput[2]!.content).not.toContain("AGENT MEMORY");
+    expect(resultInput[2]!.content).toContain("Turn 1: handle today's request 1.");
+  });
+
+  it("extracts leading text from a {type:'text'} content block, leaving other blocks untouched", () => {
+    const messages = [
+      { role: "user", content: [{ type: "text", text: `${MEMORY}\nTurn 0: go.` }, { type: "image", source: "s0" }] },
+      { role: "user", content: [{ type: "text", text: `${MEMORY}\nTurn 1: go.` }, { type: "image", source: "s1" }] },
+    ];
+    const { request: reduced } = reduceRequest(
+      { model: "claude-sonnet-5-5", max_tokens: 100, messages },
+      { crossTurnMemoryDedup: true },
+    );
+    const resultMessages = (reduced as Record<string, unknown>).messages as
+      Array<{ content: Array<Record<string, unknown>> }>;
+    expect(resultMessages[1]!.content[0]!.text).not.toContain("AGENT MEMORY");
+    expect(resultMessages[1]!.content[1]).toEqual({ type: "image", source: "s1" });
+  });
+});
+
 describe("fresh tool-result capping", () => {
   /** An oversized tool result shaped like the eval fixture: a headline carrying
    * the reference later turns depend on, verbose record sentences, one error

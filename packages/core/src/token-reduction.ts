@@ -223,11 +223,72 @@ const BREAKER_PATTERNS: Array<{ kind: PrefixBreaker["kind"]; pattern: RegExp }> 
   { kind: "long-number", pattern: /\b\d{6,}\b/g },
 ];
 
-function commonPrefixLength(left: string, right: string): number {
+export function commonPrefixLength(left: string, right: string): number {
   const limit = Math.min(left.length, right.length);
   let index = 0;
   while (index < limit && left[index] === right[index]) index += 1;
   return index;
+}
+
+/**
+ * Removes a repeated LEADING block from texts after the first, when that
+ * block is an exact match for the start of the first text in the group.
+ *
+ * This is the shape a continuous-learning / continuous-memory agent
+ * produces: the application glues the same memory or persistent-instruction
+ * block to the front of every turn, with only a short turn-specific
+ * remainder varying underneath it. `dedupeRepeatedBlocks` never catches
+ * this, because it only ever sees one text at a time and the memory block
+ * is not a standalone paragraph inside any single text - it is the shared
+ * PREFIX of several texts that each continue differently.
+ *
+ * LOSSY, not lossless, unlike `dedupeRepeatedBlocks`: a same-text duplicate
+ * sits right next to its twin, so the model reads both in the same breath.
+ * The duplicate removed here can be many turns upstream of the current one,
+ * which is a real behaviour change - a model that attends less to context
+ * far back in a long history may act differently with the block restated
+ * fresh every turn versus present once near the start. Callers must run
+ * this behind a replay-gate pass on their own traffic before billing it;
+ * it is never enabled by default.
+ *
+ * The cut point is always snapped to the last newline at or before the raw
+ * common-prefix length (never cut THROUGH a line), unless the match is a
+ * complete containment of one text inside the other, which needs no
+ * snapping because there is no partially-matched line to protect. This
+ * means a false positive - two texts that happen to start with the same
+ * few words before diverging mid-line, e.g. two turns both opening "Turn "
+ * - can only ever leave that differing line untouched, never truncate into it.
+ */
+export function dedupeRepeatedLeadingBlock(
+  texts: readonly string[],
+  minimumBlockTokens = 24,
+  countTokens: TokenCounter = approximateTokenCount,
+): { texts: string[]; notes: string[] } {
+  if (texts.length === 0) return { texts: [], notes: [] };
+  const canonical = texts[0]!;
+  const notes: string[] = [];
+  const nextTexts = texts.map((text, index) => {
+    if (index === 0) return text;
+    const raw = commonPrefixLength(canonical, text);
+    if (raw === 0) return text;
+    const fullContainment = raw === canonical.length || raw === text.length;
+    let safe = raw;
+    if (!fullContainment) {
+      const lastNewline = text.lastIndexOf("\n", raw - 1);
+      safe = lastNewline === -1 ? 0 : lastNewline + 1;
+    }
+    if (safe === 0) return text;
+    const removed = text.slice(0, safe);
+    if (removed.trim() === "" || removed.includes("```")) return text;
+    const tokens = countTokens(removed);
+    if (tokens < minimumBlockTokens) return text;
+    notes.push(
+      `Turn ${index + 1}: replaced a ${tokens}-token leading block identical to turn 1's opening with a ` +
+        "reference marker.",
+    );
+    return `[flux: ${tokens} tokens of this turn's leading context, identical to turn 1, omitted]${text.slice(safe)}`;
+  });
+  return { texts: nextTexts, notes };
 }
 
 function maskBreakers(text: string): { masked: string; found: Map<string, PrefixBreaker> } {
