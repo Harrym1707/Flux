@@ -91,6 +91,51 @@ describe("dedupeRepeatedBlocks", () => {
     const result = dedupeRepeatedBlocks(24).reduce(text);
     expect(result.text).toBe(text);
   });
+
+  it("drops a duplicate excerpt joined by a single newline, as a RAG prompt would", () => {
+    const excerptA = paragraph("Excerpt A:");
+    const excerptB = paragraph("Excerpt B:");
+    // picks.join("\n"): no blank line between excerpts, so the whole thing is
+    // one top-level block and only line-level dedupe can catch the repeat.
+    const text = `Context:\n${excerptA}\n${excerptB}\n${excerptA}\nQuestion: what does it require?`;
+    const result = dedupeRepeatedBlocks(24).reduce(text);
+    expect(result.text).toBe(`Context:\n${excerptA}\n${excerptB}\nQuestion: what does it require?`);
+    expect(result.text.split("Excerpt A:").length - 1).toBe(1);
+    expect(result.notes).toHaveLength(1);
+  });
+
+  it("still catches a duplicate line against an earlier whole block", () => {
+    const block = paragraph("shared");
+    // First occurrence is its own blank-line-separated block; the second is a
+    // single line buried inside a later, otherwise-unique block.
+    const text = `${block}\n\nheader line\n${block}\nfooter line`;
+    const result = dedupeRepeatedBlocks(24).reduce(text);
+    expect(result.text).toBe(`${block}\n\nheader line\nfooter line`);
+    expect(result.notes).toHaveLength(1);
+  });
+
+  it("never dedupes a repeated line inside a fenced code block", () => {
+    const line = paragraph("same line");
+    const fence = `\`\`\`text\n${line}\n${line}\n\`\`\``;
+    const result = dedupeRepeatedBlocks(24).reduce(fence);
+    expect(result.text).toBe(fence);
+    expect(result.notes).toEqual([]);
+  });
+
+  it("never dedupes lines that differ only in whitespace", () => {
+    const line = paragraph("line");
+    const text = `${line}\n${line.replace(/ /g, "  ")}`;
+    const result = dedupeRepeatedBlocks(24).reduce(text);
+    expect(result.text).toBe(text);
+    expect(result.notes).toEqual([]);
+  });
+
+  it("leaves short duplicate lines alone, same as short duplicate blocks", () => {
+    const text = "please answer\nsomething else\nplease answer";
+    const result = dedupeRepeatedBlocks(24).reduce(text);
+    expect(result.text).toBe(text);
+    expect(result.notes).toEqual([]);
+  });
 });
 
 describe("collapseWhitespace", () => {
