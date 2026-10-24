@@ -81,6 +81,15 @@ export type Reducer = {
  *
  * Only blocks at or above `minimumBlockTokens` are considered, so ordinary
  * repeated phrasing is left alone.
+ *
+ * Duplicates are caught at two granularities: whole blocks separated by a
+ * blank line (as before), and, inside a block that survives that check,
+ * individual lines separated by a single newline. A RAG prompt that joins
+ * several retrieved excerpts with `picks.join("\n")` never produces a
+ * duplicated top-level block — the whole joined block is unique per request
+ * because the question text differs — but an excerpt pulled twice is still an
+ * exact duplicate line inside it, and dropping it is exactly as lossless as
+ * dropping a duplicate paragraph.
  */
 export function dedupeRepeatedBlocks(
   minimumBlockTokens = 24,
@@ -88,7 +97,7 @@ export function dedupeRepeatedBlocks(
 ): Reducer {
   return {
     id: "dedupe-repeated-blocks",
-    version: "1",
+    version: "2",
     risk: "lossless",
     reduce: (text) => {
       // Split KEEPING the separators: a text in which nothing was dropped
@@ -96,12 +105,42 @@ export function dedupeRepeatedBlocks(
       // blank lines. Duplicate keys are byte-exact — "lossless" means two
       // blocks differing only in whitespace are different blocks (code and
       // YAML make whitespace meaningful). Fenced code blocks are never
-      // deduped: a prompt may legitimately repeat a fixture to compare.
-      const parts = text.split(/(\n{2,})/);
+      // deduped, at either granularity: a prompt may legitimately repeat a
+      // fixture to compare, and whitespace inside a fence is content.
       const seen = new Set<string>();
       const notes: string[] = [];
-      const kept: string[] = [];
       let dropped = false;
+
+      const describe = (unit: string, tokens: number) =>
+        `Dropped a repeated ${tokens}-token block beginning "${unit.trim().replace(/\s+/g, " ").slice(0, 60)}".`;
+
+      // A block that is not itself a whole-block duplicate may still contain
+      // one: split on single newlines (there are none of the \n{2,} runs the
+      // outer split already pulled out, so every remaining newline is a lone
+      // line break) and drop any line that exactly matches one already kept.
+      const dedupeLines = (block: string): string => {
+        if (block.includes("```") || !block.includes("\n")) return block;
+        const lines = block.split(/(\n)/);
+        let changed = false;
+        const keptLines: string[] = [];
+        for (let index = 0; index < lines.length; index += 2) {
+          const line = lines[index]!;
+          const separator = lines[index + 1] ?? "";
+          const tokens = countTokens(line);
+          if (line.trim() !== "" && tokens >= minimumBlockTokens && seen.has(line)) {
+            dropped = true;
+            changed = true;
+            notes.push(describe(line, tokens));
+            continue;
+          }
+          seen.add(line);
+          keptLines.push(line, separator);
+        }
+        return changed ? keptLines.join("") : block;
+      };
+
+      const parts = text.split(/(\n{2,})/);
+      const kept: string[] = [];
       for (let index = 0; index < parts.length; index += 2) {
         const block = parts[index]!;
         const separator = parts[index + 1] ?? "";
@@ -109,11 +148,11 @@ export function dedupeRepeatedBlocks(
         if (block.trim() !== "" && !block.includes("```") &&
             tokens >= minimumBlockTokens && seen.has(block)) {
           dropped = true;
-          notes.push(`Dropped a repeated ${tokens}-token block beginning "${block.trim().replace(/\s+/g, " ").slice(0, 60)}".`);
+          notes.push(describe(block, tokens));
           continue;
         }
         seen.add(block);
-        kept.push(block, separator);
+        kept.push(dedupeLines(block), separator);
       }
       if (!dropped) return { text, notes: [] };
       return { text: kept.join(""), notes };
