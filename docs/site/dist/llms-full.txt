@@ -463,12 +463,18 @@ compression via a third-party sidecar (Headroom). Spend tracking prices usage
 against a community-maintained price map, with per-deployment overrides.
 
 What it does not do: **measure or verify the saving.** There is no per-lever
-net accounting, no counterfactual baseline, no customer-recomputable record,
-and cache placement is not metered against the write premium it costs. Our
-own live export showed exactly why that matters: placement without metering
-lost money silently until the ledger caught it. If you want the levers, LiteLLM
-ships good ones for free; if you need to *know what they saved, net, with the
-receipt* — that is the product FLUX is.
+net accounting, no counterfactual baseline, and no customer-recomputable
+record. And placement without metering can lose money silently: we tested
+LiteLLM 1.106.4's auto-placement empirically against a system prompt carrying
+a per-turn timestamp — it stamped the changed block verbatim on every one of
+six turns, with no stability check and no signal after six consecutive
+zero-read responses (wire captures in our repo under evals/wire-captures/).
+Under Anthropic's documented billing that traffic pays the 1.25× write
+premium every turn and never reads — the exact loss our own ledger once
+caught us making, which is why FLUX ships a volatility guard and nets every
+cache write against its reads. If you want free levers, LiteLLM ships good
+ones; if you need to *know what they saved, net, with the receipt* — that is
+the product FLUX is.
 
 ### Helicone (Apache-2.0 observability + AI gateway)
 
