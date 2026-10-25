@@ -498,9 +498,15 @@ describe("withFlux reduction", () => {
 });
 
 describe("cacheTtl 1h stamping", () => {
+  // Repeated past Anthropic's 1,024-token cacheable minimum (see
+  // `anthropicCacheableMinimumTokens`): these fixtures are for exercising
+  // BREAKPOINT PLACEMENT, not the separate below-minimum guard, which has its
+  // own dedicated tests further down this file.
+  const STABLE_SYSTEM = "You are a support agent. Follow the escalation policy exactly. ".repeat(70);
+
   const anthropicRequest = (content: unknown = "Summarise the account history."): Record<string, unknown> => ({
     model: "claude-sonnet-4-5",
-    system: "You are a support agent.",
+    system: STABLE_SYSTEM,
     messages: [
       { role: "user", content: "Earlier turn." },
       { role: "user", content },
@@ -511,7 +517,7 @@ describe("cacheTtl 1h stamping", () => {
     const { request: reduced, summary } = reduceRequest(anthropicRequest(), { cacheTtl: "1h" });
     const system = (reduced as Record<string, unknown>).system as Array<Record<string, unknown>>;
     expect(system).toEqual([
-      { type: "text", text: "You are a support agent.", cache_control: { type: "ephemeral", ttl: "1h" } },
+      { type: "text", text: STABLE_SYSTEM, cache_control: { type: "ephemeral", ttl: "1h" } },
     ]);
     const messages = (reduced as Record<string, unknown>).messages as Array<Record<string, unknown>>;
     const blocks = messages[messages.length - 1]!.content as Array<Record<string, unknown>>;
@@ -548,7 +554,7 @@ describe("cacheTtl 1h stamping", () => {
   it("stamps ONLY the system prompt on a one-shot request that has one", () => {
     const request = {
       model: "claude-sonnet-4-5",
-      system: "You are a classifier.",
+      system: STABLE_SYSTEM,
       messages: [{ role: "user", content: "Classify this ticket." }],
     };
     const { request: reduced } = reduceRequest(request, { cacheTtl: "1h" });
@@ -591,5 +597,87 @@ describe("cacheTtl 1h stamping", () => {
     const snapshot = JSON.stringify(original);
     reduceRequest(original, { cacheTtl: "1h" });
     expect(JSON.stringify(original)).toBe(snapshot);
+  });
+
+  describe("below Anthropic's per-model cacheable minimum", () => {
+    // Anthropic will not cache a prefix shorter than its documented minimum
+    // at all (1,024 tokens; 2,048 on Haiku-class models) — it just processes
+    // the request without caching, a silent provider-side no-op. Stamping a
+    // breakpoint there would buy a write premium and never read, and would
+    // record a saving that can never happen.
+
+    it("withholds the stamp on a one-shot request whose system prompt is short, and records why", () => {
+      const request = {
+        model: "claude-sonnet-4-5",
+        system: "You are a classifier.",
+        messages: [{ role: "user", content: "Classify this ticket." }],
+      };
+      const { request: reduced, summary } = reduceRequest(request, { cacheTtl: "1h" });
+      // Nothing was changed at all: this is a pure no-op, not a stamp-then-strip.
+      expect(reduced).toEqual(request);
+      expect(JSON.stringify(reduced)).not.toContain("cache_control");
+      const suppression = summary.changes.find((change) => change.lever === "cache-ttl-suppressed");
+      expect(suppression).toBeDefined();
+      expect(suppression!.detail).toContain("cacheable minimum");
+      expect(suppression!.detail).toContain("1024");
+      expect(summary.changes.some((change) => change.lever === "cache-ttl-1h")).toBe(false);
+    });
+
+    it("stamps a prefix on Sonnet but withholds the identical prefix on Haiku, which needs twice as many tokens", () => {
+      // STABLE_SYSTEM clears Anthropic's 1,024-token Sonnet/Opus minimum but
+      // sits below its 2,048-token Haiku minimum - the model, not just the
+      // prefix size, decides whether this stamp earns anything.
+      const sonnetRequest = { model: "claude-sonnet-4-5", system: STABLE_SYSTEM, messages: [{ role: "user", content: "Classify this ticket." }] };
+      const haikuRequest = { model: "claude-haiku-5-5", system: STABLE_SYSTEM, messages: [{ role: "user", content: "Classify this ticket." }] };
+
+      const sonnet = reduceRequest(sonnetRequest, { cacheTtl: "1h" });
+      expect(JSON.stringify(sonnet.request)).toContain("cache_control");
+      expect(sonnet.summary.changes.some((change) => change.lever === "cache-ttl-1h")).toBe(true);
+
+      const haiku = reduceRequest(haikuRequest, { cacheTtl: "1h" });
+      expect(haiku.request).toEqual(haikuRequest);
+      expect(JSON.stringify(haiku.request)).not.toContain("cache_control");
+      const suppression = haiku.summary.changes.find((change) => change.lever === "cache-ttl-suppressed");
+      expect(suppression).toBeDefined();
+      expect(suppression!.detail).toContain("2048");
+    });
+
+    it("withholds the message breakpoint on a short multi-turn conversation with no system prompt", () => {
+      // No system at all, so only the message breakpoint is a candidate; its
+      // prefix is the whole running conversation, still well under 1,024
+      // tokens here, so it must be measured and suppressed the same way.
+      const request = {
+        model: "claude-sonnet-4-5",
+        messages: [
+          { role: "user", content: "Step 0: continue." },
+          { role: "assistant", content: "Done with step 0." },
+          { role: "user", content: "Step 1: continue." },
+        ],
+      };
+      const { request: reduced, summary } = reduceRequest(request, { cacheTtl: "5m" });
+      expect(reduced).toEqual(request);
+      expect(JSON.stringify(reduced)).not.toContain("cache_control");
+      const suppression = summary.changes.find((change) => change.lever === "cache-ttl-suppressed");
+      expect(suppression).toBeDefined();
+      expect(suppression!.detail).toContain("cacheable minimum");
+    });
+
+    it("still stamps the message breakpoint once the running conversation itself clears the minimum", () => {
+      // Same shape as the previous test, but the history has grown past the
+      // minimum on its own (no system prompt contributes anything): the
+      // guard must look at the FULL prefix, not assume a short system means
+      // a short request.
+      const request = {
+        model: "claude-sonnet-4-5",
+        messages: [
+          { role: "user", content: STABLE_SYSTEM },
+          { role: "assistant", content: "Acknowledged." },
+          { role: "user", content: "Step 1: continue." },
+        ],
+      };
+      const { request: reduced, summary } = reduceRequest(request, { cacheTtl: "5m" });
+      expect(JSON.stringify(reduced)).toContain("cache_control");
+      expect(summary.changes.some((change) => change.lever === "cache-ttl-5m")).toBe(true);
+    });
   });
 });

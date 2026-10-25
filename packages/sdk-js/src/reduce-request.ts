@@ -1,4 +1,5 @@
 import {
+  anthropicCacheableMinimumTokens,
   approximateTokenCount,
   dedupeRepeatedBlocks,
   dedupeRepeatedLeadingBlock,
@@ -691,23 +692,56 @@ function reduceMessageContent(
  *   re-sent verbatim next turn, so the last message also gets a breakpoint —
  *   next turn reads it and extends. A one-shot request gets no message
  *   breakpoint: there is nothing stable below the system prompt.
+ * - Anthropic will not cache a prefix shorter than its documented minimum
+ *   (1,024 tokens, 2,048 on Haiku-class models; `anthropicCacheableMinimumTokens`)
+ *   at all — it just processes the request without caching, a silent
+ *   provider-side no-op. Each candidate breakpoint is measured against that
+ *   minimum over the FULL prefix it would cover (tools + system for the
+ *   system breakpoint; tools + system + every message up to and including
+ *   the last one for the message breakpoint) before it is placed, so FLUX
+ *   never records a cache-TTL saving for a breakpoint that could never be
+ *   read back.
  */
-function stampAnthropicCacheTtl(next: AnyObject, ttl: "5m" | "1h", systemVolatileTail: string[]): boolean {
+function stampAnthropicCacheTtl(
+  next: AnyObject,
+  ttl: "5m" | "1h",
+  systemVolatileTail: string[],
+  countTokens: TokenCounter,
+): { stamped: boolean; belowMinimum?: { measuredTokens: number; minimumTokens: number } } {
   const model = typeof next.model === "string" ? next.model.toLowerCase() : "";
-  if (!model.includes("claude")) return false;
-  if (!Array.isArray(next.messages) || next.messages.length === 0) return false;
+  if (!model.includes("claude")) return { stamped: false };
+  if (!Array.isArray(next.messages) || next.messages.length === 0) return { stamped: false };
   // A top-level cache_control (the automatic-caching request field) is the
   // caller choosing their caching at the request level; stamping an explicit
   // breakpoint with a different TTL alongside it risks a provider-side
   // TTL-mismatch rejection, so the stamp defers exactly as it does for
   // caller-placed block-level breakpoints.
-  if (next.cache_control !== undefined) return false;
+  if (next.cache_control !== undefined) return { stamped: false };
   const carriesCacheControl = (value: unknown): boolean =>
     (JSON.stringify(value ?? null) ?? "").includes('"cache_control"');
   if (carriesCacheControl(next.messages) || carriesCacheControl(next.system) ||
       carriesCacheControl(next.tools)) {
-    return false;
+    return { stamped: false };
   }
+
+  const minimumTokens = anthropicCacheableMinimumTokens(model);
+  const measureTokens = (value: unknown): number => {
+    try {
+      return typeof value === "string" ? countTokens(value) : countTokens(JSON.stringify(value) ?? "");
+    } catch {
+      return 0;
+    }
+  };
+  const toolsTokens = Array.isArray(next.tools) && next.tools.length > 0 ? measureTokens(next.tools) : 0;
+  // Captured before either breakpoint mutates `next.system` / `next.messages`,
+  // so the message breakpoint's prefix size is measured against the request
+  // as the caller sent it, not against a shape this same call already rewrote.
+  const fullSystemTokens = measureTokens(next.system);
+  const fullMessagesTokens = measureTokens(next.messages);
+  let belowMinimum: { measuredTokens: number; minimumTokens: number } | undefined;
+  const recordBelowMinimum = (measuredTokens: number): void => {
+    if (belowMinimum === undefined) belowMinimum = { measuredTokens, minimumTokens };
+  };
 
   const cacheControl = { type: "ephemeral", ttl };
   let stamped = false;
@@ -728,27 +762,42 @@ function stampAnthropicCacheTtl(next: AnyObject, ttl: "5m" | "1h", systemVolatil
       // change what the model reads, not just where the breakpoint sits.
       const stable = next.system === tailText ? "" : next.system.slice(0, -tailText.length);
       if (stable.trim() !== "") {
-        next.system = [
-          { type: "text", text: stable, cache_control: cacheControl },
-          { type: "text", text: tailText },
-        ];
-        stamped = true;
+        const stableTokens = toolsTokens + measureTokens(stable);
+        if (stableTokens < minimumTokens) {
+          recordBelowMinimum(stableTokens);
+        } else {
+          next.system = [
+            { type: "text", text: stable, cache_control: cacheControl },
+            { type: "text", text: tailText },
+          ];
+          stamped = true;
+        }
       }
       // An all-volatile system has no stable prefix to stamp: nothing is
       // stamped anywhere on this request (a breakpoint could only buy the
       // write premium, which is the measured loss this rule exists to stop).
     } else {
-      next.system = [{ type: "text", text: next.system, cache_control: cacheControl }];
-      stamped = true;
+      const stableTokens = toolsTokens + fullSystemTokens;
+      if (stableTokens < minimumTokens) {
+        recordBelowMinimum(stableTokens);
+      } else {
+        next.system = [{ type: "text", text: next.system, cache_control: cacheControl }];
+        stamped = true;
+      }
     }
   } else if (Array.isArray(next.system) && next.system.length > 0) {
     const blocks = [...next.system];
     const lastBlock = blocks[blocks.length - 1];
     if (isPlainObject(lastBlock) &&
         !(typeof lastBlock.text === "string" && lastBlock.text.trim() === "")) {
-      blocks[blocks.length - 1] = { ...lastBlock, cache_control: cacheControl };
-      next.system = blocks;
-      stamped = true;
+      const stableTokens = toolsTokens + fullSystemTokens;
+      if (stableTokens < minimumTokens) {
+        recordBelowMinimum(stableTokens);
+      } else {
+        blocks[blocks.length - 1] = { ...lastBlock, cache_control: cacheControl };
+        next.system = blocks;
+        stamped = true;
+      }
     }
   }
 
@@ -762,33 +811,42 @@ function stampAnthropicCacheTtl(next: AnyObject, ttl: "5m" | "1h", systemVolatil
     const last = messages[lastIndex];
     if (isPlainObject(last)) {
       const content = last.content;
+      const prefixTokens = toolsTokens + fullSystemTokens + fullMessagesTokens;
       if (typeof content === "string") {
         // An empty or whitespace-only body cannot carry a breakpoint: Anthropic
         // rejects text blocks without visible content, so the stamp would turn
         // a valid request into a 400.
         if (content.trim() !== "") {
-          messages[lastIndex] = {
-            ...last,
-            content: [{ type: "text", text: content, cache_control: cacheControl }],
-          };
-          next.messages = messages;
-          stamped = true;
+          if (prefixTokens < minimumTokens) {
+            recordBelowMinimum(prefixTokens);
+          } else {
+            messages[lastIndex] = {
+              ...last,
+              content: [{ type: "text", text: content, cache_control: cacheControl }],
+            };
+            next.messages = messages;
+            stamped = true;
+          }
         }
       } else if (Array.isArray(content) && content.length > 0) {
         const blocks = [...content];
         const lastBlock = blocks[blocks.length - 1];
         if (isPlainObject(lastBlock) &&
             !(typeof lastBlock.text === "string" && lastBlock.text.trim() === "")) {
-          blocks[blocks.length - 1] = { ...lastBlock, cache_control: cacheControl };
-          messages[lastIndex] = { ...last, content: blocks };
-          next.messages = messages;
-          stamped = true;
+          if (prefixTokens < minimumTokens) {
+            recordBelowMinimum(prefixTokens);
+          } else {
+            blocks[blocks.length - 1] = { ...lastBlock, cache_control: cacheControl };
+            messages[lastIndex] = { ...last, content: blocks };
+            next.messages = messages;
+            stamped = true;
+          }
         }
       }
     }
   }
 
-  return stamped;
+  return stamped ? { stamped: true } : { stamped: false, belowMinimum };
 }
 
 /**
@@ -996,7 +1054,9 @@ export function reduceRequest(
       // The guard sees the RAW request: FLUX's own deterministic levers must
       // never be mistaken for client-side churn.
       const decision = config.cacheVolatilityGuard?.observe(request) ?? { stamp: true };
-      const stamped = decision.stamp ? stampAnthropicCacheTtl(next, ttl, systemVolatileTail) : false;
+      const result = decision.stamp
+        ? stampAnthropicCacheTtl(next, ttl, systemVolatileTail, countTokens)
+        : { stamped: false as const };
       if (!decision.stamp) {
         changes.push({
           lever: "cache-ttl-suppressed",
@@ -1006,8 +1066,20 @@ export function reduceRequest(
           detail: `Cache stamp withheld: ${decision.reason ?? "the conversation's prefix is not stable"}. ` +
             "A breakpoint over a churning prefix buys write premiums and never reads — a measured loss, not a saving.",
         });
+      } else if (!result.stamped && result.belowMinimum) {
+        changes.push({
+          lever: "cache-ttl-suppressed",
+          lossless: true,
+          // Nothing was changed; this records WHY no stamp was placed.
+          estimatedTokensSaved: 0,
+          detail: `Cache stamp withheld: the stable prefix is ${result.belowMinimum.measuredTokens} token(s), ` +
+            `below this model's ${result.belowMinimum.minimumTokens}-token cacheable minimum. Anthropic ` +
+            "processes a prefix under that minimum without caching at all — a provider-side no-op — so a " +
+            "breakpoint here would buy a write premium (on the 1h TTL) and never read, and would record a " +
+            "saving that can never happen.",
+        });
       }
-      if (stamped) {
+      if (result.stamped) {
         changes.push({
           lever: `cache-ttl-${ttl}`,
           lossless: true,

@@ -170,7 +170,10 @@ describe("anthropic messages.create surface", () => {
     const response = await client.messages.create({
       model: "claude-sonnet-5-5-20260514",
       max_tokens: 1_024,
-      system: "You are terse.",
+      // Long enough to clear Anthropic's 1,024-token cacheable minimum (see
+      // `anthropicCacheableMinimumTokens`); the mocked response's own `usage`
+      // numbers below drive the billing assertions, not this text's length.
+      system: "You are terse. Answer in one short sentence, never more. ".repeat(70),
       messages: [{ role: "user", content: "hi" }],
     });
     expect(response.content[0].text).toBe("ok");
