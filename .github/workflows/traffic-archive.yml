@@ -37,7 +37,10 @@ jobs:
           referrers=$(api traffic/popular/referrers)
           paths=$(api traffic/popular/paths)
           stars=$(curl -sf "https://api.github.com/repos/$REPO" | jq '{stargazers_count, forks_count, subscribers_count}')
-          npm=$(curl -sf "https://api.npmjs.org/downloads/point/last-week/@flux-ai/sdk" || echo '{"error":"npm stats unavailable"}')
+          # -f would turn npm's 404-on-zero-downloads into a lost datapoint;
+          # capture whatever JSON comes back and only fall back on a dead link.
+          npm=$(curl -s --max-time 30 "https://api.npmjs.org/downloads/point/last-week/@flux-ai/sdk" || echo '{"error":"npm stats unavailable"}')
+          echo "$npm" | jq -e . >/dev/null 2>&1 || npm='{"error":"npm stats unavailable"}' 
           jq -n --arg fetchedAt "$(date -u +%FT%TZ)" \
             --argjson views "$views" --argjson clones "$clones" \
             --argjson referrers "$referrers" --argjson paths "$paths" \
