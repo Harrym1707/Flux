@@ -45,6 +45,7 @@ export type {
 } from "../../core/dist/src/index.js";
 export { capToolResultBody, digestStaleBody, reduceRequest } from "./reduce-request.js";
 export { CachePrefixVolatilityGuard, type CacheStampDecision } from "./cache-volatility-guard.js";
+export { renderLedgerReport, type LedgerReportOptions, type LedgerReportSpool } from "./report.js";
 export type {
   FluxHistoryCompactionConfig,
   FluxReductionChange,

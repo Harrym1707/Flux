@@ -190,6 +190,8 @@ if (out !== undefined) {
 // as real JS and copied verbatim.
 writeFileSync(path.join(outDir, "bin/flux-demo.mjs"),
   readFileSync(path.join(root, "scripts/flux-demo-template.mjs"), "utf8"), "utf8");
+writeFileSync(path.join(outDir, "bin/flux-report.mjs"),
+  readFileSync(path.join(root, "scripts/flux-report-template.mjs"), "utf8"), "utf8");
 
 writeFileSync(path.join(outDir, "bin/flux-proxy.mjs"), `#!/usr/bin/env node
 // FLUX proxy mode: point your client's base_url here, keep your own API key.
@@ -257,7 +259,7 @@ const manifest = {
       require: "./index.cjs",
     },
   },
-  bin: { "flux-quote": "bin/flux-quote.mjs", "flux-proxy": "bin/flux-proxy.mjs", "flux-demo": "bin/flux-demo.mjs" },
+  bin: { "flux-quote": "bin/flux-quote.mjs", "flux-proxy": "bin/flux-proxy.mjs", "flux-demo": "bin/flux-demo.mjs", "flux-report": "bin/flux-report.mjs" },
   files: ["index.js", "index.cjs", "bin", "types", "README.md", "LICENSE"],
   engines: { node: ">=18" },
 };
