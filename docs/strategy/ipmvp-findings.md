@@ -170,3 +170,10 @@ Supporting: LBNL-49601 (shared-vs-guaranteed history): https://eta-publications.
 5. Gate invoices on **customer acceptance of the savings report** (written or deemed after 30 days), with flux-verify as the witnessing mechanism.
 6. Handle negative periods by **cumulative netting with carry-forward** (G.5 mechanic) and cap aggregate fees at 1% of aggregate verified savings — payments never exceed savings.
 7. Escalation ladder: discrepancy notice with specific ledger entries → 30-day good-faith reconciliation → non-binding neutral expert (findings inadmissible) → contract remedies; service and undisputed payments continue during disputes.
+---
+
+**FOUNDER DECISION (2026-10-26, recorded):** on provider list-price cuts the
+counterfactual REPRICES HONESTLY — savings are always valued at the price
+schedule actually in force during the reporting period, never floored at
+signing-date rates. Smaller fee in that scenario, by design; the measurement
+exhibit should state this plainly as a customer protection.
