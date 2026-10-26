@@ -99,6 +99,33 @@ footer{border-top:2px solid var(--signal);margin-top:3rem;padding-top:1rem;font-
 <li><strong>A free trimmer may be all you need</strong> if your waste is one obvious thing and you don't need the saving verified. FLUX's value is the *verified, billable* number; if you don't need that, rtk is free.</li>
 <li><strong>Most FLUX figures are simulator-measured and labelled so.</strong> The live numbers so far come from small runs (the latest: 18.0% of real spend across 30 requests, receipt published line by line). The pilot exists to replace every number with ones from your own traffic before any fee applies.</li>
 </ul>
+<h2>The comparison grid</h2>
+<p>Facts dated 2026-10-22 from each vendor's own documentation (the LiteLLM volatility row is our own empirical test, wire captures published in the repo). Blank praise sells nothing: each tool wins its own rows.</p>
+<div class="table-wrap"><table>
+<thead><tr><th></th><th>FLUX</th><th>LiteLLM</th><th>Helicone</th><th>Langfuse</th></tr></thead>
+<tbody>
+<tr><td>What it is</td><td>Cost-reduction proxy with verified-savings billing</td><td>MIT gateway + SDK, 100+ providers</td><td>Observability platform + AI gateway</td><td>Observability, prompt mgmt, evals</td></tr>
+<tr><td>Licence</td><td>BUSL-1.1 (verifier MIT)</td><td>MIT (enterprise carve-out)</td><td>Apache-2.0</td><td>MIT except ee/</td></tr>
+<tr><td>Price</td><td>1% of verified savings; $0 if nothing saved</td><td>$0 core; enterprise custom</td><td>Free tier; Pro $79/mo; Team $799/mo</td><td>Free tier; Core $29/mo; Ent $2,499/mo</td></tr>
+<tr><td>Reduces request tokens</td><td>Yes — schema compaction, exact dedup, prefix repair (lossless, on every request)</td><td>Partially — MCP tool-schema deferral; compression via third-party sidecar</td><td>No</td><td>No (not in request path, by design)</td></tr>
+<tr><td>Automatic Anthropic cache placement</td><td>Yes, with a cross-turn volatility guard and per-model minimum guard</td><td>Yes (one flag) — but stamps volatile prefixes verbatim every turn, no guard, no zero-read warning (our empirical test, v1.106.4)</td><td>No — customer writes their own cache_control</td><td>No</td></tr>
+<tr><td>Response caching (identical repeats)</td><td>No</td><td>Yes (exact + semantic)</td><td>Yes (edge, exact-match)</td><td>No</td></tr>
+<tr><td>Measures the saving</td><td>Yes — per lever, net of cache write premiums, per completed task</td><td>No</td><td>Cost tracking (best-effort on direct integrations)</td><td>Cost tracking (best-in-class auditability)</td></tr>
+<tr><td>Customer-recomputable invoice</td><td>Yes — hash-chained ledger + MIT verifier; if your recompute disagrees, yours wins</td><td>No</td><td>No</td><td>Partially — exact-cost ingestion can match your provider invoice</td></tr>
+<tr><td>Losses counted against the vendor</td><td>Yes — negatives never clamped, deficits carry forward</td><td>n/a (nothing measured)</td><td>n/a</td><td>n/a</td></tr>
+<tr><td>&quot;Do not pay us&quot; verdict</td><td>Yes — literal output for already-optimised stacks</td><td>No</td><td>No</td><td>n/a (free tier exists)</td></tr>
+<tr><td>Prompts leave your machine</td><td>Never — local proxy, analysis in-process</td><td>Self-hosted: no; their cloud: yes</td><td>Cloud-hosted path: yes</td><td>Yes (traces to their backend or your self-host)</td></tr>
+</tbody></table></div>
+<h2>Claimed vs independently measured — the market's problem in one table</h2>
+<div class="table-wrap"><table>
+<thead><tr><th>Tool / class</th><th>Claimed</th><th>Independently measured</th><th>Source</th></tr></thead>
+<tbody>
+<tr><td>Three popular OSS token trimmers</td><td>60–90%</td><td><strong>3.7%</strong> combined, 614M-token real-traffic replay</td><td>codepointer.dev deep dive</td></tr>
+<tr><td>Progressive tool-schema disclosure</td><td>~77% modelled</td><td><strong>~13%</strong> in production</td><td>archestra.ai bench</td></tr>
+<tr><td>Best-funded commercial router</td><td>30%+</td><td>ranked <strong>12th of 12</strong></td><td>RouterArena leaderboard</td></tr>
+<tr><td>FLUX, per-workload bands</td><td>26–81% by shape, simulator-measured and labelled</td><td><strong>18.0% live</strong> on a deliberately mixed 30-request basket incl. one shape designed to save 0% (receipt published; pre-dates two shipped fixes)</td><td>our evidence page — every number traces to a command</td></tr>
+</tbody></table></div>
+<p>We publish the right-hand column for ourselves because we demand it of everyone else. Your pilot replaces every FLUX number with your own traffic's numbers before any fee exists.</p>
 <h2>LiteLLM, Helicone, Langfuse — what each actually does about cost</h2>
 <p>These three are excellent tools we are often mentioned alongside. They solve different problems, they are each genuinely better than FLUX at those problems, and FLUX reads all three of their export formats directly — if you run any of them, you are one file export away from a quote. <a href="https://github.com/Harrym1707/Flux/blob/main/docs/pilot/runbook.md">Runbook →</a></p>
 <h3>LiteLLM (MIT gateway + SDK)</h3>

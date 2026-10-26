@@ -95,6 +95,11 @@ try {
   check("@flux-ai/sdk resolves on the npm registry", false, "registry unreachable");
 }
 
+const comparison = await fetchText("/comparison.html");
+check("comparison page served", comparison.status === 200);
+check("comparison page carries the vendor grid as an extractable table", (comparison.text.match(/<table>/g) ?? []).length >= 3);
+check("comparison page carries the claimed-vs-measured row", comparison.text.includes("3.7%"));
+
 const faq = await fetchText("/faq.html");
 check("FAQ structured data present", faq.text.includes("FAQPage"));
 

@@ -51,6 +51,39 @@ will correct it.
   30 requests, receipt published line by line). The pilot exists to replace
   every number with ones from your own traffic before any fee applies.
 
+## The comparison grid
+
+Facts dated 2026-10-22 from each vendor's own documentation (the LiteLLM
+volatility row is our own empirical test, wire captures published in the
+repo). Blank praise sells nothing: each tool wins its own rows.
+
+| | FLUX | LiteLLM | Helicone | Langfuse |
+|---|---|---|---|---|
+| What it is | Cost-reduction proxy with verified-savings billing | MIT gateway + SDK, 100+ providers | Observability platform + AI gateway | Observability, prompt mgmt, evals |
+| Licence | BUSL-1.1 (verifier MIT) | MIT (enterprise carve-out) | Apache-2.0 | MIT except ee/ |
+| Price | 1% of verified savings; $0 if nothing saved | $0 core; enterprise custom | Free tier; Pro $79/mo; Team $799/mo | Free tier; Core $29/mo; Ent $2,499/mo |
+| Reduces request tokens | Yes — schema compaction, exact dedup, prefix repair (lossless, on every request) | Partially — MCP tool-schema deferral; compression via third-party sidecar | No | No (not in request path, by design) |
+| Automatic Anthropic cache placement | Yes, with a cross-turn volatility guard and per-model minimum guard | Yes (one flag) — but stamps volatile prefixes verbatim every turn, no guard, no zero-read warning (our empirical test, v1.106.4) | No — customer writes their own cache_control | No |
+| Response caching (identical repeats) | No | Yes (exact + semantic) | Yes (edge, exact-match) | No |
+| Measures the saving | Yes — per lever, net of cache write premiums, per completed task | No | Cost tracking (best-effort on direct integrations) | Cost tracking (best-in-class auditability) |
+| Customer-recomputable invoice | Yes — hash-chained ledger + MIT verifier; if your recompute disagrees, yours wins | No | No | Partially — exact-cost ingestion can match your provider invoice |
+| Losses counted against the vendor | Yes — negatives never clamped, deficits carry forward | n/a (nothing measured) | n/a | n/a |
+| "Do not pay us" verdict | Yes — literal output for already-optimised stacks | No | No | n/a (free tier exists) |
+| Prompts leave your machine | Never — local proxy, analysis in-process | Self-hosted: no; their cloud: yes | Cloud-hosted path: yes | Yes (traces to their backend or your self-host) |
+
+## Claimed vs independently measured — the market's problem in one table
+
+| Tool / class | Claimed | Independently measured | Source |
+|---|---|---|---|
+| Three popular OSS token trimmers | 60–90% | **3.7%** combined, 614M-token real-traffic replay | codepointer.dev deep dive |
+| Progressive tool-schema disclosure | ~77% modelled | **~13%** in production | archestra.ai bench |
+| Best-funded commercial router | 30%+ | ranked **12th of 12** | RouterArena leaderboard |
+| FLUX, per-workload bands | 26–81% by shape, simulator-measured and labelled | **18.0% live** on a deliberately mixed 30-request basket incl. one shape designed to save 0% (receipt published; pre-dates two shipped fixes) | our evidence page — every number traces to a command |
+
+We publish the right-hand column for ourselves because we demand it of
+everyone else. Your pilot replaces every FLUX number with your own traffic's
+numbers before any fee exists.
+
 ## LiteLLM, Helicone, Langfuse — what each actually does about cost
 
 These three are excellent tools we are often mentioned alongside. They solve
