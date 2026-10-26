@@ -1,0 +1,175 @@
+{
+  "fetchedAt": "2026-10-26T13:13:42Z",
+  "views": {
+    "count": 5,
+    "uniques": 1,
+    "views": [
+      {
+        "timestamp": "2026-10-12T00:00:00Z",
+        "count": 0,
+        "uniques": 0
+      },
+      {
+        "timestamp": "2026-10-13T00:00:00Z",
+        "count": 0,
+        "uniques": 0
+      },
+      {
+        "timestamp": "2026-10-14T00:00:00Z",
+        "count": 0,
+        "uniques": 0
+      },
+      {
+        "timestamp": "2026-10-15T00:00:00Z",
+        "count": 0,
+        "uniques": 0
+      },
+      {
+        "timestamp": "2026-10-16T00:00:00Z",
+        "count": 0,
+        "uniques": 0
+      },
+      {
+        "timestamp": "2026-10-17T00:00:00Z",
+        "count": 0,
+        "uniques": 0
+      },
+      {
+        "timestamp": "2026-10-18T00:00:00Z",
+        "count": 0,
+        "uniques": 0
+      },
+      {
+        "timestamp": "2026-10-19T00:00:00Z",
+        "count": 4,
+        "uniques": 1
+      },
+      {
+        "timestamp": "2026-10-20T00:00:00Z",
+        "count": 1,
+        "uniques": 1
+      },
+      {
+        "timestamp": "2026-10-21T00:00:00Z",
+        "count": 0,
+        "uniques": 0
+      },
+      {
+        "timestamp": "2026-10-22T00:00:00Z",
+        "count": 0,
+        "uniques": 0
+      },
+      {
+        "timestamp": "2026-10-23T00:00:00Z",
+        "count": 0,
+        "uniques": 0
+      },
+      {
+        "timestamp": "2026-10-24T00:00:00Z",
+        "count": 0,
+        "uniques": 0
+      },
+      {
+        "timestamp": "2026-10-25T00:00:00Z",
+        "count": 0,
+        "uniques": 0
+      }
+    ]
+  },
+  "clones": {
+    "count": 649,
+    "uniques": 194,
+    "clones": [
+      {
+        "timestamp": "2026-10-12T00:00:00Z",
+        "count": 3,
+        "uniques": 1
+      },
+      {
+        "timestamp": "2026-10-13T00:00:00Z",
+        "count": 0,
+        "uniques": 0
+      },
+      {
+        "timestamp": "2026-10-14T00:00:00Z",
+        "count": 0,
+        "uniques": 0
+      },
+      {
+        "timestamp": "2026-10-15T00:00:00Z",
+        "count": 0,
+        "uniques": 0
+      },
+      {
+        "timestamp": "2026-10-16T00:00:00Z",
+        "count": 0,
+        "uniques": 0
+      },
+      {
+        "timestamp": "2026-10-17T00:00:00Z",
+        "count": 0,
+        "uniques": 0
+      },
+      {
+        "timestamp": "2026-10-18T00:00:00Z",
+        "count": 0,
+        "uniques": 0
+      },
+      {
+        "timestamp": "2026-10-19T00:00:00Z",
+        "count": 230,
+        "uniques": 71
+      },
+      {
+        "timestamp": "2026-10-20T00:00:00Z",
+        "count": 177,
+        "uniques": 57
+      },
+      {
+        "timestamp": "2026-10-21T00:00:00Z",
+        "count": 59,
+        "uniques": 29
+      },
+      {
+        "timestamp": "2026-10-22T00:00:00Z",
+        "count": 42,
+        "uniques": 16
+      },
+      {
+        "timestamp": "2026-10-23T00:00:00Z",
+        "count": 41,
+        "uniques": 18
+      },
+      {
+        "timestamp": "2026-10-24T00:00:00Z",
+        "count": 33,
+        "uniques": 13
+      },
+      {
+        "timestamp": "2026-10-25T00:00:00Z",
+        "count": 64,
+        "uniques": 28
+      }
+    ]
+  },
+  "referrers": [],
+  "paths": [
+    {
+      "path": "/Harrym1707/Flux/commit/693626bbe38d4f20faeaca28079c5f3945b022fc",
+      "title": "/commit/693626bbe38d4f20faeaca28079c5f3945b022fc",
+      "count": 1,
+      "uniques": 1
+    }
+  ],
+  "repo": {
+    "stargazers_count": 0,
+    "forks_count": 0,
+    "subscribers_count": 0
+  },
+  "npmLastWeek": {
+    "downloads": 27,
+    "start": "2026-10-16",
+    "end": "2026-10-22",
+    "package": "@flux-ai/sdk"
+  }
+}
