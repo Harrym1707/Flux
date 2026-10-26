@@ -200,7 +200,8 @@ independently, without FLUX and without accepting any terms:
 <code>npx -y -p @flux-ai/verify flux-verify &lt;spool.jsonl&gt;</code> — if your
 recomputation disagrees with this statement, yours wins. Negative levers are
 shown negative and reduce the bill; savings you already had are itemised above
-and never billed. Methodology: https://www.fluxtoken.dev/methodology.html
+and never billed. Methodology: https://www.fluxtoken.dev/methodology.html<br>
+FLUX is a product of Flux AI Technologies Limited, registered in England and Wales, company no. 17543982.
 </footer>
 </main>
 </body>

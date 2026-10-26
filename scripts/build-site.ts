@@ -224,7 +224,8 @@ ${extraHead}</head>
 ${body}
 <footer><strong>flux</strong> — spend tokens where they matter. Every number on this site traces to a
 command and a commit — <a href="evidence.html">evidence</a>. Savings are measured per completed task;
-estimates are always labelled. <a href="${REPO_URL}">Source</a> · <a href="llms.txt">llms.txt</a></footer>
+estimates are always labelled. <a href="${REPO_URL}">Source</a> · <a href="llms.txt">llms.txt</a><br>
+Flux AI Technologies Limited · registered in England and Wales · company no. 17543982</footer>
 </main>
 </body>
 </html>
