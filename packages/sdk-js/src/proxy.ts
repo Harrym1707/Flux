@@ -1,10 +1,13 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { join } from "node:path";
 import {
+  collectRequestText,
+  measureOutputReEmission,
   normalizeProviderUsage,
   responseServiceTier,
 } from "../../core/dist/src/index.js";
+import { responseText } from "./replay-gate.js";
 import { CachePrefixVolatilityGuard } from "./cache-volatility-guard.js";
 import { reduceRequest, type FluxTokenReductionConfig } from "./reduce-request.js";
 import { createSavingsLedger, type SavingsLedger } from "./savings-ledger.js";
@@ -185,6 +188,35 @@ export function usageFromSse(provider: "anthropic" | "openai", sseText: string):
   return withUsage;
 }
 
+/**
+ * Assistant text of a streamed response, for output-waste metering: the
+ * concatenated text deltas of whichever surface produced the stream. Used
+ * only after the bytes were already forwarded; never stored.
+ */
+export function outputTextFromSse(provider: "anthropic" | "openai", sseText: string): string {
+  const parts: string[] = [];
+  for (const line of sseText.split(/\r?\n/)) {
+    if (!line.startsWith("data:")) continue;
+    const payload = line.slice(5).trim();
+    if (payload === "" || payload === "[DONE]") continue;
+    try {
+      const parsed = JSON.parse(payload) as AnyObject;
+      if (provider === "anthropic") {
+        const delta = parsed.delta as AnyObject | undefined;
+        if (parsed.type === "content_block_delta" && typeof delta?.text === "string") parts.push(delta.text);
+      } else {
+        if (parsed.type === "response.output_text.delta" && typeof parsed.delta === "string") parts.push(parsed.delta);
+        const choices = parsed.choices as Array<AnyObject> | undefined;
+        const chatDelta = choices?.[0]?.delta as AnyObject | undefined;
+        if (typeof chatDelta?.content === "string") parts.push(chatDelta.content);
+      }
+    } catch {
+      // Non-JSON data lines are legal SSE; skip.
+    }
+  }
+  return parts.join("");
+}
+
 /** Start the FLUX proxy. Resolves once the server is listening. */
 export function startFluxProxy(options: FluxProxyOptions): Promise<FluxProxy> {
   const baseReduction = options.tokenReduction ?? LOSSLESS_DEFAULT;
@@ -200,6 +232,12 @@ export function startFluxProxy(options: FluxProxyOptions): Promise<FluxProxy> {
   };
   const ledgers = new Map<string, SavingsLedger>();
   const LEDGER_CAP = 200;
+  // Byte-identical request detection (metering only): real agent traces show
+  // 4-8% of actions are exact retries. Hash of app + raw body -> requestId,
+  // LRU-bounded; the ledger event carries duplicateOfRequestId so the
+  // statement can show retry waste. Hashes only; content never stored.
+  const recentRequestHashes = new Map<string, string>();
+  const RECENT_HASH_CAP = 500;
   const ledgerFor = (applicationId: string, provider: "anthropic" | "openai"): SavingsLedger => {
     // Key by the SANITIZED name: two raw ids that sanitize to the same spool
     // file must share one ledger instance, or their interleaved chain tails
@@ -321,6 +359,18 @@ export function startFluxProxy(options: FluxProxyOptions): Promise<FluxProxy> {
     const IDLE_TIMEOUT_MS = 120_000;
     let phaseTimer: NodeJS.Timeout = setTimeout(() => abortUpstream("upstream produced no response headers within 120s"), HEADER_TIMEOUT_MS);
 
+    const requestId = randomUUID();
+    const bodyHash = createHash("sha256").update(applicationId).update("\n").update(rawBody).digest("hex");
+    const duplicateOfRequestId = recentRequestHashes.get(bodyHash);
+    if (duplicateOfRequestId === undefined) {
+      while (recentRequestHashes.size >= RECENT_HASH_CAP) {
+        const oldest = recentRequestHashes.keys().next().value;
+        if (oldest === undefined) break;
+        recentRequestHashes.delete(oldest);
+      }
+      recentRequestHashes.set(bodyHash, requestId);
+    }
+
     const startedAt = Date.now();
     let upstreamResponse: Response;
     try {
@@ -421,8 +471,19 @@ export function startFluxProxy(options: FluxProxyOptions): Promise<FluxProxy> {
         : normalizeProviderUsage(responseShaped);
       const usage = usageResult?.status === "ok" ? usageResult.usage : undefined;
       const tier = responseShaped === undefined ? undefined : responseServiceTier(responseShaped);
+      // Output-waste metering on large completions only (real-trace ground
+      // truth: the top 10% of turns carry ~half of output tokens).
+      let outputDiagnostics: { inspectedOutputTokens: number; reEmittedOutputTokens: number; reEmittedCodeTokens: number } | undefined;
+      if (usage !== undefined && usage.outputTokens >= 200 && responseShaped !== undefined) {
+        const outputText = contentType.includes("text/event-stream")
+          ? outputTextFromSse(surface.provider, text)
+          : responseText(responseShaped);
+        if (outputText.length > 0) {
+          outputDiagnostics = measureOutputReEmission(collectRequestText(body), outputText);
+        }
+      }
       const event: FluxRequestEvent = {
-        requestId: randomUUID(),
+        requestId,
         applicationId,
         provider: `${surface.provider}-compatible`,
         model: typeof body.model === "string" ? body.model : "unknown",
@@ -442,6 +503,8 @@ export function startFluxProxy(options: FluxProxyOptions): Promise<FluxProxy> {
           }),
         }),
         ...(tier === undefined ? {} : { responseServiceTier: tier }),
+        ...(outputDiagnostics === undefined ? {} : { outputDiagnostics }),
+        ...(duplicateOfRequestId === undefined ? {} : { duplicateOfRequestId }),
       };
       ledgerFor(applicationId, surface.provider).emit(event);
     } catch {

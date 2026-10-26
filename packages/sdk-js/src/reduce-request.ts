@@ -724,7 +724,14 @@ function stampAnthropicCacheTtl(
     return { stamped: false };
   }
 
-  const minimumTokens = anthropicCacheableMinimumTokens(model);
+  // Calibration (docs/rnd/knowledge/2026-10-25-acquired-knowledge.md §3):
+  // FLUX's approximate counter overcounts prose by up to 1.28x, so a prefix
+  // the counter scores at the documented minimum can be well below it in the
+  // provider's own tokens — a silent no-op stamp. Require the approximate
+  // count to clear the minimum with a 1.30x margin; a boundary stamp earns
+  // pennies, a false lever record costs trust.
+  const APPROX_OVERCOUNT_MARGIN = 1.3;
+  const minimumTokens = Math.ceil(anthropicCacheableMinimumTokens(model) * APPROX_OVERCOUNT_MARGIN);
   const measureTokens = (value: unknown): number => {
     try {
       return typeof value === "string" ? countTokens(value) : countTokens(JSON.stringify(value) ?? "");
@@ -1072,11 +1079,12 @@ export function reduceRequest(
           lossless: true,
           // Nothing was changed; this records WHY no stamp was placed.
           estimatedTokensSaved: 0,
-          detail: `Cache stamp withheld: the stable prefix is ${result.belowMinimum.measuredTokens} token(s), ` +
-            `below this model's ${result.belowMinimum.minimumTokens}-token cacheable minimum. Anthropic ` +
-            "processes a prefix under that minimum without caching at all — a provider-side no-op — so a " +
-            "breakpoint here would buy a write premium (on the 1h TTL) and never read, and would record a " +
-            "saving that can never happen.",
+          detail: `Cache stamp withheld: the stable prefix measures ${result.belowMinimum.measuredTokens} token(s) ` +
+            `by FLUX's approximate counter, under the ${result.belowMinimum.minimumTokens}-token threshold FLUX ` +
+            `requires — the model's documented ${anthropicCacheableMinimumTokens(typeof next.model === "string" ? next.model : "")}-token cacheable minimum ` +
+            "with a 1.30x margin for the counter's calibrated overcount on prose. Anthropic processes a prefix " +
+            "under its minimum without caching at all — a provider-side no-op — so a breakpoint here would buy " +
+            "a write premium and never read, and would record a saving that can never happen.",
         });
       }
       if (result.stamped) {

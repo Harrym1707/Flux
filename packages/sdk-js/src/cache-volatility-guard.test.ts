@@ -2,11 +2,12 @@ import { describe, expect, it } from "vitest";
 import { CachePrefixVolatilityGuard } from "./cache-volatility-guard.js";
 import { reduceRequest } from "./reduce-request.js";
 
-// Repeated past Anthropic's 1,024-token cacheable minimum (see
+// Repeated past 1.30x Anthropic's 1,024-token cacheable minimum (the
+// approximate counter's calibrated overcount margin; see
 // `anthropicCacheableMinimumTokens`), so these fixtures exercise placement
 // and volatility, not the separate below-minimum guard covered in
 // reduce-request.test.ts.
-const PREAMBLE = "You are a careful coding agent. Cite sources, run the tests, escalate anything risky. ".repeat(50);
+const PREAMBLE = "You are a careful coding agent. Cite sources, run the tests, escalate anything risky. ".repeat(65);
 
 /** A multi-turn agent request; `clock` injects per-turn churn into system. */
 function turn(turnIndex: number, clock?: string): Record<string, unknown> {

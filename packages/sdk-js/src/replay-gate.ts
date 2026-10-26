@@ -157,7 +157,7 @@ export function responseText(response: unknown): string {
     if (Array.isArray(value.content)) walk(value.content);
     if (isPlainObject(value.message)) walk(value.message);
   };
-  walk(response.output ?? response.choices ?? []);
+  walk(response.output ?? response.choices ?? response.content ?? []);
   return parts.join("\n");
 }
 

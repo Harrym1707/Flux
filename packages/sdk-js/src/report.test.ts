@@ -96,3 +96,36 @@ describe("renderLedgerReport", () => {
     expect(html).toContain("estimated-baseline");
   });
 });
+
+describe("carry-forward and waste metering on the statement", () => {
+  it("applies the carried deficit to the amount due and names it", () => {
+    const html = renderLedgerReport([{ name: "s.jsonl", records: SPOOL }], {
+      period: "2026-10", feePercent: 1, carryForwardDeficitUsd: 0.004, generatedAt: "t",
+    });
+    expect(html).toContain("deficit carried in");
+    expect(html).toContain("$0.0060");
+  });
+
+  it("carries a residual deficit forward and bills nothing", () => {
+    const html = renderLedgerReport([{ name: "s.jsonl", records: SPOOL }], {
+      period: "2026-10", feePercent: 1, carryForwardDeficitUsd: 0.5, generatedAt: "t",
+    });
+    expect(html).toContain("deficit carries forward");
+    expect(html).toContain("Amount due: $0.0000");
+  });
+
+  it("shows the output-waste line when diagnostics are present", () => {
+    const wasteSpool = chain([event({
+      requestId: "w",
+      actualUsd: 0.02,
+      levers: [],
+      outputDiagnostics: { inspectedOutputTokens: 1000, reEmittedOutputTokens: 240, reEmittedCodeTokens: 200 },
+      duplicateOfRequestId: "earlier",
+    })]);
+    const html = renderLedgerReport([{ name: "w.jsonl", records: wasteSpool }], { generatedAt: "t" });
+    expect(html).toContain("output waste observed");
+    expect(html).toContain("24%");
+    expect(html).toContain("1 byte-identical retried request");
+    expect(html).toContain("measured, not billed");
+  });
+});

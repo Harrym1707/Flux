@@ -29,6 +29,12 @@ export type LedgerReportOptions = {
   period?: string;
   /** FLUX's contracted share of net verified savings. Default 1 (percent). */
   feePercent?: number;
+  /**
+   * Verified-savings deficit carried in from prior statements (cumulative
+   * netting: fees never exceed aggregate verified savings). Applied at the
+   * statement total, shown as its own line.
+   */
+  carryForwardDeficitUsd?: number;
   /** Timestamp printed on the statement; injectable for deterministic tests. */
   generatedAt?: string;
 };
@@ -48,6 +54,7 @@ type SpoolSection = {
   invoice: Invoice;
   spendUsd: number;
   pricedEvents: number;
+  waste: { inspected: number; reEmitted: number; reEmittedCode: number; duplicates: number };
 };
 
 function sectionOf(spool: LedgerReportSpool, options: LedgerReportOptions): SpoolSection {
@@ -62,11 +69,18 @@ function sectionOf(spool: LedgerReportSpool, options: LedgerReportOptions): Spoo
   });
   let spendUsd = 0;
   let pricedEvents = 0;
+  const waste = { inspected: 0, reEmitted: 0, reEmittedCode: 0, duplicates: 0 };
   for (const event of inPeriod) {
     if (typeof event.actualUsd === "number") {
       spendUsd += event.actualUsd;
       pricedEvents += 1;
     }
+    if (event.outputDiagnostics !== undefined) {
+      waste.inspected += event.outputDiagnostics.inspectedOutputTokens;
+      waste.reEmitted += event.outputDiagnostics.reEmittedOutputTokens;
+      waste.reEmittedCode += event.outputDiagnostics.reEmittedCodeTokens;
+    }
+    if (event.duplicateOfRequestId !== undefined) waste.duplicates += 1;
   }
   return {
     name: spool.name,
@@ -77,6 +91,7 @@ function sectionOf(spool: LedgerReportSpool, options: LedgerReportOptions): Spoo
     invoice,
     spendUsd,
     pricedEvents,
+    waste,
   };
 }
 
@@ -89,8 +104,11 @@ export function renderLedgerReport(
   const allChainsOk = sections.every((section) => section.chainOk);
   const totalSpend = sections.reduce((sum, section) => sum + section.spendUsd, 0);
   const totalSavings = sections.reduce((sum, section) => sum + section.invoice.netVerifiedSavingsUsd, 0);
-  const totalDue = allChainsOk && Math.round(totalSavings * 100) > 0
-    ? (totalSavings * feePercent) / 100
+  const carryIn = options.carryForwardDeficitUsd ?? 0;
+  const netAfterCarry = totalSavings - carryIn;
+  const carryOut = Math.max(0, -netAfterCarry);
+  const totalDue = allChainsOk && Math.round(netAfterCarry * 100) > 0
+    ? (netAfterCarry * feePercent) / 100
     : 0;
   const periodLabel = options.period ?? "all recorded periods";
   const generatedAt = options.generatedAt ?? new Date().toISOString();
@@ -121,14 +139,17 @@ export function renderLedgerReport(
       <tbody>${lines || '<tr class="muted"><td colspan="3">no billable savings in this period</td></tr>'}${unbilled}${excludedRows}</tbody>
       <tfoot><tr><td>net verified savings — spend ${usd(section.spendUsd)}</td><td></td><td class="num ${inv.netVerifiedSavingsUsd < 0 ? "neg" : ""}">${usd(inv.netVerifiedSavingsUsd)}</td></tr></tfoot>
     </table>
+    ${section.waste.inspected > 0 || section.waste.duplicates > 0 ? `<p class="meta">output waste observed (measured, not billed): ${section.waste.reEmitted.toLocaleString("en-US")} of ${section.waste.inspected.toLocaleString("en-US")} inspected output tokens (${section.waste.inspected > 0 ? Math.round((section.waste.reEmitted / section.waste.inspected) * 100) : 0}%) re-emit text already in the request${section.waste.reEmittedCode > 0 ? `, ${Math.round((section.waste.reEmittedCode / Math.max(1, section.waste.reEmitted)) * 100)}% of it code` : ""}${section.waste.duplicates > 0 ? ` · ${section.waste.duplicates} byte-identical retried request(s)` : ""} — a diff-shaped integration would reclaim part of this.</p>` : ""}
   </section>`;
   }).join("\n");
 
   const verdictLine = !allChainsOk
     ? "DO NOT PAY — a ledger chain failed verification. A statement over an unverifiable ledger is not an invoice."
-    : Math.round(totalSavings * 100) > 0
-      ? `Amount due: ${usd(totalDue)} (${feePercent}% of ${usd(totalSavings)} net verified savings)`
-      : "Amount due: $0.0000 — do_not_charge. A period that saved nothing bills nothing.";
+    : Math.round(netAfterCarry * 100) > 0
+      ? `Amount due: ${usd(totalDue)} (${feePercent}% of ${usd(netAfterCarry)} net verified savings${carryIn > 0 ? ` after ${usd(carryIn)} deficit carried in` : ""})`
+      : carryOut > 0
+        ? `Amount due: $0.0000 — do_not_charge. ${usd(carryOut)} deficit carries forward: future fees apply only after it is recovered.`
+        : "Amount due: $0.0000 — do_not_charge. A period that saved nothing bills nothing.";
 
   return `<!doctype html>
 <html lang="en">

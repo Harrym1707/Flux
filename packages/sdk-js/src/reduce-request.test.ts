@@ -502,7 +502,7 @@ describe("cacheTtl 1h stamping", () => {
   // `anthropicCacheableMinimumTokens`): these fixtures are for exercising
   // BREAKPOINT PLACEMENT, not the separate below-minimum guard, which has its
   // own dedicated tests further down this file.
-  const STABLE_SYSTEM = "You are a support agent. Follow the escalation policy exactly. ".repeat(70);
+  const STABLE_SYSTEM = "You are a support agent. Follow the escalation policy exactly. ".repeat(90);
 
   const anthropicRequest = (content: unknown = "Summarise the account history."): Record<string, unknown> => ({
     model: "claude-sonnet-4-5",
@@ -620,6 +620,7 @@ describe("cacheTtl 1h stamping", () => {
       expect(suppression).toBeDefined();
       expect(suppression!.detail).toContain("cacheable minimum");
       expect(suppression!.detail).toContain("1024");
+      expect(suppression!.detail).toContain("1332");
       expect(summary.changes.some((change) => change.lever === "cache-ttl-1h")).toBe(false);
     });
 
@@ -640,6 +641,7 @@ describe("cacheTtl 1h stamping", () => {
       const suppression = haiku.summary.changes.find((change) => change.lever === "cache-ttl-suppressed");
       expect(suppression).toBeDefined();
       expect(suppression!.detail).toContain("2048");
+      expect(suppression!.detail).toContain("2663");
     });
 
     it("withholds the message breakpoint on a short multi-turn conversation with no system prompt", () => {

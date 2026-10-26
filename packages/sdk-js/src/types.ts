@@ -39,6 +39,14 @@ export type FluxRequestEvent = {
   uncachedInputTokens?: number;
   cachedInputTokens?: number;
   cacheWriteInputTokens?: number;
+  /** Output-waste metering: re-emission of request context in the completion (tokens only, never billed). */
+  outputDiagnostics?: {
+    inspectedOutputTokens: number;
+    reEmittedOutputTokens: number;
+    reEmittedCodeTokens: number;
+  };
+  /** This request was byte-identical to an earlier one from the same app. */
+  duplicateOfRequestId?: string;
   /**
    * Provider-reported TTL split of the cache writes (Anthropic
    * usage.cache_creation). Present as a PAIR only when the provider reported

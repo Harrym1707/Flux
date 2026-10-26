@@ -339,3 +339,44 @@ describe("estimated-baseline labelling", () => {
     expect("basis" in measuredOnly.lineItems[0]!).toBe(false);
   });
 });
+
+describe("carry-forward netting (G.5 mechanic)", () => {
+  const paidEvent = (requestId: string, savedUsd: number): BillableEvent => ({
+    schemaVersion: 1,
+    requestId,
+    applicationId: "app",
+    invoicePeriod: "2026-10",
+    timestamp: "2026-10-20T10:00:00.000Z",
+    provider: "anthropic",
+    model: "claude-sonnet-5-5",
+    executionMode: "standard",
+    pricingStatus: "priced",
+    levers: [{ leverId: "duplicate-context-removal", kind: "lossless", savedUsd }],
+    status: "succeeded",
+  });
+
+  it("offsets the fee by the carried deficit and reports the applied amount", () => {
+    const invoice = recomputeInvoice([paidEvent("a", 0.5)], { feePercent: 1, carryForwardDeficitUsd: 0.2 });
+    expect(invoice.carryForwardDeficitInUsd).toBe(0.2);
+    expect(invoice.carryForwardDeficitOutUsd).toBeUndefined();
+    expect(invoice.verdict).toBe("charge");
+    expect(invoice.amountDueUsd).toBeCloseTo(0.003, 10); // 1% of (0.5 - 0.2)
+  });
+
+  it("carries the remaining deficit forward when it exceeds the period's savings", () => {
+    const invoice = recomputeInvoice([paidEvent("a", 0.1)], { feePercent: 1, carryForwardDeficitUsd: 0.5 });
+    expect(invoice.verdict).toBe("do_not_charge");
+    expect(invoice.amountDueUsd).toBe(0);
+    expect(invoice.carryForwardDeficitOutUsd).toBeCloseTo(0.4, 10);
+  });
+
+  it("a negative period emits a deficit even without the option", () => {
+    const invoice = recomputeInvoice([paidEvent("a", -0.3)], { feePercent: 1 });
+    expect(invoice.verdict).toBe("do_not_charge");
+    expect(invoice.carryForwardDeficitOutUsd).toBeCloseTo(0.3, 10);
+  });
+
+  it("rejects a negative carry", () => {
+    expect(() => recomputeInvoice([paidEvent("a", 0.1)], { carryForwardDeficitUsd: -1 })).toThrow();
+  });
+});

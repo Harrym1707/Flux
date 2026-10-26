@@ -137,6 +137,19 @@ export type BillableEvent = {
     estimatedInputTokensBefore: number;
     estimatedInputTokensRemoved: number;
   };
+  /**
+   * Output-side waste metering (never billed, never mutated): how much of
+   * this completion was verbatim re-emission of lines already in the request
+   * context, and whether this request byte-duplicated an earlier one. Pure
+   * diagnostics for the statement's waste view; token counts only.
+   */
+  outputDiagnostics?: {
+    inspectedOutputTokens: number;
+    reEmittedOutputTokens: number;
+    reEmittedCodeTokens: number;
+  };
+  /** This request was byte-identical to an earlier one from the same app. */
+  duplicateOfRequestId?: string;
   /** Savings the customer already had. Recorded for transparency, NEVER billed. */
   excluded?: {
     providerCacheAlreadyOwnedUsd?: number;
@@ -395,6 +408,13 @@ export type InvoiceOptions = {
   failedTaskIds?: readonly string[];
   /** FLUX's contracted share of net verified savings, 0-100. Omitted: no fee line. */
   feePercent?: number;
+  /**
+   * Verified-savings deficit carried in from prior periods (the ESPC G.5
+   * mechanic): a period that lost money does not just bill zero — its
+   * deficit offsets future fees, so aggregate fees can never exceed
+   * aggregate verified savings. Non-negative USD.
+   */
+  carryForwardDeficitUsd?: number;
 };
 
 export type InvoiceLineItem = {
@@ -435,6 +455,10 @@ export type Invoice = {
   /** Sum of billable components; negatives are netted, never clamped. */
   netVerifiedSavingsUsd: number;
   netVerifiedSavingsCents: number;
+  /** Deficit applied from prior periods, when the option was supplied. */
+  carryForwardDeficitInUsd?: number;
+  /** Deficit to carry into the NEXT period (this period's shortfall after netting). */
+  carryForwardDeficitOutUsd?: number;
   verdict: "charge" | "do_not_charge";
   feePercent?: number;
   amountDueUsd?: number;
@@ -620,11 +644,21 @@ export function recomputeInvoiceWithAudit(
 
   const netVerifiedSavingsUsd = lineItems.reduce((sum, line) => sum + line.savedUsd, 0);
   const netVerifiedSavingsCents = Math.round(netVerifiedSavingsUsd * 100);
-  const verdict: Invoice["verdict"] = netVerifiedSavingsCents > 0 ? "charge" : "do_not_charge";
+  // Carry-forward netting (G.5 mechanic): the fee applies to this period's
+  // net MINUS any deficit carried from prior periods, and a shortfall rolls
+  // forward — aggregate fees can never exceed aggregate verified savings.
+  const carryIn = options.carryForwardDeficitUsd ?? 0;
+  if (carryIn < 0 || !Number.isFinite(carryIn)) {
+    throw new Error("carryForwardDeficitUsd must be a non-negative, finite USD amount.");
+  }
+  const netAfterCarryUsd = netVerifiedSavingsUsd - carryIn;
+  const carryOutUsd = Math.max(0, -netAfterCarryUsd);
+  const billableCents = Math.round(netAfterCarryUsd * 100);
+  const verdict: Invoice["verdict"] = billableCents > 0 ? "charge" : "do_not_charge";
   const amountDueUsd = options.feePercent === undefined
     ? undefined
     : verdict === "charge"
-      ? (netVerifiedSavingsUsd * options.feePercent) / 100
+      ? (netAfterCarryUsd * options.feePercent) / 100
       : 0;
 
   const invoice: Invoice = {
@@ -644,6 +678,8 @@ export function recomputeInvoiceWithAudit(
     },
     netVerifiedSavingsUsd,
     netVerifiedSavingsCents,
+    ...(options.carryForwardDeficitUsd === undefined ? {} : { carryForwardDeficitInUsd: carryIn }),
+    ...(carryOutUsd > 0 ? { carryForwardDeficitOutUsd: carryOutUsd } : {}),
     verdict,
     ...(options.feePercent === undefined ? {} : {
       feePercent: options.feePercent,

@@ -259,6 +259,8 @@ export function billableEventFromRequest(
         }
       : {}),
     ...(Object.keys(excluded).length === 0 ? {} : { excluded }),
+    ...(event.outputDiagnostics === undefined ? {} : { outputDiagnostics: event.outputDiagnostics }),
+    ...(event.duplicateOfRequestId === undefined ? {} : { duplicateOfRequestId: event.duplicateOfRequestId }),
     status: event.status,
   };
 }

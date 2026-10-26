@@ -327,3 +327,57 @@ describe("FLUX proxy hardening (pre-launch security review)", () => {
     expect(after.status).toBe(200);
   });
 });
+
+describe("output-waste metering in the proxy", () => {
+  it("records re-emission diagnostics on large completions and flags byte-identical retries", async () => {
+    const CONTEXT_LINE = "function computeTotals(rows) { return rows.reduce((s, r) => s + r.amount, 0); }";
+    const echoServer = createServer((req, res) => {
+      const chunks: Buffer[] = [];
+      req.on("data", (c: Buffer) => chunks.push(c));
+      req.on("end", () => {
+        // Echo the code line many times (re-emission) plus novel prose.
+        const echoed = Array.from({ length: 12 }, () => CONTEXT_LINE).join("\n");
+        res.writeHead(200, { "content-type": "application/json" });
+        res.end(JSON.stringify({
+          id: "msg_echo", type: "message", role: "assistant", model: "claude-sonnet-5-5",
+          content: [{ type: "text", text: `Here is the file again:\n${echoed}\nAnd one novel closing remark.` }],
+          stop_reason: "end_turn",
+          usage: { input_tokens: 500, output_tokens: 320, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 },
+        }));
+      });
+    });
+    await new Promise<void>((ready) => echoServer.listen(0, "127.0.0.1", () => ready()));
+    const echoUrl = `http://127.0.0.1:${(echoServer.address() as { port: number }).port}`;
+    const dir = mkdtempSync(join(tmpdir(), "flux-waste-"));
+    const wasteProxy = await startFluxProxy({ ledgerDirectory: dir, anthropicUpstream: echoUrl });
+
+    const body = JSON.stringify({
+      model: "claude-sonnet-5-5", max_tokens: 400,
+      system: "You are terse.",
+      messages: [{ role: "user", content: `Fix this file:\n${CONTEXT_LINE}` }],
+    });
+    for (let round = 0; round < 2; round += 1) {
+      await fetch(`${wasteProxy.url}/v1/messages`, {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-flux-application": "waste-test" },
+        body,
+      });
+    }
+    await wasteProxy.close();
+    echoServer.closeAllConnections();
+    echoServer.close();
+
+    const records = readFileSync(join(dir, "waste-test-anthropic.jsonl"), "utf8")
+      .trim().split("\n").map((line) => JSON.parse(line) as LedgerRecord);
+    expect(records).toHaveLength(2);
+    const first = records[0]!.event as Record<string, any>;
+    const second = records[1]!.event as Record<string, any>;
+    expect(first.outputDiagnostics).toBeDefined();
+    expect(first.outputDiagnostics.reEmittedOutputTokens).toBeGreaterThan(0);
+    expect(first.outputDiagnostics.reEmittedCodeTokens).toBeGreaterThan(0);
+    expect(first.outputDiagnostics.inspectedOutputTokens).toBeGreaterThan(first.outputDiagnostics.reEmittedOutputTokens);
+    expect(first.duplicateOfRequestId).toBeUndefined();
+    expect(second.duplicateOfRequestId).toBe(first.requestId);
+    expect(verifyLedgerChain(records).ok).toBe(true);
+  });
+});
