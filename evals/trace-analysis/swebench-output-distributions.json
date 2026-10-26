@@ -1,0 +1,1353 @@
+{
+ "note": "Distributions of these specific systems on SWE-bench Verified tasks, not universal truths.",
+ "tokenizer": "tiktoken o200k_base",
+ "mini_sonnet45": {
+  "system": "mini-SWE-agent v1.13.3 + claude-sonnet-4-5 (SWE-bench Verified, bash-only)",
+  "n_trajectories": 20,
+  "n_assistant_turns": 1070,
+  "per_turn_output_tokens_tiktoken": {
+   "n": 1070,
+   "mean": 191.2,
+   "p10": 34.0,
+   "p50": 62.0,
+   "p90": 566.1,
+   "p99": 1200.8,
+   "max": 1782,
+   "sum": 204604
+  },
+  "per_turn_output_tokens_api_reported": {
+   "n": 1070,
+   "mean": 233.2,
+   "p10": 39.0,
+   "p50": 71.0,
+   "p90": 710.0,
+   "p99": 1564.5,
+   "max": 2244,
+   "sum": 249491
+  },
+  "tool_result_tokens": {
+   "n": 1070,
+   "mean": 359.1,
+   "p10": 15.0,
+   "p50": 143.0,
+   "p90": 676.4,
+   "p99": 4435.4,
+   "max": 13505,
+   "sum": 384253
+  },
+  "token_shares": {
+   "assistant_output": 204604,
+   "tool_results": 384253,
+   "system_plus_task": 32547
+  },
+  "reemission": {
+   "per_turn_frac": {
+    "n": 1070,
+    "mean": 0.1,
+    "p10": 0.0,
+    "p50": 0.0,
+    "p90": 0.4,
+    "p99": 0.8,
+    "max": 0.945193929173693,
+    "sum": 123.25971134131963
+   },
+   "pooled_frac_of_all_output_tokens": 0.2424,
+   "code_reemit_frac": 0.3483,
+   "prose_reemit_frac": 0.0226,
+   "code_line_tokens": 138858,
+   "prose_line_tokens": 54767
+  },
+  "edits": {
+   "style_counts": {
+    "sed_inplace": 26,
+    "heredoc_whole_file": 60
+   },
+   "whole_file_rewrite_vs_diff": {
+    "n_whole_file_emissions_with_30pct_old_lines": 46,
+    "emitted_tokens_sum": 24501,
+    "changed_lines_tokens_sum": 10489
+   },
+   "str_replace_overhead": null
+  },
+  "input_side": {
+   "context_growth_per_step": {
+    "n": 1050,
+    "mean": 473.7,
+    "p10": 99.0,
+    "p50": 317.0,
+    "p90": 989.2,
+    "p99": 2532.2,
+    "max": 3832,
+    "sum": 497369
+   },
+   "final_context_tokens": {
+    "n": 20,
+    "mean": 31070.2,
+    "p10": 21802.6,
+    "p50": 27081.0,
+    "p90": 44456.1,
+    "p99": 75510.4,
+    "max": 81340,
+    "sum": 621404
+   },
+   "billed_input_sum_no_cache": 18556078,
+   "duplicate_action_rate": 0.0808,
+   "duplicate_actions": 90,
+   "n_actions": 1114
+  },
+  "per_trajectory": [
+   {
+    "file": "astropy__astropy-12907.traj.json",
+    "n_assistant_turns": 33,
+    "assistant_tokens": {
+     "n": 33,
+     "mean": 194.8,
+     "p10": 33.6,
+     "p50": 83.0,
+     "p90": 430.4,
+     "p99": 861.3,
+     "max": 869,
+     "sum": 6427
+    },
+    "tool_result_tokens": {
+     "n": 33,
+     "mean": 441.2,
+     "p10": 15.0,
+     "p50": 210.0,
+     "p90": 949.0,
+     "p99": 3152.8,
+     "max": 3492,
+     "sum": 14559
+    },
+    "total_conv_tokens": 22493,
+    "reemit_frac_mean": 0.136,
+    "duplicate_actions": 3,
+    "n_actions": 38
+   },
+   {
+    "file": "django__django-10914.traj.json",
+    "n_assistant_turns": 57,
+    "assistant_tokens": {
+     "n": 57,
+     "mean": 156.2,
+     "p10": 31.0,
+     "p50": 56.0,
+     "p90": 348.0,
+     "p99": 1193.6,
+     "max": 1197,
+     "sum": 8903
+    },
+    "tool_result_tokens": {
+     "n": 57,
+     "mean": 314.5,
+     "p10": 15.0,
+     "p50": 143.0,
+     "p90": 456.6,
+     "p99": 3342.8,
+     "max": 4423,
+     "sum": 17929
+    },
+    "total_conv_tokens": 28229,
+    "reemit_frac_mean": 0.138,
+    "duplicate_actions": 9,
+    "n_actions": 57
+   },
+   {
+    "file": "django__django-11477.traj.json",
+    "n_assistant_turns": 42,
+    "assistant_tokens": {
+     "n": 42,
+     "mean": 249.2,
+     "p10": 35.2,
+     "p50": 60.5,
+     "p90": 864.7,
+     "p99": 1352.5,
+     "max": 1357,
+     "sum": 10466
+    },
+    "tool_result_tokens": {
+     "n": 42,
+     "mean": 419.7,
+     "p10": 33.7,
+     "p50": 209.5,
+     "p90": 928.6,
+     "p99": 2031.5,
+     "max": 2357,
+     "sum": 17626
+    },
+    "total_conv_tokens": 29321,
+    "reemit_frac_mean": 0.11,
+    "duplicate_actions": 2,
+    "n_actions": 44
+   },
+   {
+    "file": "django__django-12209.traj.json",
+    "n_assistant_turns": 99,
+    "assistant_tokens": {
+     "n": 99,
+     "mean": 167.6,
+     "p10": 34.0,
+     "p50": 51.0,
+     "p90": 453.4,
+     "p99": 1527.2,
+     "max": 1537,
+     "sum": 16590
+    },
+    "tool_result_tokens": {
+     "n": 99,
+     "mean": 329.5,
+     "p10": 15.0,
+     "p50": 174.0,
+     "p90": 602.8,
+     "p99": 1802.9,
+     "max": 5622,
+     "sum": 32617
+    },
+    "total_conv_tokens": 50658,
+    "reemit_frac_mean": 0.092,
+    "duplicate_actions": 10,
+    "n_actions": 105
+   },
+   {
+    "file": "django__django-13128.traj.json",
+    "n_assistant_turns": 49,
+    "assistant_tokens": {
+     "n": 49,
+     "mean": 188.9,
+     "p10": 41.8,
+     "p50": 59.0,
+     "p90": 581.2,
+     "p99": 791.6,
+     "max": 793,
+     "sum": 9258
+    },
+    "tool_result_tokens": {
+     "n": 49,
+     "mean": 450.9,
+     "p10": 24.4,
+     "p50": 151.0,
+     "p90": 1182.2,
+     "p99": 3455.5,
+     "max": 4463,
+     "sum": 22094
+    },
+    "total_conv_tokens": 32622,
+    "reemit_frac_mean": 0.119,
+    "duplicate_actions": 3,
+    "n_actions": 54
+   },
+   {
+    "file": "django__django-13741.traj.json",
+    "n_assistant_turns": 41,
+    "assistant_tokens": {
+     "n": 41,
+     "mean": 227.5,
+     "p10": 28.0,
+     "p50": 53.0,
+     "p90": 672.0,
+     "p99": 1112.0,
+     "max": 1132,
+     "sum": 9328
+    },
+    "tool_result_tokens": {
+     "n": 41,
+     "mean": 374.1,
+     "p10": 15.0,
+     "p50": 125.0,
+     "p90": 467.0,
+     "p99": 4019.6,
+     "max": 5118,
+     "sum": 15339
+    },
+    "total_conv_tokens": 26058,
+    "reemit_frac_mean": 0.154,
+    "duplicate_actions": 5,
+    "n_actions": 41
+   },
+   {
+    "file": "django__django-14349.traj.json",
+    "n_assistant_turns": 32,
+    "assistant_tokens": {
+     "n": 32,
+     "mean": 124.3,
+     "p10": 38.2,
+     "p50": 57.5,
+     "p90": 293.0,
+     "p99": 742.0,
+     "max": 782,
+     "sum": 3979
+    },
+    "tool_result_tokens": {
+     "n": 32,
+     "mean": 361.8,
+     "p10": 15.0,
+     "p50": 202.0,
+     "p90": 1160.3,
+     "p99": 2119.3,
+     "max": 2504,
+     "sum": 11577
+    },
+    "total_conv_tokens": 17312,
+    "reemit_frac_mean": 0.059,
+    "duplicate_actions": 3,
+    "n_actions": 32
+   },
+   {
+    "file": "django__django-15037.traj.json",
+    "n_assistant_turns": 51,
+    "assistant_tokens": {
+     "n": 51,
+     "mean": 162.5,
+     "p10": 33.0,
+     "p50": 68.0,
+     "p90": 537.0,
+     "p99": 837.0,
+     "max": 873,
+     "sum": 8290
+    },
+    "tool_result_tokens": {
+     "n": 51,
+     "mean": 515.8,
+     "p10": 15.0,
+     "p50": 220.0,
+     "p90": 1115.0,
+     "p99": 4823.5,
+     "max": 7249,
+     "sum": 26308
+    },
+    "total_conv_tokens": 35902,
+    "reemit_frac_mean": 0.067,
+    "duplicate_actions": 1,
+    "n_actions": 54
+   },
+   {
+    "file": "django__django-15572.traj.json",
+    "n_assistant_turns": 36,
+    "assistant_tokens": {
+     "n": 36,
+     "mean": 215.1,
+     "p10": 28.5,
+     "p50": 51.5,
+     "p90": 749.0,
+     "p99": 873.0,
+     "max": 893,
+     "sum": 7745
+    },
+    "tool_result_tokens": {
+     "n": 36,
+     "mean": 357.4,
+     "p10": 15.0,
+     "p50": 78.5,
+     "p90": 406.0,
+     "p99": 4936.0,
+     "max": 7119,
+     "sum": 12866
+    },
+    "total_conv_tokens": 22154,
+    "reemit_frac_mean": 0.141,
+    "duplicate_actions": 4,
+    "n_actions": 39
+   },
+   {
+    "file": "django__django-16333.traj.json",
+    "n_assistant_turns": 29,
+    "assistant_tokens": {
+     "n": 29,
+     "mean": 246.3,
+     "p10": 46.8,
+     "p50": 67.0,
+     "p90": 724.6,
+     "p99": 1499.0,
+     "max": 1511,
+     "sum": 7142
+    },
+    "tool_result_tokens": {
+     "n": 29,
+     "mean": 467.9,
+     "p10": 24.0,
+     "p50": 148.0,
+     "p90": 809.2,
+     "p99": 4262.8,
+     "max": 5000,
+     "sum": 13569
+    },
+    "total_conv_tokens": 22030,
+    "reemit_frac_mean": 0.085,
+    "duplicate_actions": 1,
+    "n_actions": 31
+   },
+   {
+    "file": "django__django-17087.traj.json",
+    "n_assistant_turns": 44,
+    "assistant_tokens": {
+     "n": 44,
+     "mean": 181.7,
+     "p10": 41.9,
+     "p50": 56.0,
+     "p90": 675.2,
+     "p99": 1026.6,
+     "max": 1049,
+     "sum": 7994
+    },
+    "tool_result_tokens": {
+     "n": 44,
+     "mean": 234.2,
+     "p10": 25.8,
+     "p50": 154.5,
+     "p90": 400.7,
+     "p99": 1796.1,
+     "max": 2190,
+     "sum": 10307
+    },
+    "total_conv_tokens": 19756,
+    "reemit_frac_mean": 0.056,
+    "duplicate_actions": 1,
+    "n_actions": 44
+   },
+   {
+    "file": "matplotlib__matplotlib-25122.traj.json",
+    "n_assistant_turns": 31,
+    "assistant_tokens": {
+     "n": 31,
+     "mean": 180.6,
+     "p10": 27.0,
+     "p50": 53.0,
+     "p90": 372.0,
+     "p99": 1193.1,
+     "max": 1245,
+     "sum": 5598
+    },
+    "tool_result_tokens": {
+     "n": 31,
+     "mean": 488.8,
+     "p10": 15.0,
+     "p50": 136.0,
+     "p90": 1202.0,
+     "p99": 4343.1,
+     "max": 4800,
+     "sum": 15153
+    },
+    "total_conv_tokens": 22232,
+    "reemit_frac_mean": 0.051,
+    "duplicate_actions": 2,
+    "n_actions": 31
+   },
+   {
+    "file": "pydata__xarray-3151.traj.json",
+    "n_assistant_turns": 45,
+    "assistant_tokens": {
+     "n": 45,
+     "mean": 192.6,
+     "p10": 29.4,
+     "p50": 57.0,
+     "p90": 498.8,
+     "p99": 1197.8,
+     "max": 1207,
+     "sum": 8666
+    },
+    "tool_result_tokens": {
+     "n": 45,
+     "mean": 373.7,
+     "p10": 15.0,
+     "p50": 185.0,
+     "p90": 709.4,
+     "p99": 3423.2,
+     "max": 4389,
+     "sum": 16817
+    },
+    "total_conv_tokens": 27395,
+    "reemit_frac_mean": 0.156,
+    "duplicate_actions": 9,
+    "n_actions": 45
+   },
+   {
+    "file": "pylint-dev__pylint-6528.traj.json",
+    "n_assistant_turns": 115,
+    "assistant_tokens": {
+     "n": 115,
+     "mean": 161.6,
+     "p10": 41.4,
+     "p50": 89.0,
+     "p90": 336.8,
+     "p99": 962.6,
+     "max": 1782,
+     "sum": 18580
+    },
+    "tool_result_tokens": {
+     "n": 115,
+     "mean": 203.8,
+     "p10": 19.4,
+     "p50": 90.0,
+     "p90": 423.4,
+     "p99": 1505.0,
+     "max": 4003,
+     "sum": 23434
+    },
+    "total_conv_tokens": 43767,
+    "reemit_frac_mean": 0.117,
+    "duplicate_actions": 9,
+    "n_actions": 119
+   },
+   {
+    "file": "scikit-learn__scikit-learn-10844.traj.json",
+    "n_assistant_turns": 38,
+    "assistant_tokens": {
+     "n": 38,
+     "mean": 279.7,
+     "p10": 30.1,
+     "p50": 56.5,
+     "p90": 877.7,
+     "p99": 1064.0,
+     "max": 1071,
+     "sum": 10628
+    },
+    "tool_result_tokens": {
+     "n": 38,
+     "mean": 375.3,
+     "p10": 15.0,
+     "p50": 188.0,
+     "p90": 566.8,
+     "p99": 4370.9,
+     "max": 6370,
+     "sum": 14262
+    },
+    "total_conv_tokens": 26660,
+    "reemit_frac_mean": 0.181,
+    "duplicate_actions": 4,
+    "n_actions": 41
+   },
+   {
+    "file": "scikit-learn__scikit-learn-25747.traj.json",
+    "n_assistant_turns": 38,
+    "assistant_tokens": {
+     "n": 38,
+     "mean": 208.4,
+     "p10": 36.1,
+     "p50": 61.5,
+     "p90": 499.2,
+     "p99": 1133.6,
+     "max": 1245,
+     "sum": 7920
+    },
+    "tool_result_tokens": {
+     "n": 38,
+     "mean": 420.1,
+     "p10": 19.0,
+     "p50": 192.0,
+     "p90": 776.0,
+     "p99": 3925.5,
+     "max": 5088,
+     "sum": 15962
+    },
+    "total_conv_tokens": 26767,
+    "reemit_frac_mean": 0.128,
+    "duplicate_actions": 1,
+    "n_actions": 42
+   },
+   {
+    "file": "sphinx-doc__sphinx-8120.traj.json",
+    "n_assistant_turns": 56,
+    "assistant_tokens": {
+     "n": 56,
+     "mean": 205.9,
+     "p10": 36.5,
+     "p50": 61.5,
+     "p90": 798.0,
+     "p99": 1112.2,
+     "max": 1198,
+     "sum": 11532
+    },
+    "tool_result_tokens": {
+     "n": 56,
+     "mean": 414.2,
+     "p10": 28.0,
+     "p50": 144.0,
+     "p90": 913.5,
+     "p99": 3087.3,
+     "max": 3161,
+     "sum": 23195
+    },
+    "total_conv_tokens": 36400,
+    "reemit_frac_mean": 0.101,
+    "duplicate_actions": 4,
+    "n_actions": 63
+   },
+   {
+    "file": "sympy__sympy-11618.traj.json",
+    "n_assistant_turns": 56,
+    "assistant_tokens": {
+     "n": 56,
+     "mean": 124.1,
+     "p10": 31.5,
+     "p50": 55.0,
+     "p90": 384.0,
+     "p99": 985.4,
+     "max": 1042,
+     "sum": 6950
+    },
+    "tool_result_tokens": {
+     "n": 56,
+     "mean": 343.6,
+     "p10": 15.0,
+     "p50": 126.5,
+     "p90": 499.5,
+     "p99": 3801.9,
+     "max": 5041,
+     "sum": 19244
+    },
+    "total_conv_tokens": 27452,
+    "reemit_frac_mean": 0.066,
+    "duplicate_actions": 3,
+    "n_actions": 56
+   },
+   {
+    "file": "sympy__sympy-15599.traj.json",
+    "n_assistant_turns": 135,
+    "assistant_tokens": {
+     "n": 135,
+     "mean": 224.1,
+     "p10": 32.0,
+     "p50": 141.0,
+     "p90": 492.6,
+     "p99": 873.7,
+     "max": 1045,
+     "sum": 30254
+    },
+    "tool_result_tokens": {
+     "n": 135,
+     "mean": 365.4,
+     "p10": 20.0,
+     "p50": 101.0,
+     "p90": 361.8,
+     "p99": 3481.0,
+     "max": 13505,
+     "sum": 49331
+    },
+    "total_conv_tokens": 81340,
+    "reemit_frac_mean": 0.167,
+    "duplicate_actions": 14,
+    "n_actions": 135
+   },
+   {
+    "file": "sympy__sympy-20428.traj.json",
+    "n_assistant_turns": 43,
+    "assistant_tokens": {
+     "n": 43,
+     "mean": 194.3,
+     "p10": 38.0,
+     "p50": 62.0,
+     "p90": 620.2,
+     "p99": 1169.6,
+     "max": 1267,
+     "sum": 8354
+    },
+    "tool_result_tokens": {
+     "n": 43,
+     "mean": 280.6,
+     "p10": 26.2,
+     "p50": 176.0,
+     "p90": 641.0,
+     "p99": 1136.0,
+     "max": 1278,
+     "sum": 12064
+    },
+    "total_conv_tokens": 22856,
+    "reemit_frac_mean": 0.093,
+    "duplicate_actions": 2,
+    "n_actions": 43
+   }
+  ],
+  "billing_api_reported": {
+   "pricing_usd_per_M": {
+    "input": 3.0,
+    "cache_write": 3.75,
+    "cache_read": 0.3,
+    "output": 15.0
+   },
+   "tokens": {
+    "uncached_input": 4280,
+    "cache_write": 647792,
+    "cache_read": 21995979,
+    "output": 249491
+   },
+   "cost_usd_20_trajs": {
+    "uncached_input": 0.013,
+    "cache_write": 2.429,
+    "cache_read": 6.599,
+    "output": 3.742
+   },
+   "total_usd": 12.783,
+   "per_traj_usd": 0.639,
+   "output_share_of_bill": 0.2928,
+   "cache_read_share_of_bill": 0.5162,
+   "note": "litellm prompt_tokens includes cache reads; uncached = prompt - cache_read. Metadata avg cost/instance for full 500-run: $0.558 (ours $0.639 on a 20-sample skewed slightly long).",
+   "n_api_calls": 1070
+  }
+ },
+ "openhands_gpt5": {
+  "system": "OpenHands + GPT-5 (SWE-bench Verified)",
+  "n_trajectories": 20,
+  "n_assistant_turns": 607,
+  "per_turn_output_tokens_tiktoken": {
+   "n": 607,
+   "mean": 87.3,
+   "p10": 17.0,
+   "p50": 26.0,
+   "p90": 183.4,
+   "p99": 1211.1,
+   "max": 1587,
+   "sum": 53006
+  },
+  "per_turn_output_tokens_api_reported": {},
+  "tool_result_tokens": {
+   "n": 607,
+   "mean": 841.4,
+   "p10": 60.0,
+   "p50": 308.0,
+   "p90": 2185.4,
+   "p99": 5990.6,
+   "max": 9971,
+   "sum": 510748
+  },
+  "token_shares": {
+   "assistant_output": 53006,
+   "tool_results": 510748,
+   "system_plus_task": 50198
+  },
+  "reemission": {
+   "per_turn_frac": {
+    "n": 607,
+    "mean": 0.1,
+    "p10": 0.0,
+    "p50": 0.0,
+    "p90": 0.6,
+    "p99": 0.8,
+    "max": 0.8288770053475936,
+    "sum": 75.97664291176886
+   },
+   "pooled_frac_of_all_output_tokens": 0.2474,
+   "code_reemit_frac": 0.431,
+   "prose_reemit_frac": 0.0264,
+   "code_line_tokens": 29432,
+   "prose_line_tokens": 16263
+  },
+  "edits": {
+   "style_counts": {
+    "str_replace": 48,
+    "insert": 3
+   },
+   "whole_file_rewrite_vs_diff": {
+    "n_whole_file_emissions_with_30pct_old_lines": 0,
+    "emitted_tokens_sum": 0,
+    "changed_lines_tokens_sum": 0
+   },
+   "str_replace_overhead": {
+    "n": 48,
+    "old_str_tokens_sum": 4733,
+    "new_str_tokens_sum": 6426
+   }
+  },
+  "input_side": {
+   "context_growth_per_step": {
+    "n": 587,
+    "mean": 936.7,
+    "p10": 90.6,
+    "p50": 469.0,
+    "p90": 2242.0,
+    "p99": 6082.9,
+    "max": 10022,
+    "sum": 549864
+   },
+   "final_context_tokens": {
+    "n": 20,
+    "mean": 30697.6,
+    "p10": 14448.6,
+    "p50": 28140.5,
+    "p90": 54135.7,
+    "p99": 67224.4,
+    "max": 67631,
+    "sum": 613952
+   },
+   "billed_input_sum_no_cache": 13350387,
+   "duplicate_action_rate": 0.0405,
+   "duplicate_actions": 24,
+   "n_actions": 593
+  },
+  "per_trajectory": [
+   {
+    "file": "astropy__astropy-12907.json",
+    "n_assistant_turns": 15,
+    "assistant_tokens": {
+     "n": 15,
+     "mean": 153.1,
+     "p10": 16.2,
+     "p50": 43.0,
+     "p90": 236.4,
+     "p99": 1201.2,
+     "max": 1345,
+     "sum": 2296
+    },
+    "tool_result_tokens": {
+     "n": 15,
+     "mean": 528.7,
+     "p10": 56.0,
+     "p50": 190.0,
+     "p90": 1127.4,
+     "p99": 3157.4,
+     "max": 3473,
+     "sum": 7931
+    },
+    "total_conv_tokens": 12618,
+    "reemit_frac_mean": 0.146,
+    "duplicate_actions": 0,
+    "n_actions": 14
+   },
+   {
+    "file": "django__django-10914.json",
+    "n_assistant_turns": 20,
+    "assistant_tokens": {
+     "n": 20,
+     "mean": 84.8,
+     "p10": 17.9,
+     "p50": 21.0,
+     "p90": 52.5,
+     "p99": 957.7,
+     "max": 1150,
+     "sum": 1696
+    },
+    "tool_result_tokens": {
+     "n": 20,
+     "mean": 1205.5,
+     "p10": 75.2,
+     "p50": 740.0,
+     "p90": 3292.9,
+     "p99": 5873.7,
+     "max": 6302,
+     "sum": 24111
+    },
+    "total_conv_tokens": 28082,
+    "reemit_frac_mean": 0.033,
+    "duplicate_actions": 0,
+    "n_actions": 19
+   },
+   {
+    "file": "django__django-11477.json",
+    "n_assistant_turns": 24,
+    "assistant_tokens": {
+     "n": 24,
+     "mean": 44.1,
+     "p10": 12.9,
+     "p50": 22.0,
+     "p90": 45.4,
+     "p99": 302.0,
+     "max": 317,
+     "sum": 1058
+    },
+    "tool_result_tokens": {
+     "n": 24,
+     "mean": 868.3,
+     "p10": 60.3,
+     "p50": 377.0,
+     "p90": 2082.0,
+     "p99": 3299.9,
+     "max": 3618,
+     "sum": 20840
+    },
+    "total_conv_tokens": 24002,
+    "reemit_frac_mean": 0.047,
+    "duplicate_actions": 0,
+    "n_actions": 24
+   },
+   {
+    "file": "django__django-12209.json",
+    "n_assistant_turns": 32,
+    "assistant_tokens": {
+     "n": 32,
+     "mean": 85.1,
+     "p10": 12.0,
+     "p50": 20.0,
+     "p90": 34.7,
+     "p99": 1183.3,
+     "max": 1532,
+     "sum": 2724
+    },
+    "tool_result_tokens": {
+     "n": 32,
+     "mean": 476.2,
+     "p10": 54.5,
+     "p50": 117.0,
+     "p90": 1219.5,
+     "p99": 4129.6,
+     "max": 4381,
+     "sum": 15240
+    },
+    "total_conv_tokens": 20293,
+    "reemit_frac_mean": 0.052,
+    "duplicate_actions": 0,
+    "n_actions": 31
+   },
+   {
+    "file": "django__django-13128.json",
+    "n_assistant_turns": 19,
+    "assistant_tokens": {
+     "n": 19,
+     "mean": 106.8,
+     "p10": 19.6,
+     "p50": 23.0,
+     "p90": 164.2,
+     "p99": 1110.2,
+     "max": 1315,
+     "sum": 2029
+    },
+    "tool_result_tokens": {
+     "n": 19,
+     "mean": 739.7,
+     "p10": 95.6,
+     "p50": 308.0,
+     "p90": 2236.2,
+     "p99": 2961.5,
+     "max": 2973,
+     "sum": 14054
+    },
+    "total_conv_tokens": 18229,
+    "reemit_frac_mean": 0.081,
+    "duplicate_actions": 1,
+    "n_actions": 19
+   },
+   {
+    "file": "django__django-13741.json",
+    "n_assistant_turns": 44,
+    "assistant_tokens": {
+     "n": 44,
+     "mean": 60.1,
+     "p10": 15.0,
+     "p50": 25.0,
+     "p90": 70.4,
+     "p99": 718.7,
+     "max": 886,
+     "sum": 2644
+    },
+    "tool_result_tokens": {
+     "n": 44,
+     "mean": 756.5,
+     "p10": 53.0,
+     "p50": 184.0,
+     "p90": 2107.9,
+     "p99": 3434.9,
+     "max": 3953,
+     "sum": 33286
+    },
+    "total_conv_tokens": 38195,
+    "reemit_frac_mean": 0.058,
+    "duplicate_actions": 0,
+    "n_actions": 43
+   },
+   {
+    "file": "django__django-14349.json",
+    "n_assistant_turns": 39,
+    "assistant_tokens": {
+     "n": 39,
+     "mean": 65.8,
+     "p10": 16.6,
+     "p50": 26.0,
+     "p90": 189.4,
+     "p99": 280.9,
+     "max": 282,
+     "sum": 2566
+    },
+    "tool_result_tokens": {
+     "n": 39,
+     "mean": 630.5,
+     "p10": 60.8,
+     "p50": 295.0,
+     "p90": 2011.2,
+     "p99": 3062.7,
+     "max": 3399,
+     "sum": 24590
+    },
+    "total_conv_tokens": 29790,
+    "reemit_frac_mean": 0.215,
+    "duplicate_actions": 4,
+    "n_actions": 39
+   },
+   {
+    "file": "django__django-15037.json",
+    "n_assistant_turns": 66,
+    "assistant_tokens": {
+     "n": 66,
+     "mean": 115.2,
+     "p10": 21.0,
+     "p50": 25.5,
+     "p90": 347.0,
+     "p99": 920.1,
+     "max": 1587,
+     "sum": 7603
+    },
+    "tool_result_tokens": {
+     "n": 66,
+     "mean": 876.5,
+     "p10": 57.0,
+     "p50": 816.0,
+     "p90": 1959.0,
+     "p99": 2703.5,
+     "max": 2725,
+     "sum": 57850
+    },
+    "total_conv_tokens": 67631,
+    "reemit_frac_mean": 0.245,
+    "duplicate_actions": 10,
+    "n_actions": 65
+   },
+   {
+    "file": "django__django-15572.json",
+    "n_assistant_turns": 29,
+    "assistant_tokens": {
+     "n": 29,
+     "mean": 37.6,
+     "p10": 19.0,
+     "p50": 26.0,
+     "p90": 55.0,
+     "p99": 219.6,
+     "max": 277,
+     "sum": 1089
+    },
+    "tool_result_tokens": {
+     "n": 29,
+     "mean": 652.2,
+     "p10": 60.0,
+     "p50": 342.0,
+     "p90": 1559.2,
+     "p99": 2968.4,
+     "max": 3343,
+     "sum": 18915
+    },
+    "total_conv_tokens": 22426,
+    "reemit_frac_mean": 0.019,
+    "duplicate_actions": 0,
+    "n_actions": 29
+   },
+   {
+    "file": "django__django-16333.json",
+    "n_assistant_turns": 29,
+    "assistant_tokens": {
+     "n": 29,
+     "mean": 64.4,
+     "p10": 16.6,
+     "p50": 23.0,
+     "p90": 40.0,
+     "p99": 821.9,
+     "max": 1082,
+     "sum": 1867
+    },
+    "tool_result_tokens": {
+     "n": 29,
+     "mean": 832.1,
+     "p10": 53.8,
+     "p50": 324.0,
+     "p90": 2086.0,
+     "p99": 4444.8,
+     "max": 4773,
+     "sum": 24131
+    },
+    "total_conv_tokens": 28199,
+    "reemit_frac_mean": 0.018,
+    "duplicate_actions": 0,
+    "n_actions": 28
+   },
+   {
+    "file": "django__django-17087.json",
+    "n_assistant_turns": 41,
+    "assistant_tokens": {
+     "n": 41,
+     "mean": 63.7,
+     "p10": 17.0,
+     "p50": 26.0,
+     "p90": 72.0,
+     "p99": 772.8,
+     "max": 1182,
+     "sum": 2612
+    },
+    "tool_result_tokens": {
+     "n": 41,
+     "mean": 596.6,
+     "p10": 53.0,
+     "p50": 200.0,
+     "p90": 1803.0,
+     "p99": 3425.0,
+     "max": 3827,
+     "sum": 24461
+    },
+    "total_conv_tokens": 29407,
+    "reemit_frac_mean": 0.061,
+    "duplicate_actions": 0,
+    "n_actions": 40
+   },
+   {
+    "file": "matplotlib__matplotlib-25122.json",
+    "n_assistant_turns": 18,
+    "assistant_tokens": {
+     "n": 18,
+     "mean": 98.6,
+     "p10": 18.8,
+     "p50": 23.0,
+     "p90": 143.9,
+     "p99": 888.4,
+     "max": 1029,
+     "sum": 1775
+    },
+    "tool_result_tokens": {
+     "n": 18,
+     "mean": 1292.2,
+     "p10": 66.5,
+     "p50": 344.5,
+     "p90": 3394.6,
+     "p99": 5106.2,
+     "max": 5349,
+     "sum": 23260
+    },
+    "total_conv_tokens": 27398,
+    "reemit_frac_mean": 0.083,
+    "duplicate_actions": 0,
+    "n_actions": 17
+   },
+   {
+    "file": "pydata__xarray-3151.json",
+    "n_assistant_turns": 16,
+    "assistant_tokens": {
+     "n": 16,
+     "mean": 54.9,
+     "p10": 16.5,
+     "p50": 22.0,
+     "p90": 141.5,
+     "p99": 287.9,
+     "max": 305,
+     "sum": 879
+    },
+    "tool_result_tokens": {
+     "n": 16,
+     "mean": 1408.6,
+     "p10": 119.5,
+     "p50": 763.5,
+     "p90": 2427.0,
+     "p99": 7800.8,
+     "max": 8687,
+     "sum": 22537
+    },
+    "total_conv_tokens": 26213,
+    "reemit_frac_mean": 0.052,
+    "duplicate_actions": 0,
+    "n_actions": 16
+   },
+   {
+    "file": "pylint-dev__pylint-6528.json",
+    "n_assistant_turns": 36,
+    "assistant_tokens": {
+     "n": 36,
+     "mean": 58.1,
+     "p10": 18.0,
+     "p50": 23.5,
+     "p90": 58.0,
+     "p99": 562.8,
+     "max": 714,
+     "sum": 2091
+    },
+    "tool_result_tokens": {
+     "n": 36,
+     "mean": 901.1,
+     "p10": 101.0,
+     "p50": 585.0,
+     "p90": 1983.0,
+     "p99": 4539.1,
+     "max": 5166,
+     "sum": 32438
+    },
+    "total_conv_tokens": 37176,
+    "reemit_frac_mean": 0.084,
+    "duplicate_actions": 2,
+    "n_actions": 36
+   },
+   {
+    "file": "scikit-learn__scikit-learn-10844.json",
+    "n_assistant_turns": 11,
+    "assistant_tokens": {
+     "n": 11,
+     "mean": 155.4,
+     "p10": 20.0,
+     "p50": 32.0,
+     "p90": 188.0,
+     "p99": 1059.2,
+     "max": 1156,
+     "sum": 1709
+    },
+    "tool_result_tokens": {
+     "n": 11,
+     "mean": 540.5,
+     "p10": 68.0,
+     "p50": 263.0,
+     "p90": 1389.0,
+     "p99": 1746.3,
+     "max": 1786,
+     "sum": 5945
+    },
+    "total_conv_tokens": 10318,
+    "reemit_frac_mean": 0.027,
+    "duplicate_actions": 0,
+    "n_actions": 10
+   },
+   {
+    "file": "scikit-learn__scikit-learn-25747.json",
+    "n_assistant_turns": 19,
+    "assistant_tokens": {
+     "n": 19,
+     "mean": 149.9,
+     "p10": 16.0,
+     "p50": 19.0,
+     "p90": 378.8,
+     "p99": 1200.9,
+     "max": 1234,
+     "sum": 2849
+    },
+    "tool_result_tokens": {
+     "n": 19,
+     "mean": 1256.5,
+     "p10": 109.8,
+     "p50": 853.0,
+     "p90": 3101.2,
+     "p99": 4577.0,
+     "max": 4698,
+     "sum": 23874
+    },
+    "total_conv_tokens": 30508,
+    "reemit_frac_mean": 0.069,
+    "duplicate_actions": 0,
+    "n_actions": 18
+   },
+   {
+    "file": "sphinx-doc__sphinx-8120.json",
+    "n_assistant_turns": 46,
+    "assistant_tokens": {
+     "n": 46,
+     "mean": 71.0,
+     "p10": 19.5,
+     "p50": 32.0,
+     "p90": 52.0,
+     "p99": 910.1,
+     "max": 1213,
+     "sum": 3264
+    },
+    "tool_result_tokens": {
+     "n": 46,
+     "mean": 1297.1,
+     "p10": 44.0,
+     "p50": 639.5,
+     "p90": 3084.0,
+     "p99": 7642.3,
+     "max": 8473,
+     "sum": 59667
+    },
+    "total_conv_tokens": 65491,
+    "reemit_frac_mean": 0.119,
+    "duplicate_actions": 0,
+    "n_actions": 44
+   },
+   {
+    "file": "sympy__sympy-11618.json",
+    "n_assistant_turns": 11,
+    "assistant_tokens": {
+     "n": 11,
+     "mean": 138.8,
+     "p10": 18.0,
+     "p50": 20.0,
+     "p90": 142.0,
+     "p99": 1001.5,
+     "max": 1097,
+     "sum": 1527
+    },
+    "tool_result_tokens": {
+     "n": 11,
+     "mean": 998.5,
+     "p10": 55.0,
+     "p50": 218.0,
+     "p90": 3187.0,
+     "p99": 5732.2,
+     "max": 6015,
+     "sum": 10984
+    },
+    "total_conv_tokens": 14652,
+    "reemit_frac_mean": 0.038,
+    "duplicate_actions": 0,
+    "n_actions": 10
+   },
+   {
+    "file": "sympy__sympy-15599.json",
+    "n_assistant_turns": 60,
+    "assistant_tokens": {
+     "n": 60,
+     "mean": 125.3,
+     "p10": 18.0,
+     "p50": 47.5,
+     "p90": 240.7,
+     "p99": 1092.5,
+     "max": 1489,
+     "sum": 7516
+    },
+    "tool_result_tokens": {
+     "n": 60,
+     "mean": 712.0,
+     "p10": 68.7,
+     "p50": 208.5,
+     "p90": 1433.8,
+     "p99": 9065.3,
+     "max": 9971,
+     "sum": 42717
+    },
+    "total_conv_tokens": 52874,
+    "reemit_frac_mean": 0.349,
+    "duplicate_actions": 7,
+    "n_actions": 59
+   },
+   {
+    "file": "sympy__sympy-20428.json",
+    "n_assistant_turns": 32,
+    "assistant_tokens": {
+     "n": 32,
+     "mean": 100.4,
+     "p10": 19.2,
+     "p50": 25.5,
+     "p90": 232.3,
+     "p99": 506.4,
+     "max": 521,
+     "sum": 3212
+    },
+    "tool_result_tokens": {
+     "n": 32,
+     "mean": 747.4,
+     "p10": 68.4,
+     "p50": 265.5,
+     "p90": 1816.0,
+     "p99": 3289.1,
+     "max": 3773,
+     "sum": 23917
+    },
+    "total_conv_tokens": 30450,
+    "reemit_frac_mean": 0.136,
+    "duplicate_actions": 0,
+    "n_actions": 32
+   }
+  ]
+ },
+ "sources": {
+  "repo": "https://github.com/SWE-bench/experiments",
+  "mini_sonnet45_s3_prefix": "https://swe-bench-submissions.s3.amazonaws.com/bash-only/20250929_mini-v1.13.3_sonnet-4-5-20250929/trajs/",
+  "openhands_gpt5_s3_prefix": "https://swe-bench-submissions.s3.amazonaws.com/verified/20250807_openhands_gpt5/trajs/",
+  "metadata_mini": "https://raw.githubusercontent.com/SWE-bench/experiments/main/evaluation/verified/20250929_mini-v1.13.3_sonnet-4-5-20250929/metadata.yaml",
+  "metadata_oh": "https://raw.githubusercontent.com/SWE-bench/experiments/main/evaluation/verified/20250807_openhands_gpt5/metadata.yaml",
+  "sampling": "deterministic every-Nth over sorted instance list (alphabetical across repos), 20 per system",
+  "caveats": [
+   "Distributions are OF THESE SYSTEMS on SWE-bench Verified tasks only, not universal.",
+   "tiktoken o200k_base approximates Claude tokenization; mini API-reported completion tokens run ~22% higher than tiktoken counts.",
+   "OpenHands GPT-5 trajectories exclude hidden reasoning tokens, which are billed as output; visible-output stats are a lower bound.",
+   "Re-emission = whitespace-normalized line (>=8 chars) already present verbatim in prior conversation (line-number prefixes stripped)."
+  ]
+ }
+}
