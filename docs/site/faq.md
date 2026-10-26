@@ -15,6 +15,16 @@ language-agnostic by construction; the one-line SDK mode (`withFlux(client)`)
 is TypeScript/JavaScript today. It covers Claude (Anthropic), OpenAI, and any
 OpenAI-compatible endpoint.
 
+**My agents run 24/7 — what does FLUX actually do for always-on workloads?**
+Long-lived agents re-send their whole history every turn, so they re-buy
+their own memory forever — on real agent traffic, each output token gets
+re-read ~27 more times downstream. FLUX keeps that history on the provider's
+cached rate (with guards that refuse placements that would lose money),
+digests stale context byte-stably, caps oversized tool results behind a
+quality gate, flags byte-identical retries, and meters output re-emission on
+your statement. The measured always-on shapes are our strongest bands: see
+[savings by segment](segments.md).
+
 **Can FLUX break my app?**
 The default levers are lossless: compacted schemas decode identically, removed
 duplicates are exact, prefix repair reorders text without deleting it, and the

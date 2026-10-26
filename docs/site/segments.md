@@ -55,6 +55,38 @@ you already place your own breakpoints, FLUX defers and never claims this.
 **This is also where we tell you our ceiling:** if someone promises an
 interactive agent 70%, ask for their per-task evidence.
 
+## Always-on agents — where the compounding lives
+
+An agent that never stops — an ops monitor, an autonomous worker, a
+multi-agent team running around the clock — re-buys its own memory on every
+single turn, forever. On real agent traffic we measured, each output token an
+agent emits is re-read roughly 27 more times as later turns re-send the
+history, and a well-cached agent's bill is ~52% cache reads. Two of our
+measured matrix shapes ARE always-on patterns: multi-agent teams at **−55.6%
+cost** and autonomous long-horizon agents at **−40.0%** (lossless levers plus
+the cache stamp, breakpoint-exact provider rules, simulator-measured).
+
+**The always-on trap is cadence.** A busy loop (calls under five minutes
+apart) keeps the provider's 5-minute cache warm for free — every read
+refreshes the clock, and FLUX's stamp earns indefinitely. But an always-on
+agent that is *bursty* — polling every ten minutes, waiting on webhooks —
+silently expires its cache in every gap and re-pays the write premium on its
+whole history each time it wakes. FLUX's volatility and minimum guards
+already refuse the placements that lose money there; a cadence-aware TTL
+policy (choosing the 1-hour tier for prefixes whose observed gaps exceed five
+minutes) is in development and will be published with its own measured band,
+like everything else here.
+
+**What ships today for long-lived agents:** correct, guarded cache placement;
+byte-stable history digests and the gated fresh-tool-result cap for unbounded
+context growth (real traces show tool results reaching 2,500–10,000 tokens at
+p99); exact-duplicate removal; byte-identical retry flagging (4–8% of real
+agent actions in public traces); and output-waste metering — on real agent
+trajectories, ~24% of output tokens re-emit text already in the context, and
+your statement shows your own number, measured, not billed.
+**What changes it:** your cadence (the gap histogram decides the cache
+economics) and your tool-result sizes.
+
 ## Already-optimised stacks — 0–5%: do not pay us
 
 **Mechanism:** none, and that is the point. If your input already arrives

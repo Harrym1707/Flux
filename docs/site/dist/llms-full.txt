@@ -26,6 +26,12 @@ verifyLedgerChain and recomputeInvoice from the same package. Quote from an
 existing LiteLLM/Helicone/Langfuse export without routing any traffic:
 `npx -y -p @flux-ai/sdk flux-quote your-export.jsonl --format litellm`.
 
+Always-on / 24-7 agents are the strongest measured shapes (multi-agent teams
+-55.6% cost, autonomous long-horizon agents -40.0%, simulator-measured at
+breakpoint-exact provider rules): long-lived agents re-send their history
+every turn, and FLUX keeps it on the cached rate with guards, digests stale
+context, caps oversized tool results, and meters output re-emission waste.
+
 ## Docs
 - [Get started in five minutes](start.html)
 - [What FLUX saves and how](overview.html)
@@ -259,6 +265,38 @@ qualified full-stack saving. Real-traffic cache validation remains open. If
 you already place your own breakpoints, FLUX defers and never claims this.
 **This is also where we tell you our ceiling:** if someone promises an
 interactive agent 70%, ask for their per-task evidence.
+
+## Always-on agents — where the compounding lives
+
+An agent that never stops — an ops monitor, an autonomous worker, a
+multi-agent team running around the clock — re-buys its own memory on every
+single turn, forever. On real agent traffic we measured, each output token an
+agent emits is re-read roughly 27 more times as later turns re-send the
+history, and a well-cached agent's bill is ~52% cache reads. Two of our
+measured matrix shapes ARE always-on patterns: multi-agent teams at **−55.6%
+cost** and autonomous long-horizon agents at **−40.0%** (lossless levers plus
+the cache stamp, breakpoint-exact provider rules, simulator-measured).
+
+**The always-on trap is cadence.** A busy loop (calls under five minutes
+apart) keeps the provider's 5-minute cache warm for free — every read
+refreshes the clock, and FLUX's stamp earns indefinitely. But an always-on
+agent that is *bursty* — polling every ten minutes, waiting on webhooks —
+silently expires its cache in every gap and re-pays the write premium on its
+whole history each time it wakes. FLUX's volatility and minimum guards
+already refuse the placements that lose money there; a cadence-aware TTL
+policy (choosing the 1-hour tier for prefixes whose observed gaps exceed five
+minutes) is in development and will be published with its own measured band,
+like everything else here.
+
+**What ships today for long-lived agents:** correct, guarded cache placement;
+byte-stable history digests and the gated fresh-tool-result cap for unbounded
+context growth (real traces show tool results reaching 2,500–10,000 tokens at
+p99); exact-duplicate removal; byte-identical retry flagging (4–8% of real
+agent actions in public traces); and output-waste metering — on real agent
+trajectories, ~24% of output tokens re-emit text already in the context, and
+your statement shows your own number, measured, not billed.
+**What changes it:** your cadence (the gap histogram decides the cache
+economics) and your tool-result sizes.
 
 ## Already-optimised stacks — 0–5%: do not pay us
 
@@ -557,6 +595,16 @@ LangChain, LlamaIndex, and effectively everything else. Proxy mode is
 language-agnostic by construction; the one-line SDK mode (`withFlux(client)`)
 is TypeScript/JavaScript today. It covers Claude (Anthropic), OpenAI, and any
 OpenAI-compatible endpoint.
+
+**My agents run 24/7 — what does FLUX actually do for always-on workloads?**
+Long-lived agents re-send their whole history every turn, so they re-buy
+their own memory forever — on real agent traffic, each output token gets
+re-read ~27 more times downstream. FLUX keeps that history on the provider's
+cached rate (with guards that refuse placements that would lose money),
+digests stale context byte-stably, caps oversized tool results behind a
+quality gate, flags byte-identical retries, and meters output re-emission on
+your statement. The measured always-on shapes are our strongest bands: see
+[savings by segment](segments.md).
 
 **Can FLUX break my app?**
 The default levers are lossless: compacted schemas decode identically, removed
