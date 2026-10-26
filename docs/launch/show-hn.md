@@ -51,7 +51,7 @@ Honest numbers, because that's the whole point of the thing:
 
 - Switching Claude's cache on correctly, measured both ways on identical
   multi-turn prompts: 37.9% (simulator at published prices, labelled as such)
-- Our latest small live run (30 real requests, five agent shapes): 18.0% of
+- Our latest small live run (30 real requests, five agent shapes): 18.2% of
   actual spend, receipt published line by line on the site
 - A stack that's already well-optimised: 0–5%, and the quote output literally
   says "do not pay us"

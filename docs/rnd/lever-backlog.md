@@ -126,3 +126,27 @@ Ranked by how much each improves the quality of the % saved:
 ---
 
 *Document basis note: every number above is labelled measured, derived-from-captures, literature-claim, reasoned, or estimate per the honesty rules. Where a verdict corrected a counterfactual, the corrected band stands and the original is recorded in §3. Negative lever outcomes net against FLUX in the ledger; nothing here is billable ahead of its conditions.*
+## P1.5 — count_tokens-verified minimum guard (added 2026-10-26, from live export #3)
+
+Live finding: the chars/4 approximation UNDERCOUNTS some content — the batch
+classifier's rule-list preamble measures 611 approx tokens but 927 real
+(provider `count_tokens`, free endpoint). The 1.3 APPROX_OVERCOUNT_MARGIN was
+calibrated on prose where chars/4 overcounts; short repetitive lines with
+digits and punctuation go the other way. Tonight the margined guard still
+reached the right verdict (927 < 1024 minimum → suppress), but the error is
+bidirectional, so the margin can both leave money on the table (suppressing a
+cacheable prefix) and let a sub-minimum stamp through.
+
+Lever: when the margined approximate count is within ±25% of the per-model
+minimum, resolve with one `count_tokens` call (free, ~100ms, prompt stays on
+the customer's machine — the call goes to the same provider that will see the
+prompt anyway, but it IS a request: must be opt-in-consistent with proxy mode
+semantics and ledger-recorded as a diagnostic, never guessed). Outside the
+band, keep the margin and skip the call. Exact placement decisions at zero
+marginal cost on the shapes where the heuristic is least trustworthy.
+
+Also from export #3: export #2's batch-classifier claim (+$0.0101, 6,286 cache
+reads on a prefix count_tokens now shows is sub-minimum) cannot be re-audited
+because its spools were not retained. Standing rule from tonight: every live
+export runs with FLUX_LIVE_KEEP=1 and commits its spools to
+evals/live-exports-<date>/ before any number is published.

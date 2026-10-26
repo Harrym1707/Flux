@@ -26,7 +26,7 @@ Three things no other cost tool says on its front page:
 | Background / batch / latency-tolerant (OpenAI flex tier) | **57.7% net** (64.3% ceiling) | simulator-measured, billed from the SERVED tier |
 | One-shot templated API traffic | **45.5%**, up to 72.8% | simulator-measured |
 | Interactive agents (busy / sparse) | **25.9% / 34.3%** | simulator-measured |
-| Latest live export (30 requests, claude-sonnet-5-5) | **18.0% net** (agents 0–23%) | measured on live API traffic, every active agent billing |
+| Latest live export (30 requests, claude-sonnet-5-5, 2026-10-26) | **18.2% net** (agents 0–38.1%) | measured on live API traffic; hash-chained spools in `evals/live-exports-2026-10-26/` — recompute it yourself |
 | Already-optimised stacks | **0–5%** | we tell you not to pay us |
 
 Every number traces to a command and a commit: see

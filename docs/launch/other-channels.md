@@ -55,7 +55,7 @@ breakpoint over a volatile prefix). The ledger caught it and counted it
 against us. We published the loss, the root cause, and the fix.
 
 5/ Measured bands, labelled: 37.9% from correct cache placement alone
-(simulator, identical prompts both arms). 18.0% of real spend on our latest
+(simulator, identical prompts both arms). 18.2% of real spend on our latest
 live run — receipt published line by line. Already-optimised stack? The
 quote says "do not pay us."
 

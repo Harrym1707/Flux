@@ -40,7 +40,7 @@ lasts hours; a broken first impression lasts.
    the Change Date. We charge 1% of verified savings in production; that's
    the whole business.
 4. **"The savings numbers are simulated."** Answer: the bands are
-   simulator-measured and labelled so everywhere they appear; the 18.0% is
+   simulator-measured and labelled so everywhere they appear; the 18.2% is
    live API traffic, receipt published line by line, and your pilot replaces
    every number with your own traffic before any fee exists.
 5. **"What about my data?"** Answer: the proxy runs on your machine; prompts

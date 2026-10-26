@@ -47,9 +47,10 @@ will correct it.
   you don't need the saving verified. FLUX's value is the *verified, billable*
   number; if you don't need that, rtk is free.
 - **Most FLUX figures are simulator-measured and labelled so.** The live
-  numbers so far come from small runs (the latest: 18.0% of real spend across
-  30 requests, receipt published line by line). The pilot exists to replace
-  every number with ones from your own traffic before any fee applies.
+  numbers so far come from small runs (the latest: 18.2% of real spend across
+  30 requests, hash-chained spools committed to the repo so you can recompute
+  it). The pilot exists to replace every number with ones from your own
+  traffic before any fee applies.
 
 ## The comparison grid
 
@@ -78,7 +79,7 @@ repo). Blank praise sells nothing: each tool wins its own rows.
 | Three popular OSS token trimmers | 60–90% | **3.7%** combined, 614M-token real-traffic replay | codepointer.dev deep dive |
 | Progressive tool-schema disclosure | ~77% modelled | **~13%** in production | archestra.ai bench |
 | Best-funded commercial router | 30%+ | ranked **12th of 12** | RouterArena leaderboard |
-| FLUX, per-workload bands | 26–81% by shape, simulator-measured and labelled | **18.0% live** on a deliberately mixed 30-request basket incl. one shape designed to save 0% (receipt published; pre-dates two shipped fixes) | our evidence page — every number traces to a command |
+| FLUX, per-workload bands | 26–81% by shape, simulator-measured and labelled | **18.2% live** on a deliberately mixed 30-request basket incl. two shapes designed to save ~0% (hash-chained spools committed to the repo; third consecutive live run) | our evidence page — every number traces to a command |
 
 We publish the right-hand column for ourselves because we demand it of
 everyone else. Your pilot replaces every FLUX number with your own traffic's

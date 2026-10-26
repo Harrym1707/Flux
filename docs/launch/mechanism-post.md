@@ -85,7 +85,7 @@ and buys the only thing a counterfactual biller can sell: being checkable.
 
 - Correct Claude cache placement alone, same prompts both arms: **37.9%**
   (simulator at published prices, labelled as such)
-- Latest live run (30 real requests, five agent shapes): **18.0% of actual
+- Latest live run (30 real requests, five agent shapes): **18.2% of actual
   spend**, receipt published line by line
 - Already-optimised stacks: **0–5%**, verdict `do_not_charge`
 - The proxy's own cost: **~22ms p50** added per request, measurement script in
