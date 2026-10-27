@@ -113,9 +113,10 @@ This is a prototype. Honest gaps, not hidden:
    stub (fixed summary / truncation). A real adapter (e.g. a small quantised
    on-device summariser) is needed, plus guidance on which local models are good
    enough.
-2. **Calibration data.** `maxTokens`, `minimumTurns`, `keepRecentTurns` defaults
-   (200 / 3 / 2) are untuned guesses. They need calibration against real recorded
-   agent traffic, not fixtures.
+2. **Calibration data.** `minimumTurns`/`keepRecentTurns` (3 / 2) are CONFIRMED tuned against WildChat +
+   agent corpora (2026-10-27 findings); `maxTokens` recalibrated 200 -> 500 from
+   the agent tool-result median (~270-302 tok) so it fires on the oversized tail,
+   not the typical observation. Re-confirm at larger n in run 2.
 3. **Gate integration.** The lever is wired to the gate's *billing* contract and
    carries a reducer-level verdict guard, but there is no eval script yet that
    runs `replayGate` over semantic compaction on a fixture the way

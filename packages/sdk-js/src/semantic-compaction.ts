@@ -100,7 +100,17 @@ export type SemanticCompactionConfig = {
    * refuses to bill the lever without an approved verdict.
    */
   gateVerdict?: LedgerGateVerdict;
-  /** Target ceiling for a compacted body, approximate tokens. Default 200. */
+  /**
+   * Target ceiling for a compacted body, approximate tokens. Default 500.
+   *
+   * Calibrated from real agent trajectories (docs/rnd/knowledge/
+   * 2026-10-27-dataset-findings.md): tool-result median is ~270–302 tok across
+   * SWE-rebench/SWE-smith/tau-bench, so the old 200 floor flagged 58–68% of ALL
+   * tool-results — compacting the typical observation, not the oversized tail.
+   * 500 fires on only the genuinely-oversized 3.5–34.5% tail. This lever runs
+   * only on multi-turn agent-shaped conversations (minimumTurns gate), so the
+   * agent-trajectory distribution is the right calibration population.
+   */
   maxTokens?: number;
   /** Only compact once the conversation has at least this many user turns. Default 3. */
   minimumTurns?: number;
@@ -260,7 +270,7 @@ export async function compactStaleContext(
     );
   }
 
-  const maxTokens = config.maxTokens ?? 200;
+  const maxTokens = config.maxTokens ?? 500;
   const minimumTurns = config.minimumTurns ?? 3;
   const keepRecentTurns = config.keepRecentTurns ?? 2;
   if (!Number.isInteger(maxTokens) || maxTokens < 1) throw new Error("semanticCompaction maxTokens must be a positive integer.");

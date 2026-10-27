@@ -244,3 +244,58 @@ describe("reduceRequestAsync", () => {
     expect(messages[7]!.content).toBe(LONG_TOOL_RESULT);
   });
 });
+
+describe("maxTokens default calibration (2026-10-27 dataset findings)", () => {
+  /**
+   * Builds a 3+ turn request whose STALE turns carry tool-result bodies of the
+   * given approximate token sizes (chars ≈ 4×tokens), so we can measure what
+   * fraction the default floor flags. Mirrors the agent-trajectory tool-result
+   * distribution (median ~270–302 tok): a 200 floor over-fires on the typical
+   * observation; 500 fires only on the oversized tail.
+   */
+  function requestWithStaleResults(tokenSizes: number[]): Record<string, unknown> {
+    const messages: Array<Record<string, unknown>> = [];
+    tokenSizes.forEach((tok, i) => {
+      messages.push({ role: "user", content: `stale turn ${i}` });
+      messages.push({ role: "tool", content: "x".repeat(tok * 4) });
+      messages.push({ role: "assistant", content: `ans ${i}` });
+    });
+    // Two recent turns kept verbatim (keepRecentTurns=2) plus a live turn.
+    messages.push({ role: "user", content: "recent A" }, { role: "assistant", content: "a" });
+    messages.push({ role: "user", content: "recent B" }, { role: "assistant", content: "b" });
+    messages.push({ role: "user", content: "live" });
+    return { model: "claude-sonnet-4", messages };
+  }
+
+  // Representative agent tool-result sizes around the measured ~300-tok median.
+  const SIZES = [120, 180, 250, 290, 302, 340, 420, 480, 650, 900, 1500, 5000];
+
+  async function firedCount(maxTokens: number): Promise<number> {
+    const result = await compactStaleContext(requestWithStaleResults(SIZES), {
+      compactor: truncatingCompactor, gateVerdict: APPROVED, maxTokens,
+    });
+    return result.change ? SIZES.filter((s) => s > maxTokens).length : 0;
+  }
+
+  it("the new 500 default fires on far fewer normal tool-results than the old 200", async () => {
+    const firedAt200 = SIZES.filter((s) => s > 200).length; // old default
+    const firedAt500 = SIZES.filter((s) => s > 500).length; // new default
+    // Measurable precision gain: 200 flags the typical observation; 500 the tail.
+    expect(firedAt200 / SIZES.length).toBeGreaterThan(0.6); // over-fires (>60%)
+    expect(firedAt500 / SIZES.length).toBeLessThan(0.4);    // tail only (<40%)
+    expect(await firedCount(500)).toBeLessThan(await firedCount(200));
+  });
+
+  it("defaults maxTokens to 500 when unset", async () => {
+    // A 300-tok stale result (at the measured median) is NOT compacted by default now.
+    const atMedian = await compactStaleContext(requestWithStaleResults([300, 300, 300]), {
+      compactor: truncatingCompactor, gateVerdict: APPROVED, // maxTokens unset -> 500
+    });
+    expect(atMedian.change).toBeUndefined(); // 300 <= 500 default, left verbatim
+    // A 900-tok oversized result IS compacted by default.
+    const oversized = await compactStaleContext(requestWithStaleResults([900, 900, 900]), {
+      compactor: truncatingCompactor, gateVerdict: APPROVED,
+    });
+    expect(oversized.change).toBeDefined();
+  });
+});
