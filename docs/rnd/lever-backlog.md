@@ -150,3 +150,34 @@ reads on a prefix count_tokens now shows is sub-minimum) cannot be re-audited
 because its spools were not retained. Standing rule from tonight: every live
 export runs with FLUX_LIVE_KEEP=1 and commits its spools to
 evals/live-exports-<date>/ before any number is published.
+
+## From day-shift 2026-10-27 (agent reverse-engineering + image/video)
+
+Full findings: docs/rnd/knowledge/2026-10-27-agent-reverse-engineering.md and
+.../2026-10-27-image-video-economics.md. Distilled for the nightly queue:
+
+- **DECISIVE FRAMING (agents):** the single determinant of whether FLUX can help
+  an account is "does the agent already cache its prefix". Cached agents (Cline,
+  OpenHands, SWE-agent, CrewAI native, Aider-with-flag) are do-not-pay-us; the
+  resend-levers are already-done or net-negative there (editing a cached prefix
+  forces a 1.25x re-write). Uncached paths (LangGraph default, AutoGen default,
+  gpt-researcher) are where the cache lever is real at $2 vs $0.10 /MTok.
+  ACTION: add a "do your agents already cache?" triage question to the quote flow.
+- **P3 — idle-expiry keep-warm metering.** 5-min ephemeral TTL (Cline et al.)
+  expires across think/test gaps; prefix re-bills write vs read (100k prefix ≈
+  $0.24/expired turn). METERING+advice lever (recommend 1h tier / keep-warm),
+  NOT a shipped quantified saving until TTL + gap distribution measured.
+- **P3 — empty-response billed-resend metering.** Only byte-identical *billed*
+  resend class found (Cline empty-retry already surfaced; gpt-researcher empty-200,
+  freq UNKNOWN). Visibility feature, not a derivable saving.
+- **REJECTED (negative result, logged):** cross-agent relay cache-sharing in
+  multi-agent frameworks — relay content differs per agent role; no shared-prefix
+  win. Do not pursue.
+- **IMG/VIDEO honest verdict:** FLUX CANNOT reduce the per-image/per-second
+  generation charge — say so on the site (new do-not-pay-us segment). Vision-input
+  right-sizing saves $0 tokens up to the provider's own downscale cap (provider
+  discards those pixels anyway); only sub-cap downscale saves tokens and is LOSSY
+  → gate-only. The one shipped lever that applies: candidate 7, cache-prefix stamp
+  over STABLE video-frame prefixes (5-turn 1-min-clip chat: $3.23 -> ~$0.26+write).
+- **NET-NEW CODE flagged (not today):** image/frame-aware reduce-request (resize,
+  frame dedup) + a Gemini generateContent proxy route — none exist at 59a034a.
