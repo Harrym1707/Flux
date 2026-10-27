@@ -369,8 +369,10 @@ anything.
 
 Known open items we publish rather than hide: per-model cacheable minimums are
 not yet in the simulator (the sparse-traffic 34.3% may overstate on some
-models); Anthropic batch rates are not yet catalogued (the async figure is
-OpenAI-priced); both are tracked in [evidence](evidence.md).
+models). Anthropic batch rates ARE now catalogued (2026-10-27, from the page's
+definitive "Save 50% with batch processing"), so async-eligible Claude traffic
+prices natively at half standard and FLUX picks batch-routing or caching per
+shape, whichever is cheaper; tracked in [evidence](evidence.md).
 
 
 ---
@@ -409,8 +411,10 @@ generated fixtures (27/27).
 
 - Per-model cacheable minimums not yet simulated → 34.3% may overstate on some
   models.
-- Anthropic batch rate uncatalogued → async figures OpenAI-priced; Anthropic
-  batch events are correctly *unpriced*, never zeroed.
+- Anthropic batch rate NOW catalogued (2026-10-27): the pricing page states a
+  definitive "Save 50% with batch processing", so Anthropic batch events price
+  natively at half standard. The workload matrix now evaluates batch-routing
+  against caching per shape and picks the cheaper (`evals/run-workload-matrix.ts`).
 - Package freshness gate and automated CJS smoke not yet in the build script
   (the CJS tarball was smoke-tested manually at `4e51734`).
 - **The banded figures are simulator-measured.** A first real-traffic export
@@ -663,9 +667,11 @@ no minimum. A month that saved nothing bills nothing, and negative lever
 months count against us.
 
 **What's the catch?**
-Three, published: busy interactive agents cap around 29% because the provider's
+Two, published: busy interactive agents cap around 29% because the provider's
 cache already does the heavy lifting; the 34.3% sparse figure awaits a
-per-model cache-minimum correction and may come down for some models; Anthropic
-batch pricing isn't catalogued yet, so the async figure is OpenAI-priced today.
-When a number moves for honesty reasons, this site moves with it — the async
-headline already went from 64.3% to 57.7% that way.
+per-model cache-minimum correction and may come down for some models. (A third
+is now closed: Anthropic batch pricing was uncatalogued; as of 2026-10-27 it is
+catalogued at the provider's definitive 50% discount, so Claude async traffic
+prices natively instead of being OpenAI-priced.) When a number moves for
+honesty reasons, this site moves with it — the async headline already went from
+64.3% to 57.7% that way.

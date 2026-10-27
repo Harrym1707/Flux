@@ -97,7 +97,7 @@ footer{border-top:2px solid var(--signal);margin-top:3rem;padding-top:1rem;font-
 <h2>Open items (also stated wherever the affected number appears)</h2>
 <ul>
 <li>Per-model cacheable minimums not yet simulated → 34.3% may overstate on some models.</li>
-<li>Anthropic batch rate uncatalogued → async figures OpenAI-priced; Anthropic batch events are correctly *unpriced*, never zeroed.</li>
+<li>Anthropic batch rate NOW catalogued (2026-10-27): the pricing page states a definitive &quot;Save 50% with batch processing&quot;, so Anthropic batch events price natively at half standard. The workload matrix now evaluates batch-routing against caching per shape and picks the cheaper (<code>evals/run-workload-matrix.ts</code>).</li>
 <li>Package freshness gate and automated CJS smoke not yet in the build script (the CJS tarball was smoke-tested manually at <code>4e51734</code>).</li>
 <li><strong>The banded figures are simulator-measured.</strong> A first real-traffic export exists (30 requests, see the table) and found one lever losing money on one-shot traffic — fixed at <code>ec191c5</code> and re-verified. The bands stay simulator-labelled until a pilot-scale export replaces them.</li>
 </ul>
