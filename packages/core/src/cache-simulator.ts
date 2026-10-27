@@ -98,6 +98,19 @@ export type SimulatedRequest = {
   prompt: string;
   /** Output tokens the model produced, for costing. */
   outputTokens: number;
+  /**
+   * How long after `atSeconds` this request's own cache write becomes
+   * visible to OTHER requests — i.e. the write's time to first response
+   * byte. A cache entry does not exist for anyone else until the writing
+   * request's response has started; two requests sent at (near-)identical
+   * timestamps for the same prefix therefore both miss and both pay the
+   * write premium in reality, which a model that makes a write instantly
+   * visible would hide. Defaults to 0 (instantly visible), which preserves
+   * every existing simulation where requests are already spaced well
+   * beyond any realistic latency; set this explicitly to model genuine
+   * concurrency (fan-out, racing sub-agents).
+   */
+  visibleAfterSeconds?: number;
 };
 
 export type SimulatedCall = {
@@ -109,7 +122,7 @@ export type SimulatedCall = {
   outputTokens: number;
   costUsd: number;
   /** Why nothing was cached, when nothing was. */
-  missReason?: "below-minimum" | "no-matching-prefix" | "expired" | "first-request";
+  missReason?: "below-minimum" | "no-matching-prefix" | "expired" | "first-request" | "not-yet-visible";
 };
 
 export type SimulationResult = {
@@ -128,7 +141,7 @@ export type SimulationResult = {
   missReasons: Record<string, number>;
 };
 
-type Entry = { prompt: string; lastUsedAt: number };
+type Entry = { prompt: string; lastUsedAt: number; visibleAt: number };
 
 function commonPrefixLength(left: string, right: string): number {
   const limit = Math.min(left.length, right.length);
@@ -184,14 +197,23 @@ export function simulateCache(
     if (entries.length === 0) {
       missReason = calls.length === 0 ? "first-request" : "expired";
     } else {
-      // Longest exact prefix across live entries, as the providers describe.
+      // Longest exact prefix across entries ALREADY VISIBLE to this request,
+      // as the providers describe. An entry whose writer's response has not
+      // yet started cannot be read by a concurrent sibling, no matter how
+      // long the shared text is — tracked separately so a loss caused purely
+      // by that race is distinguishable from no prefix existing at all.
       let bestChars = 0;
       let bestEntry: Entry | undefined;
+      let racingChars = 0;
       for (const entry of entries) {
         const shared = commonPrefixLength(entry.prompt, request.prompt);
-        if (shared > bestChars) {
-          bestChars = shared;
-          bestEntry = entry;
+        if (entry.visibleAt <= request.atSeconds) {
+          if (shared > bestChars) {
+            bestChars = shared;
+            bestEntry = entry;
+          }
+        } else if (shared > racingChars) {
+          racingChars = shared;
         }
       }
       const sharedTokens = bestChars === 0 ? 0 : countTokens(request.prompt.slice(0, bestChars));
@@ -201,7 +223,11 @@ export function simulateCache(
         cachedInputTokens = Math.min(granted, totalInputTokens);
         bestEntry!.lastUsedAt = request.atSeconds;
       } else {
-        missReason = granted === 0 ? "no-matching-prefix" : "below-minimum";
+        const racingTokens = racingChars === 0 ? 0 : countTokens(request.prompt.slice(0, racingChars));
+        const racingGranted = Math.floor(racingTokens / policy.incrementTokens) * policy.incrementTokens;
+        missReason = racingGranted >= policy.minimumCacheableTokens
+          ? "not-yet-visible"
+          : granted === 0 ? "no-matching-prefix" : "below-minimum";
       }
     }
 
@@ -231,7 +257,11 @@ export function simulateCache(
       ...(missReason === undefined ? {} : { missReason }),
     });
 
-    entries.push({ prompt: request.prompt, lastUsedAt: request.atSeconds });
+    entries.push({
+      prompt: request.prompt,
+      lastUsedAt: request.atSeconds,
+      visibleAt: request.atSeconds + (request.visibleAfterSeconds ?? 0),
+    });
     // Providers keep a bounded cache; holding every prompt forever would
     // overstate hit rates on long runs.
     if (entries.length > 64) entries.shift();
