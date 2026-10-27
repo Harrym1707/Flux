@@ -241,3 +241,32 @@ CORRECTIONS TO RECONCILE (honesty — do before any dependent claim ships):
 - Pin the re-emission metric aggregation (per-message 5-gram p90=35.5% vs
   per-conversation-worst p90=71.3%; the old 61% sits between) before the
   output-metering lever's trigger threshold is set.
+
+## Run-2 verdicts on the queued deltas (2026-10-27, docs/.../2026-10-27-dataset-findings-run2.md)
+
+Deeper pull (Mooncake full trace, Azure full week n≈2.9M, SWE-rebench n=2,000 =10x,
+4 non-SWE agent corpora). Verdicts:
+
+- **WORKLOAD-AWARE TTL (p90>300s → 1h): FALSIFIED. Shipped then REVERTED same night
+  (revert of 38a9a9e).** Once the 2x 1h write premium is charged on every cacheworthy
+  block, flat-1h LOSES to flat-5m on all three Mooncake workloads (conversation −4.7pp):
+  the premium is taxed on the 60-68% of blocks with no (300s,3600s] reuse gap. A whole-
+  conversation p90 trigger makes exactly that losing choice. CORRECT DESIGN (re-queued,
+  build carefully with review): PER-PREFIX adaptive 5m→1h promotion — 5m default, promote
+  an individual prefix only after an observed >300s-then-reused gap on THAT prefix. Oracle
+  adaptive beats flat-5m +8.8/+3.7/+2.9pp (conv/tool/synth). The stamp currently applies
+  one TTL per request, so true per-prefix promotion is a non-trivial change — do not ship
+  a conversation-level approximation without pricing it against flat-5m first.
+- **maxTokens 200→500 (agent tier): CONFIRMED at 10x n** (SWE n=127,328 median 293, fires
+  62.0%→31.7%) and across non-SWE. Kept (commit 4000d41). CAVEAT run 2 adds: it is a safe
+  trigger FLOOR, not a universal target — web/document agents (Mind2Web ~28k-tok median
+  "tool results") would see 56x compaction, so for those keepRecentTurns is the guard, not
+  maxTokens. A web-agent compaction profile is net-new work.
+- **Output re-emission ~0% on agents: CONFIRMED across 7 corpora, SHARPENED.** Run-1 "0%"
+  was a context-definition artifact; faithful metric (context = full re-sent body) is 3.25%
+  token-weighted on SWE — still ≪ the chat 24% band. No agent output lever off 24%.
+- **Cacheable-min 1024/2048 split: CONFIRMED** stable over a full Azure week. No change.
+- **Tool-schema compaction: PROMOTE** — 67-80% of cold first request off-SWE (vs 48-51% SWE),
+  the heaviest single component; always >1024/2048 so independently cacheable.
+- **Dedup ceiling ~7-9%, history gates 3/2: CONFIRMED.** Output-side levers de-prioritized
+  for Tier-1 (Azure out:in ≤0.05 median over 2.9M requests).
