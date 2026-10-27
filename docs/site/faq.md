@@ -78,9 +78,11 @@ no minimum. A month that saved nothing bills nothing, and negative lever
 months count against us.
 
 **What's the catch?**
-Three, published: busy interactive agents cap around 29% because the provider's
+Two, published: busy interactive agents cap around 29% because the provider's
 cache already does the heavy lifting; the 34.3% sparse figure awaits a
-per-model cache-minimum correction and may come down for some models; Anthropic
-batch pricing isn't catalogued yet, so the async figure is OpenAI-priced today.
-When a number moves for honesty reasons, this site moves with it — the async
-headline already went from 64.3% to 57.7% that way.
+per-model cache-minimum correction and may come down for some models. (A third
+is now closed: Anthropic batch pricing was uncatalogued; as of 2026-10-27 it is
+catalogued at the provider's definitive 50% discount, so Claude async traffic
+prices natively instead of being OpenAI-priced.) When a number moves for
+honesty reasons, this site moves with it — the async headline already went from
+64.3% to 57.7% that way.

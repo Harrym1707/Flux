@@ -181,3 +181,22 @@ Full findings: docs/rnd/knowledge/2026-10-27-agent-reverse-engineering.md and
   over STABLE video-frame prefixes (5-turn 1-min-clip chat: $3.23 -> ~$0.26+write).
 - **NET-NEW CODE flagged (not today):** image/frame-aware reduce-request (resize,
   frame dedup) + a Gemini generateContent proxy route — none exist at 59a034a.
+
+## P1 batch routing — SHIPPED (pricing + selection) + follow-on (2026-10-27)
+
+DONE today: Anthropic Batch API rates catalogued (50% of standard, from the
+page's definitive "Save 50% with batch processing", dated 2026-10-27, cache-write
+premium deliberately omitted → unpriced not guessed). The workload matrix now
+prices the async-eligible shape under BOTH caching and batch-routing and picks
+the cheaper per shape (lever selection — the first non-caching lever that helps
+already-well-cached accounts). 5 catalogue tests + eval green. Site caveats
+updated (the "Anthropic batch uncatalogued" catch is now closed).
+
+FOLLOW-ON (not shipped): the batch ROUTING EXECUTION. Cataloguing + selecting
+is measurement; CAPTURING the 50% needs the proxy to submit latency-tolerant
+Anthropic traffic to the async Message Batches API (/v1/messages/batches:
+submit → poll → return), which changes a sync call into an async one — only
+valid where the caller opted into latency tolerance. Design needs: an explicit
+per-request "batch-ok" signal (never inferred), a submit/poll path in proxy.ts,
+and a ledger event priced at the catalogued batch rate. Until then FLUX meters
+and recommends the batch opportunity but does not silently reroute.

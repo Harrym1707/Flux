@@ -51,9 +51,16 @@ const LOSSLESS: FluxTokenReductionConfig = {
   repairCachePrefix: true,
 };
 
-const AT = "2026-10-19";
+const AT = "2026-10-27";
 const price = lookupPrice(publishedModelPrices, { provider: "anthropic", model: "Sonnet 5.5", at: AT });
 if (price.status !== "priced") throw new Error("price lookup failed for Sonnet 5.5");
+// Batch rate for latency-tolerant shapes: 50% off standard, catalogued from the
+// provider's definitive "Save 50% with batch processing". Routing an async-eligible
+// workload to the Batch API is a lever independent of caching.
+const batchPrice = lookupPrice(publishedModelPrices, { provider: "anthropic", model: "Sonnet 5.5", mode: "batch", at: AT });
+if (batchPrice.status !== "priced") throw new Error("batch price lookup failed for Sonnet 5.5");
+const batchInputRate = batchPrice.price.inputPerMillion / 1_000_000;
+const batchOutputRate = batchPrice.price.outputPerMillion / 1_000_000;
 
 // --- Shared building blocks ------------------------------------------------
 
@@ -270,7 +277,22 @@ function priceStamped(stream: Array<{ atSeconds: number; full: string; spans: st
   return { costUsd: cost, hitRate: totalInputTokens > 0 ? cachedTokens / totalInputTokens : 0 };
 }
 
-function measure(name: string, build: () => Shaped[]): void {
+/**
+ * Flat cost of a reduced stream submitted to the Batch API: 50%-off input/output
+ * on every token, NO prompt-cache stacking (batch cache rates are unpublished, so
+ * we never assume the read/write multipliers apply under batch). This is the
+ * honest "route this async-eligible shape to the Batch API instead of caching it"
+ * alternative; FLUX picks whichever lever is cheaper per workload.
+ */
+function priceBatchFlat(stream: Array<{ full: string; outputTokens: number }>): number {
+  let cost = 0;
+  for (const entry of stream) {
+    cost += approximateTokenCount(entry.full) * batchInputRate + entry.outputTokens * batchOutputRate;
+  }
+  return cost;
+}
+
+function measure(name: string, build: () => Shaped[], opts: { batchEligible?: boolean } = {}): void {
   const shaped = build();
 
   const rawStream: SimulatedRequest[] = shaped.map((entry) => {
@@ -289,15 +311,25 @@ function measure(name: string, build: () => Shaped[]): void {
     for (const change of summary.changes) levers.set(change.lever, (levers.get(change.lever) ?? 0) + 1);
     return { atSeconds: entry.atSeconds, ...wire(request as AnyObject), outputTokens: entry.outputTokens };
   });
-  const reduced = priceStamped(reducedStream);
+  const stamped = priceStamped(reducedStream);
+
+  // On a latency-tolerant shape, FLUX picks the cheaper of {cache the prefix} and
+  // {route to the Batch API at 50% off}. The batch route is a lever independent of
+  // caching — so it helps exactly the already-well-cached accounts caching cannot.
+  const batchFlat = opts.batchEligible ? priceBatchFlat(reducedStream) : Infinity;
+  const chosenCost = Math.min(stamped.costUsd, batchFlat);
+  const chosenLever = opts.batchEligible && batchFlat < stamped.costUsd ? "batch-route (50% off)" : "cache-stamp";
 
   const tokenPct = tokensBefore > 0 ? ((tokensBefore - tokensAfter) / tokensBefore) * 100 : 0;
-  const costPct = ((raw.totalCostUsd - reduced.costUsd) / raw.totalCostUsd) * 100;
+  const costPct = ((raw.totalCostUsd - chosenCost) / raw.totalCostUsd) * 100;
   const leverList = [...levers.entries()].sort((a, b) => b[1] - a[1]).map(([id, count]) => `${id}x${count}`).join(", ");
 
-  console.log(`${name.padEnd(22)} ${String(shaped.length).padStart(3)} req  tokens ${tokenPct >= 0 ? "-" : "+"}${Math.abs(tokenPct).toFixed(1).padStart(5)}%  cost ${costPct >= 0 ? "-" : "+"}${Math.abs(costPct).toFixed(1).padStart(5)}%  (raw $${raw.totalCostUsd.toFixed(4)} -> $${reduced.costUsd.toFixed(4)}, hits ${(reduced.hitRate * 100).toFixed(0)}%)`);
+  console.log(`${name.padEnd(22)} ${String(shaped.length).padStart(3)} req  tokens ${tokenPct >= 0 ? "-" : "+"}${Math.abs(tokenPct).toFixed(1).padStart(5)}%  cost ${costPct >= 0 ? "-" : "+"}${Math.abs(costPct).toFixed(1).padStart(5)}%  (raw $${raw.totalCostUsd.toFixed(4)} -> $${chosenCost.toFixed(4)}${opts.batchEligible ? `, lever ${chosenLever}` : `, hits ${(stamped.hitRate * 100).toFixed(0)}%`})`);
+  if (opts.batchEligible) {
+    console.log(`${"".padEnd(22)} async-eligible: cache-stamp $${stamped.costUsd.toFixed(4)} vs batch-route $${batchFlat.toFixed(4)} -> FLUX picks ${chosenLever}`);
+  }
   console.log(`${"".padEnd(22)} levers: ${leverList}`);
-  if (reduced.costUsd >= raw.totalCostUsd) {
+  if (chosenCost >= raw.totalCostUsd) {
     console.log(`${"".padEnd(22)} WARNING: no net saving on this shape - a finding, not a failure; investigate before publishing.`);
     process.exitCode = 1;
   }
@@ -310,5 +342,5 @@ measure("multi-agent team", multiAgentTeam);
 measure("autonomous agent", autonomousAgent);
 measure("memory agent", memoryAgent);
 measure("rag pipeline", ragPipeline);
-measure("batch classification", batchClassification);
+measure("batch classification", batchClassification, { batchEligible: true });
 console.log("\nEvery row must save or the run exits non-zero: a shape FLUX cannot reduce is a finding to fix, not to hide.");

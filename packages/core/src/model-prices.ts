@@ -32,6 +32,21 @@ const OPENAI = {
   note: "Standard tier unless the entry says otherwise.",
 } as const;
 
+// The Message Batches API discount, catalogued only because the pricing page now
+// states it as a definitive, unhedged rate: "Save 50% with batch processing"
+// (claude.com/pricing, verified 2026-10-27 — previously hedged as "typically"
+// half, which is why these were not seeded before). The 50% is applied to the
+// same published standard input/output/cached-input rates above; cache WRITE
+// premiums under batch are not separately published, so they are left off these
+// entries and price unpriced rather than guessed.
+const ANTHROPIC_BATCH = {
+  source: "https://claude.com/pricing",
+  capturedOn: "2026-10-27",
+  note: "Batch processing = 50% of standard, per the page's definitive \"Save 50% with " +
+    "batch processing\". Derived by halving the dated standard rates; cache-write premiums " +
+    "under batch are not published and are omitted (priced unpriced, never guessed).",
+} as const;
+
 const OBSERVED_FROM = "2026-10-08";
 
 type Rates = {
@@ -49,12 +64,13 @@ function entry(
   provenance: ModelPriceEntry["provenance"],
   bands: Rates[],
   mode: ModelPriceEntry["mode"] = "standard",
+  effectiveFrom: string = OBSERVED_FROM,
 ): ModelPriceEntry {
   return {
     provider,
     model,
     mode,
-    effectiveFrom: OBSERVED_FROM,
+    effectiveFrom,
     provenance,
     tiers: bands.map((band) => ({
       ...(band.maxInputTokens === undefined ? {} : { maxInputTokens: band.maxInputTokens }),
@@ -82,6 +98,22 @@ const anthropic: ModelPriceEntry[] = [
     { maxInputTokens: 100_000, input: 0.1, output: 0.5, cachedInput: 0.01, cacheWriteInput: 0.125, cacheWrite1hInput: 0.2 },
     { input: 0.5, output: 2.5, cachedInput: 0.05, cacheWriteInput: 0.625, cacheWrite1hInput: 1 },
   ]),
+
+  // Batch mode: 50% of standard, per the definitive "Save 50% with batch processing"
+  // (ANTHROPIC_BATCH provenance). Each rate is exactly half its standard entry above.
+  entry("anthropic", "Fable 5.1", ANTHROPIC_BATCH, [
+    { input: 5, output: 25, cachedInput: 0.125 },
+  ], "batch", "2026-10-27"),
+  entry("anthropic", "Opus 5.5", ANTHROPIC_BATCH, [
+    { input: 2, output: 10, cachedInput: 0.1 },
+  ], "batch", "2026-10-27"),
+  entry("anthropic", "Sonnet 5.5", ANTHROPIC_BATCH, [
+    { input: 1, output: 5, cachedInput: 0.05 },
+  ], "batch", "2026-10-27"),
+  entry("anthropic", "Haiku 5.5", ANTHROPIC_BATCH, [
+    { maxInputTokens: 100_000, input: 0.05, output: 0.25, cachedInput: 0.005 },
+    { input: 0.25, output: 1.25, cachedInput: 0.025 },
+  ], "batch", "2026-10-27"),
 ];
 
 const openai: ModelPriceEntry[] = [

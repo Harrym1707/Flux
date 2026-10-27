@@ -55,5 +55,7 @@ anything.
 
 Known open items we publish rather than hide: per-model cacheable minimums are
 not yet in the simulator (the sparse-traffic 34.3% may overstate on some
-models); Anthropic batch rates are not yet catalogued (the async figure is
-OpenAI-priced); both are tracked in [evidence](evidence.md).
+models). Anthropic batch rates ARE now catalogued (2026-10-27, from the page's
+definitive "Save 50% with batch processing"), so async-eligible Claude traffic
+prices natively at half standard and FLUX picks batch-routing or caching per
+shape, whichever is cheaper; tracked in [evidence](evidence.md).

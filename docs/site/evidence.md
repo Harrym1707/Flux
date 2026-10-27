@@ -32,8 +32,10 @@ generated fixtures (27/27).
 
 - Per-model cacheable minimums not yet simulated → 34.3% may overstate on some
   models.
-- Anthropic batch rate uncatalogued → async figures OpenAI-priced; Anthropic
-  batch events are correctly *unpriced*, never zeroed.
+- Anthropic batch rate NOW catalogued (2026-10-27): the pricing page states a
+  definitive "Save 50% with batch processing", so Anthropic batch events price
+  natively at half standard. The workload matrix now evaluates batch-routing
+  against caching per shape and picks the cheaper (`evals/run-workload-matrix.ts`).
 - Package freshness gate and automated CJS smoke not yet in the build script
   (the CJS tarball was smoke-tested manually at `4e51734`).
 - **The banded figures are simulator-measured.** A first real-traffic export

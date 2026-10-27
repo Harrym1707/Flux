@@ -294,3 +294,50 @@ describe("model identifier resolution", () => {
     expect(result.status === "unresolved" && result.reason).toMatch(/No models are catalogued/);
   });
 });
+
+describe("Anthropic batch rates (catalogued 2026-10-27 from the definitive 50% statement)", () => {
+  const at = "2026-10-27";
+  it("prices every Anthropic batch model at exactly half its standard input/output rate", () => {
+    for (const model of ["Opus 5.5", "Sonnet 5.5", "Fable 5.1"]) {
+      const std = lookupPrice(publishedModelPrices, { provider: "anthropic", model, at });
+      const batch = lookupPrice(publishedModelPrices, { provider: "anthropic", model, mode: "batch", at });
+      expect(std.status).toBe("priced");
+      expect(batch.status).toBe("priced");
+      if (std.status !== "priced" || batch.status !== "priced") continue;
+      expect(batch.price.inputPerMillion).toBeCloseTo(std.price.inputPerMillion / 2, 10);
+      expect(batch.price.outputPerMillion).toBeCloseTo(std.price.outputPerMillion / 2, 10);
+      expect(batch.entry.provenance.source).toBe("https://claude.com/pricing");
+    }
+  });
+
+  it("halves Haiku's over-100K band too", () => {
+    const big = { provider: "anthropic", model: "Haiku 5.5", at } as const;
+    const std = lookupPrice(publishedModelPrices, big, 150_000);
+    const batch = lookupPrice(publishedModelPrices, { ...big, mode: "batch" }, 150_000);
+    if (std.status !== "priced" || batch.status !== "priced") throw new Error("expected priced");
+    expect(batch.price.inputPerMillion).toBeCloseTo(std.price.inputPerMillion / 2, 10);
+    expect(batch.price.outputPerMillion).toBeCloseTo(std.price.outputPerMillion / 2, 10);
+  });
+
+  it("prices a batch classification request at half a standard one", () => {
+    const usage = { inputTokens: 1_000_000, outputTokens: 200_000 };
+    const std = priceUsage(publishedModelPrices, { provider: "anthropic", model: "Sonnet 5.5", at }, usage);
+    const batch = priceUsage(publishedModelPrices, { provider: "anthropic", model: "Sonnet 5.5", mode: "batch", at }, usage);
+    if (std.status !== "priced" || batch.status !== "priced") throw new Error("expected priced");
+    expect(batch.costUsd).toBeCloseTo(std.costUsd / 2, 10);
+  });
+
+  it("does not guess a cache-WRITE premium under batch (unpublished → unpriced, never zero)", () => {
+    const withWrite = priceUsage(
+      publishedModelPrices,
+      { provider: "anthropic", model: "Sonnet 5.5", mode: "batch", at },
+      { inputTokens: 1000, outputTokens: 500, cacheWriteInputTokens: 2000 },
+    );
+    expect(withWrite.status).toBe("unpriced");
+  });
+
+  it("leaves batch unpriced before its effectiveFrom rather than backdating the discount", () => {
+    const before = lookupPrice(publishedModelPrices, { provider: "anthropic", model: "Sonnet 5.5", mode: "batch", at: "2026-10-20" });
+    expect(before.status).toBe("unpriced");
+  });
+});
