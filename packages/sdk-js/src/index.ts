@@ -44,6 +44,12 @@ export type {
   PriceCatalogue,
 } from "../../core/dist/src/index.js";
 export { capToolResultBody, digestStaleBody, reduceRequest } from "./reduce-request.js";
+export { compactStaleContext, reduceRequestAsync } from "./semantic-compaction.js";
+export type {
+  SemanticCompactionConfig,
+  SemanticCompactionResult,
+  SemanticCompactor,
+} from "./semantic-compaction.js";
 export { CachePrefixVolatilityGuard, type CacheStampDecision } from "./cache-volatility-guard.js";
 export { renderLedgerReport, type LedgerReportOptions, type LedgerReportSpool } from "./report.js";
 export type {
