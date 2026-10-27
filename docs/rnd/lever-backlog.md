@@ -241,3 +241,18 @@ CORRECTIONS TO RECONCILE (honesty — do before any dependent claim ships):
 - Pin the re-emission metric aggregation (per-message 5-gram p90=35.5% vs
   per-conversation-worst p90=71.3%; the old 61% sits between) before the
   output-metering lever's trigger threshold is set.
+
+## SHIPPED 2026-10-27: workload-aware cache TTL (always-on vertical)
+
+cacheTtl now accepts "auto" alongside "5m"/"1h". A new CacheTtlAdvisor
+(packages/sdk-js/src/cache-ttl-advisor.ts) watches each conversation's realized
+inter-arrival gaps and recommends the TTL: 5m while turns arrive inside the 5m
+window (reads at 0.1x, cheaper 1.25x write), 1h once the gap p90 exceeds 300s
+(turns regularly arrive after a 5m entry would expire, so 5m would re-pay full
+input — 1h reads instead at the 2x write). Threshold from Mooncake (tool-agent
+gap p90=243s stays 5m; conversation p90=519s goes 1h); WildChat corroborates
+(27.6% of continuations evict at 300s). Defaults to 5m until minObservations=3
+gaps seen (never speculatively on the pricier tier). Auto-installed by the proxy
+and withFlux when cacheTtl="auto". 10 advisor tests + 65 existing cache tests green.
+Honours the volatility guard unchanged (a churning prefix is still suppressed
+regardless of TTL). The flat 5m/1h flags still work exactly as before.

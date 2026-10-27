@@ -9,6 +9,7 @@ import {
 } from "../../core/dist/src/index.js";
 import { responseText } from "./replay-gate.js";
 import { CachePrefixVolatilityGuard } from "./cache-volatility-guard.js";
+import { CacheTtlAdvisor } from "./cache-ttl-advisor.js";
 import { reduceRequest, type FluxTokenReductionConfig } from "./reduce-request.js";
 import { createSavingsLedger, type SavingsLedger } from "./savings-ledger.js";
 import type { FluxRequestEvent } from "./types.js";
@@ -223,9 +224,14 @@ export function startFluxProxy(options: FluxProxyOptions): Promise<FluxProxy> {
   // The proxy is long-lived, so it can watch conversations across requests:
   // with the cache stamp enabled, a volatility guard suppresses stamping of
   // prefixes that churn between turns (a measured live loss otherwise).
-  const reduction = (baseReduction.cacheTtl !== undefined && baseReduction.cacheVolatilityGuard === undefined)
+  const withGuard = (baseReduction.cacheTtl !== undefined && baseReduction.cacheVolatilityGuard === undefined)
     ? { ...baseReduction, cacheVolatilityGuard: new CachePrefixVolatilityGuard() }
     : baseReduction;
+  // "auto" TTL needs a cross-request advisor to watch arrival cadence; the
+  // long-lived proxy is the right place to hold it. Install one if absent.
+  const reduction = (withGuard.cacheTtl === "auto" && withGuard.cacheTtlAdvisor === undefined)
+    ? { ...withGuard, cacheTtlAdvisor: new CacheTtlAdvisor() }
+    : withGuard;
   const upstreams = {
     anthropic: (options.anthropicUpstream ?? "https://api.anthropic.com").replace(/\/$/, ""),
     openai: (options.openaiUpstream ?? "https://api.openai.com").replace(/\/$/, ""),

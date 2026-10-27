@@ -170,7 +170,16 @@ export type FluxTokenReductionConfig = {
    * silently raising their write rate would change their bill. Never set by
    * default; like executionTier, it must be the caller's per-workload flag.
    */
-  cacheTtl?: "5m" | "1h";
+  cacheTtl?: "5m" | "1h" | "auto";
+  /**
+   * Workload-aware TTL selection, used only when cacheTtl is "auto" (see
+   * cache-ttl-advisor.ts). The advisor watches each conversation's realized
+   * inter-arrival gaps and picks 5m (turns arrive while a 5m entry is warm) or
+   * 1h (turns regularly arrive after a 5m entry would expire, so the cheaper
+   * tier would re-pay full input). Calibrated from the Mooncake reuse-gap
+   * distribution; without an advisor, "auto" falls back to the cheaper 5m.
+   */
+  cacheTtlAdvisor?: { recommend(request: unknown): { ttl: "5m" | "1h"; reason?: string } };
   /**
    * Cross-turn volatility guard for the cache stamp (see
    * cache-volatility-guard.ts). The reducer is a pure per-request function
@@ -1056,8 +1065,19 @@ export function reduceRequest(
     // Cache TTL, only on Anthropic-shaped requests that carry no cache_control
     // of their own. Like the execution tier this changes a billing RATE, not a
     // prompt: the same bytes are cached for an hour at a 2x write premium.
-    if (config.cacheTtl === "5m" || config.cacheTtl === "1h") {
-      const ttl = config.cacheTtl;
+    if (config.cacheTtl === "5m" || config.cacheTtl === "1h" || config.cacheTtl === "auto") {
+      // "auto" resolves the TTL per conversation from its realized arrival gaps
+      // (workload-aware); an explicit "5m"/"1h" is honoured as given. Without an
+      // advisor, "auto" falls back to the cheaper 5m write.
+      let ttl: "5m" | "1h";
+      let ttlReason: string | undefined;
+      if (config.cacheTtl === "auto") {
+        const recommendation = config.cacheTtlAdvisor?.recommend(request) ?? { ttl: "5m" as const };
+        ttl = recommendation.ttl;
+        ttlReason = recommendation.reason;
+      } else {
+        ttl = config.cacheTtl;
+      }
       // The guard sees the RAW request: FLUX's own deterministic levers must
       // never be mistaken for client-side churn.
       const decision = config.cacheVolatilityGuard?.observe(request) ?? { stamp: true };
@@ -1100,7 +1120,8 @@ export function reduceRequest(
                 "Anthropic's cache is opt-in and an unstamped agent re-pays full rate for its history " +
                 "every turn. The caller must flag the workload - it is never set by default."
               : "Writes bill at 2x base input, reads at 0.1x: this pays only when calls arrive more " +
-                "than ~5 minutes apart, and the caller must flag that workload - it is never set by default."),
+                "than ~5 minutes apart, and the caller must flag that workload - it is never set by default.") +
+            (ttlReason ? ` Workload-aware selection: ${ttlReason}.` : ""),
         });
       }
     }

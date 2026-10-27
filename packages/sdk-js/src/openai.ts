@@ -8,6 +8,7 @@ import { TelemetryClient } from "./telemetry.js";
 import { chooseRoute } from "./routing.js";
 import { ExactResponseCache } from "./exact-cache.js";
 import { CachePrefixVolatilityGuard } from "./cache-volatility-guard.js";
+import { CacheTtlAdvisor } from "./cache-ttl-advisor.js";
 import { reduceRequest } from "./reduce-request.js";
 import { createSavingsLedger, type SavingsLedger } from "./savings-ledger.js";
 import type {
@@ -154,10 +155,14 @@ export function withFlux<T extends AnyObject>(client: T, options: FluxOptions): 
   // One guard per wrapped client: conversations are watched across turns so
   // the cache stamp is withheld from prefixes that churn (see
   // cache-volatility-guard.ts). The caller may supply their own.
-  const tokenReduction = (options.tokenReduction?.cacheTtl !== undefined &&
+  const withGuard = (options.tokenReduction?.cacheTtl !== undefined &&
       options.tokenReduction.cacheVolatilityGuard === undefined)
     ? { ...options.tokenReduction, cacheVolatilityGuard: new CachePrefixVolatilityGuard() }
     : options.tokenReduction;
+  // "auto" TTL needs a cross-request advisor to watch arrival cadence.
+  const tokenReduction = (withGuard?.cacheTtl === "auto" && withGuard.cacheTtlAdvisor === undefined)
+    ? { ...withGuard, cacheTtlAdvisor: new CacheTtlAdvisor() }
+    : withGuard;
 
   const surfaceCreate = (surface: FluxSurface, target: AnyObject) =>
     async (request: AnyObject, ...rest: unknown[]) => {
