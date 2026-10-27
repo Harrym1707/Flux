@@ -127,3 +127,18 @@ This is a prototype. Honest gaps, not hidden:
    here. The only runnable command today is the unit test above; it proves the
    mechanism and the guards, not a dollar figure. Any future number must trace to
    a gate run on real traffic at a named commit, with paraphrase-aware grading.
+
+5. **CROSS-TURN STABILITY — the hard blocker (added in review, 2026-10-27).**
+   A model paraphrase is non-deterministic, but a stale tool-result body is
+   RESENT every turn. If turn N compacts a body to summary A and turn N+1
+   re-runs the compactor and gets summary B, the cached prefix churns on every
+   turn — which is exactly the loss the cross-turn volatility guard
+   (`cache-volatility-guard.ts`) exists to prevent. As written, `compactStaleContext`
+   re-compacts all eligible bodies on every call, so it would FIGHT the cache
+   lever and can make an agent MORE expensive, not less. This lever MUST NOT be
+   enabled alongside caching until the compacted result is pinned: compact a
+   given body once, key the result by a hash of the original bytes, and re-emit
+   the identical compacted bytes on every subsequent turn (or require the
+   compactor to be deterministic for identical input). Until that pinning exists,
+   semantic compaction is only safe on the no-cache path, and the gate eval in
+   (3) must measure net cost WITH caching on, not just quality.
