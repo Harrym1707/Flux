@@ -200,3 +200,44 @@ valid where the caller opted into latency tolerance. Design needs: an explicit
 per-request "batch-ok" signal (never inferred), a submit/poll path in proxy.ts,
 and a ledger event priced at the catalogued batch rate. Until then FLUX meters
 and recommends the batch opportunity but does not silently reroute.
+
+## Queued from dataset analysis 2026-10-27 (docs/rnd/knowledge/2026-10-27-dataset-findings.md)
+
+Sample-derived calibration deltas. Nightly R&D implements with tests, by vertical.
+
+ALWAYS-ON:
+- Workload-aware TTL guard: default 5m, stamp 1h only when realized reuse-gap
+  p90 > 300s. Evidence: Mooncake tool-agent gap p90=243s (5m catches 92.6%) vs
+  conversation p90=519s/max 3,030s (1h recovers the ~21.5% tail); WildChat 27.6%
+  of continuations evict at 300s → 14.2% at 600s. Replaces flat TTL default.
+- Volatility guard: size to the ~2.5% prefix-busting minority (SWE-O1 zero-cache
+  4/163 against 50.8% fleet cache-hit), not a dominant-failure lever.
+
+AUTONOMOUS:
+- Semantic pre-pass maxTokens 200→500 FOR AGENT TRAJECTORIES ONLY (serving-trace
+  tool-results stay 200). At 200 the floor flags 58–68% of ALL tool-results
+  (medians 270–302 tok); at 500 only the 3.5–34.5% oversized tail. Make the
+  default workload-scoped, not a global 200.
+- keepRecentTurns=2 and minimumTurns=3 CONFIRMED tuned (WildChat sweep: =2 is the
+  savings plateau; agent corpora median 11–60 turns ≫ 3). Close the UNTUNED flags.
+- Tool-schema compaction confirmed high-value: SWE-rebench 5 tools = 4,962 tok
+  (48% of first request), ~298k schema-tok/trajectory before cache.
+- Duplicate-context dedup ceiling ~7% (byte-identical tool-results 6.8–7.3%).
+
+ONE-SHOT:
+- Batch-tier routing keyed on traffic-class/output-shape not raw size: BurstGPT
+  Log Type separates API (median output 7) from Conversation (243), ~35× gap.
+- Cacheable minimum: keep 1024/2048 per-model, do NOT globalize (SWE-O1 needs
+  2048; tau-bench 1,801-tok policy doc needs 1024).
+
+CORRECTIONS TO RECONCILE (honesty — do before any dependent claim ships):
+- Agent output re-emission is ~0% (median 0.0% across 4 corpora, 13k+ turns), NOT
+  the 24%/61% band. output-diagnostics.ts header + the 2026-10-26 ground-truth
+  doc cite ~24% — that is chat/file-reprint-shaped only. Re-scope the claim; do
+  not size any AGENT output-mutation lever off 24%.
+- The 34.3% sparse-interactive ceiling is NOT reproducible from pure chat; it
+  needs tool-bearing interactive sessions. Verify before leaning on the top of
+  that band.
+- Pin the re-emission metric aggregation (per-message 5-gram p90=35.5% vs
+  per-conversation-worst p90=71.3%; the old 61% sits between) before the
+  output-metering lever's trigger threshold is set.
