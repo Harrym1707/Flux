@@ -11,6 +11,7 @@ import { responseText } from "./replay-gate.js";
 import { CachePrefixVolatilityGuard } from "./cache-volatility-guard.js";
 import { reduceRequest, type FluxTokenReductionConfig } from "./reduce-request.js";
 import { createSavingsLedger, type SavingsLedger } from "./savings-ledger.js";
+import { compactionEventField } from "./compaction-usage.js";
 import type { FluxRequestEvent } from "./types.js";
 
 /**
@@ -167,13 +168,22 @@ export function usageFromSse(provider: "anthropic" | "openai", sseText: string):
     if (startUsage === undefined) return undefined;
     let outputTokens: unknown = startUsage.output_tokens;
     let tier: unknown = (start?.message as AnyObject | undefined)?.service_tier ?? startUsage.service_tier;
+    // The compaction beta reports per-iteration usage on message_delta
+    // (SDK BetaMessageDeltaUsage.iterations); keep the last one seen so the
+    // ledger can price the compaction share the top-level fields exclude.
+    let iterations: unknown = startUsage.iterations;
     for (const e of events) {
       if (e.type !== "message_delta") continue;
       const deltaUsage = e.usage as AnyObject | undefined;
       if (deltaUsage?.output_tokens !== undefined) outputTokens = deltaUsage.output_tokens;
+      if (Array.isArray(deltaUsage?.iterations)) iterations = deltaUsage!.iterations;
     }
     return {
-      usage: { ...startUsage, output_tokens: outputTokens ?? 0 },
+      usage: {
+        ...startUsage,
+        output_tokens: outputTokens ?? 0,
+        ...(Array.isArray(iterations) ? { iterations } : {}),
+      },
       ...(typeof tier === "string" ? { service_tier: tier } : {}),
     };
   }
@@ -503,6 +513,10 @@ export function startFluxProxy(options: FluxProxyOptions): Promise<FluxProxy> {
           }),
         }),
         ...(tier === undefined ? {} : { responseServiceTier: tier }),
+        ...(() => {
+          const compaction = responseShaped === undefined ? undefined : compactionEventField([responseShaped]);
+          return compaction === undefined ? {} : { compaction };
+        })(),
         ...(outputDiagnostics === undefined ? {} : { outputDiagnostics }),
         ...(duplicateOfRequestId === undefined ? {} : { duplicateOfRequestId }),
       };

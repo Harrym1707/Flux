@@ -141,6 +141,82 @@ export function normalizeProviderUsage(response: unknown): ProviderUsageResult {
   };
 }
 
+export type CompactionUsageResult =
+  /** No compaction iteration ran on this request (the common case, and every non-Anthropic shape). */
+  | { status: "none" }
+  /** Summed usage of every `compaction` entry in usage.iterations. */
+  | { status: "ok"; iterations: number; usage: NormalizedProviderUsage }
+  /** A compaction entry is present but unreadable; it must be unpriced, never zero. */
+  | { status: "invalid"; iterations: number; reason: string };
+
+/**
+ * The server-side compaction spend the top-level usage does NOT report.
+ *
+ * Anthropic's compaction beta (platform.claude.com compaction-threshold,
+ * "Understanding usage"): "The top-level `input_tokens` and `output_tokens`
+ * do not include compaction iteration usage. They reflect the sum of all
+ * non-compaction iterations. To calculate total tokens consumed and billed
+ * for a request, sum across all entries in the `usage.iterations` array."
+ * On an on-demand summarize call the top level is zero and the whole bill
+ * sits in the single `compaction` iteration.
+ *
+ * normalizeProviderUsage deliberately keeps reading the top level (the
+ * non-compaction iterations), so every FLUX lever that anchors to it is
+ * unchanged; this function returns the missing compaction share separately,
+ * so the ledger can price it, attribute it to the customer, and keep it out
+ * of every savings figure. Each iteration follows the Anthropic convention
+ * (SDK BetaCompactionIterationUsage: input_tokens, cache_read_input_tokens,
+ * cache_creation_input_tokens, cache_creation, output_tokens).
+ */
+export function providerCompactionUsage(response: unknown): CompactionUsageResult {
+  if (!isPlainObject(response)) return { status: "none" };
+  const usage = isPlainObject(response.usage) ? response.usage : undefined;
+  const iterations = Array.isArray(usage?.iterations) ? usage!.iterations as unknown[] : undefined;
+  if (!iterations) return { status: "none" };
+  const compactions = iterations.filter((entry) => isPlainObject(entry) && entry.type === "compaction") as AnyObject[];
+  if (compactions.length === 0) return { status: "none" };
+
+  const total: NormalizedProviderUsage = {
+    inputTokens: 0, uncachedInputTokens: 0, cachedInputTokens: 0, cacheWriteInputTokens: 0, outputTokens: 0,
+  };
+  let splitSeen = false;
+  let write5m = 0;
+  let write1h = 0;
+  for (const entry of compactions) {
+    // Each entry is normalised exactly like a top-level Anthropic usage
+    // object, so a broken TTL split is invalid here too, never repaired.
+    const fields = { ...entry };
+    delete fields.type;
+    if (fields.cache_read_input_tokens === undefined) fields.cache_read_input_tokens = 0;
+    if (fields.cache_creation === null) delete fields.cache_creation;
+    const single = normalizeProviderUsage({ usage: fields });
+    if (single.status !== "ok" || asCount(entry.input_tokens) === undefined) {
+      return {
+        status: "invalid",
+        iterations: compactions.length,
+        reason: single.status === "invalid"
+          ? `Compaction iteration usage is invalid: ${single.reason}`
+          : "Compaction iteration carries no readable input_tokens/output_tokens.",
+      };
+    }
+    total.inputTokens += single.usage.inputTokens;
+    total.uncachedInputTokens += single.usage.uncachedInputTokens;
+    total.cachedInputTokens += single.usage.cachedInputTokens;
+    total.cacheWriteInputTokens += single.usage.cacheWriteInputTokens;
+    total.outputTokens += single.usage.outputTokens;
+    if (single.usage.cacheWrite5mInputTokens !== undefined || single.usage.cacheWrite1hInputTokens !== undefined) {
+      splitSeen = true;
+    }
+    write5m += single.usage.cacheWrite5mInputTokens ?? 0;
+    write1h += single.usage.cacheWrite1hInputTokens ?? 0;
+  }
+  if (splitSeen && write5m + write1h === total.cacheWriteInputTokens) {
+    total.cacheWrite5mInputTokens = write5m;
+    total.cacheWrite1hInputTokens = write1h;
+  }
+  return { status: "ok", iterations: compactions.length, usage: total };
+}
+
 /** Convenience view of normalizeProviderUsage: the usage, or undefined. */
 export function providerUsage(response: unknown): NormalizedProviderUsage | undefined {
   const result = normalizeProviderUsage(response);
