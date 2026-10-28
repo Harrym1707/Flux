@@ -33,6 +33,9 @@ export type FluxReductionChange = {
   detail: string;
 };
 
+/** Reasoning/output effort levels Anthropic's `output_config.effort` accepts. */
+export type FluxOutputEffort = "low" | "medium" | "high" | "xhigh" | "max";
+
 export type FluxReductionSummary = {
   /** Estimated input tokens before reduction, by FLUX's own counter. */
   estimatedTokensBefore: number;
@@ -135,6 +138,33 @@ export type FluxTokenReductionConfig = {
    */
   maxOutputTokens?: number;
   /**
+   * Output effort governor: Anthropic's `output_config.effort`
+   * ("low" | "medium" | "high" | "xhigh" | "max"; default "high"). The one
+   * output-side lever that is PROVIDER-SANCTIONED rather than a prompt hack — a
+   * lower effort makes the model think less and answer terser (less preamble,
+   * fewer and more-consolidated tool calls), cutting the dearest half of the
+   * bill: output tokens price 4-8x input. This is FLUX's honest equivalent of a
+   * competitor that "trims the model's replies": the model decides how to be
+   * briefer, we do not truncate or rewrite its words.
+   *
+   * It is a TOP-LEVEL request field, outside the cached prefix (tools -> system
+   * -> messages), so a STABLE value never invalidates a prompt cache — unlike
+   * editing the system prompt to beg for brevity, which rewrites the cached
+   * prefix every turn. (A value that CHANGED between turns would invalidate the
+   * messages cache, so this is a per-workload setting, never flipped mid-run.)
+   *
+   * LOSSY: it changes the answer's depth and length, so it is off by default,
+   * must clear a TASK-COMPLETION replay gate before any saving is billed
+   * (exactTextGrader is meaningless here — a terser answer is different text by
+   * definition), and is only ever the caller's per-workload flag. Applied only
+   * on Claude models whose published effort range includes the requested level
+   * (an unsupported level is a 400, and this reducer must never break a
+   * request); an unsupported pairing is recorded and skipped, never stamped. A
+   * caller who set `output_config.effort` themselves is left untouched. The
+   * OpenAI `reasoning.effort` sibling is a planned follow-on, not wired here.
+   */
+  outputEffort?: FluxOutputEffort;
+  /**
    * Execution tier for requests the caller has flagged latency-tolerant.
    * "flex" sets OpenAI's service_tier on the request (batch-level pricing, 50%
    * off input and output, on a synchronous API with a possible 429 fallback to
@@ -195,6 +225,37 @@ const PREFIX_BREAKERS: RegExp[] = [
 
 function isPlainObject(value: unknown): value is AnyObject {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/**
+ * The `output_config.effort` levels a given Claude model accepts, conservatively.
+ *
+ * An effort value the model does not support is rejected at the wire with a 400,
+ * and the reducer's prime rule is that it may never break a request. So this is
+ * a DENY-by-default allow-list keyed off the model id: a model (or level) not
+ * positively known to support effort returns an empty set, and the governor
+ * then records why and leaves the request untouched rather than risk a 400.
+ * Kept deliberately narrow and dated (claude-api skill, 2026-06): widen it only
+ * against a provider source, never by guessing a newer id supports a level.
+ */
+function anthropicEffortSupport(model: string): Set<FluxOutputEffort> {
+  const m = model.toLowerCase();
+  if (!m.includes("claude")) return new Set();
+  // Full range including xhigh: Fable 5 / Mythos 5 / Opus 5 / Opus 4.8 / 4.7 /
+  // Sonnet 5. (xhigh arrived with Opus 4.7.)
+  if (m.includes("opus-5") || m.includes("opus-4-8") || m.includes("opus-4-7") ||
+      m.includes("sonnet-5") || m.includes("fable-5") || m.includes("mythos-5")) {
+    return new Set<FluxOutputEffort>(["low", "medium", "high", "xhigh", "max"]);
+  }
+  // Effort but no xhigh: Opus 4.6 / Sonnet 4.6.
+  if (m.includes("opus-4-6") || m.includes("sonnet-4-6")) {
+    return new Set<FluxOutputEffort>(["low", "medium", "high", "max"]);
+  }
+  // Opus 4.5: low/medium/high only (no xhigh, no max).
+  if (m.includes("opus-4-5")) return new Set<FluxOutputEffort>(["low", "medium", "high"]);
+  // Sonnet 4.5, every Haiku, 3.x, and anything unrecognised: effort errors or is
+  // unknown -> never stamp.
+  return new Set();
 }
 
 /**
@@ -1161,6 +1222,44 @@ export function reduceRequest(
           detail: `Set max_output_tokens to ${config.maxOutputTokens}. Responses that would have run longer are ` +
             "truncated, so this needs checking against real output lengths.",
         });
+      }
+    }
+
+    // Output effort governor (Anthropic output_config.effort). A rate/behaviour
+    // change on the dearest tokens, not a prompt edit: set only when the caller
+    // chose no effort of their own, only on a Claude model whose range includes
+    // the requested level, and never stamped on a level the model would 400.
+    if (config.outputEffort !== undefined) {
+      const level = config.outputEffort;
+      const model = typeof next.model === "string" ? next.model : "";
+      const claudeMessagesShaped = model.toLowerCase().includes("claude") && Array.isArray(next.messages);
+      const existingConfig = isPlainObject(next.output_config) ? next.output_config : undefined;
+      const callerSetEffort = existingConfig !== undefined && "effort" in existingConfig;
+      if (claudeMessagesShaped && !callerSetEffort) {
+        if (anthropicEffortSupport(model).has(level)) {
+          next.output_config = { ...(existingConfig ?? {}), effort: level };
+          changes.push({
+            lever: `output-effort-${level}`,
+            lossless: false,
+            // The saving is fewer output tokens the model chooses to emit, read
+            // from provider usage by the gate, not an input-token count here.
+            estimatedTokensSaved: 0,
+            detail: `Set output_config.effort to '${level}'. The model thinks less and answers terser, cutting ` +
+              "output tokens (the dearer half of the bill). A top-level field outside the cached prefix, so a " +
+              "stable value never invalidates caching. Lossy — it changes the answer's depth, so it needs a " +
+              "task-completion replay-gate pass on the caller's own traffic before the saving may be billed.",
+          });
+        } else {
+          changes.push({
+            lever: "output-effort-suppressed",
+            lossless: true,
+            // Nothing was changed; this records WHY no effort was set.
+            estimatedTokensSaved: 0,
+            detail: `Effort '${level}' withheld: model '${model || "(none)"}' is not in FLUX's dated allow-list of ` +
+              "Claude models known to accept that level. An unsupported effort value is a 400, and the reducer " +
+              "never risks breaking a request, so it is left as the caller sent it.",
+          });
+        }
       }
     }
 
