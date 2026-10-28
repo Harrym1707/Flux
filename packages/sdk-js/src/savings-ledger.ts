@@ -173,10 +173,21 @@ export function billableEventFromRequest(
       ? change.estimatedTokensSaved
       : 0), 0);
   const removedFraction = estimatedBefore > 0 ? estimatedRemoved / estimatedBefore : 0;
+  // Tokens FLUX ADDED (the output-style instruction) are not part of the
+  // counterfactual request, so they come off the provider's input total
+  // before the ratio is applied: an added instruction never inflates a
+  // removed-token saving. Valued at the same realized blended rate.
+  const estimatedAdded = changes.reduce((sum, change) =>
+    sum + (typeof change.estimatedTokensAdded === "number" && Number.isFinite(change.estimatedTokensAdded) &&
+      change.estimatedTokensAdded > 0
+      ? change.estimatedTokensAdded
+      : 0), 0);
+  const anchoredInput = usage === undefined ? 0 : usage.inputTokens - estimatedAdded;
   const estimateUsable = baselineUsd === undefined && priced !== undefined && usage !== undefined &&
-    usage.inputTokens > 0 && estimatedRemoved > 0 && removedFraction > 0 && removedFraction < 0.95;
+    usage.inputTokens > 0 && anchoredInput > 0 && estimatedRemoved > 0 && removedFraction > 0 &&
+    removedFraction < 0.95;
   const estimatedSavedUsdTotal = estimateUsable
-    ? (usage!.inputTokens / (1 - removedFraction) - usage!.inputTokens) * (priced!.inputUsd / usage!.inputTokens)
+    ? (anchoredInput / (1 - removedFraction) - anchoredInput) * (priced!.inputUsd / usage!.inputTokens)
     : 0;
   for (const change of tokenChanges) {
     const share = estimateUsable && change.estimatedTokensSaved > 0
@@ -255,6 +266,7 @@ export function billableEventFromRequest(
           estimatedReduction: {
             estimatedInputTokensBefore: estimatedBefore,
             estimatedInputTokensRemoved: estimatedRemoved,
+            ...(estimatedAdded > 0 ? { estimatedInputTokensAdded: estimatedAdded } : {}),
           },
         }
       : {}),

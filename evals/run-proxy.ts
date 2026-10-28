@@ -11,6 +11,9 @@ import { startFluxProxy } from "../packages/sdk-js/src/proxy.js";
  *   FLUX_PROXY_PORT        port to listen on (default 8787)
  *   FLUX_PROXY_LEDGER_DIR  spool directory (default ./flux-ledger)
  *   FLUX_PROXY_CACHE_TTL   "5m" | "1h" to enable the Anthropic cache stamp
+ *   FLUX_OUTPUT_STYLE      "off" | "concise" | "terse" | "ultra" (default off).
+ *                          LOSSY: changes model output; bills only with an
+ *                          approved replay-gate verdict.
  *
  * Reduction is lossless-only by default (schema compaction, duplicate
  * removal, prefix repair). Lossy levers stay off until a replay gate approves
@@ -26,6 +29,11 @@ if (cacheTtl !== undefined && cacheTtl !== "5m" && cacheTtl !== "1h") {
   throw new Error(`FLUX_PROXY_CACHE_TTL must be "5m" or "1h", got ${JSON.stringify(cacheTtl)}.`);
 }
 
+const outputStyle = process.env.FLUX_OUTPUT_STYLE ?? "off";
+if (!["off", "concise", "terse", "ultra"].includes(outputStyle)) {
+  throw new Error(`FLUX_OUTPUT_STYLE must be off, concise, terse or ultra, got ${JSON.stringify(outputStyle)}.`);
+}
+
 const proxy = await startFluxProxy({
   port,
   ledgerDirectory,
@@ -34,6 +42,7 @@ const proxy = await startFluxProxy({
     duplicateContext: true,
     repairCachePrefix: true,
     ...(cacheTtl === undefined ? {} : { cacheTtl }),
+    ...(outputStyle === "off" ? {} : { outputStyle: outputStyle as "concise" | "terse" | "ultra" }),
   },
 });
 

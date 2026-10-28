@@ -44,6 +44,12 @@ export type {
   PriceCatalogue,
 } from "../../core/dist/src/index.js";
 export { capToolResultBody, digestStaleBody, reduceRequest } from "./reduce-request.js";
+export {
+  OUTPUT_STYLE_INSTRUCTIONS,
+  outputStyleInstruction,
+  outputStyleSkipReason,
+  type FluxOutputStyle,
+} from "./output-style.js";
 export { compactStaleContext, reduceRequestAsync } from "./semantic-compaction.js";
 export type {
   SemanticCompactionConfig,

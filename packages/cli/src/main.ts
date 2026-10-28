@@ -1,5 +1,6 @@
-import { readFile } from "node:fs/promises";
-import { resolve } from "node:path";
+import { existsSync, readdirSync, statSync } from "node:fs";
+import { readFile, writeFile } from "node:fs/promises";
+import { basename, join, resolve } from "node:path";
 import {
   ingestTraffic,
   leversFromMeasurement,
@@ -13,6 +14,8 @@ import {
   type TrafficMeasurement,
   type WorkloadMeasurement,
 } from "../../core/src/index.js";
+import { compressInstructions, unifiedDiff } from "./compress.js";
+import { computeStats, lastDays, parseSpool, renderStats, shareLine, type StatsWindow } from "./stats.js";
 
 /**
  * flux analyse: measure a traffic sample and report what a reduction is worth.
@@ -27,7 +30,14 @@ import {
  * segments, and are a hypothesis to verify by replay, not a realised saving.
  */
 
-const USAGE = `Usage: flux analyse --input <file.jsonl> [options]
+const COMMANDS = `Commands:
+  flux analyse --input <file.jsonl> [options]   Measure a traffic sample (default command)
+  flux compress <file> [--dry-run]              Compress a memory/instruction file (lossy; shows a diff)
+  flux stats [--ledger <file|dir>] [--share]    Summarise what FLUX saved, from the local ledger
+`;
+
+const USAGE = `${COMMANDS}
+Usage: flux analyse --input <file.jsonl> [options]
 
   --input <path>      Traffic log to read. Repeatable. JSONL, or a JSON array.
   --date <YYYY-MM-DD> Billing date for rows that carry none. Default: today.
@@ -317,7 +327,8 @@ function buildReport(
   ].join("\n");
 }
 
-const args = parse(process.argv.slice(2));
+async function runAnalyse(argv: string[]): Promise<void> {
+const args = parse(argv);
 const rows = await readRows(args.inputs);
 if (rows.length === 0) throw new Error("No rows were found in the supplied input.");
 
@@ -389,4 +400,144 @@ if (args.markdown) {
   await mkdir(dirname(args.markdown), { recursive: true });
   await writeFile(args.markdown, `${report}\n`);
   console.log(`Markdown report written to ${args.markdown}`);
+}
+}
+
+// ---------------------------------------------------------------------------
+// flux compress
+// ---------------------------------------------------------------------------
+
+const COMPRESS_USAGE = `Usage: flux compress <file> [--dry-run] [--force]
+
+One-off, deterministic compression of a stable memory/instruction file
+(CLAUDE.md, AGENTS.md, .cursorrules, a system-prompt file). Removes filler
+words and wordy phrasing, collapses whitespace and drops rules repeated
+verbatim. Code blocks, inline code, paths, URLs, commands and numbers are
+kept byte-for-byte.
+
+LOSSY: review the diff. The original is saved as <file>.flux-backup.
+
+  --dry-run   Print the token counts and diff; write nothing.
+  --force     Overwrite an existing <file>.flux-backup.`;
+
+async function runCompress(argv: string[]): Promise<number> {
+  let dryRun = false;
+  let force = false;
+  const files: string[] = [];
+  for (const arg of argv) {
+    if (arg === "--help" || arg === "-h") {
+      console.log(COMPRESS_USAGE);
+      return 0;
+    }
+    if (arg === "--dry-run") dryRun = true;
+    else if (arg === "--force") force = true;
+    else if (arg.startsWith("--")) throw new Error(`Unknown option: ${arg}`);
+    else files.push(arg);
+  }
+  if (files.length !== 1) throw new Error("flux compress takes exactly one file. See flux compress --help.");
+  const path = resolve(files[0]!);
+  const original = await readFile(path, "utf8");
+  const result = compressInstructions(original);
+  const saved = result.tokensBefore - result.tokensAfter;
+  const name = basename(path);
+
+  console.log(`flux compress ${name}${dryRun ? " (dry run: nothing written)" : ""}`);
+  console.log("LOSSY: this rewrites instructions a model reads. Review the diff below before keeping it.");
+  console.log("");
+  console.log(`  tokens  ${result.tokensBefore.toLocaleString("en-US")} -> ${result.tokensAfter.toLocaleString("en-US")}` +
+    `  (-${saved.toLocaleString("en-US")}, ${result.tokensBefore === 0 ? "0.0" : ((saved / result.tokensBefore) * 100).toFixed(1)}%)` +
+    "  [FLUX approximate counter]");
+  console.log(`  edits   ${result.stats.fillerEdits} filler, ${result.stats.duplicateRulesRemoved} duplicate rule(s), ` +
+    `${result.stats.whitespaceEdits} whitespace`);
+  console.log("");
+  if (result.text === original) {
+    console.log("Nothing to compress; the file is unchanged.");
+    return 0;
+  }
+  process.stdout.write(unifiedDiff(original, result.text, `${name} (original)`, `${name} (compressed)`));
+  if (dryRun) return 0;
+
+  const backup = `${path}.flux-backup`;
+  if (existsSync(backup) && !force) {
+    throw new Error(`${backup} already exists (an earlier original?). Move it away or pass --force to overwrite it.`);
+  }
+  await writeFile(backup, original);
+  await writeFile(path, result.text);
+  console.log("");
+  console.log(`Wrote ${name}. Original saved to ${basename(backup)}; to restore, copy it back over ${name}.`);
+  return 0;
+}
+
+// ---------------------------------------------------------------------------
+// flux stats
+// ---------------------------------------------------------------------------
+
+const STATS_USAGE = `Usage: flux stats [--ledger <file|dir>]... [--days <n> | --week] [--share]
+
+Summarise what FLUX saved, from the local hash-chained ledger spools.
+Every figure is recomputed from the spool; nothing is projected.
+
+  --ledger <path>  Spool file, or a directory of *.jsonl spools. Repeatable.
+                   Default: ./flux-ledger (the proxy's spool directory).
+  --days <n>       Only the last n days.   --week  Same as --days 7.
+  --share          Print a one-line brag string built from MEASURED savings
+                   only (never estimates), from verified chains only.`;
+
+function spoolPaths(target: string): string[] {
+  if (!existsSync(target)) throw new Error(`No ledger at ${target}. Pass --ledger <file|dir>.`);
+  if (statSync(target).isDirectory()) {
+    return readdirSync(target).filter((file) => file.endsWith(".jsonl")).sort().map((file) => join(target, file));
+  }
+  return [target];
+}
+
+async function runStats(argv: string[], now: Date = new Date()): Promise<number> {
+  const targets: string[] = [];
+  let window: StatsWindow = { phrase: "so far" };
+  let share = false;
+  for (let index = 0; index < argv.length; index += 1) {
+    const arg = argv[index]!;
+    if (arg === "--help" || arg === "-h") {
+      console.log(STATS_USAGE);
+      return 0;
+    }
+    if (arg === "--share") { share = true; continue; }
+    if (arg === "--week") { window = lastDays(7, now); continue; }
+    const value = argv[index + 1];
+    if (value === undefined || value.startsWith("--")) throw new Error(`${arg} needs a value.`);
+    index += 1;
+    if (arg === "--ledger") targets.push(resolve(value));
+    else if (arg === "--days") window = lastDays(Number(value), now);
+    else throw new Error(`Unknown option: ${arg}`);
+  }
+  if (targets.length === 0) targets.push(resolve("flux-ledger"));
+  const paths = targets.flatMap(spoolPaths);
+  if (paths.length === 0) throw new Error(`No *.jsonl spools found in ${targets.join(", ")}.`);
+  const spools = await Promise.all(paths.map(async (path) => parseSpool(basename(path), await readFile(path, "utf8"))));
+  const stats = computeStats(spools, window);
+  if (share) {
+    const line = shareLine(stats);
+    if (!line.ok) {
+      console.error(line.reason);
+      return 1;
+    }
+    console.log(line.line);
+    return 0;
+  }
+  console.log(renderStats(stats));
+  return stats.allChainsOk ? 0 : 1;
+}
+
+// ---------------------------------------------------------------------------
+// Dispatch
+// ---------------------------------------------------------------------------
+
+const argv = process.argv.slice(2);
+try {
+  if (argv[0] === "compress") process.exitCode = await runCompress(argv.slice(1));
+  else if (argv[0] === "stats") process.exitCode = await runStats(argv.slice(1));
+  else await runAnalyse(argv[0] === "analyse" ? argv.slice(1) : argv);
+} catch (error) {
+  console.error(`flux: ${error instanceof Error ? error.message : String(error)}`);
+  process.exitCode = 1;
 }
