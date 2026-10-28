@@ -1,0 +1,17 @@
+Progress: resolved 1, reused 0, downloaded 0, added 0
+Progress: resolved 1, reused 0, downloaded 1, added 0
+Progress: resolved 2, reused 0, downloaded 1, added 0
+Progress: resolved 39, reused 0, downloaded 31, added 0
+Progress: resolved 119, reused 0, downloaded 104, added 0
+Progress: resolved 225, reused 0, downloaded 200, added 0
+Progress: resolved 266, reused 0, downloaded 265, added 0
+ WARN  2 deprecated subdependencies found: glob@7.2.3, inflight@1.0.6
+Packages: +266
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+Progress: resolved 267, reused 0, downloaded 266, added 266, done
+
+devDependencies:
++ jest 29.7.0 (30.5.2 is available)
++ typescript 5.9.3 (7.0.2 is available)
+
+Done in 7.3s using pnpm v10.15.0

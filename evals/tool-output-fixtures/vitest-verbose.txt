@@ -1,0 +1,68 @@
+
+ RUN  v4.1.12 /home/dev/cart/vt
+
+ ✓ cart.test.js > cart total > scales linearly for qty 0 2ms
+ ✓ cart.test.js > cart total > scales linearly for qty 1 0ms
+ ✓ cart.test.js > cart total > scales linearly for qty 2 0ms
+ ✓ cart.test.js > cart total > scales linearly for qty 3 0ms
+ ✓ cart.test.js > cart total > scales linearly for qty 4 0ms
+ ✓ cart.test.js > cart total > scales linearly for qty 5 0ms
+ ✓ cart.test.js > cart total > scales linearly for qty 6 0ms
+ ✓ cart.test.js > cart total > scales linearly for qty 7 0ms
+ ✓ cart.test.js > cart total > scales linearly for qty 8 1ms
+ ✓ cart.test.js > cart total > scales linearly for qty 9 0ms
+ ✓ cart.test.js > cart total > scales linearly for qty 10 0ms
+ ✓ cart.test.js > cart total > scales linearly for qty 11 0ms
+ ✓ cart.test.js > cart total > scales linearly for qty 12 0ms
+ ✓ cart.test.js > cart total > scales linearly for qty 13 0ms
+ ✓ cart.test.js > cart total > scales linearly for qty 14 0ms
+ ✓ cart.test.js > cart total > scales linearly for qty 15 0ms
+ ✓ cart.test.js > cart total > scales linearly for qty 16 0ms
+ ✓ cart.test.js > cart total > scales linearly for qty 17 0ms
+ ✓ cart.test.js > cart total > scales linearly for qty 18 0ms
+ ✓ cart.test.js > cart total > scales linearly for qty 19 0ms
+ ✓ cart.test.js > cart total > scales linearly for qty 20 0ms
+ ✓ cart.test.js > cart total > scales linearly for qty 21 0ms
+ ✓ cart.test.js > cart total > scales linearly for qty 22 0ms
+ ✓ cart.test.js > cart total > scales linearly for qty 23 0ms
+ ✓ cart.test.js > cart total > scales linearly for qty 24 0ms
+ ✓ cart.test.js > cart total > scales linearly for qty 25 0ms
+ ✓ cart.test.js > cart total > scales linearly for qty 26 0ms
+ ✓ cart.test.js > cart total > scales linearly for qty 27 0ms
+ ✓ cart.test.js > cart total > scales linearly for qty 28 0ms
+ ✓ cart.test.js > cart total > scales linearly for qty 29 0ms
+ × cart.test.js > cart total > applies discount with rounding 9ms
+   → expected 50.97 to be 50.98 // Object.is equality
+ ✓ cart.test.js > coupons > accepts code A 1ms
+ ✓ cart.test.js > coupons > accepts code B 0ms
+ ✓ cart.test.js > coupons > accepts code C 0ms
+ ✓ cart.test.js > coupons > accepts code D 0ms
+ ✓ cart.test.js > coupons > accepts code E 0ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  cart.test.js > cart total > applies discount with rounding
+AssertionError: expected 50.97 to be 50.98 // Object.is equality
+
+- Expected
++ Received
+
+- 50.98
++ 50.97
+
+ ❯ cart.test.js:14:37
+     12|   }
+     13|   test("applies discount with rounding", () => {
+     14|     expect(total([[19.99, 3]], 15)).toBe(50.98);
+       |                                     ^
+     15|   });
+     16| });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 35 passed (36)
+   Start at  14:30:03
+   Duration  340ms (transform 47ms, setup 0ms, import 74ms, tests 19ms, environment 0ms)
+

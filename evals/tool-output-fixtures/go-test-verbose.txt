@@ -1,0 +1,70 @@
+=== RUN   TestTotalScales
+=== RUN   TestTotalScales/n=0
+=== RUN   TestTotalScales/n=1
+=== RUN   TestTotalScales/n=2
+=== RUN   TestTotalScales/n=3
+=== RUN   TestTotalScales/n=4
+=== RUN   TestTotalScales/n=5
+=== RUN   TestTotalScales/n=6
+=== RUN   TestTotalScales/n=7
+=== RUN   TestTotalScales/n=8
+=== RUN   TestTotalScales/n=9
+=== RUN   TestTotalScales/n=10
+=== RUN   TestTotalScales/n=11
+=== RUN   TestTotalScales/n=12
+=== RUN   TestTotalScales/n=13
+=== RUN   TestTotalScales/n=14
+=== RUN   TestTotalScales/n=15
+=== RUN   TestTotalScales/n=16
+=== RUN   TestTotalScales/n=17
+=== RUN   TestTotalScales/n=18
+=== RUN   TestTotalScales/n=19
+=== RUN   TestTotalScales/n=20
+=== RUN   TestTotalScales/n=21
+=== RUN   TestTotalScales/n=22
+=== RUN   TestTotalScales/n=23
+=== RUN   TestTotalScales/n=24
+=== RUN   TestTotalScales/n=25
+=== RUN   TestTotalScales/n=26
+=== RUN   TestTotalScales/n=27
+=== RUN   TestTotalScales/n=28
+=== RUN   TestTotalScales/n=29
+--- PASS: TestTotalScales (0.00s)
+    --- PASS: TestTotalScales/n=0 (0.00s)
+    --- PASS: TestTotalScales/n=1 (0.00s)
+    --- PASS: TestTotalScales/n=2 (0.00s)
+    --- PASS: TestTotalScales/n=3 (0.00s)
+    --- PASS: TestTotalScales/n=4 (0.00s)
+    --- PASS: TestTotalScales/n=5 (0.00s)
+    --- PASS: TestTotalScales/n=6 (0.00s)
+    --- PASS: TestTotalScales/n=7 (0.00s)
+    --- PASS: TestTotalScales/n=8 (0.00s)
+    --- PASS: TestTotalScales/n=9 (0.00s)
+    --- PASS: TestTotalScales/n=10 (0.00s)
+    --- PASS: TestTotalScales/n=11 (0.00s)
+    --- PASS: TestTotalScales/n=12 (0.00s)
+    --- PASS: TestTotalScales/n=13 (0.00s)
+    --- PASS: TestTotalScales/n=14 (0.00s)
+    --- PASS: TestTotalScales/n=15 (0.00s)
+    --- PASS: TestTotalScales/n=16 (0.00s)
+    --- PASS: TestTotalScales/n=17 (0.00s)
+    --- PASS: TestTotalScales/n=18 (0.00s)
+    --- PASS: TestTotalScales/n=19 (0.00s)
+    --- PASS: TestTotalScales/n=20 (0.00s)
+    --- PASS: TestTotalScales/n=21 (0.00s)
+    --- PASS: TestTotalScales/n=22 (0.00s)
+    --- PASS: TestTotalScales/n=23 (0.00s)
+    --- PASS: TestTotalScales/n=24 (0.00s)
+    --- PASS: TestTotalScales/n=25 (0.00s)
+    --- PASS: TestTotalScales/n=26 (0.00s)
+    --- PASS: TestTotalScales/n=27 (0.00s)
+    --- PASS: TestTotalScales/n=28 (0.00s)
+    --- PASS: TestTotalScales/n=29 (0.00s)
+=== RUN   TestEmpty
+--- PASS: TestEmpty (0.00s)
+=== RUN   TestDiscount
+    cart_test.go:36: Total with discount = 5097, want 5098
+--- FAIL: TestDiscount (0.00s)
+FAIL
+FAIL	example.com/cart	0.004s
+FAIL

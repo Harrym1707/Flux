@@ -1,0 +1,66 @@
+   Compiling cart v0.1.0 (/home/dev/cart/rs)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.20s
+     Running unittests src/lib.rs (target/debug/deps/cart-ae9336b806292687)
+
+running 26 tests
+test tests::scales_00 ... ok
+test tests::scales_01 ... ok
+test tests::scales_02 ... ok
+test tests::scales_03 ... ok
+test tests::scales_05 ... ok
+test tests::scales_06 ... ok
+test tests::scales_07 ... ok
+test tests::scales_08 ... ok
+test tests::scales_04 ... ok
+test tests::scales_11 ... ok
+test tests::scales_10 ... ok
+test tests::scales_09 ... ok
+test tests::scales_12 ... ok
+test tests::scales_13 ... ok
+test tests::scales_15 ... ok
+test tests::scales_16 ... ok
+test tests::scales_18 ... ok
+test tests::scales_14 ... ok
+test tests::scales_17 ... ok
+test tests::scales_19 ... ok
+test tests::scales_20 ... ok
+test tests::scales_21 ... ok
+test tests::scales_23 ... ok
+test tests::scales_24 ... ok
+test tests::scales_22 ... ok
+test tests::discount_rounding ... FAILED
+
+failures:
+
+---- tests::discount_rounding stdout ----
+
+thread 'tests::discount_rounding' (24461) panicked at src/lib.rs:31:9:
+assertion `left == right` failed: discounted total mismatch
+  left: 5097
+ right: 5098
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/std/src/panicking.rs:689:5
+   1: core::panicking::panic_fmt
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/panicking.rs:80:14
+   2: core::panicking::assert_failed_inner
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/panicking.rs:434:23
+   3: core::panicking::assert_failed::<u64, u64>
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/panicking.rs:394:5
+   4: cart::tests::discount_rounding
+             at ./src/lib.rs:31:9
+   5: cart::tests::discount_rounding::{closure#0}
+             at ./src/lib.rs:29:27
+   6: <cart::tests::discount_rounding::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/ops/function.rs:250:5
+   7: <fn() -> core::result::Result<(), alloc::string::String> as core::ops::function::FnOnce<()>>::call_once
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/ops/function.rs:250:5
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+
+failures:
+    tests::discount_rounding
+
+test result: FAILED. 25 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.12s
+
+error: test failed, to rerun pass `--lib`

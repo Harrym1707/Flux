@@ -1,0 +1,62 @@
+FAIL ./cart.test.js
+  cart total
+    ✓ scales linearly for qty 0 (2 ms)
+    ✓ scales linearly for qty 1 (1 ms)
+    ✓ scales linearly for qty 2
+    ✓ scales linearly for qty 3
+    ✓ scales linearly for qty 4 (1 ms)
+    ✓ scales linearly for qty 5
+    ✓ scales linearly for qty 6
+    ✓ scales linearly for qty 7
+    ✓ scales linearly for qty 8 (1 ms)
+    ✓ scales linearly for qty 9
+    ✓ scales linearly for qty 10 (1 ms)
+    ✓ scales linearly for qty 11
+    ✓ scales linearly for qty 12
+    ✓ scales linearly for qty 13 (1 ms)
+    ✓ scales linearly for qty 14
+    ✓ scales linearly for qty 15
+    ✓ scales linearly for qty 16
+    ✓ scales linearly for qty 17 (1 ms)
+    ✓ scales linearly for qty 18
+    ✓ scales linearly for qty 19
+    ✓ scales linearly for qty 20 (1 ms)
+    ✓ scales linearly for qty 21
+    ✓ scales linearly for qty 22
+    ✓ scales linearly for qty 23
+    ✓ scales linearly for qty 24 (1 ms)
+    ✓ scales linearly for qty 25
+    ✓ scales linearly for qty 26
+    ✓ scales linearly for qty 27 (1 ms)
+    ✓ scales linearly for qty 28
+    ✓ scales linearly for qty 29
+    ✕ applies discount with rounding (11 ms)
+  coupons
+    ✓ accepts code A (1 ms)
+    ✓ accepts code B
+    ✓ accepts code C
+    ✓ accepts code D
+    ✓ accepts code E
+
+  ● cart total › applies discount with rounding
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 50.98
+    Received: 50.97
+
+      11 |   }
+      12 |   test("applies discount with rounding", () => {
+    > 13 |     expect(total([[19.99, 3]], 15)).toBe(50.98);
+         |                                     ^
+      14 |   });
+      15 | });
+      16 |
+
+      at Object.toBe (cart.test.js:13:37)
+
+Test Suites: 1 failed, 1 total
+Tests:       1 failed, 35 passed, 36 total
+Snapshots:   0 total
+Time:        0.512 s
+Ran all test suites.

@@ -51,6 +51,20 @@ export {
   type FluxOutputStyle,
 } from "./output-style.js";
 export { compactStaleContext, reduceRequestAsync } from "./semantic-compaction.js";
+export {
+  compressCsv,
+  compressToolOutput,
+  dropEmptyJsonFields,
+  htmlToText,
+  minifyJsonWhitespace,
+  TOOL_OUTPUT_LOSSLESS_DEFAULTS,
+} from "./tool-output-compression.js";
+export type {
+  FluxToolOutputCompressionConfig,
+  ToolCallContext,
+  ToolOutputCompression,
+  ToolOutputKind,
+} from "./tool-output-compression.js";
 export type {
   SemanticCompactionConfig,
   SemanticCompactionResult,
