@@ -134,6 +134,56 @@ describe("cache simulator", () => {
     expect(result.calls[1]!.atSeconds).toBe(60);
   });
 
+  it("defaults to instant write visibility, unchanged from before visibleAfterSeconds existed", () => {
+    const prefix = filler(3_000);
+    const prompts = Array.from({ length: 4 }, (_, index) => `${prefix}\nQ${index}`);
+    const result = simulateCache(stream(prompts), OPENAI_CACHE, price);
+    expect(result.hitRate).toBeGreaterThan(0.5);
+  });
+
+  it("makes two requests sent at the same instant for the same prefix both miss and both write", () => {
+    const prefix = filler(3_000);
+    const racers: SimulatedRequest[] = [
+      { atSeconds: 0, prompt: `${prefix}\nagent-a`, outputTokens: 10, visibleAfterSeconds: 3 },
+      { atSeconds: 0, prompt: `${prefix}\nagent-b`, outputTokens: 10, visibleAfterSeconds: 3 },
+    ];
+    const result = simulateCache(racers, ANTHROPIC_CACHE_5M, price);
+    expect(result.cachedInputTokens).toBe(0);
+    expect(result.calls[1]!.missReason).toBe("not-yet-visible");
+    expect(result.calls.every((call) => call.writtenInputTokens > 0)).toBe(true);
+  });
+
+  it("lets a later arrival read the cache once the writer's response has actually started", () => {
+    const prefix = filler(3_000);
+    const serialized: SimulatedRequest[] = [
+      { atSeconds: 0, prompt: `${prefix}\nagent-a`, outputTokens: 10, visibleAfterSeconds: 3 },
+      { atSeconds: 4, prompt: `${prefix}\nagent-b`, outputTokens: 10, visibleAfterSeconds: 3 },
+    ];
+    const result = simulateCache(serialized, ANTHROPIC_CACHE_5M, price);
+    expect(result.calls[1]!.missReason).toBeUndefined();
+    expect(result.calls[1]!.cachedInputTokens).toBeGreaterThan(0);
+  });
+
+  it("distinguishes a race loss from a genuinely absent prefix", () => {
+    const prefix = filler(3_000);
+    const noPriorWrite = simulateCache(
+      [{ atSeconds: 0, prompt: `${prefix}\nsolo`, outputTokens: 10 }],
+      ANTHROPIC_CACHE_5M,
+      price,
+    );
+    expect(noPriorWrite.calls[0]!.missReason).toBe("first-request");
+
+    const raced = simulateCache(
+      [
+        { atSeconds: 0, prompt: `${prefix}\nagent-a`, outputTokens: 10, visibleAfterSeconds: 3 },
+        { atSeconds: 1, prompt: `${prefix}\nagent-b`, outputTokens: 10, visibleAfterSeconds: 3 },
+      ],
+      ANTHROPIC_CACHE_5M,
+      price,
+    );
+    expect(raced.calls[1]!.missReason).toBe("not-yet-visible");
+  });
+
   it("validates its inputs", () => {
     expect(() => simulateCache([], OPENAI_CACHE, price)).toThrow(/at least one request/);
     expect(() => simulateCache(stream([filler(100)]), { ...OPENAI_CACHE, incrementTokens: 0 }, price))
