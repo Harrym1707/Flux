@@ -44,6 +44,13 @@ export type {
   PriceCatalogue,
 } from "../../core/dist/src/index.js";
 export { capToolResultBody, digestStaleBody, reduceRequest } from "./reduce-request.js";
+export {
+  wrapFlux,
+  type WrapFluxOptions,
+  type FluxSavingsSummary,
+  type FluxHandle,
+} from "./wrap.js";
+export { extractBlindFeatures, type BlindFeatures } from "./blind-features.js";
 export { compactStaleContext, reduceRequestAsync } from "./semantic-compaction.js";
 export type {
   SemanticCompactionConfig,
