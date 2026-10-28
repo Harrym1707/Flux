@@ -1,5 +1,6 @@
 import { estimateTokenCost, type TokenPrice } from "./cost.js";
 import { approximateTokenCount, type TokenCounter } from "./token-reduction.js";
+import { tokenCounterForModel } from "./openai-tokenizer.js";
 
 /**
  * Provider prompt-cache simulator.
@@ -148,13 +149,22 @@ export function simulateCache(
   requests: SimulatedRequest[],
   policy: CachePolicy,
   price: TokenPrice,
-  options: { countTokens?: TokenCounter } = {},
+  options: {
+    countTokens?: TokenCounter;
+    /**
+     * The model the stream is sent to. With no explicit countTokens, a
+     * recognised OpenAI id is counted exactly (see openai-tokenizer.ts);
+     * anything else, and no model at all, keeps the approximation.
+     */
+    model?: string;
+  } = {},
 ): SimulationResult {
   if (requests.length === 0) throw new Error("A cache simulation needs at least one request.");
   if (policy.minimumCacheableTokens < 1 || policy.incrementTokens < 1) {
     throw new Error("Cache policy minimums and increments must be at least 1 token.");
   }
-  const countTokens = options.countTokens ?? approximateTokenCount;
+  const countTokens = options.countTokens ??
+    (options.model === undefined ? approximateTokenCount : tokenCounterForModel(options.model).countTokens);
 
   // The policy's read and write rates are derived from the base input rate, so
   // a catalogue that already carries cached rates stays consistent with it.

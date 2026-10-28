@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { approximateTokenCount } from "../../core/dist/src/index.js";
+import { approximateTokenCount, countTokensForModel } from "../../core/dist/src/index.js";
 import { withFlux } from "./openai.js";
 import {
   capToolResultBody,
@@ -681,5 +681,63 @@ describe("cacheTtl 1h stamping", () => {
       expect(JSON.stringify(reduced)).toContain("cache_control");
       expect(summary.changes.some((change) => change.lever === "cache-ttl-5m")).toBe(true);
     });
+  });
+});
+
+describe("model-aware token counting", () => {
+  const measureParts = (request: Record<string, unknown>, count: (text: string) => number): number =>
+    ["instructions", "system", "input", "messages", "tools"].reduce((sum, key) => {
+      const value = request[key];
+      if (value === undefined) return sum;
+      return sum + count(typeof value === "string" ? value : JSON.stringify(value));
+    }, 0);
+  const openAIRequest = {
+    model: "gpt-4o",
+    instructions: `${BLOCK}\n\n${BLOCK}`,
+    input: [{ role: "user", content: "Where is my refund?" }],
+    tools: toolCatalogue(2),
+  };
+
+  it("counts a recognised OpenAI model exactly and labels the basis", () => {
+    const { summary } = reduceRequest(openAIRequest, { duplicateContext: true });
+    expect(summary.tokenCounter).toBe("exact:o200k_base");
+    expect(summary.estimatedTokensBefore).toBe(
+      measureParts(openAIRequest, (text) => countTokensForModel(text, "gpt-4o")),
+    );
+    // The exact count is genuinely different from the approximation here.
+    expect(summary.estimatedTokensBefore).not.toBe(measureParts(openAIRequest, approximateTokenCount));
+  });
+
+  it("keeps Claude and unrecognised ids on the approximation, labelled as such", () => {
+    for (const model of ["claude-sonnet-4-5", "gpt-6-astra"]) {
+      const request = { ...openAIRequest, model };
+      const { summary } = reduceRequest(request, { duplicateContext: true });
+      expect(summary.tokenCounter).toBe("approximate");
+      expect(summary.estimatedTokensBefore).toBe(measureParts(request, approximateTokenCount));
+    }
+  });
+
+  it("lets a caller-supplied counter win", () => {
+    // One token per non-empty part: instructions, input and tools.
+    const onePerPart = (text: string): number => (text === "" ? 0 : 1);
+    const { summary } = reduceRequest(openAIRequest, { duplicateContext: true, countTokens: onePerPart });
+    expect(summary.tokenCounter).toBe("caller-supplied");
+    expect(summary.estimatedTokensBefore).toBe(3);
+  });
+
+  it("makes the OpenAI-side cap decision on the exact count", () => {
+    // Prose the approximation overcounts: a body over the 600-token
+    // threshold by the approximation but under it by o200k_base.
+    const sentence = "The settlement was routed through the refunds subsystem and reconciled without incident. ";
+    let body = "";
+    while (!(approximateTokenCount(body) > 600 && countTokensForModel(body, "gpt-4o") <= 600)) {
+      body += sentence;
+      if (approximateTokenCount(body) > 2_000) throw new Error("fixture never straddled the threshold");
+    }
+    const input = [{ role: "user", content: "Step 0." }, { role: "assistant", content: body }];
+    const openAI = reduceRequest({ model: "gpt-4o", input }, { freshToolResultCap: true });
+    expect(openAI.summary.changes.some((change) => change.lever === "fresh-tool-result-cap")).toBe(false);
+    const claude = reduceRequest({ model: "claude-sonnet-4-5", messages: input }, { freshToolResultCap: true });
+    expect(claude.summary.changes.some((change) => change.lever === "fresh-tool-result-cap")).toBe(true);
   });
 });

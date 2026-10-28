@@ -1,6 +1,7 @@
-import { approximateTokenCount, type TokenCounter } from "../../core/dist/src/index.js";
+import { type TokenCounter } from "../../core/dist/src/index.js";
 import {
   reduceRequest,
+  resolveTokenCounter,
   type FluxReductionChange,
   type FluxReductionSummary,
   type FluxTokenReductionConfig,
@@ -251,7 +252,7 @@ export async function compactStaleContext(
   request: unknown,
   config: SemanticCompactionConfig = {},
 ): Promise<SemanticCompactionResult> {
-  const countTokens = config.countTokens ?? approximateTokenCount;
+  const { countTokens } = resolveTokenCounter(request, config.countTokens);
   const noop = (reason: string): SemanticCompactionResult =>
     ({ request, tokensBefore: 0, tokensAfter: 0, skippedReason: reason });
 
@@ -350,7 +351,8 @@ export async function reduceRequestAsync(
   config: FluxTokenReductionConfig = {},
   semantic: SemanticCompactionConfig = {},
 ): Promise<{ request: unknown; summary: FluxReductionSummary }> {
-  const countTokens = config.countTokens ?? semantic.countTokens ?? approximateTokenCount;
+  const { countTokens, basis: tokenCounter } =
+    resolveTokenCounter(request, config.countTokens ?? semantic.countTokens);
   const measure = (value: unknown): number => {
     try {
       return typeof value === "string" ? countTokens(value) : countTokens(JSON.stringify(value) ?? "");
@@ -388,6 +390,7 @@ export async function reduceRequestAsync(
       .reduce((sum, change) => sum + change.estimatedTokensSaved, 0),
     changes,
     skipped: false,
+    tokenCounter,
   };
   config.onReduction?.(summary);
   return { request: reduced.request, summary };

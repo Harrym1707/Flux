@@ -1,11 +1,12 @@
 import {
   anthropicCacheableMinimumTokens,
-  approximateTokenCount,
   dedupeRepeatedBlocks,
   dedupeRepeatedLeadingBlock,
   minifyToolSchemas,
   publishedModelPrices,
   resolveModelId,
+  tokenCounterForModel,
+  type TokenCountBasis,
   type TokenCounter,
 } from "../../core/dist/src/index.js";
 
@@ -44,6 +45,12 @@ export type FluxReductionSummary = {
   /** True when reduction was attempted but the request was returned unchanged. */
   skipped: boolean;
   skippedReason?: string;
+  /**
+   * Which counter produced the estimates above: "exact:<encoding>" for a
+   * recognised OpenAI model, "approximate" otherwise (Claude included),
+   * "caller-supplied" when config.countTokens was given.
+   */
+  tokenCounter?: TokenCountBasis | "caller-supplied";
 };
 
 export type FluxHistoryCompactionConfig = {
@@ -857,6 +864,23 @@ function stampAnthropicCacheTtl(
 }
 
 /**
+ * The counter a request is measured with. A caller-supplied counter always
+ * wins; otherwise a recognised OpenAI model id is counted exactly with its
+ * published encoding, and everything else (Claude included: Anthropic's
+ * tokenizer is not public) keeps the approximation. These counts only decide
+ * what to cut and size estimated-baseline figures; provider-verbatim usage
+ * still wins wherever it exists.
+ */
+export function resolveTokenCounter(
+  request: unknown,
+  supplied?: TokenCounter,
+): { countTokens: TokenCounter; basis: TokenCountBasis | "caller-supplied" } {
+  if (supplied !== undefined) return { countTokens: supplied, basis: "caller-supplied" };
+  const model = isPlainObject(request) && typeof request.model === "string" ? request.model : undefined;
+  return tokenCounterForModel(model);
+}
+
+/**
  * Apply reduction to one request.
  *
  * Returns the original request and a `skipped` summary if anything goes wrong,
@@ -867,7 +891,7 @@ export function reduceRequest(
   request: unknown,
   config: FluxTokenReductionConfig = {},
 ): { request: unknown; summary: FluxReductionSummary } {
-  const countTokens = config.countTokens ?? approximateTokenCount;
+  const { countTokens, basis: tokenCounter } = resolveTokenCounter(request, config.countTokens);
   const changes: FluxReductionChange[] = [];
 
   const unchanged = (reason: string): { request: unknown; summary: FluxReductionSummary } => ({
@@ -1176,6 +1200,7 @@ export function reduceRequest(
         .reduce((sum, change) => sum + change.estimatedTokensSaved, 0),
       changes,
       skipped: false,
+      tokenCounter,
     };
     config.onReduction?.(summary);
     return { request: changes.length === 0 ? request : next, summary };

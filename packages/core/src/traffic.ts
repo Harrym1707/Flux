@@ -4,13 +4,13 @@ import { PUBLISHED_LEVERS, type Lever, type WorkloadProfile } from "./savings-mo
 import { auditToolCatalogue, type ToolCatalogueAudit } from "./tool-schema.js";
 import {
   analysePromptCaching,
-  approximateTokenCount,
   dedupeRepeatedBlocks,
   recommendOutputCap,
   type CachingAnalysis,
   type OutputCapAdvice,
   type TokenCounter,
 } from "./token-reduction.js";
+import { tokenCounterForModel } from "./openai-tokenizer.js";
 
 /**
  * Ingest real traffic and measure what a reduction would be worth on it.
@@ -349,7 +349,6 @@ export function measureTraffic(
   options: { countTokens?: TokenCounter; maximumPromptSample?: number } = {},
 ): TrafficMeasurement {
   if (records.length === 0) throw new Error("Measuring traffic needs at least one record.");
-  const countTokens = options.countTokens ?? approximateTokenCount;
   const maximumPromptSample = options.maximumPromptSample ?? 400;
   const notes: string[] = [];
 
@@ -370,6 +369,9 @@ export function measureTraffic(
 
   for (const group of groups.values()) {
     const first = group[0]!;
+    // Groups are per model, so each is counted with the best counter FLUX has
+    // for it: exact for recognised OpenAI ids, the approximation otherwise.
+    const countTokens = options.countTokens ?? tokenCounterForModel(first.model).countTokens;
     const inputTokens = group.reduce((sum, record) => sum + record.inputTokens, 0);
     const outputTokens = group.reduce((sum, record) => sum + record.outputTokens, 0);
     const alreadyCachedInputTokens = group.reduce((sum, record) => sum + (record.cachedInputTokens ?? 0), 0);

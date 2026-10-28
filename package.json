@@ -32,6 +32,7 @@
     "techniques:compare": "node --import tsx evals/run-technique-comparison.ts",
     "analyse": "node --import tsx packages/cli/src/main.ts",
     "benchmark:captures": "node --import tsx evals/run-capture-benchmark.ts",
+    "tokenizer:calibrate": "node --import tsx evals/run-tokenizer-calibration.ts",
     "typecheck:evals": "tsc --noEmit --target ES2022 --module NodeNext --moduleResolution NodeNext --strict --skipLibCheck evals/benchmark.ts evals/contextual-router.ts evals/run-benchmark.ts evals/run-contextual-benchmark.ts evals/run-capture-benchmark.ts evals/benchmark.test.ts evals/reference-routers.ts evals/run-router-comparison.ts evals/reference-routers.test.ts evals/agent-fixture.ts evals/run-replay-gate-freshcap.ts evals/run-replay-gate-freshcap.test.ts",
     "test": "vitest run",
     "test:watch": "vitest",
