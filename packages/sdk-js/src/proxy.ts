@@ -1,5 +1,6 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import { createHash, randomUUID } from "node:crypto";
+import { appendFileSync } from "node:fs";
 import { join } from "node:path";
 import {
   collectRequestText,
@@ -10,6 +11,7 @@ import {
 import { responseText } from "./replay-gate.js";
 import { CachePrefixVolatilityGuard } from "./cache-volatility-guard.js";
 import { reduceRequest, type FluxTokenReductionConfig } from "./reduce-request.js";
+import { extractBlindFeatures } from "./blind-features.js";
 import { createSavingsLedger, type SavingsLedger } from "./savings-ledger.js";
 import type { FluxRequestEvent } from "./types.js";
 
@@ -48,6 +50,14 @@ export type FluxProxyOptions = {
   /** Override upstreams, e.g. a mock in tests or an OpenAI-compatible host. */
   anthropicUpstream?: string;
   openaiUpstream?: string;
+  /**
+   * Enable the provably-blind learning stream: when set, each request also
+   * appends an IRREVERSIBLE feature record (keyed HMAC hashes + structural
+   * counts, never any prompt content) to a `<app>-<provider>.features.jsonl`
+   * spool. This is the hmac key; it must live only in the gateway (ideally
+   * sealed inside an enclave). Off when unset — no features are computed.
+   */
+  blindFeaturesKey?: string;
 };
 
 export type FluxProxy = {
@@ -264,6 +274,16 @@ export function startFluxProxy(options: FluxProxyOptions): Promise<FluxProxy> {
     });
     ledgers.set(key, ledger);
     return ledger;
+  };
+
+  // The blind learning stream: irreversible features beside the content-free
+  // ledger. Best-effort and fully isolated — a features write can never affect
+  // the request path (it runs inside the ledger try/catch that already swallows
+  // failures). Only enabled when a per-deployment hmac key is supplied.
+  const blindFeaturesKey = options.blindFeaturesKey;
+  const writeBlindFeatures = (applicationId: string, provider: "anthropic" | "openai", record: unknown): void => {
+    const safeApp = applicationId.replace(/[^A-Za-z0-9._-]/g, "_").slice(0, 64) || "proxy";
+    appendFileSync(join(options.ledgerDirectory, `${safeApp}-${provider}.features.jsonl`), `${JSON.stringify(record)}\n`);
   };
 
   const handle = async (req: IncomingMessage, res: ServerResponse): Promise<void> => {
@@ -507,6 +527,20 @@ export function startFluxProxy(options: FluxProxyOptions): Promise<FluxProxy> {
         ...(duplicateOfRequestId === undefined ? {} : { duplicateOfRequestId }),
       };
       ledgerFor(applicationId, surface.provider).emit(event);
+
+      // Blind learning stream: features of the ORIGINAL request (what the
+      // customer actually sent), reduced to irreversible keyed hashes + counts.
+      // No prompt content is ever written. Inside this try/catch, so a features
+      // failure is as harmless to the request as a ledger failure.
+      if (blindFeaturesKey !== undefined) {
+        const features = extractBlindFeatures(body, { hmacKey: blindFeaturesKey });
+        writeBlindFeatures(applicationId, surface.provider, {
+          requestId,
+          applicationId,
+          timestamp: event.timestamp,
+          features,
+        });
+      }
     } catch {
       // The meter must never affect the request path.
     }
