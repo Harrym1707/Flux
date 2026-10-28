@@ -131,11 +131,14 @@ export type BillableEvent = {
    * exists so an auditor can re-derive every estimated savedUsd from the
    * event alone (removedFraction = removed / before, baseline input =
    * usage.inputTokens / (1 - removedFraction), valued at actual input cost
-   * divided by actual input tokens).
+   * divided by actual input tokens). When FLUX also ADDED input tokens (the
+   * output-style instruction), `estimatedInputTokensAdded` is present and is
+   * subtracted from usage.inputTokens before the ratio is applied.
    */
   estimatedReduction?: {
     estimatedInputTokensBefore: number;
     estimatedInputTokensRemoved: number;
+    estimatedInputTokensAdded?: number;
   };
   /**
    * Output-side waste metering (never billed, never mutated): how much of

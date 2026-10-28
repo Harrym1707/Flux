@@ -9,6 +9,7 @@ import {
   type TokenCountBasis,
   type TokenCounter,
 } from "../../core/dist/src/index.js";
+import { applyOutputStyle, type FluxOutputStyle } from "./output-style.js";
 
 /**
  * Reduce a request before it is sent.
@@ -31,6 +32,13 @@ export type FluxReductionChange = {
   lever: string;
   lossless: boolean;
   estimatedTokensSaved: number;
+  /**
+   * Input tokens this change ADDED to the request (the output-style
+   * instruction). The ledger subtracts them from the provider's input total
+   * before estimating any other lever's baseline, so an added instruction can
+   * never inflate a removed-token saving.
+   */
+  estimatedTokensAdded?: number;
   detail: string;
 };
 
@@ -51,6 +59,8 @@ export type FluxReductionSummary = {
    * "caller-supplied" when config.countTokens was given.
    */
   tokenCounter?: TokenCountBasis | "caller-supplied";
+  /** Informational: a lever that was configured but deliberately not applied, and why. Never billed. */
+  notes?: string[];
 };
 
 export type FluxHistoryCompactionConfig = {
@@ -188,6 +198,17 @@ export type FluxTokenReductionConfig = {
    * consulted with the RAW request before any stamp is placed.
    */
   cacheVolatilityGuard?: { observe(request: unknown): { stamp: boolean; reason?: string } };
+  /**
+   * Output concision mode (see output-style.ts). Appends one short, fixed
+   * style instruction to the END of the stable system prompt — identical
+   * bytes every turn, inside the cached prefix, never shifting a caller's
+   * breakpoint — so the model writes fewer (5x-priced) output tokens. LOSSY:
+   * it changes what the model writes, so it is "off" by default and bills
+   * only with an approved replay-gate verdict. Skipped on forced tool_choice
+   * and structured-output requests, where a prose style could corrupt the
+   * demanded format.
+   */
+  outputStyle?: FluxOutputStyle;
   countTokens?: TokenCounter;
   onReduction?: (summary: FluxReductionSummary) => void;
 };
@@ -963,12 +984,14 @@ export function reduceRequest(
     // Lines prefix repair moved to the end of a string `system`: the cache
     // stamp must not cover them (see stampAnthropicCacheTtl).
     let systemVolatileTail: string[] = [];
+    let instructionsVolatileTail: string[] = [];
     const reduceSystemText = (text: string, label: "instructions" | "system"): string => {
       let current = reduceText(text, config, countTokens, changes, label);
       if (config.repairCachePrefix) {
         const repaired = repairPrefix(current);
         if (repaired.moved.length > 0) {
           if (label === "system") systemVolatileTail = repaired.moved;
+          else instructionsVolatileTail = repaired.moved;
           current = repaired.text;
           changes.push({
             lever: "cache-prefix-repair",
@@ -1049,6 +1072,38 @@ export function reduceRequest(
         if (!("content" in message)) return message;
         return { ...message, content: reduceMessageContent(message.content, config, countTokens, changes) };
       });
+    }
+
+    // Output style, after every text pass (so dedupe never sees the
+    // instruction) and BEFORE the cache stamp (so the stamp's breakpoint
+    // covers it and the instruction reads at the cached rate).
+    const notes: string[] = [];
+    if (config.outputStyle !== undefined && config.outputStyle !== "off") {
+      if (!["concise", "terse", "ultra"].includes(config.outputStyle)) {
+        throw new Error("outputStyle must be 'off', 'concise', 'terse' or 'ultra'.");
+      }
+      const styled = applyOutputStyle(
+        next,
+        config.outputStyle,
+        { system: systemVolatileTail, instructions: instructionsVolatileTail },
+        countTokens,
+      );
+      if (styled.applied) {
+        changes.push({
+          lever: `output-style-${config.outputStyle}`,
+          lossless: false,
+          // Removes no input; its saving is OUTPUT tokens, which only a
+          // replay (provider-verbatim usage, both arms) can measure.
+          estimatedTokensSaved: 0,
+          estimatedTokensAdded: styled.addedTokens,
+          detail: `Appended the fixed '${config.outputStyle}' style instruction (${styled.addedTokens} token(s)) ` +
+            `to the end of the stable ${styled.target}, inside the cached prefix. This changes what the model ` +
+            "writes, so it needs an approved replay-gate verdict on the customer's own traffic before any " +
+            "output saving may be billed.",
+        });
+      } else {
+        notes.push(`output-style-${config.outputStyle} not applied: ${styled.reason}`);
+      }
     }
 
     // Execution tier, only where the caller has not chosen one themselves,
@@ -1201,6 +1256,7 @@ export function reduceRequest(
       changes,
       skipped: false,
       tokenCounter,
+      ...(notes.length === 0 ? {} : { notes }),
     };
     config.onReduction?.(summary);
     return { request: changes.length === 0 ? request : next, summary };
