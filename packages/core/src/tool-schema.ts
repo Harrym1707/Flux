@@ -23,10 +23,51 @@ import { approximateTokenCount, type TokenCounter } from "./token-reduction.js";
  * trimming "deterministic". That was wrong, and it is the kind of error that
  * turns into a disputed invoice: the saving is real, the no-quality-risk claim
  * attached to it was not.
+ *
+ * `$defs`/`definitions` (pydantic v2's and v1's names for the same mechanism;
+ * also emitted by OpenAPI-derived generators) are a related trap this module
+ * used to fall into: they hold real type definitions addressed by `$ref`
+ * elsewhere in the schema, not decoration. Dropping the whole container
+ * because "the model never reads $defs" is false when a `$ref` still points
+ * into it — the model reads it to resolve the pointer, and dropping it leaves
+ * a dangling reference, i.e. the request still validates as JSON but the
+ * model can no longer see what shape a referenced nested object has. Only
+ * UNREFERENCED entries within the container are true plumbing.
  */
 
 /** Keys the provider's schema validator reads but the model never sees as prose. */
-const PLUMBING_KEYS = new Set(["$schema", "$id", "$comment", "$defs"]);
+const PLUMBING_KEYS = new Set(["$schema", "$id", "$comment"]);
+
+/**
+ * Definition-container keys used by `$ref`. Pydantic v2's `.model_json_schema()`
+ * emits `$defs`; pydantic v1's `.schema()` and OpenAPI-derived generators emit the
+ * older draft-07 `definitions`. Both hold real type definitions for nested models,
+ * addressed elsewhere in the same schema via `$ref: "#/$defs/Name"` (or
+ * `#/definitions/Name`) — they are not decorative the way `$schema`/`$id`/`$comment`
+ * are. An earlier version of this minifier treated `$defs` as plumbing and dropped
+ * it unconditionally, which left `$ref` pointers dangling: the model would see a
+ * property typed only as `{"$ref": "#/$defs/Customer"}` with no definition of what
+ * a Customer is anywhere in the request. That is not lossless minification, it is
+ * schema corruption that happens to still be valid JSON.
+ */
+const DEFINITION_CONTAINER_KEYS = new Set(["$defs", "definitions"]);
+
+/** Every name a `$ref` in this subtree points at, e.g. "Customer" from "#/$defs/Customer". */
+function collectReferencedDefinitionNames(node: unknown, into: Set<string>): void {
+  if (Array.isArray(node)) {
+    for (const item of node) collectReferencedDefinitionNames(item, into);
+    return;
+  }
+  if (typeof node !== "object" || node === null) return;
+  for (const [key, value] of Object.entries(node as Record<string, unknown>)) {
+    if (key === "$ref" && typeof value === "string") {
+      const match = /(?:\$defs|definitions)\/([^/]+)/.exec(value);
+      if (match?.[1] !== undefined) into.add(match[1]);
+      continue;
+    }
+    collectReferencedDefinitionNames(value, into);
+  }
+}
 
 export type MinifyOptions = {
   /**
@@ -117,6 +158,16 @@ export function minifyToolSchemas(tools: unknown[], options: MinifyOptions = {})
   const keep = options.keepTools === undefined ? undefined : new Set(options.keepTools);
   const retained: unknown[] = [];
 
+  // Which `$defs`/`definitions` entries are still pointed at by some `$ref` in
+  // THIS tool. Recomputed per tool below, read by `prune` via closure. The
+  // check is reference-string presence in the tool's original (unpruned) JSON,
+  // not true reachability from the schema root: a definition referenced only
+  // from inside another dead, unreferenced definition is still kept. That is
+  // deliberately conservative — it never drops a definition a live `$ref`
+  // needs, at the cost of occasionally keeping a few bytes of truly dead
+  // definitions. Correctness over maximal compression.
+  let referencedDefinitionNames = new Set<string>();
+
   tools.forEach((tool, index) => {
     const name = toolNameOf(tool, index);
     if (keep !== undefined && !keep.has(name)) {
@@ -130,6 +181,8 @@ export function minifyToolSchemas(tools: unknown[], options: MinifyOptions = {})
       });
       return;
     }
+    referencedDefinitionNames = new Set();
+    collectReferencedDefinitionNames(tool, referencedDefinitionNames);
     retained.push(prune(tool, name));
   });
 
@@ -139,6 +192,26 @@ export function minifyToolSchemas(tools: unknown[], options: MinifyOptions = {})
     const row = node as Record<string, unknown>;
     const output: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(row)) {
+      if (DEFINITION_CONTAINER_KEYS.has(key) && typeof value === "object" && value !== null &&
+        !Array.isArray(value)) {
+        const definitions = value as Record<string, unknown>;
+        const kept: Record<string, unknown> = {};
+        for (const [defName, defValue] of Object.entries(definitions)) {
+          if (referencedDefinitionNames.has(defName)) {
+            kept[defName] = prune(defValue, `${path}.${key}.${defName}`);
+          } else {
+            changes.push({
+              kind: "plumbing",
+              lossless: true,
+              at: `${path}.${key}.${defName}`,
+              tokensSaved: countTokens(JSON.stringify({ [defName]: defValue })),
+              detail: `Removed unused definition "${defName}" from ${key}; no "$ref" in this tool points to it.`,
+            });
+          }
+        }
+        if (Object.keys(kept).length > 0) output[key] = kept;
+        continue;
+      }
       if (PLUMBING_KEYS.has(key)) {
         changes.push({
           kind: "plumbing",
