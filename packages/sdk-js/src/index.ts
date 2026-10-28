@@ -1,6 +1,8 @@
 export { serviceTierOf, withFlux } from "./openai.js";
 export * from "./types.js";
 export { chooseRoute } from "./routing.js";
+export { chooseSideCallRoute, detectSideCall, DEFAULT_SIDE_CALL_KINDS } from "./side-call-routing.js";
+export type { FluxSideCallRoutingConfig, SideCallKind, SideCallMatch, SideCallRouteDecision } from "./side-call-routing.js";
 export { ExactResponseCache } from "./exact-cache.js";
 export { createLocalJsonlCapture } from "./evaluation-capture.js";
 export { billableEventFromRequest, createSavingsLedger } from "./savings-ledger.js";

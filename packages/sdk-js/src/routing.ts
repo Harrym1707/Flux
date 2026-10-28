@@ -5,7 +5,7 @@ export type FluxRoute = {
   model: string;
   requestedModel: string;
   policyId?: string;
-  reason: "no_matching_policy" | "missing_stable_key" | "baseline" | "candidate_quality_and_cost_gates_passed";
+  reason: "no_matching_policy" | "missing_stable_key" | "baseline" | "candidate_quality_and_cost_gates_passed" | "side_call_routed";
   estimatedCostSavingsPercent?: number;
   maxOutputTokens?: number;
   contextProfileId?: string;

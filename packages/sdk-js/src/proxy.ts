@@ -12,6 +12,7 @@ import { CachePrefixVolatilityGuard } from "./cache-volatility-guard.js";
 import { reduceRequest, type FluxTokenReductionConfig } from "./reduce-request.js";
 import { createSavingsLedger, type SavingsLedger } from "./savings-ledger.js";
 import type { FluxRequestEvent } from "./types.js";
+import { chooseSideCallRoute, type FluxSideCallRoutingConfig } from "./side-call-routing.js";
 
 /**
  * FLUX proxy mode: point an application's base_url here instead of changing
@@ -48,6 +49,12 @@ export type FluxProxyOptions = {
   /** Override upstreams, e.g. a mock in tests or an OpenAI-compatible host. */
   anthropicUpstream?: string;
   openaiUpstream?: string;
+  /**
+   * LOSSY, off by default. Sends recognised front-end side-calls (chat title,
+   * tags, follow-up suggestions) to a cheaper model on the same provider. The
+   * ledger event records the swap; nothing about it bills.
+   */
+  sideCallRouting?: FluxSideCallRoutingConfig;
 };
 
 export type FluxProxy = {
@@ -338,7 +345,11 @@ export function startFluxProxy(options: FluxProxyOptions): Promise<FluxProxy> {
 
     // Reduce. reduceRequest never throws; a failure returns the original.
     const { request: reducedRequest, summary } = reduceRequest(body, reduction);
-    const sendBody = JSON.stringify(reducedRequest);
+    // Side-call routing never throws and is a no-op unless explicitly enabled.
+    const sideCall = chooseSideCallRoute(options.sideCallRouting, reducedRequest, surface.provider);
+    const sendBody = JSON.stringify(sideCall
+      ? { ...(reducedRequest as AnyObject), model: sideCall.targetModel }
+      : reducedRequest);
     const applicationIdHeader = req.headers["x-flux-application"];
     const applicationId = ((Array.isArray(applicationIdHeader) ? applicationIdHeader[0] : applicationIdHeader) ?? "proxy").slice(0, 128);
     const headers = forwardHeaders(req, surface.provider);
@@ -486,7 +497,10 @@ export function startFluxProxy(options: FluxProxyOptions): Promise<FluxProxy> {
         requestId,
         applicationId,
         provider: `${surface.provider}-compatible`,
-        model: typeof body.model === "string" ? body.model : "unknown",
+        model: sideCall ? sideCall.targetModel : typeof body.model === "string" ? body.model : "unknown",
+        ...(sideCall
+          ? { requestedModel: sideCall.requestedModel, routeReason: "side_call_routed", routePolicyId: sideCall.match.signatureId }
+          : {}),
         latencyMs: Date.now() - startedAt,
         status: upstreamResponse.ok ? "succeeded" : "failed",
         timestamp: new Date(startedAt).toISOString(),
