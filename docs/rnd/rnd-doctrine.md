@@ -26,6 +26,15 @@ automatically biggest FLUX-addressable saving. Well-built agents already cache,
 so measure NET of what the agent already does, never bill a saving the customer
 already has, and hunt the waste caching does NOT remove.
 
+## Output quality is not traded for savings (founder rule, 2026-10-28)
+
+FLUX must not affect the quality of the customer's output. Every lever falls into one of two classes:
+
+1. **On by default:** only levers that leave model-visible content unchanged in meaning: cache stamping, exact-duplicate removal, whitespace-only minification, batch or flex tier on routes the customer tagged, send timing. These may ship on.
+2. **Off by default, always:** anything that changes what the model reads, which model answers, or what the model writes. Examples: output style modes, lossy tool-output compression, side-call routing, semantic compaction, output-key compaction, change-gated skipping and tool-call repair. These turn on only after the replay gate shows no measurable quality loss on the customer's own traffic. Where a cost saving and a quality signal conflict, quality wins and the lever stays off.
+
+A lever's savings figure is never quoted in marketing without its quality result next to it. A lossy lever with no quality measurement is reported as "untested for quality", not as a saving.
+
 ## The three verticals (priority order)
 
 ### 1. Always-on agent token reduction — HIGHEST PRIORITY
