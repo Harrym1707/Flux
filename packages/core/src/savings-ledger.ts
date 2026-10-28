@@ -158,8 +158,33 @@ export type BillableEvent = {
     providerCacheAlreadyOwnedUsd?: number;
     gatewayCacheUsd?: number;
   };
+  /**
+   * Anthropic server-side compaction spend on this request: the `compaction`
+   * entries of usage.iterations, which the provider EXCLUDES from the top-level
+   * usage that `usage`/`actualUsd` record. Present only when a compaction
+   * iteration ran. Always attributed to the customer (they enabled compaction;
+   * FLUX caused none of it), priced at the catalogued rates of the event's own
+   * model and mode with every cache component treated as customer-owned, and
+   * never read by any lever or savings figure: it is shown on the invoice so
+   * the statement reconciles to the provider bill, and it bills nothing.
+   */
+  compaction?: {
+    attribution: "customer";
+    iterations: number;
+    pricingStatus: "priced" | "unpriced";
+    pricingReason?: string;
+    usage?: LedgerUsage;
+    usd?: number;
+  };
   status: "succeeded" | "failed";
 };
+
+/** What the provider billed for this request: the main iterations plus any compaction. */
+export function eventProviderCostUsd(event: BillableEvent): number | undefined {
+  if (event.actualUsd === undefined) return undefined;
+  if (event.compaction === undefined) return event.actualUsd;
+  return event.compaction.usd === undefined ? undefined : event.actualUsd + event.compaction.usd;
+}
 
 // ---------------------------------------------------------------------------
 // Hash chain
@@ -346,11 +371,26 @@ export function priceLedgerUsage(catalogue: PriceCatalogue, input: LedgerPricing
   };
 }
 
+/**
+ * Price the compaction iterations of one request at catalogued rates. The
+ * cache economics inside a compaction iteration are never FLUX's: the
+ * summarizer is a call the customer asked the provider to make.
+ */
+export function priceCompactionUsage(
+  catalogue: PriceCatalogue,
+  input: Omit<LedgerPricingInput, "fluxPlacedCacheControl" | "fluxPlacedTtl">,
+): { pricingStatus: "priced"; usd: number } | { pricingStatus: "unpriced"; reason: string } {
+  const priced = priceLedgerUsage(catalogue, { ...input, fluxPlacedCacheControl: false });
+  return priced.pricingStatus === "priced"
+    ? { pricingStatus: "priced", usd: priced.actualUsd }
+    : { pricingStatus: "unpriced", reason: priced.reason };
+}
+
 export type LedgerPricingAudit =
   | { status: "verified" }
   | { status: "catalogue_version_mismatch"; eventVersion?: string; catalogueVersion: string }
   | { status: "unpriced"; reason: string }
-  | { status: "mismatch"; field: "actualUsd"; storedUsd?: number; recomputedUsd: number };
+  | { status: "mismatch"; field: "actualUsd" | "compaction.usd"; storedUsd?: number; recomputedUsd: number };
 
 /**
  * Recompute one event's stored cost from its provider-verbatim usage and the
@@ -391,6 +431,24 @@ export function auditEventPricing(event: BillableEvent, catalogue: PriceCatalogu
   }
   if (priced.actualUsd !== event.actualUsd) {
     return { status: "mismatch", field: "actualUsd", storedUsd: event.actualUsd, recomputedUsd: priced.actualUsd };
+  }
+  if (event.compaction?.usage !== undefined) {
+    const compaction = priceCompactionUsage(catalogue, {
+      provider: event.provider,
+      model: event.model,
+      at: event.timestamp.slice(0, 10),
+      executionMode: event.executionMode,
+      usage: event.compaction.usage,
+    });
+    const recomputed = compaction.pricingStatus === "priced" ? compaction.usd : undefined;
+    if (recomputed !== event.compaction.usd) {
+      return {
+        status: "mismatch",
+        field: "compaction.usd",
+        ...(event.compaction.usd === undefined ? {} : { storedUsd: event.compaction.usd }),
+        recomputedUsd: recomputed ?? Number.NaN,
+      };
+    }
   }
   return { status: "verified" };
 }
@@ -454,6 +512,18 @@ export type Invoice = {
   excludedAlreadyOwned: {
     providerCacheOnAppendedHistoryUsd: number;
     gatewayCacheUsd: number;
+  };
+  /**
+   * Customer-paid Anthropic compaction spend in the period (usage.iterations
+   * entries the top-level usage excludes). Present only when any event carries
+   * one. Informational: it reconciles the statement to the provider bill and
+   * never enters netVerifiedSavingsUsd.
+   */
+  customerCompaction?: {
+    events: number;
+    iterations: number;
+    usd: number;
+    unpricedEvents: number;
   };
   /** Sum of billable components; negatives are netted, never clamped. */
   netVerifiedSavingsUsd: number;
@@ -603,6 +673,19 @@ export function recomputeInvoiceWithAudit(
   let providerCacheOnAppendedHistoryUsd = 0;
   let gatewayCacheUsd = 0;
   let eventsBilled = 0;
+  // Compaction spend is paid whether or not the task succeeded, so it is
+  // summed over every considered event; it never touches the savings below.
+  let compactionEvents = 0;
+  let compactionIterations = 0;
+  let compactionUsd = 0;
+  let compactionUnpriced = 0;
+  for (const event of inPeriod) {
+    if (event.compaction === undefined) continue;
+    compactionEvents += 1;
+    compactionIterations += event.compaction.iterations;
+    if (event.compaction.usd === undefined) compactionUnpriced += 1;
+    else compactionUsd += event.compaction.usd;
+  }
 
   for (const event of billableEvents) {
     if (event.catalogueVersion !== undefined) catalogueVersions.add(event.catalogueVersion);
@@ -679,6 +762,14 @@ export function recomputeInvoiceWithAudit(
       providerCacheOnAppendedHistoryUsd,
       gatewayCacheUsd,
     },
+    ...(compactionEvents === 0 ? {} : {
+      customerCompaction: {
+        events: compactionEvents,
+        iterations: compactionIterations,
+        usd: compactionUsd,
+        unpricedEvents: compactionUnpriced,
+      },
+    }),
     netVerifiedSavingsUsd,
     netVerifiedSavingsCents,
     ...(options.carryForwardDeficitUsd === undefined ? {} : { carryForwardDeficitInUsd: carryIn }),

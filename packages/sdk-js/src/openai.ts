@@ -10,6 +10,7 @@ import { ExactResponseCache } from "./exact-cache.js";
 import { CachePrefixVolatilityGuard } from "./cache-volatility-guard.js";
 import { reduceRequest } from "./reduce-request.js";
 import { createSavingsLedger, type SavingsLedger } from "./savings-ledger.js";
+import { compactionEventField } from "./compaction-usage.js";
 import type {
   FluxContextProfile,
   FluxEvaluationCaptureAttempt,
@@ -407,6 +408,12 @@ export function withFlux<T extends AnyObject>(client: T, options: FluxOptions): 
                   cacheWrite1hInputTokens: actualUsage.cacheWrite1hInputTokens ?? 0,
                 }
               : {}),
+            // Anthropic compaction iterations, which the top-level usage above
+            // excludes; priced by the ledger as customer spend, never savings.
+            ...(() => {
+              const compaction = compactionEventField(attempts.map(({ response: attemptResponse }) => attemptResponse));
+              return compaction === undefined ? {} : { compaction };
+            })(),
             costUsd,
             responseServiceTier,
             ...(attempts.length > 0 ? { attemptServiceTiers } : {}),

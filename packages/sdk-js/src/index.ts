@@ -72,6 +72,17 @@ export type {
 } from "./semantic-compaction.js";
 export { CachePrefixVolatilityGuard, type CacheStampDecision } from "./cache-volatility-guard.js";
 export { renderLedgerReport, type LedgerReportOptions, type LedgerReportSpool } from "./report.js";
+export {
+  auditCompactionSession,
+  CompactionAuditor,
+  compactionAdviceLines,
+  type CompactionAuditConfig,
+  type CompactionAuditPair,
+  type CompactionAuditReport,
+  type CompactionFinding,
+  type CompactionFindingKind,
+} from "./compaction-audit.js";
+export { compactionEventField } from "./compaction-usage.js";
 export type {
   FluxHistoryCompactionConfig,
   FluxReductionChange,

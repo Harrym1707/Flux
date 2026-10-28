@@ -3,6 +3,7 @@ import { dirname } from "node:path";
 import {
   catalogueVersion,
   chainLedgerRecord,
+  priceCompactionUsage,
   priceLedgerUsage,
   publishedModelPrices,
   type BillableEvent,
@@ -273,8 +274,57 @@ export function billableEventFromRequest(
     ...(Object.keys(excluded).length === 0 ? {} : { excluded }),
     ...(event.outputDiagnostics === undefined ? {} : { outputDiagnostics: event.outputDiagnostics }),
     ...(event.duplicateOfRequestId === undefined ? {} : { duplicateOfRequestId: event.duplicateOfRequestId }),
+    ...(event.compaction === undefined
+      ? {}
+      : { compaction: compactionOf(event, provider, executionMode, catalogue) }),
     status: event.status,
   };
+}
+
+/**
+ * The customer-attributed compaction record. It reads only the compaction
+ * token counts and never feeds a lever, so it cannot move billed savings in
+ * either direction; an unreadable entry is recorded unpriced, never as $0.
+ */
+function compactionOf(
+  event: FluxRequestEvent,
+  provider: string,
+  executionMode: LedgerExecutionMode,
+  catalogue: PriceCatalogue,
+): NonNullable<BillableEvent["compaction"]> {
+  const compaction = event.compaction!;
+  const base = { attribution: "customer" as const, iterations: compaction.iterations };
+  const counts = [compaction.inputTokens, compaction.outputTokens, compaction.cachedInputTokens, compaction.cacheWriteInputTokens];
+  if (compaction.invalid !== undefined ||
+      counts.some((count) => typeof count !== "number" || !Number.isFinite(count) || count < 0)) {
+    return {
+      ...base,
+      pricingStatus: "unpriced",
+      pricingReason: compaction.invalid ?? "The compaction usage carries no complete, valid token counts.",
+    };
+  }
+  const usage: LedgerUsage = {
+    inputTokens: compaction.inputTokens!,
+    outputTokens: compaction.outputTokens!,
+    cachedInputTokens: compaction.cachedInputTokens!,
+    cacheWriteInputTokens: compaction.cacheWriteInputTokens!,
+    ...(compaction.cacheWrite5mInputTokens === undefined && compaction.cacheWrite1hInputTokens === undefined
+      ? {}
+      : {
+          cacheWrite5mInputTokens: compaction.cacheWrite5mInputTokens ?? 0,
+          cacheWrite1hInputTokens: compaction.cacheWrite1hInputTokens ?? 0,
+        }),
+  };
+  const priced = priceCompactionUsage(catalogue, {
+    provider,
+    model: event.model,
+    at: event.timestamp.slice(0, 10),
+    executionMode,
+    usage,
+  });
+  return priced.pricingStatus === "priced"
+    ? { ...base, pricingStatus: "priced", usage, usd: priced.usd }
+    : { ...base, pricingStatus: "unpriced", pricingReason: priced.reason, usage };
 }
 
 export type SavingsLedger = {

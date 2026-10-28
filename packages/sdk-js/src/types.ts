@@ -55,6 +55,22 @@ export type FluxRequestEvent = {
    */
   cacheWrite5mInputTokens?: number;
   cacheWrite1hInputTokens?: number;
+  /**
+   * Anthropic server-side compaction usage (the `compaction` entries of
+   * usage.iterations), which the top-level usage fields above EXCLUDE. Token
+   * counts only; present only when a compaction iteration ran. `invalid`
+   * means an entry was present but unreadable: the ledger leaves it unpriced.
+   */
+  compaction?: {
+    iterations: number;
+    invalid?: string;
+    inputTokens?: number;
+    outputTokens?: number;
+    cachedInputTokens?: number;
+    cacheWriteInputTokens?: number;
+    cacheWrite5mInputTokens?: number;
+    cacheWrite1hInputTokens?: number;
+  };
   costUsd?: number;
   /**
    * service_tier as reported on the final RESPONSE, never the requested one: a
