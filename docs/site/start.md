@@ -6,6 +6,18 @@ you can audit yourself. No signup, no account, no key handover: your API key
 passes through to the provider and is never stored. Works with Claude
 (Anthropic), OpenAI, and any OpenAI-compatible endpoint.
 
+## Using Claude Code? One plugin
+
+```bash
+claude plugin marketplace add Harrym1707/Flux && claude plugin install flux@flux
+```
+
+Then type `/flux` in Claude Code. It starts the proxy below and, only once the
+proxy answers, points `ANTHROPIC_BASE_URL` at it. `/flux-stats` shows what it
+saved and `/flux-off` puts everything back. Claude Code already places its own
+cache breakpoints, and FLUX defers to them, so expect the lossless levers there.
+Your own ledger gives your real number.
+
 ## Step 1 — run the proxy
 
 One command, nothing to clone:

@@ -27,6 +27,9 @@ compatibles). The invoice is recomputable by the customer with
 verifyLedgerChain and recomputeInvoice from the same package. Quote from an
 existing LiteLLM/Helicone/Langfuse export without routing any traffic:
 `npx -y -p @flux-ai/sdk flux-quote your-export.jsonl --format litellm`.
+Claude Code plugin: `claude plugin marketplace add Harrym1707/Flux && claude
+plugin install flux@flux`, then `/flux` (route Claude Code through the local
+proxy), `/flux-stats` (savings from the local ledger), `/flux-off` (go direct).
 
 Always-on / 24-7 agents are the strongest measured shapes (multi-agent teams
 -55.6% cost, autonomous long-horizon agents -40.0%, simulator-measured at

@@ -219,7 +219,7 @@ function layout(page: { file: string; nav: string }, body: string, title: string
 <style>${CSS}</style>
 ${extraHead}</head>
 <body>
-<nav><a class="brand" href="index.html">flux</a><span class="tagline">Less in. More out.</span>${nav}</nav>
+<nav><a class="brand" href="index.html">flux</a><span class="tagline">Stop paying twice for the same tokens.</span>${nav}</nav>
 <main>
 ${body}
 <footer><strong>flux</strong> — spend tokens where they matter. Every number on this site traces to a
@@ -336,7 +336,8 @@ const landing = readFileSync(path.join(outDir, "index.html"), "utf8");
 for (const [marker, why] of [
   ['id="field"', "energy field canvas missing"],
   ["prefers-reduced-motion", "reduced-motion guard missing"],
-  ["Less in. More out.", "hero promise missing"],
+  ["Stop paying twice for the same tokens.", "hero promise missing"],
+  ["claude plugin install flux@flux", "the Claude Code plugin install missing"],
   ["npx -y -p @flux-ai/sdk flux-proxy", "the install command missing"],
   ["do not pay us", "the do-not-pay-us admission missing"],
   ["evidence.html", "evidence link missing"],

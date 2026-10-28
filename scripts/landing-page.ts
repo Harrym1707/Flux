@@ -57,19 +57,19 @@ export function renderLanding(origin: string, repoUrl: string): string {
     { chip: "fresh result capped before it bills", tokens: approxTokens(TOOLRES_RAW) - approxTokens(TOOLRES_AFTER) },
   ];
 
-  // --- The receipt: the FIRST LIVE EXPORT, verbatim. Rows must truly sum.
-  // 30 requests, claude-sonnet-5-5, 2026-10-19; spools audited in-session.
-  // Second live export, 2026-10-19: all five agents billing, cache lever
-  // earning live, the coding agent's gate-approved cap billing. Verbatim.
+  // --- The receipt: the LATEST LIVE EXPORT, verbatim. Rows must truly sum.
+  // 30 requests, claude-sonnet-5-5, 2026-10-26; the hash-chained spools are
+  // committed in evals/live-exports-2026-10-26/ (docs/NUMBERS.md: 18.2%).
+  // Per-agent sums of actualUsd and savedUsd from those spools, 5 d.p.
   const SPEND = [
-    ["coding-agent", 0.06914], ["rag-docqa", 0.04057], ["batch-classifier", 0.03551],
-    ["support-chat", 0.05225], ["already-lean", 0.00570],
+    ["coding-agent", 0.05920], ["rag-docqa", 0.03913], ["batch-classifier", 0.04517],
+    ["support-chat", 0.05225], ["already-lean", 0.00529],
   ] as const;
   const SAVED = [
-    ["coding-agent — cap + schemas, net of cache", 0.02060],
-    ["batch-classifier — cache stamp, earning", 0.01015],
+    ["coding-agent — cap + schemas + cache stamp", 0.02254],
     ["rag-docqa — duplicate excerpt removed", 0.00861],
     ["support-chat — tool-schema compaction", 0.00537],
+    ["batch-classifier — stamp suppressed, 0%", 0.0],
     ["already-lean — nothing to remove", 0.0],
   ] as const;
   const spendTotal = SPEND.reduce((s, [, v]) => s + v, 0);
@@ -347,9 +347,19 @@ a{color:var(--ink)}
 .hero .col{max-width:60rem}
 .hero h1{margin:0 0 var(--s3);line-height:1}
 .hero h1 .in{display:block;font-size:clamp(20px,3vw,30px);font-weight:600;letter-spacing:.02em;color:var(--muted);opacity:.85;margin-bottom:var(--s1)}
-.hero h1 .out{display:block;font-size:clamp(64px,11vw,120px);font-weight:800;letter-spacing:-.045em;background:linear-gradient(135deg,#102A43 10%,#2864A5 70%,#4E8FC7 100%);-webkit-background-clip:text;background-clip:text;color:transparent}
+.hero h1 .out{display:block;font-size:clamp(46px,8.4vw,104px);font-weight:800;letter-spacing:-.045em;background:linear-gradient(135deg,#102A43 10%,#2864A5 70%,#4E8FC7 100%);-webkit-background-clip:text;background-clip:text;color:transparent}
 .hero .sub{font-size:20px;line-height:1.5;color:var(--muted);margin:0 auto 36px;max-width:34rem}
 .hero .actions{display:flex;align-items:center;justify-content:center;gap:var(--s3)}
+.install{max-width:40rem;margin:36px auto 0;text-align:left;background:var(--surface);border:1px solid var(--deep-line);border-radius:8px;overflow:hidden}
+.install .irow{display:grid;grid-template-columns:7.5rem minmax(0,1fr) auto;align-items:center;gap:12px;padding:10px 14px;border-top:1px solid var(--deep-line)}
+.install .irow:first-child{border-top:none}
+.install .lbl{font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--deep-muted)}
+.install code{font:13px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;color:#F1F7FB;overflow-x:auto;white-space:nowrap;display:block}
+@media (max-width:760px){.install .irow{grid-template-columns:minmax(0,1fr) auto}.install .lbl{grid-column:1/-1}}
+.band .basis{display:block;font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--ocean);margin-top:var(--s1)}
+.duo{max-width:60rem;margin:0 auto}
+.duo h2{text-align:center}
+.duo .lede{font-size:20px;line-height:1.5;text-align:center;max-width:40rem;margin:0 auto var(--s5)}
 .hero .mark{z-index:2}
 .btn{display:inline-block;padding:12px 22px;border-radius:var(--radius);font-weight:700;font-size:16px;text-decoration:none;background:var(--ink);color:#F1F7FB;transition:background .18s ease}
 .btn:hover{background:var(--ocean)}
@@ -550,7 +560,7 @@ section h2::after{content:"";position:absolute;left:50%;transform:translateX(-50
   const orgLd = JSON.stringify({
     "@context": "https://schema.org",
     "@type": "Organization",
-    name: "FLUX", url: `${origin}/`, logo: `${origin}/favicon.svg`, sameAs: [repoUrl], slogan: "Less in. More out.",
+    name: "FLUX", url: `${origin}/`, logo: `${origin}/favicon.svg`, sameAs: [repoUrl], slogan: "Stop paying twice for the same tokens.",
   });
 
   const spendRows = SPEND.map(([name, v]) =>
@@ -563,13 +573,13 @@ section h2::after{content:"";position:absolute;left:50%;transform:translateX(-50
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>flux — less in, more out</title>
-<meta name="description" content="Cut your Claude and OpenAI API bill. One URL in, savings verified per completed task, pay only a share of verified savings. Every invoice is recomputable from a ledger you hold.">
+<title>flux — stop paying twice for the same tokens</title>
+<meta name="description" content="Stop paying twice for the same tokens. FLUX cuts your Claude and OpenAI API bill at the request level: one URL, a Claude Code plugin, savings verified per completed task, 1% of verified savings. Every invoice is recomputable from a ledger you hold.">
 <link rel="canonical" href="${origin}/">
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="flux">
-<meta property="og:title" content="flux — less in, more out">
+<meta property="og:title" content="flux — stop paying twice for the same tokens">
 <meta property="og:description" content="Cut your Claude and OpenAI API bill. Savings verified per completed task; pay only a share of verified savings.">
 <meta property="og:image" content="${origin}/og.png">
 <meta property="og:image:width" content="1200">
@@ -593,11 +603,16 @@ section h2::after{content:"";position:absolute;left:50%;transform:translateX(-50
   <span class="mark">${MARK}</span>
   <a class="signin" href="start.html">Get started</a>
   <div class="col">
-    <h1><span class="in">Less in.</span><span class="out">More out.</span></h1>
-    <p class="sub">FLUX removes the junk from your AI requests before you pay for it. Same answers by default, smaller bill &mdash; and you can check every number yourself.</p>
+    <h1><span class="in">Stop paying twice</span><span class="out">for the same tokens.</span></h1>
+    <p class="sub">Most agents re-send their whole conversation every turn and pay full price for it again. FLUX sits on one URL, makes each request cheaper before it bills, and hands you the receipt.</p>
     <div class="actions">
       <a class="btn" href="start.html">Get started</a>
       <a class="arrowlink" href="evidence.html">See the evidence</a>
+    </div>
+    <div class="install" aria-label="Install in 30 seconds">
+      <div class="irow"><span class="lbl">Proxy</span><code>npx -y -p @flux-ai/sdk flux-proxy</code><button class="copy" type="button" data-copy="npx -y -p @flux-ai/sdk flux-proxy">copy</button></div>
+      <div class="irow"><span class="lbl">SDK</span><code>npm install @flux-ai/sdk</code><button class="copy" type="button" data-copy="npm install @flux-ai/sdk">copy</button></div>
+      <div class="irow"><span class="lbl">Claude Code</span><code>claude plugin marketplace add Harrym1707/Flux &amp;&amp; claude plugin install flux@flux</code><button class="copy" type="button" data-copy="claude plugin marketplace add Harrym1707/Flux &amp;&amp; claude plugin install flux@flux">copy</button></div>
     </div>
   </div>
 </header>
@@ -605,11 +620,11 @@ section h2::after{content:"";position:absolute;left:50%;transform:translateX(-50
 
 <section aria-label="Measured bands" class="bands">
   <div class="bandrow rise">
-    <div class="band"><div class="n">45<span>&ndash;73%</span></div><p>off repetitive API calls &mdash; the top of the range when they can wait a few seconds</p></div>
-    <div class="band"><div class="n">57.7<span>%</span></div><p>off background work that can wait a few extra seconds</p></div>
-    <div class="band"><div class="n">37.6<span>%</span></div><p>just from switching on Claude&rsquo;s cache &mdash; many apps never do</p></div>
+    <div class="band"><div class="n"><span>up to </span>72.8<span>%</span></div><p>off one-shot templated API calls that can wait a few seconds</p><span class="basis">simulator</span></div>
+    <div class="band"><div class="n">38.1<span>%</span></div><p>off a coding agent&rsquo;s bill, on real API traffic</p><span class="basis">live &middot; 2026-10-26</span></div>
+    <div class="band"><div class="n">18.2<span>%</span></div><p>net, across 30 real requests from five agents &mdash; real money</p><span class="basis">live &middot; 2026-10-26</span></div>
   </div>
-  <p class="bandcap rise">Measured in our open test harness at the providers&rsquo; real prices, with answer quality checked on every task. Some setups save nothing &mdash; then we say it plainly: <strong>do not pay us</strong>. Every number comes with a command you can run &rarr; <a href="evidence.html">evidence</a>.</p>
+  <p class="bandcap rise">Simulator figures come from our open test harness at the providers&rsquo; real prices, with answer quality checked on every task; live figures come from hash-chained spools committed to the repo. Some setups save nothing &mdash; then we say it plainly: <strong>do not pay us</strong>. Every number, its basis and its command &rarr; <a href="evidence.html">evidence</a> &middot; <a href="https://github.com/Harrym1707/Flux/blob/main/docs/NUMBERS.md">NUMBERS.md</a>.</p>
 </section>
 
 <section aria-label="Works with every provider" class="works">
@@ -700,17 +715,36 @@ Anthropic SDK: new Anthropic({ baseURL: "http://127.0.0.1:8787" })</pre>
   </div>
 </section>
 
+<section aria-label="FLUX and Caveman">
+  <div class="duo">
+  <h2 class="rise">Caveman makes your agent say less. FLUX makes each request cost less.</h2>
+  <p class="lede rise">Different layers, so they stack. Use both.</p>
+  <div data-ui class="rise"><div class="tblwrap"><table>
+    <thead><tr><th></th><th>Caveman</th><th>FLUX</th></tr></thead>
+    <tbody>
+      <tr><td>What it changes</td><td>How the agent writes, plus compressing logs and JSON it reads</td><td>The API request: cache-prefix stamping and repair, schema compaction, exact-duplicate removal, execution tier</td></tr>
+      <tr><td>How you add it</td><td>A skill or plugin inside each agent</td><td>One local URL, one line of SDK, or the Claude Code plugin</td></tr>
+      <tr><td>Works with</td><td>The coding agents it supports</td><td>Any client in any language that can set an Anthropic or OpenAI base URL</td></tr>
+      <tr><td>Your prompts</td><td>Skill runs locally; optional Cloud and Auto modes send prompts to Caveman Cloud; CLI telemetry on unless turned off</td><td>Never leave your machine except to your own provider; the proxy sends no telemetry</td></tr>
+      <tr><td>Price</td><td>Free, open source</td><td>1% of verified savings, nothing else</td></tr>
+      <tr><td>Audit the bill</td><td>Nothing to bill</td><td>Recompute the invoice from a ledger you hold</td></tr>
+    </tbody>
+  </table></div></div>
+  <p class="bandcap rise">Caveman facts from its README, checked 2026-10-28. Something changed? <a href="https://github.com/Harrym1707/Flux/issues">Tell us</a> and we&rsquo;ll fix it.</p>
+  </div>
+</section>
+
 <section aria-label="The first live export" class="field-deep">
   <div class="receipt-wrap">
     <div class="total-side rise">
       <h2>Proven, line by line.</h2>
       <p class="note">Most savings claims are projections. Ours come with the receipt: we ran real requests, published every line, and the rows add up to the total &mdash; check them.</p>
       <div class="figure">37.9%</div>
-      <p class="cap">saved by a single lever &mdash; switching Claude&rsquo;s cache on &mdash; measured both ways on identical prompts, answers unchanged. The receipt beside is our latest small live run: ${savedPct.toFixed(1)}% of real spend saved and billing on every active agent, the cache lever earning live. The full measured range is 26&ndash;73% by traffic type &rarr; <a href="evidence.html">evidence</a>.</p>
+      <p class="cap">saved by a single lever &mdash; switching Claude&rsquo;s cache on &mdash; measured both ways on identical prompts, answers unchanged. The receipt beside is our latest small live run: ${savedPct.toFixed(1)}% of real spend saved, the cache stamp earning live on the coding agent, and the two agents with nothing to gain correctly billed nothing. Simulator bands by traffic type run from 25.9% to 72.8% &rarr; <a href="evidence.html">evidence</a>.</p>
     </div>
     <div class="slip rise in-self" aria-label="The export, row by row">
       <h3>FLUX &mdash; LIVE EXPORT</h3>
-      <p class="meta">Second export &middot; 2026-10-19 &middot; claude-sonnet-5-5 &middot; 30 requests &middot; 5 hash chains verified</p>
+      <p class="meta">Latest export &middot; 2026-10-26 &middot; claude-sonnet-5-5 &middot; 30 requests &middot; 5 hash chains verified</p>
       <p class="grp">SPEND, BY AGENT</p>
       ${spendRows}
       <p class="grp">VERIFIED SAVINGS, BY LEVER</p>

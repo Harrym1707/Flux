@@ -1,4 +1,86 @@
-# FLUX — cut your LLM API bill, pay only a share of verified savings
+# FLUX: stop paying twice for the same tokens
+
+**Most agents never switch on the prompt cache, so they re-send the whole conversation every turn and pay full price for it again.**
+FLUX sits on one URL between your app and the API, makes each request cheaper before it bills, and
+writes every saving to a ledger you hold. You pay 1% of what it verifiably saved. Saved nothing? The
+invoice says `do_not_charge`.
+
+| **up to 72.8%** | **38.1%** | **18.2%** |
+|:---:|:---:|:---:|
+| off one-shot templated traffic that can wait<br><sub>simulator, arm I</sub> | off a coding agent's bill, live API traffic<br><sub>LIVE, 2026-10-26</sub> | net, 30 real requests, real money<br><sub>LIVE, 2026-10-26</sub> |
+
+<sub>Every figure, its basis (LIVE or SIMULATOR) and the command that reproduces it:
+[docs/NUMBERS.md](docs/NUMBERS.md). Already-optimised stacks get 0–5% and a "do not pay us" verdict.</sub>
+
+## Install in 30 seconds
+
+```bash
+# 1. Proxy: any language, any agent, zero code changes. Then set base_url to http://127.0.0.1:8787
+npx -y -p @flux-ai/sdk flux-proxy
+
+# 2. SDK: one line in Node
+npm install @flux-ai/sdk        # then: withFlux(new Anthropic(), { ... })
+
+# 3. Claude Code plugin: /flux on, /flux-stats, /flux-off
+claude plugin marketplace add Harrym1707/Flux && claude plugin install flux@flux
+```
+
+Inside Claude Code 2.1.275 or later, one step does it: `/plugin install flux --marketplace Harrym1707/Flux`.
+Then type `/flux`. It starts the proxy, points `ANTHROPIC_BASE_URL` at it once it answers, and
+`/flux-off` puts everything back. Claude Code already places its own cache breakpoints, and FLUX
+defers to them, so expect the lossless levers there, not the cache number. `/flux-stats` shows
+your real figure. Plugin details: [plugins/flux/](plugins/flux/README.md).
+
+## Before and after (real output, not a mock-up)
+
+One real request shape (a support agent with 40 rules, 40 tools, a duplicated KB article and a clock
+at the top) through the real SDK wrapper:
+
+```text
+$ node --import tsx examples/reduce-drop-in.ts
+=== request payload, before and after ===
+input tokens (estimated)   12,972 -> 10,872
+...
+tools serialised           30,541 -> 26,181 chars
+...
+clock moved off the front  yes
+clock still present        yes
+stable prefix now          2,457 tokens
+```
+
+The same harness over a whole one-shot workload. Same preamble, a per-request clock, priced by the
+provider-rule cache simulator:
+
+```text
+$ node --import tsx evals/run-agent-ab.ts
+=== one-shot workload: same preamble, per-request clock, nothing appends ===
+A. no FLUX                 cost $0.569, hit rate 0%
+C. + prefix repair         cost $0.335, hit rate 78%
+H. full stack (cap 2000)   cost $0.310, hit rate 84%
+I. H + flex tier (async)   cost $0.155, hit rate 84% (flex pricing, async-eligible only)
+```
+
+$0.569 to $0.310 is the **45.5%** band, and $0.155 is the **72.8%** one for traffic that can wait.
+Both are SIMULATOR figures. The LIVE ones are above.
+
+## FLUX vs Caveman: use both
+
+[Caveman](https://github.com/JuliusBrussee/caveman) makes your agent *say less*. FLUX makes each
+*request cost less*. They work on different layers, so they stack.
+
+| | Caveman | FLUX |
+|---|---|---|
+| What it changes | How the agent writes (terse replies), plus compressing logs and JSON the agent reads | The API request itself: cache-prefix stamping and repair, schema compaction, exact-duplicate removal, execution tier |
+| How you add it | A skill or plugin inside each agent (30+ supported), with an optional CLI | One local URL (`base_url`), or one line of SDK |
+| Works with | The coding agents it supports | Any client in any language that can set an Anthropic or OpenAI base URL, coding agent or not |
+| Your prompts | The skill runs locally. Optional Cloud and Auto modes send prompts to Caveman Cloud. The CLI sends usage telemetry unless you turn it off | Never leave your machine except to your own provider. The proxy sends no telemetry |
+| How savings are counted | Its own token benchmarks | Per completed task, at provider prices, into a hash-chained ledger on your machine |
+| Price | Free, open source | 1% of verified savings, nothing else. BUSL-1.1, free for non-commercial use |
+| Can you audit the bill? | Nothing to bill | Yes: `recomputeInvoice` on your own spool must reproduce our invoice |
+
+<sub>Caveman facts from its README, checked 2026-10-28. If something has changed, open an issue and we'll fix it.</sub>
+
+## What FLUX is
 
 FLUX reduces what each LLM request costs — on Claude (Anthropic), OpenAI, and
 any OpenAI-compatible API — and meters the savings into an append-only,
@@ -17,7 +99,7 @@ Three things no other cost tool says on its front page:
    writes one hash-chained event with provider-verbatim usage; run
    `recomputeInvoice` on your own spool and you must get our number.
 
-## How much does it save?
+## How much does it save? The full evidence table
 
 | Workload | Band | Status |
 |---|---|---|
