@@ -1,0 +1,15 @@
+{
+  "name": "flux",
+  "description": "FLUX: cut the Claude Code API bill at the request level. Local proxy, no telemetry, savings in a ledger you hold.",
+  "owner": {
+    "name": "Flux AI Technologies Ltd",
+    "url": "https://www.fluxtoken.dev"
+  },
+  "plugins": [
+    {
+      "name": "flux",
+      "source": "./plugins/flux",
+      "description": "/flux routes Claude Code through the local FLUX proxy, /flux-stats shows what it saved, /flux-off goes direct again."
+    }
+  ]
+}

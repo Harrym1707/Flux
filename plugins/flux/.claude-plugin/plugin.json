@@ -1,0 +1,14 @@
+{
+  "name": "flux",
+  "displayName": "FLUX",
+  "version": "0.1.0",
+  "description": "Stop paying twice for the same tokens. Routes Claude Code through the local FLUX proxy (one URL), shows savings from a ledger you hold, and switches off in one command.",
+  "author": {
+    "name": "Flux AI Technologies Ltd",
+    "url": "https://www.fluxtoken.dev"
+  },
+  "homepage": "https://www.fluxtoken.dev",
+  "repository": "https://github.com/Harrym1707/Flux",
+  "license": "BUSL-1.1",
+  "keywords": ["cost", "tokens", "proxy", "prompt-cache", "savings", "anthropic", "openai"]
+}

@@ -27,6 +27,9 @@ compatibles). The invoice is recomputable by the customer with
 verifyLedgerChain and recomputeInvoice from the same package. Quote from an
 existing LiteLLM/Helicone/Langfuse export without routing any traffic:
 `npx -y -p @flux-ai/sdk flux-quote your-export.jsonl --format litellm`.
+Claude Code plugin: `claude plugin marketplace add Harrym1707/Flux && claude
+plugin install flux@flux`, then `/flux` (route Claude Code through the local
+proxy), `/flux-stats` (savings from the local ledger), `/flux-off` (go direct).
 
 Always-on / 24-7 agents are the strongest measured shapes (multi-agent teams
 -55.6% cost, autonomous long-horizon agents -40.0%, simulator-measured at
@@ -54,6 +57,18 @@ about to pay for twice, and writes every request into a tamper-evident ledger
 you can audit yourself. No signup, no account, no key handover: your API key
 passes through to the provider and is never stored. Works with Claude
 (Anthropic), OpenAI, and any OpenAI-compatible endpoint.
+
+## Using Claude Code? One plugin
+
+```bash
+claude plugin marketplace add Harrym1707/Flux && claude plugin install flux@flux
+```
+
+Then type `/flux` in Claude Code. It starts the proxy below and, only once the
+proxy answers, points `ANTHROPIC_BASE_URL` at it. `/flux-stats` shows what it
+saved and `/flux-off` puts everything back. Claude Code already places its own
+cache breakpoints, and FLUX defers to them, so expect the lossless levers there.
+Your own ledger gives your real number.
 
 ## Step 1 — run the proxy
 

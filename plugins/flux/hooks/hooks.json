@@ -1,0 +1,15 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}\"/scripts/flux-cc.mjs ensure",
+            "timeout": 90
+          }
+        ]
+      }
+    ]
+  }
+}
