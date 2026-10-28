@@ -138,27 +138,27 @@ function renderBody(markdown: string): { html: string; title: string; descriptio
 
 const CSS = `
 :root{
-  /* FLUX brand: Midnight Tide / Open Ocean / Sky Signal / Cloud White */
-  --bg:#F1F7FB;
+  /* FLUX brand: Off White ground, Deep Graphite ink, Flux Blue accent, Frost tone-step */
+  --bg:#FAFAF9;
   --surface:#ffffff;
-  --fg:#102A43;
-  --muted:#486581;
-  --line:#d9e6f0;
-  --brand:#2864A5;
-  --signal:#9DD9F5;
-  --signal-soft:#e4f4fd;
-  --code:#e8f1f8;
+  --fg:#0B0F14;
+  --muted:#5B6472;
+  --line:#E5E7EB;
+  --brand:#2563EB;
+  --signal:#2563EB;
+  --signal-soft:#EEF2FE;
+  --code:#F1F3F5;
 }
 @media (prefers-color-scheme: dark){:root{
-  --bg:#0b1d2e;
-  --surface:#102A43;
-  --fg:#F1F7FB;
-  --muted:#9fb3c8;
-  --line:#24415c;
-  --brand:#9DD9F5;
-  --signal:#9DD9F5;
-  --signal-soft:#16314a;
-  --code:#16314a;
+  --bg:#0B0F14;
+  --surface:#14181F;
+  --fg:#FAFAF9;
+  --muted:#9AA3B2;
+  --line:#262B33;
+  --brand:#6B93FF;
+  --signal:#6B93FF;
+  --signal-soft:#17202E;
+  --code:#161B22;
 }}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.7 Manrope,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
@@ -174,9 +174,9 @@ h3{font-size:1.05rem;font-weight:700}
 a{color:var(--brand)}
 strong{color:var(--fg)}
 code{background:var(--code);padding:.1em .35em;border-radius:5px;font-size:.88em}
-pre.block{background:#102A43;color:#F1F7FB;border-radius:10px;padding:1rem 1.1rem;overflow-x:auto;font-size:.85rem;line-height:1.6}
+pre.block{background:#E7E5E4;color:#0B0F14;border-radius:10px;padding:1rem 1.1rem;overflow-x:auto;font-size:.85rem;line-height:1.6}
 pre.block code{background:none;padding:0;font-size:inherit;color:inherit}
-@media (prefers-color-scheme: dark){pre.block{background:#0b1d2e;border:1px solid var(--line)}}
+@media (prefers-color-scheme: dark){pre.block{background:#14181F;color:#FAFAF9;border:1px solid var(--line)}}
 .table-wrap{overflow-x:auto;background:var(--surface);border:1px solid var(--line);border-radius:10px;margin:1rem 0}
 table{border-collapse:collapse;width:100%;font-size:.95rem}
 th,td{border-bottom:1px solid var(--line);padding:.6rem .75rem;text-align:left;vertical-align:top}
@@ -289,13 +289,15 @@ for (const page of PAGES) {
 
 writeFileSync(path.join(outDir, "llms.txt"), readFileSync(path.join(siteDir, "llms.txt"), "utf8"), "utf8");
 writeFileSync(path.join(outDir, "og.png"), readFileSync(path.join(siteDir, "og.png")));
-// The brand mark as favicon: two streams resolve into one; the sky-blue
-// endpoint is the signal worth keeping. Drawn bold so it survives 16px.
+// The brand mark as favicon: the isometric three-cube logo in white on a Flux
+// Blue ground. Drawn bold (silhouette only) so it survives at 16px.
 writeFileSync(path.join(outDir, "favicon.svg"), `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-<rect width="64" height="64" rx="14" fill="#2864A5"/>
-<path d="M10 20c14 0 14 12 28 12h10" stroke="#F1F7FB" stroke-width="6" stroke-linecap="round" fill="none"/>
-<path d="M10 44c14 0 14-12 28-12" stroke="#F1F7FB" stroke-width="6" stroke-linecap="round" fill="none" opacity="0.72"/>
-<circle cx="52" cy="32" r="6" fill="#9DD9F5"/>
+<rect width="64" height="64" rx="14" fill="#2563EB"/>
+<g transform="translate(32,22.8) scale(0.4)" fill="none" stroke="#ffffff" stroke-width="10" stroke-linejoin="round" stroke-linecap="round">
+<path d="M0 -30 L26 -15 L26 15 L0 30 L-26 15 L-26 -15 Z"/>
+<path d="M-26 15 L0 30 L0 60 L-26 75 L-52 60 L-52 30 Z"/>
+<path d="M26 15 L52 30 L52 60 L26 75 L0 60 L0 30 Z"/>
+</g>
 </svg>
 `, "utf8");
 // GitHub Pages reads the custom domain from a CNAME file in the deploy root.
@@ -365,7 +367,7 @@ if (slipValues.length < 8 || printedTotal === null) {
   if (spend <= 0) failures.push("index.html: receipt spend rows missing");
 }
 if (!landing.includes('rel="icon"')) failures.push("index.html: favicon link missing");
-if (!readFileSync(path.join(outDir, "favicon.svg"), "utf8").includes("#9DD9F5")) failures.push("favicon.svg: missing the signal dot");
+if (!readFileSync(path.join(outDir, "favicon.svg"), "utf8").includes("#2563EB")) failures.push("favicon.svg: missing the Flux Blue brand ground");
 const robots = readFileSync(path.join(outDir, "robots.txt"), "utf8");
 for (const bot of ["GPTBot", "ClaudeBot", "PerplexityBot", "Google-Extended"]) {
   if (!robots.includes(bot)) failures.push(`robots.txt: missing explicit allow for ${bot}`);

@@ -121,11 +121,11 @@ export function renderLanding(origin: string, repoUrl: string): string {
       var scale = FOV / (FOV + z);
       var rowAlpha = (0.15 + 0.35 * scale) * L.dark;
       var size = Math.max(1.2, 2.8 * scale);
-      // far rows ocean-blue, near rows midnight ink
+      // far rows Flux Blue (#2563EB), near rows Deep Graphite (#0B0F14)
       var mixv = Math.min(1, scale * 1.3);
-      var r = Math.round(40 + (16 - 40) * mixv);
-      var g = Math.round(100 + (42 - 100) * mixv);
-      var b2 = Math.round(165 + (67 - 165) * mixv);
+      var r = Math.round(37 + (11 - 37) * mixv);
+      var g = Math.round(99 + (15 - 99) * mixv);
+      var b2 = Math.round(235 + (20 - 235) * mixv);
       ctx.fillStyle = "rgba(" + r + "," + g + "," + b2 + "," + rowAlpha + ")";
       var stag = (zi * 0.381966) % 1;
       for (var xi = 0; xi < COLS; xi++) {
@@ -143,11 +143,11 @@ export function renderLanding(origin: string, repoUrl: string): string {
         var pulse = Math.exp(-(ddx * ddx + ddy * ddy) / (2 * 150 * 150));
         if (pulse > 0.03) {
           sy -= pulse * 24 * scale;
-          ctx.fillStyle = "rgba(16,42,67," + Math.min(0.9, rowAlpha + pulse * 0.6) + ")";
+          ctx.fillStyle = "rgba(37,99,235," + Math.min(0.9, rowAlpha + pulse * 0.6) + ")";
           ctx.fillRect(sx, sy, size + pulse * 1.4, size + pulse * 1.4);
           ctx.fillStyle = "rgba(" + r + "," + g + "," + b2 + "," + rowAlpha + ")";
         } else if (h > amp * 0.55) {
-          ctx.fillStyle = "rgba(40,100,165," + Math.min(0.8, rowAlpha + 0.18) + ")";
+          ctx.fillStyle = "rgba(37,99,235," + Math.min(0.8, rowAlpha + 0.18) + ")";
           ctx.fillRect(sx, sy, size, size);
           ctx.fillStyle = "rgba(" + r + "," + g + "," + b2 + "," + rowAlpha + ")";
         } else {
@@ -321,9 +321,11 @@ export function renderLanding(origin: string, repoUrl: string): string {
 
   const CSS = `
 :root{
-  --bg:#F1F7FB; --surface:#0E2133; --surface-2:#13293E; --ink:#102A43; --muted:#486581;
-  --line:#d9e6f0; --accent:#9DD9F5; --accent-ink:#081522; --ocean:#2864A5; --paper:#ffffff; --paper-ink:#102A43;
-  --deep:#081522; --deep-ink:#F1F7FB; --deep-muted:#9FB3C8; --deep-line:#24415C;
+  /* FLUX brand: Off White ground, Deep Graphite ink, Flux Blue accent, Frost tone-step */
+  --bg:#FAFAF9; --surface:#0B0F14; --surface-2:#14181F; --ink:#0B0F14; --muted:#5B6472;
+  --line:#E5E7EB; --accent:#2563EB; --accent-ink:#ffffff; --ocean:#1D4ED8; --paper:#ffffff; --paper-ink:#0B0F14;
+  --deep:#0B0F14; --deep-ink:#FAFAF9; --deep-muted:#9AA3B2; --deep-line:#262B33;
+  --stone:#E7E5E4; --stone-2:#DAD6D1; --stone-line:#CFCAC3; --stone-muted:#57534E;
   --s1:8px; --s2:16px; --s3:24px; --s4:32px; --s5:48px; --s6:64px; --s7:96px;
   --axis:27vw; --radius:4px;
 }
@@ -341,17 +343,19 @@ a{color:var(--ink)}
 .hero-wrap{position:relative;min-height:96svh;overflow:hidden}
 #field{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
 .hero{position:relative;min-height:96svh;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;padding:var(--s7) var(--s4)}
-.hero .mark{position:absolute;top:40px;left:var(--s4);width:44px;height:44px}
+.hero .brandlock{position:absolute;top:28px;left:var(--s4);display:flex;align-items:center;gap:11px;z-index:2;text-decoration:none;color:var(--ink)}
+.hero .brandlock svg{height:36px;width:auto;display:block}
+.hero .brandlock b{font-size:25px;font-weight:800;letter-spacing:-.03em;color:var(--ink)}
 .hero .signin{position:absolute;top:52px;right:var(--s4);font-size:13px;color:var(--muted);text-decoration:none;z-index:2}
 .hero .signin:hover{color:var(--accent)}
 .hero .col{max-width:60rem}
 .hero h1{margin:0 0 var(--s3);line-height:1}
 .hero h1 .in{display:block;font-size:clamp(20px,3vw,30px);font-weight:600;letter-spacing:.02em;color:var(--muted);opacity:.85;margin-bottom:var(--s1)}
-.hero h1 .out{display:block;font-size:clamp(64px,11vw,120px);font-weight:800;letter-spacing:-.045em;background:linear-gradient(135deg,#102A43 10%,#2864A5 70%,#4E8FC7 100%);-webkit-background-clip:text;background-clip:text;color:transparent}
+.hero h1 .out{display:block;font-size:clamp(64px,11vw,120px);font-weight:800;letter-spacing:-.045em;color:var(--ink)}
 .hero .sub{font-size:20px;line-height:1.5;color:var(--muted);margin:0 auto 36px;max-width:34rem}
 .hero .actions{display:flex;align-items:center;justify-content:center;gap:var(--s3)}
 .hero .mark{z-index:2}
-.btn{display:inline-block;padding:12px 22px;border-radius:var(--radius);font-weight:700;font-size:16px;text-decoration:none;background:var(--ink);color:#F1F7FB;transition:background .18s ease}
+.btn{display:inline-block;padding:12px 22px;border-radius:var(--radius);font-weight:700;font-size:16px;text-decoration:none;background:var(--accent);color:#fff;transition:background .18s ease}
 .btn:hover{background:var(--ocean)}
 .arrowlink{font-size:16px;color:var(--ocean);text-decoration:none;border-bottom:1px solid var(--line)}
 .arrowlink:hover{color:var(--accent);border-color:var(--accent)}
@@ -399,19 +403,19 @@ a{color:var(--ink)}
 #reducer pre{max-height:380px;overflow:auto}
 
 /* ---------- fragments: the product's own conventions ---------- */
-[data-ui]{background:var(--surface);border:1px solid var(--deep-line);border-radius:8px;font-size:13px;overflow:hidden;max-width:100%;color:#F1F7FB}
+[data-ui]{background:var(--stone);border:1px solid var(--stone-line);border-radius:8px;font-size:13px;overflow:hidden;max-width:100%;color:var(--ink);--surface-2:var(--stone-2);--deep-line:var(--stone-line);--deep-muted:var(--stone-muted)}
 [data-ui] .tblwrap{overflow-x:auto}
 [data-ui] table{min-width:540px}
 [data-ui] .bar{display:flex;align-items:center;justify-content:space-between;padding:10px 16px;border-bottom:1px solid var(--deep-line);font-weight:700;font-size:13px;color:var(--deep-muted)}
 [data-ui] .bar{min-width:0}
-[data-ui] .bar .pill{background:var(--surface-2);border:1px solid var(--deep-line);border-radius:999px;padding:2px 10px;font-variant-numeric:tabular-nums;color:#F1F7FB;white-space:nowrap;flex:none}
-[data-ui] pre{margin:0;padding:14px 16px;overflow-x:auto;font:13px/1.65 ui-monospace,SFMono-Regular,Menlo,monospace;color:#F1F7FB}
+[data-ui] .bar .pill{background:var(--surface-2);border:1px solid var(--deep-line);border-radius:999px;padding:2px 10px;font-variant-numeric:tabular-nums;color:var(--ink);white-space:nowrap;flex:none}
+[data-ui] pre{margin:0;padding:14px 16px;overflow-x:auto;font:13px/1.65 ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--ink)}
 [data-ui] .tok{color:var(--deep-muted)}
 [data-ui] .key{color:var(--accent)}
 [data-ui] .dup{transition:opacity .5s ease;text-decoration:line-through transparent}
 [data-ui] .dup.struck{opacity:.28;text-decoration:line-through}
 [data-ui] .footrow{display:flex;align-items:center;gap:12px;padding:10px 16px;border-top:1px solid var(--deep-line)}
-[data-ui] .ui-btn{font:inherit;font-weight:700;font-size:13px;background:var(--surface-2);color:#F1F7FB;border:1px solid var(--deep-line);border-radius:4px;padding:7px 14px;cursor:pointer}
+[data-ui] .ui-btn{font:inherit;font-weight:700;font-size:13px;background:var(--surface-2);color:var(--ink);border:1px solid var(--deep-line);border-radius:4px;padding:7px 14px;cursor:pointer}
 [data-ui] .ui-btn:hover{border-color:var(--accent);color:var(--accent)}
 [data-ui] .ok{font-size:13px;color:var(--accent);opacity:0;transition:opacity .4s ease}
 [data-ui] .ok.show{opacity:1}
@@ -453,7 +457,7 @@ section h2::after{content:"";position:absolute;left:50%;transform:translateX(-50
 /* call and response */
 .exchange{margin-bottom:88px}
 .exchange .lead{font-size:20px;font-weight:600;margin:0 0 var(--s2);text-align:center}
-.exchange .call{background:var(--surface);border-radius:8px;position:relative;color:#F1F7FB}
+.exchange .call{background:var(--stone);border-radius:8px;position:relative;color:var(--ink);--surface-2:var(--stone-2);--deep-line:var(--stone-line);--deep-muted:var(--stone-muted)}
 .exchange .call .copy{position:absolute;top:10px;right:10px}
 .exchange .response{margin-top:var(--s2)}
 .exchange .response.breakout{width:100%}
@@ -536,7 +540,7 @@ section h2::after{content:"";position:absolute;left:50%;transform:translateX(-50
 @media (max-width:980px){.price-wrap{min-height:auto}}
 `.trim();
 
-  const MARK = `<svg viewBox="0 0 48 48" fill="none" aria-hidden="true"><path d="M8 14c10 0 10 10 20 10h12" stroke="#2864A5" stroke-width="3.5" stroke-linecap="round"/><path d="M8 34c10 0 10-10 20-10" stroke="#2864A5" stroke-width="3.5" stroke-linecap="round" opacity=".75"/><circle cx="41" cy="24" r="4" fill="#9DD9F5"/></svg>`;
+  const MARK = `<svg viewBox="0 0 120 130" fill="none" aria-hidden="true"><g transform="translate(60,42)" stroke="currentColor" stroke-width="4" stroke-linejoin="round" stroke-linecap="round"><path d="M0 -30 L26 -15 L26 15 L0 30 L-26 15 L-26 -15 Z"/><path d="M0 0 L26 -15 M0 0 L-26 -15 M0 0 L0 30"/><path d="M-26 15 L0 30 L0 60 L-26 75 L-52 60 L-52 30 Z"/><path d="M-26 45 L0 30 M-26 45 L-52 30 M-26 45 L-26 75"/><path d="M26 15 L52 30 L52 60 L26 75 L0 60 L0 30 Z"/><path d="M26 45 L52 30 M26 45 L0 30 M26 45 L26 75"/></g></svg>`;
 
   const jsonLd = JSON.stringify({
     "@context": "https://schema.org",
@@ -590,7 +594,7 @@ section h2::after{content:"";position:absolute;left:50%;transform:translateX(-50
 <div class="hero-wrap">
 <canvas id="field" aria-hidden="true"></canvas>
 <header class="hero">
-  <span class="mark">${MARK}</span>
+  <a class="brandlock" href="index.html" aria-label="Flux home">${MARK}<b>flux</b></a>
   <a class="signin" href="start.html">Get started</a>
   <div class="col">
     <h1><span class="in">Less in.</span><span class="out">More out.</span></h1>
@@ -671,7 +675,7 @@ Anthropic SDK: new Anthropic({ baseURL: "http://127.0.0.1:8787" })</pre>
 
   <div class="exchange rise">
     <p class="lead">Then run your traffic as normal.</p>
-    <div class="call"><pre style="margin:0;padding:20px;font:13px/1.65 ui-monospace,Menlo,monospace;overflow-x:auto"><code>await anthropic.messages.create({ model, system, messages })  <span style="color:#9FB3C8">// unchanged</span></code></pre></div>
+    <div class="call"><pre style="margin:0;padding:20px;font:13px/1.65 ui-monospace,Menlo,monospace;overflow-x:auto"><code>await anthropic.messages.create({ model, system, messages })  <span style="color:#57534E">// unchanged</span></code></pre></div>
     <div class="response" data-ui>
       <div class="bar"><span>flux-ledger/my-app-anthropic.jsonl</span><span class="pill">hash-chained</span></div>
       <pre>{"seq":0,"prevHash":"000&hellip;0","event":{"requestId":"a1f2&hellip;","model":"claude-sonnet-5-5",
