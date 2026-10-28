@@ -113,6 +113,90 @@ describe("minifyToolSchemas", () => {
     expect(result.tools).toEqual([]);
     expect(result.lossyTokensSaved).toBe(0);
   });
+
+  it("keeps a $defs entry a $ref still points to, including transitively", () => {
+    // Shaped like pydantic v2's .model_json_schema(): nested models land in
+    // $defs and are addressed by $ref. Address is referenced only from inside
+    // Customer's own definition, not from the top-level properties.
+    const pydanticTool = {
+      name: "create_order",
+      input_schema: {
+        type: "object",
+        properties: { customer: { $ref: "#/$defs/Customer" } },
+        required: ["customer"],
+        $defs: {
+          Customer: {
+            type: "object",
+            properties: { address: { $ref: "#/$defs/Address" } },
+          },
+          Address: {
+            type: "object",
+            properties: { street: { type: "string" } },
+          },
+        },
+      },
+    };
+    const result = minifyToolSchemas([pydanticTool]);
+    const serialised = JSON.stringify(result.tools);
+    expect(serialised).toContain('"$defs"');
+    expect(serialised).toContain("Customer");
+    expect(serialised).toContain("Address");
+    expect(serialised).toContain("street");
+    // No change may claim $defs/Customer/Address as removed plumbing.
+    expect(result.changes.some((change) => change.at.includes("$defs.Customer"))).toBe(false);
+    expect(result.changes.some((change) => change.at.includes("$defs.Address"))).toBe(false);
+  });
+
+  it("drops a $defs entry nothing references, and reports it as lossless", () => {
+    const toolWithDeadDef = {
+      name: "ping",
+      input_schema: {
+        type: "object",
+        properties: { id: { $ref: "#/$defs/Id" } },
+        $defs: {
+          Id: { type: "string" },
+          Unused: { type: "object", properties: { junk: { type: "string" } } },
+        },
+      },
+    };
+    const result = minifyToolSchemas([toolWithDeadDef]);
+    const serialised = JSON.stringify(result.tools);
+    expect(serialised).toContain('"Id"');
+    expect(serialised).not.toContain("Unused");
+    const dropped = result.changes.find((change) => change.at.includes("$defs.Unused"));
+    expect(dropped?.lossless).toBe(true);
+    expect(dropped?.kind).toBe("plumbing");
+  });
+
+  it("drops $defs entirely when nothing in the tool references it", () => {
+    const toolWithOrphanDefs = {
+      name: "ping",
+      input_schema: {
+        type: "object",
+        properties: { id: { type: "string" } },
+        $defs: { Unused: { type: "string" } },
+      },
+    };
+    const result = minifyToolSchemas([toolWithOrphanDefs]);
+    expect(JSON.stringify(result.tools)).not.toContain("$defs");
+  });
+
+  it("also protects the older draft-07 \"definitions\" keyword (pydantic v1 / OpenAPI-derived schemas)", () => {
+    const pydanticV1Tool = {
+      name: "create_order",
+      input_schema: {
+        type: "object",
+        properties: { customer: { $ref: "#/definitions/Customer" } },
+        definitions: {
+          Customer: { type: "object", properties: { name: { type: "string" } } },
+        },
+      },
+    };
+    const result = minifyToolSchemas([pydanticV1Tool]);
+    const serialised = JSON.stringify(result.tools);
+    expect(serialised).toContain('"definitions"');
+    expect(serialised).toContain("Customer");
+  });
 });
 
 describe("auditToolCatalogue", () => {
