@@ -1,0 +1,81 @@
+============================= test session starts ==============================
+platform linux -- Python 3.13.17, pytest-9.2.0, pluggy-1.7.0 -- /home/dev/cart/venv/bin/python3
+cachedir: .pytest_cache
+rootdir: /home/dev/cart/py
+collecting ... collected 49 items
+
+test_cart.py::test_total_scales[0] PASSED                                [  2%]
+test_cart.py::test_total_scales[1] PASSED                                [  4%]
+test_cart.py::test_total_scales[2] PASSED                                [  6%]
+test_cart.py::test_total_scales[3] PASSED                                [  8%]
+test_cart.py::test_total_scales[4] PASSED                                [ 10%]
+test_cart.py::test_total_scales[5] PASSED                                [ 12%]
+test_cart.py::test_total_scales[6] PASSED                                [ 14%]
+test_cart.py::test_total_scales[7] PASSED                                [ 16%]
+test_cart.py::test_total_scales[8] PASSED                                [ 18%]
+test_cart.py::test_total_scales[9] PASSED                                [ 20%]
+test_cart.py::test_total_scales[10] PASSED                               [ 22%]
+test_cart.py::test_total_scales[11] PASSED                               [ 24%]
+test_cart.py::test_total_scales[12] PASSED                               [ 26%]
+test_cart.py::test_total_scales[13] PASSED                               [ 28%]
+test_cart.py::test_total_scales[14] PASSED                               [ 30%]
+test_cart.py::test_total_scales[15] PASSED                               [ 32%]
+test_cart.py::test_total_scales[16] PASSED                               [ 34%]
+test_cart.py::test_total_scales[17] PASSED                               [ 36%]
+test_cart.py::test_total_scales[18] PASSED                               [ 38%]
+test_cart.py::test_total_scales[19] PASSED                               [ 40%]
+test_cart.py::test_total_scales[20] PASSED                               [ 42%]
+test_cart.py::test_total_scales[21] PASSED                               [ 44%]
+test_cart.py::test_total_scales[22] PASSED                               [ 46%]
+test_cart.py::test_total_scales[23] PASSED                               [ 48%]
+test_cart.py::test_total_scales[24] PASSED                               [ 51%]
+test_cart.py::test_total_scales[25] PASSED                               [ 53%]
+test_cart.py::test_total_scales[26] PASSED                               [ 55%]
+test_cart.py::test_total_scales[27] PASSED                               [ 57%]
+test_cart.py::test_total_scales[28] PASSED                               [ 59%]
+test_cart.py::test_total_scales[29] PASSED                               [ 61%]
+test_cart.py::test_total_scales[30] PASSED                               [ 63%]
+test_cart.py::test_total_scales[31] PASSED                               [ 65%]
+test_cart.py::test_total_scales[32] PASSED                               [ 67%]
+test_cart.py::test_total_scales[33] PASSED                               [ 69%]
+test_cart.py::test_total_scales[34] PASSED                               [ 71%]
+test_cart.py::test_total_scales[35] PASSED                               [ 73%]
+test_cart.py::test_total_scales[36] PASSED                               [ 75%]
+test_cart.py::test_total_scales[37] PASSED                               [ 77%]
+test_cart.py::test_total_scales[38] PASSED                               [ 79%]
+test_cart.py::test_total_scales[39] PASSED                               [ 81%]
+test_cart.py::test_discount_rounding FAILED                              [ 83%]
+test_cart.py::test_empty_cart PASSED                                     [ 85%]
+test_cart.py::TestCoupons::test_codes[A] PASSED                          [ 87%]
+test_cart.py::TestCoupons::test_codes[B] PASSED                          [ 89%]
+test_cart.py::TestCoupons::test_codes[C] PASSED                          [ 91%]
+test_cart.py::TestCoupons::test_codes[D] PASSED                          [ 93%]
+test_cart.py::TestCoupons::test_codes[E] PASSED                          [ 95%]
+test_cart.py::TestCoupons::test_codes[F] PASSED                          [ 97%]
+test_cart.py::TestCoupons::test_expired FAILED                           [100%]
+
+=================================== FAILURES ===================================
+____________________________ test_discount_rounding ____________________________
+
+    def test_discount_rounding():
+>       assert total([(19.99, 3)], discount=15) == Decimal("50.97")
+E       AssertionError: assert Decimal('50.9745') == Decimal('50.97')
+E        +  where Decimal('50.9745') = total([(19.99, 3)], discount=15)
+E        +  and   Decimal('50.97') = Decimal('50.97')
+
+test_cart.py:16: AssertionError
+___________________________ TestCoupons.test_expired ___________________________
+
+self = <test_cart.TestCoupons object at 0x7ff7965d9ae0>
+
+    def test_expired(self):
+        registry = {"WINTER": 10}
+>       assert registry["SPRING"] == 5
+               ^^^^^^^^^^^^^^^^^^
+E       KeyError: 'SPRING'
+
+test_cart.py:30: KeyError
+=========================== short test summary info ============================
+FAILED test_cart.py::test_discount_rounding - AssertionError: assert Decimal(...
+FAILED test_cart.py::TestCoupons::test_expired - KeyError: 'SPRING'
+========================= 2 failed, 47 passed in 0.09s =========================

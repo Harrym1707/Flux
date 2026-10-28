@@ -1,0 +1,119 @@
+{
+    "bin": {
+        "jest": "bin/jest.js"
+    },
+    "bugs": {
+        "url": "https://github.com/jestjs/jest/issues"
+    },
+    "dist": {
+        "shasum": "994676fc24177f088f1c5e3737f5697204ff2613",
+        "tarball": "https://registry.npmjs.org/jest/-/jest-29.7.0.tgz",
+        "fileCount": 6,
+        "integrity": "sha512-NIy3oAFp9shda19hy4HK0HRTWKtPJmGdnvywu01nOqNC2vZg+Z+fvJDxpMQA88eb2I9EcafcdjYgsDthnYTvGw==",
+        "signatures": [
+            {
+                "sig": "MEYCIQDFlaakCJTRMulmXq5FdnK6hev6LF0/k6ofFVpic1W9LwIhAMgR0vQArzSabDx9hBmSpqdKlRZQL0/8GhhSskKp2FgU",
+                "keyid": "SHA256:jl3bwswu80PjjokCgh0o2w5c2U4LhQAE57gj9cz1kzA"
+            }
+        ],
+        "unpackedSize": 5006
+    },
+    "main": "./build/index.js",
+    "name": "jest",
+    "types": "./build/index.d.ts",
+    "engines": {
+        "node": "^14.15.0 || ^16.10.0 || >=18.0.0"
+    },
+    "exports": {
+        ".": {
+            "types": "./build/index.d.ts",
+            "default": "./build/index.js"
+        },
+        "./bin/jest": "./bin/jest.js",
+        "./package.json": "./package.json"
+    },
+    "gitHead": "4e56991693da7cd4c3730dc3579a1dd1403ee630",
+    "license": "MIT",
+    "_npmUser": {
+        "name": "simenb",
+        "email": "sbekkhus91@gmail.com"
+    },
+    "homepage": "https://jestjs.io/",
+    "keywords": [
+        "ava",
+        "babel",
+        "coverage",
+        "easy",
+        "expect",
+        "facebook",
+        "immersive",
+        "instant",
+        "jasmine",
+        "jest",
+        "jsdom",
+        "mocha",
+        "mocking",
+        "painless",
+        "qunit",
+        "runner",
+        "sandboxed",
+        "snapshot",
+        "tap",
+        "tape",
+        "test",
+        "testing",
+        "typescript",
+        "watch"
+    ],
+    "repository": {
+        "url": "git+https://github.com/jestjs/jest.git",
+        "type": "git",
+        "directory": "packages/jest"
+    },
+    "_npmVersion": "lerna/1.13.0/node@v18.17.1+arm64 (darwin)",
+    "description": "Delightful JavaScript Testing.",
+    "directories": {},
+    "maintainers": [
+        {
+            "name": "simenb",
+            "email": "sbekkhus91@gmail.com"
+        },
+        {
+            "name": "cpojer",
+            "email": "christoph.pojer@gmail.com"
+        },
+        {
+            "name": "rickhanlonii",
+            "email": "rickhanlonii@gmail.com"
+        }
+    ],
+    "_nodeVersion": "18.17.1",
+    "dependencies": {
+        "jest-cli": "^29.7.0",
+        "@jest/core": "^29.7.0",
+        "@jest/types": "^29.6.3",
+        "import-local": "^3.0.2"
+    },
+    "publishConfig": {
+        "access": "public"
+    },
+    "_hasShrinkwrap": false,
+    "devDependencies": {
+        "tsd-lite": "^0.7.0",
+        "@tsd/typescript": "^5.0.4"
+    },
+    "peerDependencies": {
+        "node-notifier": "^8.0.1 || ^9.0.0 || ^10.0.0"
+    },
+    "peerDependenciesMeta": {
+        "node-notifier": {
+            "optional": true
+        }
+    },
+    "_npmOperationalInternal": {
+        "tmp": "tmp/jest_29.7.0_1694501048330_0.6238023280799458",
+        "host": "s3://npm-registry-packages"
+    },
+    "_id": "jest@29.7.0",
+    "version": "29.7.0"
+}

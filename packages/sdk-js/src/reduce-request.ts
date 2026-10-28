@@ -8,6 +8,13 @@ import {
   resolveModelId,
   type TokenCounter,
 } from "../../core/dist/src/index.js";
+import {
+  compressAndTally,
+  emptyTally,
+  resolveToolOutputCompression,
+  type FluxToolOutputCompressionConfig,
+  type ToolCallContext,
+} from "./tool-output-compression.js";
 
 /**
  * Reduce a request before it is sent.
@@ -126,6 +133,19 @@ export type FluxTokenReductionConfig = {
    * tune `maximumTokens` (integer, at least 64).
    */
   freshToolResultCap?: boolean | { maximumTokens?: number };
+  /**
+   * "Read less": compress FRESH tool output by type before the model reads it
+   * (test runs, logs, install/build output, JSON, CSV/TSV, HTML; see
+   * tool-output-compression.ts). Off by default. `true` is the LOSSLESS tier
+   * only (JSON whitespace, ANSI colour codes, exact repeated lines); pass an
+   * object for per-type toggles, where every type beyond those is LOSSY and
+   * reported under the separate `tool-output-compression-lossy` lever, which
+   * needs a replay-gate verdict before it bills. Only tool-result carriers are
+   * touched, file-read/edit tool results always pass verbatim, and every body
+   * is a pure function of its own text, so a result is compressed when it
+   * first appears and re-sent byte-identically on every later turn.
+   */
+  toolOutputCompression?: boolean | FluxToolOutputCompressionConfig;
   /**
    * Output budget, applied through the field each surface honours: Responses
    * max_output_tokens (set only when absent), Chat Completions
@@ -457,6 +477,135 @@ function capFreshToolResults(
       "tokens would have been billed once at the FULL input rate; history compaction only reaches their " +
       "cached rebills.",
   });
+  return next;
+}
+
+/**
+ * Tool calls (name and input) by call id, from the assistant side. The
+ * assistant message that issued a call is history by the time its result
+ * appears and is re-sent verbatim every later turn, so the lookup is as
+ * stable as the result itself.
+ */
+function toolCallsById(input: unknown[]): Map<string, ToolCallContext> {
+  const calls = new Map<string, ToolCallContext>();
+  for (const message of input) {
+    if (!isPlainObject(message)) continue;
+    // Responses: { type: "function_call", call_id, name, arguments }.
+    if ((message.type === "function_call" || message.type === "custom_tool_call") &&
+        typeof message.call_id === "string" && typeof message.name === "string") {
+      calls.set(message.call_id, { name: message.name, input: message.arguments ?? message.input });
+    }
+    // Chat Completions: assistant.tool_calls[{ id, function: { name, arguments } }].
+    if (Array.isArray(message.tool_calls)) {
+      for (const call of message.tool_calls) {
+        if (isPlainObject(call) && typeof call.id === "string" && isPlainObject(call.function) &&
+            typeof call.function.name === "string") {
+          calls.set(call.id, { name: call.function.name, input: call.function.arguments });
+        }
+      }
+    }
+    // Anthropic: assistant content [{ type: "tool_use", id, name, input }].
+    if (message.role === "assistant" && Array.isArray(message.content)) {
+      for (const block of message.content) {
+        if (isPlainObject(block) && block.type === "tool_use" && typeof block.id === "string" &&
+            typeof block.name === "string") {
+          calls.set(block.id, { name: block.name, input: block.input });
+        }
+      }
+    }
+  }
+  return calls;
+}
+
+/** Transform the string or text-block body of a tool result; anything else (images, documents) passes through. */
+function transformToolBody(body: unknown, transform: (text: string) => string): unknown {
+  if (typeof body === "string") return transform(body);
+  if (!Array.isArray(body)) return body;
+  let changed = false;
+  const next = body.map((part) => {
+    if (!isPlainObject(part) || typeof part.text !== "string" ||
+        (part.type !== undefined && part.type !== "text" && part.type !== "input_text" && part.type !== "output_text")) {
+      return part;
+    }
+    const text = transform(part.text);
+    if (text === part.text) return part;
+    changed = true;
+    return { ...part, text };
+  });
+  return changed ? next : body;
+}
+
+/**
+ * Type-aware compression of tool output (see tool-output-compression.ts).
+ *
+ * Touches ONLY tool-result carriers: Anthropic {type: 'tool_result'} blocks,
+ * Chat Completions role 'tool' messages and Responses function_call_output
+ * items. Assistant output, genuine user text and system/developer text never
+ * reach the compressor. Every body is compressed by a pure function of its
+ * own text and its tool's name, so a result is compressed the first time it
+ * appears and re-emitted byte-identically on every later turn.
+ */
+function compressToolOutputs(
+  input: unknown[],
+  options: ReturnType<typeof resolveToolOutputCompression>,
+  countTokens: TokenCounter,
+  changes: FluxReductionChange[],
+): unknown[] {
+  const calls = toolCallsById(input);
+  const tally = emptyTally();
+  const compress = (call: ToolCallContext) => (text: string): string =>
+    compressAndTally(text, options, call, countTokens, tally);
+  const next = input.map((message) => {
+    if (!isPlainObject(message)) return message;
+    if ((message.type === "function_call_output" || message.type === "custom_tool_call_output") &&
+        typeof message.output === "string") {
+      const call = (typeof message.call_id === "string" ? calls.get(message.call_id) : undefined) ?? {};
+      const output = compress(call)(message.output);
+      return output === message.output ? message : { ...message, output };
+    }
+    if (message.role === "tool" && "content" in message) {
+      const call = (typeof message.tool_call_id === "string" ? calls.get(message.tool_call_id) : undefined) ??
+        (typeof message.name === "string" ? { name: message.name } : {});
+      const content = transformToolBody(message.content, compress(call));
+      return content === message.content ? message : { ...message, content };
+    }
+    if (message.role === "user" && Array.isArray(message.content)) {
+      let changed = false;
+      const content = message.content.map((block) => {
+        if (!isPlainObject(block) || block.type !== "tool_result" || !("content" in block)) return block;
+        const call = (typeof block.tool_use_id === "string" ? calls.get(block.tool_use_id) : undefined) ?? {};
+        const body = transformToolBody(block.content, compress(call));
+        if (body === block.content) return block;
+        changed = true;
+        return { ...block, content: body };
+      });
+      return changed ? { ...message, content } : message;
+    }
+    return message;
+  });
+  if (tally.bodies === 0) return input;
+  const kinds = Object.entries(tally.byKind).map(([kind, count]) => `${kind} x${count}`).join(", ");
+  if (tally.losslessTokensSaved > 0) {
+    changes.push({
+      lever: "tool-output-compression",
+      lossless: true,
+      estimatedTokensSaved: tally.losslessTokensSaved,
+      detail: `Compressed ${tally.bodies} tool-result body(ies) by type (${kinds}); this share is the LOSSLESS ` +
+        "tier only: JSON whitespace (every literal kept byte-for-byte), ANSI colour codes, and exact repeated " +
+        "lines collapsed with their exact count. Pure per body, so re-sent results stay byte-identical.",
+    });
+  }
+  if (tally.lossyTokensSaved > 0) {
+    changes.push({
+      lever: "tool-output-compression-lossy",
+      lossless: false,
+      estimatedTokensSaved: tally.lossyTokensSaved,
+      detail: `Lossy tool-output compression on ${tally.bodies} body(ies) (${kinds}): passing tests, install ` +
+        "chatter, progress bars, near-identical log lines, CSV middle rows, null/empty JSON fields or HTML " +
+        "markup removed; failures, stack traces, summaries and ERROR/WARN lines kept verbatim. A behaviour " +
+        "change: it needs an approved replay-gate verdict before the saving may bill.",
+    });
+  }
   return next;
 }
 
@@ -963,6 +1112,19 @@ export function reduceRequest(
     }
     if (typeof next.system === "string") {
       next.system = reduceSystemText(next.system, "system");
+    }
+
+    // Type-aware tool-output compression first: it knows what a body IS, so
+    // the cap and the stale compactor below then see the already-compressed
+    // body (both are deterministic on it, so the stack stays byte-stable).
+    if (config.toolOutputCompression) {
+      const options = resolveToolOutputCompression(config.toolOutputCompression);
+      if (Array.isArray(next.input)) {
+        next.input = compressToolOutputs(next.input, options, countTokens, changes);
+      }
+      if (Array.isArray(next.messages)) {
+        next.messages = compressToolOutputs(next.messages, options, countTokens, changes);
+      }
     }
 
     // Fresh tool-result capping, BEFORE history compaction: the cap targets

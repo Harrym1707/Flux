@@ -1,0 +1,45 @@
+PASS ./cart.test.js
+  cart total
+    ✓ scales linearly for qty 0 (2 ms)
+    ✓ scales linearly for qty 1
+    ✓ scales linearly for qty 2 (1 ms)
+    ✓ scales linearly for qty 3
+    ✓ scales linearly for qty 4 (1 ms)
+    ✓ scales linearly for qty 5
+    ✓ scales linearly for qty 6
+    ✓ scales linearly for qty 7 (1 ms)
+    ✓ scales linearly for qty 8
+    ✓ scales linearly for qty 9 (1 ms)
+    ✓ scales linearly for qty 10
+    ✓ scales linearly for qty 11
+    ✓ scales linearly for qty 12
+    ✓ scales linearly for qty 13
+    ✓ scales linearly for qty 14
+    ✓ scales linearly for qty 15 (1 ms)
+    ✓ scales linearly for qty 16
+    ✓ scales linearly for qty 17
+    ✓ scales linearly for qty 18
+    ✓ scales linearly for qty 19
+    ✓ scales linearly for qty 20
+    ✓ scales linearly for qty 21 (1 ms)
+    ✓ scales linearly for qty 22
+    ✓ scales linearly for qty 23 (1 ms)
+    ✓ scales linearly for qty 24
+    ✓ scales linearly for qty 25
+    ✓ scales linearly for qty 26
+    ✓ scales linearly for qty 27 (10 ms)
+    ✓ scales linearly for qty 28
+    ✓ scales linearly for qty 29 (1 ms)
+    ✓ applies discount with rounding
+  coupons
+    ✓ accepts code A
+    ✓ accepts code B
+    ✓ accepts code C
+    ✓ accepts code D (1 ms)
+    ✓ accepts code E
+
+Test Suites: 1 passed, 1 total
+Tests:       36 passed, 36 total
+Snapshots:   0 total
+Time:        0.427 s, estimated 1 s
+Ran all test suites.
