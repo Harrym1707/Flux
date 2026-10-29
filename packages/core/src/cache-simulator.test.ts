@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import type { TokenPrice } from "./cost.js";
 import {
+  ANTHROPIC_CACHE_1H,
   ANTHROPIC_CACHE_5M,
   OPENAI_CACHE,
+  anthropicCachePolicyForModel,
   simulateCache,
   type SimulatedRequest,
 } from "./cache-simulator.js";
@@ -132,6 +134,30 @@ describe("cache simulator", () => {
     const result = simulateCache(out, OPENAI_CACHE, price);
     expect(result.calls[0]!.atSeconds).toBe(0);
     expect(result.calls[1]!.atSeconds).toBe(60);
+  });
+
+  it("gives Haiku-class models the 2,048-token minimum, not the 1,024 Sonnet/Opus default", () => {
+    const sonnet5m = anthropicCachePolicyForModel("5m", "claude-sonnet-5-5");
+    const haiku5m = anthropicCachePolicyForModel("5m", "claude-haiku-5-5-latest");
+    const haiku1h = anthropicCachePolicyForModel("1h", "claude-haiku-5-5-latest");
+    expect(sonnet5m.minimumCacheableTokens).toBe(1_024);
+    expect(haiku5m.minimumCacheableTokens).toBe(2_048);
+    expect(haiku1h.minimumCacheableTokens).toBe(2_048);
+    // Only the minimum changes; the rest of the named policy's shape carries over.
+    expect(haiku5m).toEqual({ ...ANTHROPIC_CACHE_5M, minimumCacheableTokens: 2_048 });
+    expect(haiku1h).toEqual({ ...ANTHROPIC_CACHE_1H, minimumCacheableTokens: 2_048 });
+  });
+
+  it("withholds a cache hit below the Haiku minimum that the flat Sonnet policy would have granted", () => {
+    // filler(750) counts as ~1,500 tokens under approximateTokenCount: clears
+    // the 1,024 Sonnet/Opus minimum but not Haiku's 2,048.
+    const prefix = filler(750);
+    const prompts = Array.from({ length: 3 }, (_, index) => `${prefix}\nQuestion ${index}`);
+    const sonnetResult = simulateCache(stream(prompts, 30), anthropicCachePolicyForModel("5m", "claude-sonnet-5-5"), price);
+    const haikuResult = simulateCache(stream(prompts, 30), anthropicCachePolicyForModel("5m", "claude-haiku-5-5-latest"), price);
+    expect(sonnetResult.hitRate).toBeGreaterThan(0);
+    expect(haikuResult.hitRate).toBe(0);
+    expect(haikuResult.missReasons["below-minimum"]).toBeGreaterThan(0);
   });
 
   it("validates its inputs", () => {

@@ -1,4 +1,5 @@
 import { estimateTokenCost, type TokenPrice } from "./cost.js";
+import { anthropicCacheableMinimumTokens } from "./model-prices.js";
 import { approximateTokenCount, type TokenCounter } from "./token-reduction.js";
 
 /**
@@ -90,6 +91,22 @@ export const ANTHROPIC_CACHE_1H: CachePolicy = {
   writeMultiplier: 2,
   readMultiplier: 0.1,
 };
+
+/**
+ * `ANTHROPIC_CACHE_5M` / `ANTHROPIC_CACHE_1H` above hardcode the 1,024-token
+ * minimum, which only holds for Opus- and Sonnet-class models; Haiku-class
+ * models need 2,048 (same rule the production stamp already enforces via
+ * `anthropicCacheableMinimumTokens` in `reduce-request.ts`). Every fixture
+ * this simulator currently prices is Sonnet-class, so the hardcoded value
+ * has never been wrong yet — but a future Haiku-priced fixture would
+ * silently overstate caching below 2,048 tokens without this. Call this
+ * instead of reaching for the bare constants whenever the simulated
+ * traffic's model id is known.
+ */
+export function anthropicCachePolicyForModel(ttl: "5m" | "1h", modelId: string): CachePolicy {
+  const base = ttl === "5m" ? ANTHROPIC_CACHE_5M : ANTHROPIC_CACHE_1H;
+  return { ...base, minimumCacheableTokens: anthropicCacheableMinimumTokens(modelId) };
+}
 
 export type SimulatedRequest = {
   /** Seconds since the run began. Drives TTL expiry. */
