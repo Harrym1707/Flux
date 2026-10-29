@@ -51,6 +51,18 @@ export {
   type FluxHandle,
 } from "./wrap.js";
 export { extractBlindFeatures, type BlindFeatures } from "./blind-features.js";
+export {
+  policyToReductionConfig,
+  withheldLevers,
+  publishLever,
+  defaultPolicy,
+  knownLeverIds,
+  type TheoPolicy,
+  type TheoLever,
+  type TheoGateProof,
+  type TheoLeverClass,
+  type WithheldLever,
+} from "./theo-policy.js";
 export { compactStaleContext, reduceRequestAsync } from "./semantic-compaction.js";
 export type {
   SemanticCompactionConfig,
