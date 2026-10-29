@@ -1,4 +1,5 @@
 import { estimateTokenCost, type TokenPrice } from "./cost.js";
+import { anthropicCacheableMinimumTokens } from "./model-prices.js";
 
 /**
  * Composable cost-reduction model.
@@ -298,6 +299,24 @@ export const PUBLISHED_LEVERS: Record<string, Lever> = {
     },
   },
 };
+
+/**
+ * The cacheable minimum to pass as `projectSavings`' `minimumCacheableTokens`
+ * option, for a known provider and model.
+ *
+ * `projectSavings` takes a `TokenPrice`, which carries no model identity, so
+ * it cannot work this out itself and defaults to the flat 1,024-token
+ * minimum. That default is only correct for Anthropic's Opus- and
+ * Sonnet-class models and for OpenAI (no documented model-class split);
+ * Anthropic's Haiku-class models need 2,048 instead, the same rule the
+ * production cache stamp already enforces via `anthropicCacheableMinimumTokens`.
+ * A caller that knows the workload's provider and model should pass this
+ * through, or an Anthropic Haiku-class projection silently overstates its
+ * caching saving below 2,048 tokens.
+ */
+export function minimumCacheableTokensFor(provider: string, model: string): number {
+  return provider === "anthropic" ? anthropicCacheableMinimumTokens(model) : 1024;
+}
 
 /**
  * Project the cost of a workload after a set of levers.

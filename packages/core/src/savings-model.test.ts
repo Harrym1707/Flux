@@ -4,6 +4,7 @@ import {
   PUBLISHED_LEVERS,
   WORKLOAD_ARCHETYPES,
   leversFor,
+  minimumCacheableTokensFor,
   projectSavings,
   type Lever,
   type WorkloadProfile,
@@ -108,6 +109,27 @@ describe("projectSavings", () => {
     );
     expect(result.cachedInputTokens).toBe(0);
     expect(result.warnings.some((warning) => /cacheable minimum/.test(warning))).toBe(true);
+  });
+
+  it("resolves the cacheable minimum per provider and model class", () => {
+    expect(minimumCacheableTokensFor("anthropic", "claude-sonnet-5-5")).toBe(1_024);
+    expect(minimumCacheableTokensFor("anthropic", "claude-haiku-5-5-latest")).toBe(2_048);
+    expect(minimumCacheableTokensFor("openai", "gpt-5")).toBe(1_024);
+  });
+
+  it("withholds caching for a Haiku-class projection below its 2,048-token minimum", () => {
+    // 1,500 tokens clears the generic 1,024 default but not Haiku's 2,048.
+    const haiku = profile({
+      segments: { ...profile().segments, toolSchemas: 1_500 },
+      stableSegments: ["toolSchemas"],
+    });
+    const genericDefault = projectSavings(haiku, [], cachingPrice);
+    const haikuAware = projectSavings(haiku, [], cachingPrice, {
+      minimumCacheableTokens: minimumCacheableTokensFor("anthropic", "claude-haiku-5-5-latest"),
+    });
+    expect(genericDefault.cachedInputTokens).toBeGreaterThan(0);
+    expect(haikuAware.cachedInputTokens).toBe(0);
+    expect(haikuAware.warnings.some((warning) => /cacheable minimum/.test(warning))).toBe(true);
   });
 
   it("projects no caching saving when the price has no cached rate", () => {
