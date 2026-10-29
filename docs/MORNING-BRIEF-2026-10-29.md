@@ -1,7 +1,21 @@
 # Morning brief — 2026-10-29
 
 Overnight work on branch `levers-shim-blind-gateway` (pushed). Nothing deployed, nothing on
-`main`, full test suite green (**462/462**). Here's what to review and the decisions waiting.
+`main`, full test suite green (**469/469**). Here's what to review and the decisions waiting.
+
+## Overnight update (after your four answers)
+
+You answered before sleeping, so I kept building:
+- **Built: the per-user policy module** (`packages/sdk-js/src/theo-policy.ts` + 7 tests) — the concrete
+  Theo→FLUX control mechanism. `policyToReductionConfig` enforces the safety rule *in code*: a lossy
+  lever applies only if it carries a gate proof within the route's quality ceiling, else it's silently
+  withheld. Default policy is strict + lossless-only. It's `node:`-free, so it loads in RN/edge too.
+- **Decisions you made (now the roadmap):** coding lever = **routing primary + context secondary**;
+  subscription = **free loss-leader for now** (only bill where there's a token bill); RN/edge =
+  **near-term, do the node:fs decouple together** (not unsupervised); next-after-policy was the policy
+  module (done).
+- **Your call-outs for when you're up:** the node:fs decouple (with me), and the Claude Code Max/Team
+  OAuth reachability test (needs your login).
 
 ## Review in this order
 
