@@ -1,4 +1,5 @@
 import { estimateTokenCost, type TokenPrice } from "./cost.js";
+import { anthropicCacheableMinimumTokens } from "./model-prices.js";
 import { approximateTokenCount, type TokenCounter } from "./token-reduction.js";
 
 /**
@@ -90,6 +91,23 @@ export const ANTHROPIC_CACHE_1H: CachePolicy = {
   writeMultiplier: 2,
   readMultiplier: 0.1,
 };
+
+/**
+ * `ANTHROPIC_CACHE_5M` / `ANTHROPIC_CACHE_1H` hardcode the 1,024-token
+ * minimum, which is only correct for non-Haiku models; Haiku-class models
+ * need 2,048 (the same split `anthropicCacheableMinimumTokens` already
+ * enforces on the production stamping path). Every published band runs a
+ * Sonnet-class model, so the flat constants above are exactly right for
+ * them and are left alone; these factories are for simulating a named
+ * model's actual minimum, Haiku included.
+ */
+export function anthropicCache5m(modelId: string): CachePolicy {
+  return { ...ANTHROPIC_CACHE_5M, minimumCacheableTokens: anthropicCacheableMinimumTokens(modelId) };
+}
+
+export function anthropicCache1h(modelId: string): CachePolicy {
+  return { ...ANTHROPIC_CACHE_1H, minimumCacheableTokens: anthropicCacheableMinimumTokens(modelId) };
+}
 
 export type SimulatedRequest = {
   /** Seconds since the run began. Drives TTL expiry. */

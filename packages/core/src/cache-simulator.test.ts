@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 import type { TokenPrice } from "./cost.js";
 import {
+  ANTHROPIC_CACHE_1H,
   ANTHROPIC_CACHE_5M,
+  anthropicCache1h,
+  anthropicCache5m,
   OPENAI_CACHE,
   simulateCache,
   type SimulatedRequest,
@@ -138,5 +141,40 @@ describe("cache simulator", () => {
     expect(() => simulateCache([], OPENAI_CACHE, price)).toThrow(/at least one request/);
     expect(() => simulateCache(stream([filler(100)]), { ...OPENAI_CACHE, incrementTokens: 0 }, price))
       .toThrow(/at least 1 token/);
+  });
+
+  describe("per-model Anthropic minimum (anthropicCache5m / anthropicCache1h)", () => {
+    // Between the flat 1,024 constant and Haiku's real 2,048 minimum, so this
+    // prefix is exactly the range the flat constants get wrong for Haiku.
+    const prefix = filler(600); // ~1,200 tokens under approximateTokenCount
+    const prompts = [`${prefix}\nfirst`, `${prefix}\nsecond`];
+
+    it("caches a sub-2,048 prefix under the flat constant (correct for Sonnet-class)", () => {
+      const result = simulateCache(stream(prompts), ANTHROPIC_CACHE_5M, price);
+      expect(result.calls[1]!.cachedInputTokens).toBeGreaterThan(0);
+    });
+
+    it("still caches that same prefix once named as a Sonnet-class model", () => {
+      const result = simulateCache(stream(prompts), anthropicCache5m("claude-sonnet-5-5-20260514"), price);
+      expect(result.calls[1]!.cachedInputTokens).toBeGreaterThan(0);
+    });
+
+    it("refuses to cache that same prefix once named as a Haiku-class model", () => {
+      const result = simulateCache(stream(prompts), anthropicCache5m("claude-haiku-5-5-20260514"), price);
+      expect(result.calls[1]!.cachedInputTokens).toBe(0);
+      expect(result.calls[1]!.missReason).toBe("below-minimum");
+    });
+
+    it("applies the same per-model split to the 1-hour policy", () => {
+      const sonnet = simulateCache(stream(prompts), anthropicCache1h("claude-sonnet-5-5-20260514"), price);
+      const haiku = simulateCache(stream(prompts), anthropicCache1h("claude-haiku-5-5-20260514"), price);
+      expect(sonnet.calls[1]!.cachedInputTokens).toBeGreaterThan(0);
+      expect(haiku.calls[1]!.cachedInputTokens).toBe(0);
+    });
+
+    it("leaves the flat constants' own minimum untouched", () => {
+      expect(ANTHROPIC_CACHE_5M.minimumCacheableTokens).toBe(1_024);
+      expect(ANTHROPIC_CACHE_1H.minimumCacheableTokens).toBe(1_024);
+    });
   });
 });
