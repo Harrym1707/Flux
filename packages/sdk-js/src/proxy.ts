@@ -476,6 +476,16 @@ export function startFluxProxy(options: FluxProxyOptions): Promise<FluxProxy> {
     try {
       const text = Buffer.concat(chunks).toString("utf8");
       const contentType = upstreamResponse.headers.get("content-type") ?? "";
+      // Opt-in diagnostic (FLUX_PROXY_DEBUG=1): on a non-2xx upstream, log the status,
+      // the model and beta header the client sent, and a snippet of the error body
+      // (an API error description, never prompt content). Never logs credentials.
+      if (process.env.FLUX_PROXY_DEBUG === "1" && !upstreamResponse.ok) {
+        console.warn(
+          `[flux-debug] upstream ${upstreamResponse.status} model=${JSON.stringify(body.model)} path=${path} ` +
+          `anthropic-beta=${JSON.stringify(req.headers["anthropic-beta"] ?? null)} ` +
+          `errbody=${text.slice(0, 500)}`,
+        );
+      }
       let responseShaped: AnyObject | undefined;
       if (contentType.includes("text/event-stream")) {
         responseShaped = usageFromSse(surface.provider, text);
