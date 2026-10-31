@@ -209,6 +209,48 @@ describe("dedupeRepeatedLeadingBlock", () => {
     const twice = dedupeRepeatedLeadingBlock(once.texts, 24);
     expect(twice.texts).toEqual(once.texts);
   });
+
+  it("without maximumAnchorGap, a marker can point arbitrarily far back", () => {
+    const texts = Array.from({ length: 10 }, (_, turn) => `${memory}\nTurn ${turn}: handle request ${turn}.`);
+    const result = dedupeRepeatedLeadingBlock(texts, 24);
+    // Every later turn is deduped against turn 1 - the risk the lever's own
+    // docs name: the marker at turn 10 points nine turns back.
+    expect(result.texts[9]).toContain("identical to turn 1,");
+  });
+
+  it("maximumAnchorGap re-anchors once a marker would point back further than the bound", () => {
+    const texts = Array.from({ length: 10 }, (_, turn) => `${memory}\nTurn ${turn}: handle request ${turn}.`);
+    const result = dedupeRepeatedLeadingBlock(texts, 24, approximateTokenCount, { maximumAnchorGap: 3 });
+    // Turns 1-3 (index 1-3) dedupe against turn 1 (gap <= 3).
+    expect(result.texts[1]).toContain("identical to turn 1,");
+    expect(result.texts[3]).toContain("identical to turn 1,");
+    // Turn 4 (index 4, gap 4 > 3) is restated in full and becomes the new anchor.
+    expect(result.texts[4]).toBe(texts[4]);
+    expect(result.texts[4]).toContain("AGENT MEMORY");
+    // Turns 5-7 dedupe against the NEW anchor (turn 5, 1-indexed).
+    expect(result.texts[5]).toContain("identical to turn 5,");
+    expect(result.texts[7]).toContain("identical to turn 5,");
+    // Turn 8 (gap 4 from the turn-5 anchor) re-anchors again.
+    expect(result.texts[8]).toBe(texts[8]);
+    // No marker anywhere points back further than the bound allows.
+    for (const note of result.notes) {
+      const [, markedTurn, anchorTurn] = note.match(/^Turn (\d+): replaced .* identical to turn (\d+)'s/) ?? [];
+      expect(Number(markedTurn) - Number(anchorTurn)).toBeLessThanOrEqual(3);
+    }
+  });
+
+  it("maximumAnchorGap is idempotent across re-runs", () => {
+    const texts = Array.from({ length: 10 }, (_, turn) => `${memory}\nTurn ${turn}: handle request ${turn}.`);
+    const once = dedupeRepeatedLeadingBlock(texts, 24, approximateTokenCount, { maximumAnchorGap: 3 });
+    const twice = dedupeRepeatedLeadingBlock(once.texts, 24, approximateTokenCount, { maximumAnchorGap: 3 });
+    expect(twice.texts).toEqual(once.texts);
+  });
+
+  it("rejects a non-positive-integer maximumAnchorGap", () => {
+    const texts = [`${memory}\nTurn 0.`, `${memory}\nTurn 1.`];
+    expect(() => dedupeRepeatedLeadingBlock(texts, 24, approximateTokenCount, { maximumAnchorGap: 0 })).toThrow();
+    expect(() => dedupeRepeatedLeadingBlock(texts, 24, approximateTokenCount, { maximumAnchorGap: 1.5 })).toThrow();
+  });
 });
 
 describe("collapseWhitespace", () => {

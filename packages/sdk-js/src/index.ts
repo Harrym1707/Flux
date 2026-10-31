@@ -80,6 +80,7 @@ export type {
 export {
   agentGrader,
   compositeGrader,
+  factRecallGrader,
   textSimilarityGrader,
   truncationAwareGrader,
 } from "./graders.js";

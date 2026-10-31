@@ -147,6 +147,33 @@ export function compositeGrader(parts: WeightedGrader[]): ReplayGrader {
 }
 
 /**
+ * Builds a grader for levers that change WHERE a fact lives in the prompt
+ * rather than what it says - cross-turn memory dedup chief among them,
+ * where the risk is not wording drift (which `exactTextGrader` would
+ * wrongly punish, and `textSimilarityGrader` would only faintly notice
+ * among the many other words two answers share) but the model failing to
+ * recall a fact that moved further from the question than it was in the
+ * baseline.
+ *
+ * `expectedFact` reads the fact the response is expected to contain out of
+ * the request (tests and evals carry it as request metadata, since the
+ * fixture is the only place that genuinely knows ground truth). The grader
+ * scores 1 whenever the candidate's answer contains that fact, OR when the
+ * baseline itself didn't - a baseline that already missed is not a bar the
+ * candidate must clear. It scores 0 only when the baseline recalled the
+ * fact and the candidate did not: the exact failure mode a reduction that
+ * moves a fact away from the question, rather than removing it, risks.
+ */
+export function factRecallGrader(expectedFact: (request: unknown) => string): ReplayGrader {
+  return ({ request, baselineResponse, candidateResponse }) => {
+    const expected = expectedFact(request);
+    const baselineRecalled = responseText(baselineResponse).includes(expected);
+    if (!baselineRecalled) return 1;
+    return responseText(candidateResponse).includes(expected) ? 1 : 0;
+  };
+}
+
+/**
  * Fails outright when the tool choice changed, and otherwise scores by how
  * complete the answer is.
  *

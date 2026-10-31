@@ -297,17 +297,40 @@ export function commonPrefixLength(left: string, right: string): number {
  * means a false positive - two texts that happen to start with the same
  * few words before diverging mid-line, e.g. two turns both opening "Turn "
  * - can only ever leave that differing line untouched, never truncate into it.
+ *
+ * `maximumAnchorGap` bounds how many turns a marker may point back across.
+ * Left unset, every later turn dedupes against turn 1 forever, so in a long
+ * conversation the only verbatim copy can end up dozens of turns upstream
+ * of the marker referencing it - the exact risk this lever's own docs flag
+ * (a model attending less to context far back in a long history). Set it to
+ * re-anchor: once a turn's gap since the last verbatim occurrence would
+ * exceed the bound, that turn is restated in full (becoming the new anchor
+ * for turns after it) instead of deduped, so no marker ever sits more than
+ * `maximumAnchorGap` turns from the text it refers to.
  */
 export function dedupeRepeatedLeadingBlock(
   texts: readonly string[],
   minimumBlockTokens = 24,
   countTokens: TokenCounter = approximateTokenCount,
+  options: { maximumAnchorGap?: number } = {},
 ): { texts: string[]; notes: string[] } {
   if (texts.length === 0) return { texts: [], notes: [] };
-  const canonical = texts[0]!;
+  const { maximumAnchorGap } = options;
+  if (maximumAnchorGap !== undefined && (!Number.isInteger(maximumAnchorGap) || maximumAnchorGap < 1)) {
+    throw new Error("maximumAnchorGap must be a positive integer.");
+  }
   const notes: string[] = [];
+  let anchorIndex = 0;
   const nextTexts = texts.map((text, index) => {
     if (index === 0) return text;
+    if (maximumAnchorGap !== undefined && index - anchorIndex > maximumAnchorGap) {
+      // Too far from the last verbatim occurrence: restate this turn in
+      // full and make it the new anchor, rather than add a marker that
+      // would point further back than the bound allows.
+      anchorIndex = index;
+      return text;
+    }
+    const canonical = texts[anchorIndex]!;
     const raw = commonPrefixLength(canonical, text);
     if (raw === 0) return text;
     const fullContainment = raw === canonical.length || raw === text.length;
@@ -322,10 +345,11 @@ export function dedupeRepeatedLeadingBlock(
     const tokens = countTokens(removed);
     if (tokens < minimumBlockTokens) return text;
     notes.push(
-      `Turn ${index + 1}: replaced a ${tokens}-token leading block identical to turn 1's opening with a ` +
-        "reference marker.",
+      `Turn ${index + 1}: replaced a ${tokens}-token leading block identical to turn ${anchorIndex + 1}'s ` +
+        "opening with a reference marker.",
     );
-    return `[flux: ${tokens} tokens of this turn's leading context, identical to turn 1, omitted]${text.slice(safe)}`;
+    return `[flux: ${tokens} tokens of this turn's leading context, identical to turn ${anchorIndex + 1}, ` +
+      `omitted]${text.slice(safe)}`;
   });
   return { texts: nextTexts, notes };
 }

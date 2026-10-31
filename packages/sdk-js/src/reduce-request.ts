@@ -111,8 +111,18 @@ export type FluxTokenReductionConfig = {
    * default 64-token minimum block size; pass an object to tune it. Applies
    * only to messages whose content is a plain string or whose first content
    * block is `{type: "text", text}`; anything else is left untouched.
+   *
+   * `maximumAnchorGap` bounds, in turns, how far back a marker may point.
+   * Unset, every turn dedupes against turn 1 forever, so on a long-running
+   * conversation the only verbatim copy of the memory block can end up
+   * dozens of turns upstream of the marker referring to it - precisely the
+   * attention-distance risk this lever's docs warn about, and the shape of
+   * failure a replay-gate pass on a long enough sample would have to catch
+   * on its own. Setting it re-anchors: a turn whose gap since the last
+   * verbatim occurrence would exceed the bound is restated in full instead
+   * of deduped, becoming the new anchor for turns after it.
    */
-  crossTurnMemoryDedup?: boolean | { minimumBlockTokens?: number };
+  crossTurnMemoryDedup?: boolean | { minimumBlockTokens?: number; maximumAnchorGap?: number };
   /**
    * Cap oversized tool-result and assistant bodies at injection, BEFORE first
    * send. A fresh oversized result is billed once at the FULL input rate and
@@ -579,13 +589,17 @@ function withLeadingText(message: AnyObject, text: string): AnyObject {
  */
 function dedupeMemoryAcrossTurns(
   input: unknown[],
-  options: { minimumBlockTokens?: number },
+  options: { minimumBlockTokens?: number; maximumAnchorGap?: number },
   countTokens: TokenCounter,
   changes: FluxReductionChange[],
 ): unknown[] {
   const minimumBlockTokens = options.minimumBlockTokens ?? 64;
   if (!Number.isInteger(minimumBlockTokens) || minimumBlockTokens < 1) {
     throw new Error("crossTurnMemoryDedup minimumBlockTokens must be a positive integer.");
+  }
+  const { maximumAnchorGap } = options;
+  if (maximumAnchorGap !== undefined && (!Number.isInteger(maximumAnchorGap) || maximumAnchorGap < 1)) {
+    throw new Error("crossTurnMemoryDedup maximumAnchorGap must be a positive integer.");
   }
   const indices: number[] = [];
   for (const [index, message] of input.entries()) {
@@ -597,7 +611,7 @@ function dedupeMemoryAcrossTurns(
 
   const texts = indices.map((index) => leadingText(input[index] as AnyObject)!);
   const before = texts.reduce((sum, text) => sum + countTokens(text), 0);
-  const result = dedupeRepeatedLeadingBlock(texts, minimumBlockTokens, countTokens);
+  const result = dedupeRepeatedLeadingBlock(texts, minimumBlockTokens, countTokens, { maximumAnchorGap });
   if (result.notes.length === 0) return input;
   const after = result.texts.reduce((sum, text) => sum + countTokens(text), 0);
 
