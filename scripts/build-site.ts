@@ -336,7 +336,7 @@ for (const name of built) {
 }
 const landing = readFileSync(path.join(outDir, "index.html"), "utf8");
 for (const [marker, why] of [
-  ['id="field"', "energy field canvas missing"],
+  ['class="hero-cube"', "hero cube motif missing"],
   ["prefers-reduced-motion", "reduced-motion guard missing"],
   ["Less in. More out.", "hero promise missing"],
   ["npx -y -p @flux-ai/sdk flux-proxy", "the install command missing"],

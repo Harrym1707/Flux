@@ -342,7 +342,11 @@ a{color:var(--ink)}
 /* ---------- hero: the poster. Type enacts the product. ---------- */
 .hero-wrap{position:relative;min-height:96svh;overflow:hidden}
 #field{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
-.hero{position:relative;min-height:96svh;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;padding:var(--s7) var(--s4)}
+.hero{position:relative;min-height:96svh;display:flex;flex-direction:column;justify-content:center;align-items:flex-start;text-align:left;padding:var(--s7) var(--s4)}
+.hero .col{position:relative;z-index:2;max-width:54%;padding-left:4%}
+.hero-cube{position:absolute;right:-7vw;top:50%;height:118vh;width:auto;z-index:1;pointer-events:none;transform:translateY(-50%);animation:cubefloat 9s ease-in-out infinite}
+@keyframes cubefloat{0%,100%{transform:translateY(-50%)}50%{transform:translateY(calc(-50% - 16px))}}
+@media (prefers-reduced-motion:reduce){.hero-cube{animation:none}}
 .hero .brandlock{position:absolute;top:28px;left:var(--s4);display:flex;align-items:center;gap:11px;z-index:2;text-decoration:none;color:var(--ink)}
 .hero .brandlock svg{height:36px;width:auto;display:block}
 .hero .brandlock b{font-size:25px;font-weight:800;letter-spacing:-.03em;color:var(--ink)}
@@ -350,10 +354,10 @@ a{color:var(--ink)}
 .hero .signin:hover{color:var(--accent)}
 .hero .col{max-width:60rem}
 .hero h1{margin:0 0 var(--s3);line-height:1}
-.hero h1 .in{display:block;font-size:clamp(20px,3vw,30px);font-weight:600;letter-spacing:.02em;color:var(--muted);opacity:.85;margin-bottom:var(--s1)}
-.hero h1 .out{display:block;font-size:clamp(64px,11vw,120px);font-weight:800;letter-spacing:-.045em;color:var(--ink)}
-.hero .sub{font-size:20px;line-height:1.5;color:var(--muted);margin:0 auto 36px;max-width:34rem}
-.hero .actions{display:flex;align-items:center;justify-content:center;gap:var(--s3)}
+.hero h1 .in{display:block;font-size:clamp(40px,4.4vw,72px);font-weight:700;letter-spacing:-.02em;color:var(--muted);margin-bottom:var(--s1)}
+.hero h1 .out{display:block;font-size:clamp(64px,6.4vw,100px);font-weight:800;letter-spacing:-.03em;color:var(--ink)}
+.hero .sub{font-size:19px;line-height:1.55;color:var(--ink);margin:0 0 36px;max-width:30rem}
+.hero .actions{display:flex;align-items:center;justify-content:flex-start;gap:var(--s3)}
 .hero .mark{z-index:2}
 .btn{display:inline-block;padding:12px 22px;border-radius:var(--radius);font-weight:700;font-size:16px;text-decoration:none;background:var(--accent);color:#fff;transition:background .18s ease}
 .btn:hover{background:var(--ocean)}
@@ -362,8 +366,10 @@ a{color:var(--ink)}
 .arrowlink::after{content:" \\2192"}
 @media (max-width:760px){
   :root{--axis:24px}
-  .hero{min-height:84svh}
+  .hero{min-height:92svh;justify-content:flex-start;padding-top:18svh}
+  .hero .col{max-width:100%;padding-left:0}
   .hero .sub{font-size:17px}
+  .hero-cube{height:50vh;right:auto;left:50%;top:auto;bottom:-3vh;transform:translateX(-50%);animation:none}
 }
 
 /* ---------- the bands: the numbers, called out at poster size ---------- */
@@ -592,13 +598,17 @@ section h2::after{content:"";position:absolute;left:50%;transform:translateX(-50
 <body>
 
 <div class="hero-wrap">
-<canvas id="field" aria-hidden="true"></canvas>
 <header class="hero">
   <a class="brandlock" href="index.html" aria-label="Flux home">${MARK}<b>flux</b></a>
   <a class="signin" href="start.html">Get started</a>
+  <svg class="hero-cube" viewBox="0 0 100 115" aria-hidden="true">
+    <polygon points="50,0 100,28.75 50,57.5 0,28.75" fill="#3B82F6"/>
+    <polygon points="0,28.75 0,86.25 50,115 50,57.5" fill="#2563EB"/>
+    <polygon points="100,28.75 100,86.25 50,115 50,57.5" fill="#1D4ED8"/>
+  </svg>
   <div class="col">
     <h1><span class="in">Less in.</span><span class="out">More out.</span></h1>
-    <p class="sub">FLUX removes the junk from your AI requests before you pay for it. Same answers by default, smaller bill &mdash; and you can check every number yourself.</p>
+    <p class="sub">FLUX removes the junk from your AI requests before you pay for it. Same answers by default, a smaller bill &mdash; and you can check every number yourself.</p>
     <div class="actions">
       <a class="btn" href="start.html">Get started</a>
       <a class="arrowlink" href="evidence.html">See the evidence</a>
@@ -663,8 +673,8 @@ section h2::after{content:"";position:absolute;left:50%;transform:translateX(-50
   <div class="exchange rise">
     <p class="lead">First, point your client at it.</p>
     <div class="call"><button class="copy" type="button" data-copy="npx -y -p @flux-ai/sdk flux-proxy">copy</button><pre style="margin:0;padding:20px;font:13px/1.65 ui-monospace,Menlo,monospace;overflow-x:auto"><code>$ npx -y -p @flux-ai/sdk flux-proxy
-<span style="color:#9FB3C8"># then one line in your app &mdash; keep your own key</span>
-baseURL: <span style="color:#9DD9F5">"http://127.0.0.1:8787"</span></code></pre></div>
+<span style="color:#57534E"># then one line in your app &mdash; keep your own key</span>
+baseURL: <span style="color:#1D4ED8">"http://127.0.0.1:8787"</span></code></pre></div>
     <div class="response" data-ui>
       <div class="bar"><span>flux-proxy</span><span class="pill">running</span></div>
       <pre>FLUX proxy listening on http://127.0.0.1:8787
