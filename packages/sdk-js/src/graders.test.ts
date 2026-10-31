@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   agentGrader,
   compositeGrader,
+  factRecallGrader,
   textSimilarityGrader,
   truncationAwareGrader,
 } from "./graders.js";
@@ -131,6 +132,34 @@ describe("compositeGrader", () => {
   it("rejects an empty or badly weighted composition", () => {
     expect(() => compositeGrader([])).toThrow(/at least one part/);
     expect(() => compositeGrader([{ grader: () => 1, weight: 0 }])).toThrow(/positive finite/);
+  });
+});
+
+describe("factRecallGrader", () => {
+  const grade = factRecallGrader((request) => (request as { fact: string }).fact);
+
+  it("scores a miss only when the baseline recalled the fact and the candidate did not", () => {
+    expect(grade({
+      request: { fact: "14:00-16:00 UTC" },
+      baselineResponse: text("The deploy window is 14:00-16:00 UTC."),
+      candidateResponse: text("I don't have that information."),
+    })).toBe(0);
+  });
+
+  it("tolerates different wording that still contains the fact", () => {
+    expect(grade({
+      request: { fact: "14:00-16:00 UTC" },
+      baselineResponse: text("Sure - the window runs 14:00-16:00 UTC."),
+      candidateResponse: text("It's scheduled for 14:00-16:00 UTC, per your notes."),
+    })).toBe(1);
+  });
+
+  it("does not penalise the candidate when the baseline itself missed", () => {
+    expect(grade({
+      request: { fact: "14:00-16:00 UTC" },
+      baselineResponse: text("I'm not sure."),
+      candidateResponse: text("I'm not sure either."),
+    })).toBe(1);
   });
 });
 

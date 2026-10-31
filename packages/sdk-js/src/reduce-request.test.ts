@@ -251,6 +251,32 @@ describe("cross-turn memory dedup", () => {
     expect(resultInput[2]!.content).toContain("Turn 1: handle today's request 1.");
   });
 
+  it("maximumAnchorGap re-anchors so no marker points back further than the bound", () => {
+    const { request: reduced } = reduceRequest(memoryRequest(10), {
+      crossTurnMemoryDedup: { maximumAnchorGap: 3 },
+    });
+    const messages = (reduced as Record<string, unknown>).messages as Array<{ role: string; content: string }>;
+    const userTurns = messages.filter((m) => m.role === "user");
+    // Turn index 4 (5th user turn) is more than 3 turns from turn 0 and is
+    // restated in full rather than deduped, becoming the new anchor.
+    expect(userTurns[4]!.content).toContain("AGENT MEMORY");
+    expect(userTurns[4]!.content).not.toContain("identical to");
+    // Earlier turns within the bound are still deduped against turn 1.
+    expect(userTurns[1]!.content).toContain("identical to turn 1,");
+    // Turns after the new anchor dedupe against IT, not the original turn 1.
+    expect(userTurns[5]!.content).toContain("identical to turn 5,");
+  });
+
+  it("skips the whole reduction on an invalid maximumAnchorGap", () => {
+    const original = memoryRequest(4);
+    const { request: reduced, summary } = reduceRequest(original, {
+      crossTurnMemoryDedup: { maximumAnchorGap: 0 },
+    });
+    expect(reduced).toBe(original);
+    expect(summary.skipped).toBe(true);
+    expect(summary.skippedReason).toMatch(/positive integer/);
+  });
+
   it("extracts leading text from a {type:'text'} content block, leaving other blocks untouched", () => {
     const messages = [
       { role: "user", content: [{ type: "text", text: `${MEMORY}\nTurn 0: go.` }, { type: "image", source: "s0" }] },

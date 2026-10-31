@@ -199,7 +199,14 @@ console.log(
     "one rather than adjacent to its twin, which is a real behaviour-risk class FLUX's own lossless/lossy line " +
     "does not wave through for free. C must be proven on a customer's own traffic through replayGate " +
     "(packages/sdk-js/src/replay-gate.ts) before any part of its saving may be billed. Reported honestly as a " +
-    "measured candidate, not a claim.",
+    "measured candidate, not a claim.\n" +
+    "update (hardening night, 2026-10-31): `evals/run-memory-dedup-replay-gate.ts` ran a constructed proxy for " +
+    "exactly the named risk (a stand-in model with recency-bounded recall) and found the UNBOUNDED anchor used " +
+    "above fails it badly (-83pp mean quality). `crossTurnMemoryDedup` now also takes `maximumAnchorGap` " +
+    "(packages/core/src/token-reduction.ts), which re-anchors periodically and passes that same proxy at a " +
+    "smaller but still large saving (56.8% on that eval's fixture, vs this file's unbounded 58.0%). The default " +
+    "here is left unbounded for comparability with the number above; the live-traffic replay-gate pass this " +
+    "lever has needed since 2026-10-23 is STILL open either way.",
 );
 
 if (withDedup.costUsd >= lossless.costUsd) {
