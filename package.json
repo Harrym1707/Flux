@@ -36,7 +36,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "lint": "eslint .",
-    "typecheck": "tsc -b --pretty false"
+    "typecheck": "tsc -b --pretty false",
+    "build:cli": "node --import tsx scripts/build-cli-package.ts"
   },
   "dependencies": {
     "@flux-ai/sdk": "workspace:*",
