@@ -1,3 +1,4 @@
+import type { FluxSideCallRoutingConfig } from "./side-call-routing.js";
 import type { LedgerGateVerdict, PriceCatalogue } from "../../core/dist/src/index.js";
 import type { FluxReductionSummary, FluxTokenReductionConfig } from "./reduce-request.js";
 export type FluxTelemetryConfig = {
@@ -266,6 +267,12 @@ export type FluxOptions = {
   /** @deprecated Use versioned contextProfiles for replayable context transformations. */
   contextTransforms?: Record<string, (request: unknown, context: FluxRequestContext) => unknown>;
   routing?: FluxRoutingConfig;
+  /**
+   * LOSSY, off by default. Sends recognised front-end side-calls (chat title,
+   * tags, follow-up suggestions) to a cheaper model. Needs a replay-gate pass
+   * on the customer's own traffic before any of its saving could bill.
+   */
+  sideCallRouting?: FluxSideCallRoutingConfig;
   /** Return false or throw to retry a routed candidate request on the baseline model. */
   qualityCheck?: (input: {
     request: unknown;

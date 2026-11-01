@@ -6,6 +6,7 @@ import {
 } from "../../core/dist/src/index.js";
 import { TelemetryClient } from "./telemetry.js";
 import { chooseRoute } from "./routing.js";
+import { chooseSideCallRoute } from "./side-call-routing.js";
 import { ExactResponseCache } from "./exact-cache.js";
 import { CachePrefixVolatilityGuard } from "./cache-volatility-guard.js";
 import { reduceRequest } from "./reduce-request.js";
@@ -190,8 +191,29 @@ export function withFlux<T extends AnyObject>(client: T, options: FluxOptions): 
           : undefined;
         const effectiveRequest = (reduction?.request ?? request) as AnyObject;
 
-        const route = chooseRoute(options.routing, effectiveRequest, taskClass, context);
-        const candidateSelected = route.reason === "candidate_quality_and_cost_gates_passed";
+        let route = chooseRoute(options.routing, effectiveRequest, taskClass, context);
+        // Side-call routing (lossy, off by default): a recognised auxiliary
+        // title/tags/follow-up call goes to the configured cheap model and is
+        // treated like any routed candidate — qualityCheck applies and an
+        // error falls back to the requested model. An approved routing
+        // policy always takes precedence.
+        if (route.reason !== "candidate_quality_and_cost_gates_passed") {
+          const sideCall = chooseSideCallRoute(
+            options.sideCallRouting,
+            effectiveRequest,
+            surface === "anthropic_messages" ? "anthropic" : "openai",
+          );
+          if (sideCall) {
+            route = {
+              model: sideCall.targetModel,
+              requestedModel: model,
+              policyId: sideCall.match.signatureId,
+              reason: "side_call_routed",
+            };
+          }
+        }
+        const candidateSelected = route.reason === "candidate_quality_and_cost_gates_passed" ||
+          route.reason === "side_call_routed";
         let fallbackReason: FluxRequestEvent["fallbackReason"];
         let routedRequest: AnyObject = candidateSelected
           ? { ...effectiveRequest, model: route.model }
