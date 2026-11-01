@@ -867,7 +867,25 @@ export function reduceRequest(
   request: unknown,
   config: FluxTokenReductionConfig = {},
 ): { request: unknown; summary: FluxReductionSummary } {
-  const countTokens = config.countTokens ?? approximateTokenCount;
+  const rawCountTokens = config.countTokens ?? approximateTokenCount;
+  // The levers below repeatedly re-measure overlapping slices of the SAME
+  // request (the full tool catalogue and message history get counted at
+  // several stages: the top-level before/after totals, tool-schema
+  // minification, and cache-TTL stamping's prefix-size checks). countTokens
+  // is a pure function of its string, so memoizing it for the lifetime of
+  // this one call is free and exact - never a staleness risk, since the
+  // cache never outlives a single request and nothing here mutates a string
+  // in place. Profiling a realistic agent request showed >100 countTokens
+  // calls re-scanning ~6x the request's own byte size; this cuts the exact
+  // duplicates out of that.
+  const tokenCountCache = new Map<string, number>();
+  const countTokens: TokenCounter = (text) => {
+    const cached = tokenCountCache.get(text);
+    if (cached !== undefined) return cached;
+    const value = rawCountTokens(text);
+    tokenCountCache.set(text, value);
+    return value;
+  };
   const changes: FluxReductionChange[] = [];
 
   const unchanged = (reason: string): { request: unknown; summary: FluxReductionSummary } => ({
