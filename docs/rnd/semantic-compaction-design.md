@@ -109,10 +109,11 @@ is actually shorter than the original, else the original bytes are retained.
 
 This is a prototype. Honest gaps, not hidden:
 
-1. **A real adapter.** No local model is wired in; the tests use a deterministic
-   stub (fixed summary / truncation). A real adapter (e.g. a small quantised
-   on-device summariser) is needed, plus guidance on which local models are good
-   enough.
+1. **A real adapter.** Two ready-made local adapters now exist (see "Bundled
+   local Hugging Face compactors" below), but they are validated against
+   injected fakes and a tiny fake ONNX fixture only. Which local models are good
+   enough is still unknown until the real-model run and the gate eval in (3)
+   have happened.
 2. **Calibration data.** `minimumTurns`/`keepRecentTurns` (3 / 2) are CONFIRMED tuned against WildChat +
    agent corpora (2026-10-27 findings); `maxTokens` recalibrated 200 -> 500 from
    the agent tool-result median (~270-302 tok) so it fires on the oversized tail,
@@ -143,3 +144,102 @@ This is a prototype. Honest gaps, not hidden:
    compactor to be deterministic for identical input). Until that pinning exists,
    semantic compaction is only safe on the no-cache path, and the gate eval in
    (3) must measure net cost WITH caching on, not just quality.
+
+## Bundled local Hugging Face compactors (prototype, added 2026-10-28)
+
+STATUS: **real-model validation PENDING.** No compression or quality number has
+been measured for either adapter, and none may be quoted. The build machine
+could not reach huggingface.co, so no model weights were ever loaded.
+
+- Code: `packages/sdk-js/src/hf-compactor.ts`
+- Unit tests (injected fakes): `packages/sdk-js/src/hf-compactor.test.ts`
+- Integration test (skipped by default): `packages/sdk-js/src/hf-compactor.integration.test.ts`
+- Exports: `createLlmlingua2Compactor`, `createLocalSummariserCompactor` (+ option types)
+
+FLUX still bundles **no weights** and still has **no default compactor**: the
+lever stays a no-op until the customer passes one of these (or their own)
+adapters as `compactor`, AND the pre-pass has an approved gate verdict. These
+are ready-made `SemanticCompactor` implementations, nothing more.
+
+### The two adapters
+
+1. **`createLlmlingua2Compactor`: LLMLingua-2-style token dropping** (arXiv
+   2403.12968, microsoft/LLMLingua `PromptCompressor` llmlingua2 path). A
+   BERT-class token-classification model gives `p_preserve = softmax(logits)[1]`
+   per model token. Text is chunked to 512 model tokens, preferring breaks after
+   `.` or a newline. Token probabilities are merged into word probabilities by
+   mean (`token_to_word="mean"`), and words with a digit are forced to 1.0
+   (`force_reserve_digit`). Each word's probability is repeated once per (FLUX
+   approximate) token and the per-chunk threshold is
+   `percentile(probs, int(100*(1-rate)+1))`, keeping `p > threshold` as the
+   reference does. `rate` defaults to `maxTokens / inputTokens`. It only ever
+   drops words; it never writes one. Deliberate, conservative deviations for
+   tool output: whole whitespace units are kept or dropped (`src/a.ts:42` is
+   never split), line breaks and indentation survive, and numbers, paths/URLs,
+   identifiers (snake_case, camelCase, dotted, `::`, `key=value`, ALLCAPS, CLI
+   flags) and error words are never dropped. After the percentile pass, the
+   lowest-probability non-forced words are trimmed until the result fits
+   `maxTokens`. Default model `Arcoldd/llmlingua4j-bert-base-onnx`, a
+   THIRD-PARTY ONNX export of `microsoft/llmlingua-2-bert-base-multilingual-cased-meetingbank`
+   (Microsoft ships PyTorch weights only). It is unverified: review it and pin
+   `revision`, or point `modelId` at your own export.
+2. **`createLocalSummariserCompactor`: small generative summariser.** Default
+   `onnx-community/Qwen2.5-0.5B-Instruct` (q4, CPU), with a fixed system prompt
+   and greedy decoding. `max_new_tokens = maxTokens`, and the output is then
+   hard-truncated to `maxTokens` FLUX tokens. Bodies above `maxInputTokens`
+   (default 8000) are left alone rather than summarised from a partial view. It
+   CAN paraphrase or hallucinate, which makes it the riskier of the two.
+
+Shared guarantees (unit-tested): fully local inference. `@huggingface/transformers`
+is an OPTIONAL peer dependency (`^3 || ^4`), loaded by lazy dynamic import with
+a clear error message if it is missing. The model is loaded once and cached
+(single-flight), and a failed load is retried only after `retryLoadAfterMs`.
+The adapters are fail-safe: any load or inference error, or a timeout
+(`timeoutMs`), returns the ORIGINAL text, and `compact()` never throws. They
+never grow a body: output is used only if it is strictly shorter in characters
+AND FLUX tokens. Results are memoised by (maxTokens, text), so a stale body
+re-sent on the next turn gets byte-identical bytes back. That partly addresses
+cross-turn stability (5) within one process, but it is NOT a persistent pin.
+The only network traffic is transformers.js fetching weights on first use. To
+run fully offline, use `transformersEnv: { allowRemoteModels: false, localModelPath }`.
+
+`pnpm-workspace.yaml` sets `autoInstallPeers: false`. Without it, pnpm 10
+auto-installs even OPTIONAL peers (observed: transformers 4.3.2 plus
+onnxruntime-node, about 300 MB, on every dev install).
+
+### What was verified vs what is pending
+
+- VERIFIED (in this sandbox): the selection logic, rate targeting, forced-token
+  preservation, chunking, fail-safe, never-grow, lazy loading and caching,
+  against injected fake scorers, generators and a fake transformers module. The
+  REAL transformers.js + onnxruntime-node path (tokenizer, Tensor, logits,
+  softmax, chunking, local-path loading with remote models off) was exercised
+  offline against a tiny FAKE ONNX model (`packages/sdk-js/fixtures/tiny-lingua`,
+  an embedding lookup whose scores mean nothing). It passed on transformers 4.3.1
+  and 3.8.1.
+- PENDING (needs a machine that can reach huggingface.co): that class 1 is
+  really the preserve class for the default export; any compression observed on
+  real tool output; the summariser through a real text-generation pipeline; and,
+  above all, the replay-gate quality eval (item 3). Per the doctrine, neither
+  adapter may run on customer traffic until that gate shows quality within 2
+  points of baseline.
+
+### Local validation command (exact)
+
+Run from the repo root on a machine with Hub access. The first run downloads
+several hundred MB. Do not commit the temporary `add`.
+
+```sh
+corepack enable && pnpm install && pnpm build
+pnpm --filter @flux-ai/sdk add -D @huggingface/transformers@4.3.1
+FLUX_HF_MODEL_TEST=1 pnpm vitest run packages/sdk-js/src/hf-compactor.integration.test.ts
+git checkout -- packages/sdk-js/package.json pnpm-lock.yaml && pnpm install   # undo
+```
+
+Optional overrides: `FLUX_HF_LLMLINGUA_MODEL=<id-or-local-path>` and
+`FLUX_HF_SUMMARISER_MODEL=<id>`. With `FLUX_HF_MODEL_TEST=1`, a missing package
+or an unloadable model FAILS the run instead of skipping, so a green run means
+the real models really ran. The run prints observed before/after token counts
+for ONE synthetic sample. That is an observation for reading, not a benchmark or
+a savings figure. Without `FLUX_HF_MODEL_TEST=1`, every integration test is
+skipped.
