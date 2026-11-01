@@ -38,8 +38,9 @@ declare const __FLUX_BUILD_COMMIT__: string | undefined;
 export const BUILD_COMMIT =
   typeof __FLUX_BUILD_COMMIT__ !== "undefined" ? __FLUX_BUILD_COMMIT__ : (process.env.FLUX_BUILD_COMMIT ?? "dev");
 
-const FLUX_HOME = join(homedir(), ".flux");
-const CLAUDE_SETTINGS = join(homedir(), ".claude", "settings.json");
+export const FLUX_HOME = join(homedir(), ".flux");
+export const CLAUDE_SETTINGS = join(homedir(), ".claude", "settings.json");
+export const DEFAULT_PORT = 8787;
 
 type StartArgs = { port: number; ledgerDir: string; install: boolean };
 
@@ -115,7 +116,7 @@ function configureClaudeCode(baseUrl: string): () => void {
 type LedgerSummary = { events: number; savedUsd: number; verdict: string; chainOk: boolean; brokenAt?: string };
 
 /** Read every ledger spool, verify each chain, and recompute one honest invoice. */
-function summariseLedger(ledgerDir: string): LedgerSummary {
+export function summariseLedger(ledgerDir: string): LedgerSummary {
   if (!existsSync(ledgerDir)) return { events: 0, savedUsd: 0, verdict: "do_not_charge", chainOk: true };
   const spools = readdirSync(ledgerDir).filter((f) => f.endsWith(".jsonl") && !f.endsWith(".features.jsonl"));
   const allRecords: LedgerRecord[] = [];
@@ -146,25 +147,52 @@ function summariseLedger(ledgerDir: string): LedgerSummary {
 
 const T = "⬢ theo"; // the hex mark, Theo's sign-off
 
-export async function runStart(argv: string[]): Promise<void> {
-  const args = parseStart(argv);
+/** Start the proxy with Theo's current policy + blind stream. Shared by start/serve. */
+export async function startProxyWithPolicy(port: number, ledgerDir: string): Promise<{ proxy: Awaited<ReturnType<typeof startFluxProxy>>; policy: ReturnType<typeof defaultPolicy> }> {
   mkdirSync(FLUX_HOME, { recursive: true });
-  mkdirSync(args.ledgerDir, { recursive: true });
-
-  // Theo's policy: load the user's own, or start strict + lossless.
+  mkdirSync(ledgerDir, { recursive: true });
   const policyPath = join(FLUX_HOME, "theo-policy.json");
   const policy = existsSync(policyPath)
-    ? JSON.parse(readFileSync(policyPath, "utf8"))
+    ? (JSON.parse(readFileSync(policyPath, "utf8")) as ReturnType<typeof defaultPolicy>)
     : defaultPolicy("local", new Date().toISOString());
   if (!existsSync(policyPath)) writeFileSync(policyPath, `${JSON.stringify(policy, null, 2)}\n`);
-
   const proxy = await startFluxProxy({
-    port: args.port,
-    ledgerDirectory: args.ledgerDir,
+    port,
+    ledgerDirectory: ledgerDir,
     tokenReduction: policyToReductionConfig(policy),
     blindFeaturesKey: blindKey(),
   });
+  return { proxy, policy };
+}
 
+/**
+ * `flux serve` — the always-on daemon body: proxy + Theo, logging to stdout so
+ * launchd captures it to ~/.flux/daemon.log. No config writes and no revert;
+ * `flux install` owns the persistent Claude Code wiring, `flux uninstall`
+ * removes it. Started by the LaunchAgent, not run by hand.
+ */
+export async function runServe(argv: string[]): Promise<void> {
+  const args = parseStart(argv);
+  const { proxy } = await startProxyWithPolicy(args.port, args.ledgerDir);
+  const stamp = (): string => new Date().toISOString();
+  console.log(`[${stamp()}] flux serve · build ${BUILD_COMMIT} · proxy ${proxy.url} · ledger ${args.ledgerDir}`);
+  let lastEvents = -1;
+  const monitor = setInterval(() => {
+    const s = summariseLedger(args.ledgerDir);
+    if (!s.chainOk) { console.log(`[${stamp()}] ${T} ⚠ ledger chain failed at ${s.brokenAt}`); return; }
+    if (s.events === lastEvents || s.events === 0) return;
+    lastEvents = s.events;
+    console.log(`[${stamp()}] ${T} ${s.events} requests · $${s.savedUsd.toFixed(4)} verified saved (${s.verdict})`);
+  }, 10000);
+  const shutdown = async (): Promise<void> => { clearInterval(monitor); await proxy.close(); process.exit(0); };
+  process.on("SIGTERM", () => { void shutdown(); });
+  process.on("SIGINT", () => { void shutdown(); });
+  await new Promise<void>(() => {});
+}
+
+export async function runStart(argv: string[]): Promise<void> {
+  const args = parseStart(argv);
+  const { proxy, policy } = await startProxyWithPolicy(args.port, args.ledgerDir);
   const restore = args.install ? configureClaudeCode(proxy.url) : () => {};
   const withheld = withheldLevers(policy);
 
