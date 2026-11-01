@@ -372,7 +372,7 @@ export function startFluxProxy(options: FluxProxyOptions): Promise<FluxProxy> {
     // Reduce. reduceRequest never throws; a failure returns the original.
     const { request: reducedRequest, summary } = reduceRequest(body, reduction);
     // Side-call routing never throws and is a no-op unless explicitly enabled.
-    const sideCall = chooseSideCallRoute(options.sideCallRouting, reducedRequest, surface.provider);
+    let sideCall = chooseSideCallRoute(options.sideCallRouting, reducedRequest, surface.provider);
     const sendBody = JSON.stringify(sideCall
       ? { ...(reducedRequest as AnyObject), model: sideCall.targetModel }
       : reducedRequest);
@@ -428,14 +428,36 @@ export function startFluxProxy(options: FluxProxyOptions): Promise<FluxProxy> {
     }
 
     const startedAt = Date.now();
-    let upstreamResponse: Response;
-    try {
-      upstreamResponse = await fetch(`${upstreams[surface.provider]}${surface.upstreamPath}`, {
+    const sendUpstream = (payload: string): Promise<Response> =>
+      fetch(`${upstreams[surface.provider]}${surface.upstreamPath}`, {
         method: "POST",
         headers,
-        body: sendBody,
+        body: payload,
         signal: upstreamControl.signal,
       });
+    let upstreamResponse: Response;
+    try {
+      if (sideCall === undefined) {
+        upstreamResponse = await sendUpstream(sendBody);
+      } else {
+        // A routed side-call must never fail where the original would have
+        // succeeded: if the cheap model errors or is unreachable, retry once
+        // on the caller's own model with the unrouted body.
+        let routed: Response | undefined;
+        try {
+          routed = await sendUpstream(sendBody);
+        } catch (routedCause) {
+          if (upstreamControl.signal.aborted) throw routedCause;
+          routed = undefined;
+        }
+        if (routed !== undefined && routed.ok) {
+          upstreamResponse = routed;
+        } else {
+          await routed?.body?.cancel().catch(() => undefined);
+          sideCall = undefined;
+          upstreamResponse = await sendUpstream(JSON.stringify(reducedRequest));
+        }
+      }
     } catch (cause) {
       clearTimeout(phaseTimer);
       if (!res.headersSent && !res.destroyed) {

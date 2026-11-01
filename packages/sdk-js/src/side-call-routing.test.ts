@@ -250,4 +250,50 @@ describe("proxy side-call routing", () => {
       upstream.server.close();
     }
   });
+  it("falls back to the requested model when the cheap model fails", async () => {
+    const seen: AnyObject[] = [];
+    const server = createServer((req, res) => {
+      const chunks: Buffer[] = [];
+      req.on("data", (c: Buffer) => chunks.push(c));
+      req.on("end", () => {
+        const body = JSON.parse(Buffer.concat(chunks).toString("utf8")) as AnyObject;
+        seen.push(body);
+        if (body.model === "gpt-4o-mini") {
+          res.writeHead(503, { "content-type": "application/json" });
+          res.end(JSON.stringify({ error: "overloaded" }));
+          return;
+        }
+        res.writeHead(200, { "content-type": "application/json" });
+        res.end(JSON.stringify({
+          id: "chatcmpl",
+          choices: [{ message: { role: "assistant", content: "ok" } }],
+          usage: { prompt_tokens: 10, completion_tokens: 2, prompt_tokens_details: { cached_tokens: 0 } },
+        }));
+      });
+    });
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+    const url = `http://127.0.0.1:${(server.address() as { port: number }).port}`;
+    const dir = mkdtempSync(join(tmpdir(), "flux-proxy-side-fallback-"));
+    const proxy = await startFluxProxy({
+      ledgerDirectory: dir,
+      openaiUpstream: url,
+      sideCallRouting: { enabled: true, targetModel: { openai: "gpt-4o-mini" } },
+    });
+    try {
+      const response = await fetch(`${proxy.url}/v1/chat/completions`, {
+        method: "POST",
+        headers: { "content-type": "application/json", authorization: "Bearer k" },
+        body: JSON.stringify({ ...one(FOLLOW_UPS), model: "gpt-5.5" }),
+      });
+      expect(response.status).toBe(200);
+      expect(seen.map((r) => r.model)).toEqual(["gpt-4o-mini", "gpt-5.5"]);
+      const spool = readFileSync(join(dir, "proxy-openai.jsonl"), "utf8").trim().split("\n").map((l) => JSON.parse(l));
+      expect(spool).toHaveLength(1);
+      expect(JSON.stringify(spool[0])).not.toContain("gpt-4o-mini");
+      expect(JSON.stringify(spool[0])).not.toContain("side_call_routed");
+    } finally {
+      await proxy.close();
+      server.close();
+    }
+  });
 });
