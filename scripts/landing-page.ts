@@ -235,43 +235,49 @@ export function renderLanding(origin: string, repoUrl: string): string {
 }
 *{box-sizing:border-box}
 html{scroll-behavior:smooth}
-body{margin:0;position:relative;background:var(--bg);color:var(--ink);font:16px/1.5 Manrope,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
-/* One continuous silk-current behind the whole page: cool blue at the top,
-   warming through violet to a sunrise orange at the foot. The sections ride
-   above it transparently, so the page reads as one moving field. */
-.pagehue{position:absolute;inset:0;z-index:0;overflow:hidden;pointer-events:none}
-.pagehue .b{position:absolute;border-radius:50%;filter:blur(94px);will-change:transform}
-@media (prefers-reduced-motion:reduce){.pagehue .b{animation:none!important}}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 Manrope,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
 a{color:var(--ink)}
+/* Faded isometric dot-paper, fixed behind the page; dots glow faintly near the cursor. */
+.dotpaper{position:fixed;inset:0;z-index:0;pointer-events:none}
+.dotpaper .base,.dotpaper .glow{position:absolute;inset:0}
+.dotpaper .base{background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='34' height='59'%3E%3Cg fill='%230B0F14' fill-opacity='0.05'%3E%3Ccircle cx='0' cy='0' r='1.1'/%3E%3Ccircle cx='34' cy='0' r='1.1'/%3E%3Ccircle cx='0' cy='59' r='1.1'/%3E%3Ccircle cx='34' cy='59' r='1.1'/%3E%3Ccircle cx='17' cy='29.5' r='1.1'/%3E%3C/g%3E%3C/svg%3E")}
+.dotpaper .glow{opacity:0;transition:opacity .4s ease;
+  background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='34' height='59'%3E%3Cg fill='%232563EB' fill-opacity='0.55'%3E%3Ccircle cx='0' cy='0' r='1.2'/%3E%3Ccircle cx='34' cy='0' r='1.2'/%3E%3Ccircle cx='0' cy='59' r='1.2'/%3E%3Ccircle cx='34' cy='59' r='1.2'/%3E%3Ccircle cx='17' cy='29.5' r='1.2'/%3E%3C/g%3E%3C/svg%3E");
+  -webkit-mask-image:radial-gradient(circle 160px at var(--mx) var(--my),#000 0%,rgba(0,0,0,.35) 48%,transparent 72%);
+  mask-image:radial-gradient(circle 160px at var(--mx) var(--my),#000 0%,rgba(0,0,0,.35) 48%,transparent 72%)}
+.dotpaper.lit .glow{opacity:1}
+@media (prefers-reduced-motion:reduce){.dotpaper .glow{display:none}}
 .rise,.exchange .call,.exchange .response,.total-side .figure{opacity:0;transform:translateY(12px);transition:opacity .5s ease,transform .5s ease}
 .rise.in,.rise.in .call,.rise.in .response,.rise.in .figure{opacity:1;transform:none}
 .rise.in .response{transition-delay:.18s}
+/* headings never fade — always present for readers and crawlers */
+h2.rise{opacity:1;transform:none;transition:none}
 
 @media (prefers-reduced-motion: reduce){.rise,.exchange .call,.exchange .response,.total-side .figure{opacity:1;transform:none;transition:none}html{scroll-behavior:auto}}
 
-/* ---------- hero: the hue. A silk-current field under big confident type. ---------- */
-.hero-wrap{position:relative;z-index:1;min-height:96svh;overflow:hidden;background:transparent}
-.field{position:absolute;inset:0;z-index:0;overflow:hidden;pointer-events:none}
-.field .b{position:absolute;border-radius:50%;filter:blur(72px);will-change:transform}
-.field .b1{width:900px;height:900px;right:-180px;top:-260px;background:#c3d6ff;opacity:.60;animation:drift1 22s ease-in-out infinite}
-.field .b2{width:680px;height:680px;right:60px;top:40px;background:#9bbcff;opacity:.42;animation:drift2 27s ease-in-out infinite}
-.field .b3{width:520px;height:520px;right:300px;bottom:-220px;background:#2563EB;opacity:.14;animation:drift3 31s ease-in-out infinite}
-.field .b4{width:420px;height:420px;right:520px;top:220px;background:#dbe6ff;opacity:.55;animation:drift2 25s ease-in-out infinite reverse}
-@keyframes drift1{0%,100%{transform:translate(0,0)}50%{transform:translate(-44px,36px)}}
-@keyframes drift2{0%,100%{transform:translate(0,0)}50%{transform:translate(36px,-30px)}}
-@keyframes drift3{0%,100%{transform:translate(0,0)}50%{transform:translate(-28px,-32px)}}
-.veil{position:absolute;inset:0;z-index:1;pointer-events:none;background:linear-gradient(100deg,var(--bg) 26%,rgba(250,250,249,.55) 48%,rgba(250,250,249,0) 68%)}
-@media (prefers-reduced-motion:reduce){.field .b{animation:none}}
-.hero{position:relative;min-height:96svh;display:flex;flex-direction:column;justify-content:center;align-items:flex-start;text-align:left;padding:var(--s7) var(--s4)}
-.hero .col{position:relative;z-index:2;max-width:60rem;padding-left:4%}
-.hero .brandlock{position:absolute;top:28px;left:var(--s4);display:flex;align-items:center;gap:11px;z-index:3;text-decoration:none;color:var(--ink)}
-.hero .brandlock svg{height:36px;width:auto;display:block}
-.hero .brandlock b{font-size:25px;font-weight:800;letter-spacing:-.03em;color:var(--ink)}
-.hero .signin{position:absolute;top:52px;right:var(--s4);font-size:13px;color:var(--muted);text-decoration:none;z-index:3}
-.hero .signin:hover{color:var(--accent)}
+/* ---------- hero: editorial-minimal. Near-white, massive type, one accent ---------- */
+.hero-wrap{position:relative;z-index:1;min-height:84svh;background:transparent}
+.hero{position:relative;min-height:84svh;display:flex;flex-direction:row;align-items:center;justify-content:space-between;gap:var(--s6);text-align:left;padding:var(--s5) var(--s4) var(--s7)}
+.hero h1 .dot{color:var(--accent)}
+.hero .col{position:relative;z-index:2;max-width:44rem;flex:1 1 auto}
+.hero-proof{flex:0 0 auto;max-width:21rem;text-align:right;border-top:2px solid var(--ink);padding-top:16px}
+.hero-proof .lbl{font-size:15px;line-height:1.5;color:var(--muted);margin:0}
+.hero-proof .pct{display:block;font-size:clamp(52px,6vw,84px);font-weight:800;letter-spacing:-.03em;line-height:1;margin:0 0 10px;color:var(--ink)}
+.hero-proof .pct span{color:var(--accent)}
+@media (max-width:760px){.hero-proof .pct{display:inline;font-size:1.15em;margin:0}}
+.topnav{position:relative;z-index:3;display:flex;align-items:center;justify-content:space-between;padding:26px var(--s4) 0}
+.brandlock{display:flex;align-items:center;gap:11px;text-decoration:none;color:var(--ink)}
+.brandlock svg{height:34px;width:auto;display:block}
+.brandlock b{font-size:24px;font-weight:800;letter-spacing:-.03em;color:var(--ink)}
+.topnav-links{display:flex;align-items:center;gap:var(--s4)}
+.topnav .navlink{font-size:14px;font-weight:600;color:var(--muted);text-decoration:none}
+.topnav .navlink:hover{color:var(--accent)}
+.topnav .signin{font-size:14px;font-weight:700;color:var(--ink);text-decoration:none}
+.topnav .signin:hover{color:var(--accent)}
+@media (max-width:560px){.topnav .navlink{display:none}}
 .hero .kicker{margin:0 0 var(--s2);font-size:15px;font-weight:700;letter-spacing:.005em;color:var(--accent)}
-.hero h1{margin:0 0 var(--s3);font-size:clamp(52px,7.6vw,112px);font-weight:800;letter-spacing:-.04em;line-height:.95;max-width:9ch;color:var(--ink)}
-.hero .sub{font-size:19px;line-height:1.55;color:var(--ink);margin:0 0 36px;max-width:34rem}
+.hero h1{margin:0 0 var(--s4);font-size:clamp(56px,8.4vw,128px);font-weight:800;letter-spacing:-.045em;line-height:.92;max-width:9ch;color:var(--ink)}
+.hero .sub{font-size:20px;line-height:1.6;color:var(--ink);margin:0 0 40px;max-width:34rem}
 .hero .actions{display:flex;align-items:center;justify-content:flex-start;gap:var(--s3)}
 .hero .col>.rise:nth-child(1){transition-delay:.04s}
 .hero .col>.rise:nth-child(2){transition-delay:.14s}
@@ -282,12 +288,15 @@ a{color:var(--ink)}
 .arrowlink{font-size:16px;color:var(--ocean);text-decoration:none;border-bottom:1px solid var(--line)}
 .arrowlink:hover{color:var(--accent);border-color:var(--accent)}
 .arrowlink::after{content:" \\2192"}
+@media (max-width:860px){
+  .hero{flex-direction:column;align-items:flex-start;gap:var(--s4)}
+  .hero-proof{text-align:left;max-width:100%;align-self:stretch}
+}
 @media (max-width:760px){
   :root{--axis:24px}
-  .hero{min-height:92svh;justify-content:center;padding-top:18svh}
+  .hero{min-height:88svh;justify-content:center;padding-top:14svh}
   .hero .col{max-width:100%;padding-left:0}
   .hero .sub{font-size:17px}
-  .veil{background:linear-gradient(180deg,rgba(250,250,249,.7) 30%,rgba(250,250,249,.2) 70%)}
 }
 
 /* ---------- the bands: the numbers, called out at poster size ---------- */
@@ -298,18 +307,18 @@ a{color:var(--ink)}
 .band .n span{font-size:.45em;font-weight:800}
 .band p{font-size:16px;line-height:1.5;color:var(--muted);max-width:30ch;margin:var(--s2) auto 0}
 .bandcap{text-align:center;font-size:16px;color:var(--muted);max-width:46rem;margin:var(--s6) auto 0}
-.theo-sect{padding:var(--s7) var(--s4)}
-.theo-lead{font-size:20px;line-height:1.6;color:var(--ink);max-width:42rem;margin:0 0 var(--s3)}
-.theo-note{font-size:16px;line-height:1.65;color:var(--muted);max-width:42rem;margin:0}
-/* Recurring hue: the hero's silk-current, carried softly behind mid-page sections. */
-.hued{position:relative;overflow:hidden}
-.hued>*{position:relative;z-index:1}
-.huebg{position:absolute;inset:0;z-index:0;pointer-events:none;overflow:hidden}
-.huebg .b{position:absolute;border-radius:50%;filter:blur(80px);will-change:transform}
-.huebg .ha{width:760px;height:760px;left:-200px;top:-220px;background:#cfe0ff;opacity:.5;animation:drift2 26s ease-in-out infinite}
-.huebg .hb{width:600px;height:600px;right:-160px;bottom:-240px;background:#9bbcff;opacity:.3;animation:drift1 30s ease-in-out infinite}
-.huebg .hc{width:420px;height:420px;right:30%;top:-120px;background:#2563EB;opacity:.08;animation:drift3 34s ease-in-out infinite}
-@media (prefers-reduced-motion:reduce){.huebg .b{animation:none}}
+.theo-sect{padding:var(--s7) var(--s4);text-align:center}
+.theo-wrap{max-width:46rem;margin:0 auto}
+.theo-avatar{width:136px;height:140px;margin:0 auto var(--s4);animation:theofloat 5.5s ease-in-out infinite}
+.theo-avatar svg{width:100%;height:100%;display:block;overflow:visible}
+.theo-signal{animation:theopulse 2.2s ease-in-out infinite}
+.theo-eye{transform-box:fill-box;transform-origin:center;animation:theoblink 5s ease-in-out infinite}
+@keyframes theofloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-9px)}}
+@keyframes theopulse{0%,100%{opacity:1}50%{opacity:.3}}
+@keyframes theoblink{0%,94%,100%{transform:scaleY(1)}97%{transform:scaleY(.12)}}
+@media (prefers-reduced-motion:reduce){.theo-avatar,.theo-signal,.theo-eye{animation:none}}
+.theo-lead{font-size:clamp(20px,2.3vw,25px);line-height:1.5;color:var(--ink);max-width:40rem;margin:0 auto var(--s3)}
+.theo-note{font-size:16px;line-height:1.65;color:var(--muted);max-width:40rem;margin:0 auto}
 .bandcap a{color:var(--ocean)}
 .bandcap strong{color:var(--ink)}
 
@@ -362,13 +371,24 @@ a{color:var(--ink)}
 .copy{font:12px/1 ui-monospace,monospace;background:none;border:1px solid var(--deep-line);color:var(--deep-muted);border-radius:4px;padding:4px 8px;cursor:pointer}
 .copy:hover{color:var(--accent);border-color:var(--accent)}
 
-/* ---------- chapter blocks: now transparent, ink on the continuous hue ---------- */
-.field-deep{background:transparent;color:var(--ink)}
+/* ---------- colour fields: two full-bleed chapter breaks (the page's punctuation) ---------- */
+.field-deep{background:var(--deep);color:var(--deep-ink)}
+.field-deep h2{color:var(--deep-ink)}
+.field-deep .total-side .note,.field-deep .total-side .cap{color:var(--deep-muted)}
+.field-deep .total-side .cap a{color:var(--accent)}
+.field-deep .total-side .figure{color:var(--deep-ink)}
 .field-deep .slip{background:#ffffff}
-.field-deep .total-side .figure{color:var(--ink)}
-.field-ocean{background:transparent;color:var(--ink)}
-.field-ocean .price-figure .fig{color:var(--accent)}
-.field-ocean ul strong{color:var(--ink);border-bottom:2px solid var(--accent)}
+.field-ocean{background:var(--ocean);color:#F1F7FB}
+.field-ocean h2{color:#fff}
+.field-ocean p{color:#d7e9f7}
+.field-ocean .fig{color:#fff}
+.field-ocean .price-figure .per{color:#eaf4fb}
+.field-ocean ul{color:#eaf4fb}
+.field-ocean ul strong{color:#fff;border-bottom:2px solid var(--accent)}
+.field-ocean .overlap path{stroke:#9DD9F5}
+.field-ocean .overlap circle{fill:#F1F7FB}
+.field-ocean .btn{background:#F1F7FB;color:var(--ocean)}
+.field-ocean .btn:hover{background:#fff}
 
 /* ---------- sections ---------- */
 section{padding:var(--s7) var(--s4);position:relative;z-index:1}
@@ -423,6 +443,7 @@ section h2::after{content:"";position:absolute;left:50%;transform:translateX(-50
 .faq-wrap{display:grid;grid-template-columns:1fr;gap:var(--s5);max-width:1080px;margin:0 auto}
 @media (min-width:980px){.faq-wrap{grid-template-columns:320px 1fr}.faq-wrap h2{position:sticky;top:96px;margin:0}}
 .faq-wrap h2::after,.receipt-wrap h2::after,.price-wrap h2::after{left:0;transform:none}
+.field-deep h2::after{background:url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 140 12"><path d="M0 6 q6 -5 12 0 t12 0 q3 -9 6 0 t12 0 t12 0 q3 9 6 0 t12 0 t12 0 q6 -5 12 0 t12 0 t12 0" fill="none" stroke="%239DD9F5" stroke-width="1.6" opacity=".8"/></svg>') center/contain no-repeat}
 .faq-wrap h2{font-size:30px}
 .faq details{background:#ffffff;border-radius:var(--radius);margin-bottom:8px}
 .faq summary{list-style:none;cursor:pointer;display:flex;justify-content:space-between;align-items:center;min-height:72px;padding:0 24px;font-size:20px;font-weight:600}
@@ -466,6 +487,21 @@ section h2::after{content:"";position:absolute;left:50%;transform:translateX(-50
 
   const MARK = `<svg viewBox="0 0 120 130" fill="none" aria-hidden="true"><g transform="translate(60,42)" stroke="currentColor" stroke-width="4" stroke-linejoin="round" stroke-linecap="round"><path d="M0 -30 L26 -15 L26 15 L0 30 L-26 15 L-26 -15 Z"/><path d="M0 0 L26 -15 M0 0 L-26 -15 M0 0 L0 30"/><path d="M-26 15 L0 30 L0 60 L-26 75 L-52 60 L-52 30 Z"/><path d="M-26 45 L0 30 M-26 45 L-52 30 M-26 45 L-26 75"/><path d="M26 15 L52 30 L52 60 L26 75 L0 60 L0 30 Z"/><path d="M26 45 L52 30 M26 45 L0 30 M26 45 L26 75"/></g></svg>`;
 
+  // Theo, the FLUX token-engineer bot: a small, friendly ink-line robot with a
+  // Flux-blue "signal" dot that pulses, eyes that blink and a gentle float.
+  const THEO_BOT = `<svg viewBox="0 0 120 124" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Theo, the FLUX token-engineer bot">
+<line x1="60" y1="34" x2="60" y2="22" stroke="#0B0F14" stroke-width="3.5" stroke-linecap="round"/>
+<circle class="theo-signal" cx="60" cy="15" r="5.5" fill="#2563EB"/>
+<rect x="24" y="34" width="72" height="56" rx="18" fill="#ffffff" stroke="#0B0F14" stroke-width="3.5"/>
+<rect x="16.5" y="54" width="6" height="16" rx="3" fill="#0B0F14"/>
+<rect x="97.5" y="54" width="6" height="16" rx="3" fill="#0B0F14"/>
+<circle class="theo-eye" cx="47" cy="58" r="6" fill="#0B0F14"/>
+<circle class="theo-eye" cx="73" cy="58" r="6" fill="#0B0F14"/>
+<path d="M48 73 q12 9 24 0" stroke="#0B0F14" stroke-width="3.5" stroke-linecap="round" fill="none"/>
+<rect x="52" y="90" width="16" height="7" fill="#0B0F14"/>
+<rect x="38" y="97" width="44" height="7" rx="3.5" fill="#E7E5E4"/>
+</svg>`;
+
   const jsonLd = JSON.stringify({
     "@context": "https://schema.org",
     "@type": "SoftwareApplication",
@@ -485,31 +521,6 @@ section h2::after{content:"";position:absolute;left:50%;transform:translateX(-50
     `<div class="row"><span class="desc">${name}</span><span class="lead-dots"></span><span class="val">${money(v)}</span></div>`).join("\n      ");
   const savedRows = SAVED.map(([name, v]) =>
     `<div class="row"><span class="desc">${name}</span><span class="lead-dots"></span><span class="val">${money(v)}</span></div>`).join("\n      ");
-
-  // The continuous hue's colour journey down the page: [top%, side, offsetPx,
-  // sizePx, colour, opacity, driftAnim, durationSec]. Cool blue at the crown,
-  // warming through violet to a sunrise at the foot. All pastel so the ink
-  // stays readable over every zone.
-  const HUE_STOPS: [number, "left" | "right", number, number, string, number, string, number][] = [
-    [3, "left", -240, 900, "#9bbcff", 0.52, "drift2", 26],
-    [8, "right", -180, 860, "#b6ccff", 0.50, "drift1", 24],
-    [15, "left", -220, 820, "#c3d6ff", 0.52, "drift3", 30],
-    [23, "right", -160, 800, "#bcd3ff", 0.50, "drift2", 28],
-    [31, "left", -200, 820, "#cdd2ff", 0.50, "drift1", 32],
-    [39, "right", -160, 800, "#cbbfff", 0.50, "drift3", 29],
-    [47, "left", -200, 820, "#d8c3f5", 0.50, "drift2", 31],
-    [55, "right", -160, 800, "#f0c6ec", 0.48, "drift1", 27],
-    [63, "left", -200, 840, "#f6c3d4", 0.50, "drift3", 33],
-    [71, "right", -160, 820, "#ffc9a8", 0.54, "drift2", 26],
-    [79, "left", -200, 840, "#ffd3ac", 0.56, "drift1", 30],
-    [87, "right", -160, 820, "#ffe0b4", 0.56, "drift3", 34],
-    [94, "left", -200, 840, "#ffe7c6", 0.54, "drift2", 28],
-    [99, "right", -160, 780, "#ffdcc4", 0.50, "drift1", 25],
-  ];
-  const pageHue = HUE_STOPS.map(
-    ([top, side, off, size, color, op, anim, dur]) =>
-      `<span class="b" style="top:${top}%;${side}:${off}px;width:${size}px;height:${size}px;background:${color};opacity:${op};animation:${anim} ${dur}s ease-in-out infinite"></span>`,
-  ).join("");
 
   return `<!doctype html>
 <html lang="en">
@@ -540,26 +551,34 @@ section h2::after{content:"";position:absolute;left:50%;transform:translateX(-50
 </head>
 <body>
 
-<div class="pagehue" aria-hidden="true">${pageHue}</div>
+<div class="dotpaper" aria-hidden="true"><div class="base"></div><div class="glow"></div></div>
 
+<header class="topnav">
+  <a class="brandlock" href="index.html" aria-label="Flux home">${MARK}<b>flux</b></a>
+  <nav class="topnav-links">
+    <a class="navlink" href="#theo">Theo</a>
+    <a class="navlink" href="evidence.html">Evidence</a>
+    <a class="signin" href="start.html">Get started</a>
+  </nav>
+</header>
 <div class="hero-wrap">
 <header class="hero">
-  <a class="brandlock" href="index.html" aria-label="Flux home">${MARK}<b>flux</b></a>
-  <a class="signin" href="start.html">Get started</a>
-  <div class="field" aria-hidden="true"><span class="b b1"></span><span class="b b2"></span><span class="b b3"></span><span class="b b4"></span></div>
-  <div class="veil" aria-hidden="true"></div>
   <div class="col">
-    <h1 class="rise">A smaller AI bill.</h1>
+    <h1 class="rise">A smaller AI bill<span class="dot">.</span></h1>
     <p class="sub rise">Same answers &mdash; FLUX sits in front of your LLM traffic and strips out wasted tokens without changing a single reply. You pay 1% of the savings, verified on the provider&rsquo;s own usage, never our estimate.</p>
     <div class="actions rise">
       <a class="btn" href="start.html">Get started</a>
       <a class="arrowlink" href="evidence.html">See the evidence</a>
     </div>
   </div>
+  <aside class="hero-proof rise">
+    <p class="lbl"><span class="pct">${savedPct.toFixed(1)}<span>%</span></span> net savings on our last live export &mdash; verified on the provider&rsquo;s own usage, recomputable from a ledger you hold.</p>
+  </aside>
 </header>
 </div>
 
 <section aria-label="Measured bands" class="bands">
+  <h2 class="rise">Measured savings.</h2>
   <div class="bandrow rise">
     <div class="band"><div class="n">45<span>&ndash;73%</span></div><p>off repetitive API calls &mdash; the top of the range when they can wait a few seconds</p></div>
     <div class="band"><div class="n">57.7<span>%</span></div><p>off background work that can wait a few extra seconds</p></div>
@@ -569,8 +588,8 @@ section h2::after{content:"";position:absolute;left:50%;transform:translateX(-50
 </section>
 
 <section aria-label="Works with every provider" class="works">
+  <h2 class="rise">Works with what you already use.</h2>
   <div class="works-row rise">
-    <span class="works-lede">Works with</span>
     <span class="wlogo">${logo("anthropic")}<span>Claude</span></span>
     <span class="wlogo wordmark"><span>OpenAI</span></span>
     <span class="wlogo">${logo("googlegemini")}<span>Gemini*</span></span>
@@ -676,10 +695,11 @@ Anthropic SDK: new Anthropic({ baseURL: "http://127.0.0.1:8787" })</pre>
   </div>
 </section>
 
-<section aria-label="Theo, your token engineer" class="theo-sect">
-  <div class="axis-col">
-    <h2 class="rise">Meet Theo.</h2>
-    <p class="theo-lead rise">Theo is the token engineer that ships with FLUX. He studies your own traffic, finds new waste to cut, and only ever tunes FLUX &mdash; never your prompts, never your answers.</p>
+<section id="theo" aria-label="Theo, your token engineer" class="theo-sect">
+  <div class="theo-wrap">
+    <div class="theo-avatar rise">${THEO_BOT}</div>
+    <h2 class="rise">Meet Theo, your token engineer.</h2>
+    <p class="theo-lead rise">Theo ships with FLUX. He studies your own traffic, finds new waste to cut, and only ever tunes FLUX &mdash; never your prompts, never your answers.</p>
     <p class="theo-note rise">When he finds a saving he tells you what it is and what it might cost in quality, then waits for your yes. Anything that could touch an answer stays off until a replay of your own traffic proves it safe &mdash; and once a month he reports his own honesty: what he tried, what he saved, and where he held back.</p>
   </div>
 </section>
@@ -743,6 +763,22 @@ Anthropic SDK: new Anthropic({ baseURL: "http://127.0.0.1:8787" })</pre>
 </footer>
 
 <script>${PAGE_JS}</script>
+<script>
+(function(){
+  var dp=document.querySelector(".dotpaper"); if(!dp) return;
+  if(window.matchMedia&&window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  var x=0,y=0,pending=false;
+  window.addEventListener("pointermove",function(e){
+    x=e.clientX; y=e.clientY;
+    if(!pending){ pending=true; requestAnimationFrame(function(){
+      dp.style.setProperty("--mx",x+"px"); dp.style.setProperty("--my",y+"px");
+      if(!dp.classList.contains("lit")) dp.classList.add("lit");
+      pending=false;
+    }); }
+  },{passive:true});
+  window.addEventListener("pointerleave",function(){ dp.classList.remove("lit"); });
+})();
+</script>
 </body>
 </html>
 `;

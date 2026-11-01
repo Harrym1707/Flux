@@ -336,9 +336,9 @@ for (const name of built) {
 }
 const landing = readFileSync(path.join(outDir, "index.html"), "utf8");
 for (const [marker, why] of [
-  ['class="field"', "hero hue field missing"],
+  ['class="field-deep"', "dark chapter break missing"],
   ["prefers-reduced-motion", "reduced-motion guard missing"],
-  ["A smaller AI bill.", "hero promise missing"],
+  ["A smaller AI bill", "hero promise missing"],
   ["npx -y -p @flux-ai/sdk flux-proxy", "the install command missing"],
   ["do not pay us", "the do-not-pay-us admission missing"],
   ["evidence.html", "evidence link missing"],
