@@ -3950,7 +3950,7 @@ function forwardHeaders(req, provider) {
   return out;
 }
 function readBody(req) {
-  return new Promise((resolve2, reject) => {
+  return new Promise((resolve3, reject) => {
     const chunks = [];
     let received = 0;
     req.on("data", (chunk) => {
@@ -3962,7 +3962,7 @@ function readBody(req) {
       }
       chunks.push(chunk);
     });
-    req.on("end", () => resolve2(Buffer.concat(chunks)));
+    req.on("end", () => resolve3(Buffer.concat(chunks)));
     req.on("error", reject);
   });
 }
@@ -4306,12 +4306,12 @@ ${provider}`;
       }
     });
   });
-  return new Promise((resolve2, reject) => {
+  return new Promise((resolve3, reject) => {
     server.once("error", reject);
     server.listen(options.port ?? 0, "127.0.0.1", () => {
       const address = server.address();
       const port = typeof address === "object" && address !== null ? address.port : options.port ?? 0;
-      resolve2({
+      resolve3({
         port,
         url: `http://127.0.0.1:${port}`,
         close: () => new Promise((done, fail) => server.close((err) => err ? fail(err) : done()))
@@ -4518,7 +4518,13 @@ var init_src3 = __esm({
 var start_exports = {};
 __export(start_exports, {
   BUILD_COMMIT: () => BUILD_COMMIT,
-  runStart: () => runStart
+  CLAUDE_SETTINGS: () => CLAUDE_SETTINGS,
+  DEFAULT_PORT: () => DEFAULT_PORT,
+  FLUX_HOME: () => FLUX_HOME,
+  runServe: () => runServe,
+  runStart: () => runStart,
+  startProxyWithPolicy: () => startProxyWithPolicy,
+  summariseLedger: () => summariseLedger
 });
 import { randomBytes } from "node:crypto";
 import {
@@ -4632,20 +4638,54 @@ function summariseLedger(ledgerDir) {
     brokenAt
   };
 }
-async function runStart(argv) {
-  const args = parseStart(argv);
+async function startProxyWithPolicy(port, ledgerDir) {
   mkdirSync2(FLUX_HOME, { recursive: true });
-  mkdirSync2(args.ledgerDir, { recursive: true });
+  mkdirSync2(ledgerDir, { recursive: true });
   const policyPath = join2(FLUX_HOME, "theo-policy.json");
   const policy = existsSync2(policyPath) ? JSON.parse(readFileSync2(policyPath, "utf8")) : defaultPolicy("local", (/* @__PURE__ */ new Date()).toISOString());
   if (!existsSync2(policyPath)) writeFileSync(policyPath, `${JSON.stringify(policy, null, 2)}
 `);
   const proxy = await startFluxProxy({
-    port: args.port,
-    ledgerDirectory: args.ledgerDir,
+    port,
+    ledgerDirectory: ledgerDir,
     tokenReduction: policyToReductionConfig(policy),
     blindFeaturesKey: blindKey()
   });
+  return { proxy, policy };
+}
+async function runServe(argv) {
+  const args = parseStart(argv);
+  const { proxy } = await startProxyWithPolicy(args.port, args.ledgerDir);
+  const stamp = () => (/* @__PURE__ */ new Date()).toISOString();
+  console.log(`[${stamp()}] flux serve \xB7 build ${BUILD_COMMIT} \xB7 proxy ${proxy.url} \xB7 ledger ${args.ledgerDir}`);
+  let lastEvents = -1;
+  const monitor = setInterval(() => {
+    const s = summariseLedger(args.ledgerDir);
+    if (!s.chainOk) {
+      console.log(`[${stamp()}] ${T} \u26A0 ledger chain failed at ${s.brokenAt}`);
+      return;
+    }
+    if (s.events === lastEvents || s.events === 0) return;
+    lastEvents = s.events;
+    console.log(`[${stamp()}] ${T} ${s.events} requests \xB7 $${s.savedUsd.toFixed(4)} verified saved (${s.verdict})`);
+  }, 1e4);
+  const shutdown = async () => {
+    clearInterval(monitor);
+    await proxy.close();
+    process.exit(0);
+  };
+  process.on("SIGTERM", () => {
+    void shutdown();
+  });
+  process.on("SIGINT", () => {
+    void shutdown();
+  });
+  await new Promise(() => {
+  });
+}
+async function runStart(argv) {
+  const args = parseStart(argv);
+  const { proxy, policy } = await startProxyWithPolicy(args.port, args.ledgerDir);
   const restore = args.install ? configureClaudeCode(proxy.url) : () => {
   };
   const withheld = withheldLevers(policy);
@@ -4708,15 +4748,197 @@ async function runStart(argv) {
   await new Promise(() => {
   });
 }
-var BUILD_COMMIT, FLUX_HOME, CLAUDE_SETTINGS, T;
+var BUILD_COMMIT, FLUX_HOME, CLAUDE_SETTINGS, DEFAULT_PORT, T;
 var init_start = __esm({
   "packages/cli/src/start.ts"() {
     init_src();
     init_src3();
-    BUILD_COMMIT = true ? "d612d4e" : process.env.FLUX_BUILD_COMMIT ?? "dev";
+    BUILD_COMMIT = true ? "02b5608" : process.env.FLUX_BUILD_COMMIT ?? "dev";
     FLUX_HOME = join2(homedir(), ".flux");
     CLAUDE_SETTINGS = join2(homedir(), ".claude", "settings.json");
+    DEFAULT_PORT = 8787;
     T = "\u2B22 theo";
+  }
+});
+
+// packages/cli/src/daemon.ts
+var daemon_exports = {};
+__export(daemon_exports, {
+  runInstall: () => runInstall,
+  runStatus: () => runStatus,
+  runUninstall: () => runUninstall
+});
+import { connect } from "node:net";
+import { execFileSync } from "node:child_process";
+import { chmodSync, copyFileSync, existsSync as existsSync3, mkdirSync as mkdirSync3, readFileSync as readFileSync3, rmSync, writeFileSync as writeFileSync2 } from "node:fs";
+import { homedir as homedir2, platform } from "node:os";
+import { dirname as dirname2, join as join3, resolve } from "node:path";
+function requireMac(action) {
+  if (platform() !== "darwin") {
+    console.error(`\`flux ${action}\` uses macOS launchd and isn't wired for this platform yet.`);
+    console.error(`Use \`flux start\` instead \u2014 it does the same thing while it's running.`);
+    process.exit(1);
+  }
+}
+function parsePort(argv) {
+  const i = argv.indexOf("--port");
+  if (i >= 0 && argv[i + 1]) {
+    const n = Number.parseInt(argv[i + 1], 10);
+    if (Number.isInteger(n) && n > 0 && n < 65536) return n;
+    throw new Error("--port must be 1-65535.");
+  }
+  return DEFAULT_PORT;
+}
+function launchctl(...args) {
+  try {
+    execFileSync("launchctl", args, { stdio: "pipe" });
+  } catch {
+  }
+}
+function isLoaded() {
+  try {
+    execFileSync("launchctl", ["list", LABEL], { stdio: "pipe" });
+    return true;
+  } catch {
+    return false;
+  }
+}
+function portUp(port, timeoutMs = 800) {
+  return new Promise((res) => {
+    const sock = connect({ host: "127.0.0.1", port });
+    const done = (ok) => {
+      sock.destroy();
+      res(ok);
+    };
+    sock.setTimeout(timeoutMs);
+    sock.once("connect", () => done(true));
+    sock.once("timeout", () => done(false));
+    sock.once("error", () => done(false));
+  });
+}
+function setClaudeBaseUrl(url) {
+  mkdirSync3(dirname2(CLAUDE_SETTINGS), { recursive: true });
+  let settings = {};
+  if (existsSync3(CLAUDE_SETTINGS)) {
+    try {
+      settings = JSON.parse(readFileSync3(CLAUDE_SETTINGS, "utf8"));
+    } catch {
+      throw new Error("~/.claude/settings.json isn't valid JSON \u2014 fix it first; FLUX won't overwrite it.");
+    }
+  }
+  const env = { ...settings.env ?? {}, ANTHROPIC_BASE_URL: url };
+  writeFileSync2(CLAUDE_SETTINGS, `${JSON.stringify({ ...settings, env }, null, 2)}
+`);
+}
+function clearClaudeBaseUrl() {
+  if (!existsSync3(CLAUDE_SETTINGS)) return;
+  try {
+    const settings = JSON.parse(readFileSync3(CLAUDE_SETTINGS, "utf8"));
+    const env = { ...settings.env ?? {} };
+    delete env.ANTHROPIC_BASE_URL;
+    const next = { ...settings, env };
+    if (Object.keys(env).length === 0) delete next.env;
+    writeFileSync2(CLAUDE_SETTINGS, `${JSON.stringify(next, null, 2)}
+`);
+  } catch {
+  }
+}
+function writePlist(port) {
+  const argv = [process.execPath, STABLE_BIN, "serve", "--port", String(port), "--ledger", DEFAULT_LEDGER];
+  const esc = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  const argXml = argv.map((a) => `      <string>${esc(a)}</string>`).join("\n");
+  const plist = `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>${LABEL}</string>
+  <key>ProgramArguments</key>
+  <array>
+${argXml}
+  </array>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><true/>
+  <key>StandardOutPath</key><string>${esc(DAEMON_LOG)}</string>
+  <key>StandardErrorPath</key><string>${esc(DAEMON_LOG)}</string>
+</dict>
+</plist>
+`;
+  mkdirSync3(dirname2(PLIST), { recursive: true });
+  writeFileSync2(PLIST, plist);
+}
+async function runInstall(argv) {
+  requireMac("install");
+  const port = parsePort(argv);
+  mkdirSync3(join3(FLUX_HOME, "bin"), { recursive: true });
+  mkdirSync3(DEFAULT_LEDGER, { recursive: true });
+  const self = resolve(process.argv[1] ?? "");
+  if (self !== STABLE_BIN) copyFileSync(self, STABLE_BIN);
+  chmodSync(STABLE_BIN, 493);
+  if (isLoaded()) launchctl("unload", PLIST);
+  writePlist(port);
+  launchctl("load", "-w", PLIST);
+  setClaudeBaseUrl(`http://127.0.0.1:${port}`);
+  let up = false;
+  for (let i = 0; i < 10 && !up; i += 1) {
+    up = await portUp(port);
+    if (!up) await sleep(400);
+  }
+  console.log("");
+  if (up) {
+    console.log(`  \u2B22 theo \u2014 FLUX is now always on.  build ${BUILD_COMMIT}`);
+    console.log(`  service  launchd ${LABEL} (starts at login, restarts if it stops)`);
+    console.log(`  proxy    http://127.0.0.1:${port}  \xB7  ledger ${DEFAULT_LEDGER}`);
+    console.log(`  claude   pointed at FLUX permanently via ~/.claude/settings.json`);
+    console.log(`  log      ${DAEMON_LOG}`);
+    console.log("");
+    console.log(`  Just use Claude Code \u2014 every session is optimised. Check savings with: flux status`);
+    console.log(`  Turn it off any time with: flux uninstall`);
+  } else {
+    console.log(`  \u26A0 The service was installed but the proxy didn't answer on port ${port}.`);
+    console.log(`  Check ${DAEMON_LOG}, then re-run \`flux install\`, or use \`flux start\` instead.`);
+    process.exitCode = 1;
+  }
+  console.log("");
+}
+function runUninstall(_argv) {
+  requireMac("uninstall");
+  launchctl("unload", "-w", PLIST);
+  rmSync(PLIST, { force: true });
+  clearClaudeBaseUrl();
+  console.log("");
+  console.log(`  \u2B22 theo \u2014 always-on removed. The service is stopped and Claude Code is back to normal.`);
+  console.log(`  Your ledger is kept at ${DEFAULT_LEDGER} \u2014 recompute any time with: flux verify`);
+  console.log("");
+}
+async function runStatus(_argv) {
+  const loaded = platform() === "darwin" ? isLoaded() : false;
+  const port = DEFAULT_PORT;
+  const up = await portUp(port);
+  const s = summariseLedger(DEFAULT_LEDGER);
+  console.log("");
+  console.log(`  flux status \u2014 build ${BUILD_COMMIT}`);
+  console.log(`  service   ${loaded ? "installed (launchd)" : "not installed"}`);
+  console.log(`  proxy     ${up ? `up on http://127.0.0.1:${port}` : "not responding"}`);
+  if (s.events > 0) {
+    console.log(`  \u2B22 theo    ${s.events} requests seen \xB7 $${s.savedUsd.toFixed(4)} verified saved (${s.verdict})`);
+  } else {
+    console.log(`  \u2B22 theo    no traffic yet \u2014 use Claude Code and check back`);
+  }
+  if (!up && loaded) console.log(`  note      service is registered but the proxy is down; see ${DAEMON_LOG}`);
+  console.log("");
+}
+function sleep(ms) {
+  return new Promise((r) => setTimeout(r, ms));
+}
+var LABEL, PLIST, DAEMON_LOG, STABLE_BIN, DEFAULT_LEDGER;
+var init_daemon = __esm({
+  "packages/cli/src/daemon.ts"() {
+    init_start();
+    LABEL = "dev.fluxtoken.flux";
+    PLIST = join3(homedir2(), "Library", "LaunchAgents", `${LABEL}.plist`);
+    DAEMON_LOG = join3(FLUX_HOME, "daemon.log");
+    STABLE_BIN = join3(FLUX_HOME, "bin", "flux");
+    DEFAULT_LEDGER = join3(FLUX_HOME, "ledger");
   }
 });
 
@@ -4725,9 +4947,9 @@ var verify_exports = {};
 __export(verify_exports, {
   runVerify: () => runVerify
 });
-import { existsSync as existsSync3, readFileSync as readFileSync3, readdirSync as readdirSync2 } from "node:fs";
-import { homedir as homedir2 } from "node:os";
-import { join as join3 } from "node:path";
+import { existsSync as existsSync4, readFileSync as readFileSync4, readdirSync as readdirSync2 } from "node:fs";
+import { homedir as homedir3 } from "node:os";
+import { join as join4 } from "node:path";
 function sampleRequest() {
   const dup = "Records 0-19: settlement entry nominal, reconciliation standard, no notification sent, annotation routine.";
   const schema = {
@@ -4756,7 +4978,7 @@ async function runVerify(_argv) {
     ok: reducerOk,
     detail: reducerOk ? `lossless: ${summary.estimatedTokensBefore} \u2192 ${summary.estimatedTokensAfter} tokens (\u2212${summary.estimatedLosslessTokensSaved}), ${summary.changes.length} lever(s)` : `reducer did not fire (${summary.skippedReason ?? "no lossless saving"})`
   });
-  if (!existsSync3(LEDGER_DIR) || readdirSync2(LEDGER_DIR).filter((f) => f.endsWith(".jsonl") && !f.endsWith(".features.jsonl")).length === 0) {
+  if (!existsSync4(LEDGER_DIR) || readdirSync2(LEDGER_DIR).filter((f) => f.endsWith(".jsonl") && !f.endsWith(".features.jsonl")).length === 0) {
     checks.push({ name: "ledger", ok: true, detail: "no ledger yet \u2014 run `flux start` and use Claude Code, then verify again" });
     checks.push({ name: "determinism", ok: true, detail: "nothing to recompute yet" });
   } else {
@@ -4767,7 +4989,7 @@ async function runVerify(_argv) {
     let total = 0;
     for (const spool of spools) {
       const records = [];
-      for (const line of readFileSync3(join3(LEDGER_DIR, spool), "utf8").trim().split(/\r?\n/)) {
+      for (const line of readFileSync4(join4(LEDGER_DIR, spool), "utf8").trim().split(/\r?\n/)) {
         if (line.trim() === "") continue;
         try {
           records.push(JSON.parse(line));
@@ -4818,14 +5040,14 @@ var init_verify = __esm({
     init_src();
     init_src3();
     init_start();
-    LEDGER_DIR = join3(homedir2(), ".flux", "ledger");
+    LEDGER_DIR = join4(homedir3(), ".flux", "ledger");
   }
 });
 
 // packages/cli/src/main.ts
 init_src();
 import { readFile } from "node:fs/promises";
-import { resolve } from "node:path";
+import { resolve as resolve2 } from "node:path";
 var USAGE = `Usage: flux analyse --input <file.jsonl> [options]
 
   --input <path>      Traffic log to read. Repeatable. JSONL, or a JSON array.
@@ -4857,7 +5079,7 @@ function parse(argv) {
     index += 1;
     switch (key) {
       case "--input":
-        args.inputs.push(resolve(value));
+        args.inputs.push(resolve2(value));
         break;
       case "--date":
         args.date = value;
@@ -4866,10 +5088,10 @@ function parse(argv) {
         args.workload = value;
         break;
       case "--json":
-        args.json = resolve(value);
+        args.json = resolve2(value);
         break;
       case "--markdown":
-        args.markdown = resolve(value);
+        args.markdown = resolve2(value);
         break;
       default:
         throw new Error(`Unknown option: ${key}`);
@@ -5096,8 +5318,8 @@ async function runAnalyse(argv) {
   console.log(report);
   if (args.json) {
     const { writeFile, mkdir } = await import("node:fs/promises");
-    const { dirname: dirname2 } = await import("node:path");
-    await mkdir(dirname2(args.json), { recursive: true });
+    const { dirname: dirname3 } = await import("node:path");
+    await mkdir(dirname3(args.json), { recursive: true });
     await writeFile(args.json, `${JSON.stringify({
       fingerprint,
       generatedFor: args.date,
@@ -5113,8 +5335,8 @@ JSON report written to ${args.json}`);
   }
   if (args.markdown) {
     const { writeFile, mkdir } = await import("node:fs/promises");
-    const { dirname: dirname2 } = await import("node:path");
-    await mkdir(dirname2(args.markdown), { recursive: true });
+    const { dirname: dirname3 } = await import("node:path");
+    await mkdir(dirname3(args.markdown), { recursive: true });
     await writeFile(args.markdown, `${report}
 `);
     console.log(`Markdown report written to ${args.markdown}`);
@@ -5124,17 +5346,29 @@ var TOP_USAGE = `flux \u2014 cut your LLM bill, verified on your own usage.
 
 Usage: flux <command> [options]
 
-  start     Start the FLUX proxy, point Claude Code at it, and run Theo
-            alongside you. One command; reverts cleanly on exit.
-  verify    Re-prove FLUX's claims on this machine: the build's provenance,
-            your ledger's hash-chain, and a deterministic invoice recompute.
-  analyse   Measure a traffic log and report what a reduction is worth.
+  start      Start the FLUX proxy, point Claude Code at it, and run Theo
+             alongside you. One command; reverts cleanly on exit.
+  install    Always-on: run FLUX as a background service (launchd) so every
+             Claude Code session is optimised, with nothing to start by hand.
+  uninstall  Stop and remove the background service; restore Claude Code.
+  status     Is the service up, and what has Theo saved so far?
+  verify     Re-prove FLUX's claims on this machine: the build's provenance,
+             your ledger's hash-chain, and a deterministic invoice recompute.
+  analyse    Measure a traffic log and report what a reduction is worth.
 
 Run "flux <command> --help" for command options.`;
 async function main() {
   const sub = process.argv[2];
   if (sub === "start") {
     await (await Promise.resolve().then(() => (init_start(), start_exports))).runStart(process.argv.slice(3));
+  } else if (sub === "serve") {
+    await (await Promise.resolve().then(() => (init_start(), start_exports))).runServe(process.argv.slice(3));
+  } else if (sub === "install") {
+    await (await Promise.resolve().then(() => (init_daemon(), daemon_exports))).runInstall(process.argv.slice(3));
+  } else if (sub === "uninstall") {
+    (await Promise.resolve().then(() => (init_daemon(), daemon_exports))).runUninstall(process.argv.slice(3));
+  } else if (sub === "status") {
+    await (await Promise.resolve().then(() => (init_daemon(), daemon_exports))).runStatus(process.argv.slice(3));
   } else if (sub === "verify") {
     await (await Promise.resolve().then(() => (init_verify(), verify_exports))).runVerify(process.argv.slice(3));
   } else if (sub === "analyse" || sub === "analyze") {
