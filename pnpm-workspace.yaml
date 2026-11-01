@@ -1,3 +1,10 @@
 packages:
   - "packages/*"
   - "apps/*"
+
+# The SDK declares @huggingface/transformers as an OPTIONAL peer (bundled local
+# compactors). pnpm 10's default autoInstallPeers=true installs optional peers
+# too (verified: it pulled transformers 4.3.2 + onnxruntime-node, ~300 MB, into
+# every dev install). Keep it off; install the package only to run the
+# real-model integration test (docs/rnd/semantic-compaction-design.md).
+autoInstallPeers: false

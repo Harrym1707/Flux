@@ -70,6 +70,25 @@ export type {
   SemanticCompactionResult,
   SemanticCompactor,
 } from "./semantic-compaction.js";
+// Bundled LOCAL compactors for the semantic-compaction lever (optional peer:
+// @huggingface/transformers). Prototype; real-model validation pending.
+export {
+  createLlmlingua2Compactor,
+  createLocalSummariserCompactor,
+  DEFAULT_FORCE_PATTERNS,
+  DEFAULT_LLMLINGUA2_MODEL,
+  DEFAULT_SUMMARISER_MODEL,
+  MISSING_TRANSFORMERS_MESSAGE,
+  SUMMARISER_SYSTEM_PROMPT,
+} from "./hf-compactor.js";
+export type {
+  CompactorErrorStage,
+  FailSafeOptions,
+  Llmlingua2CompactorOptions,
+  LocalCompactor,
+  LocalSummariserOptions,
+  TransformersEnvOverrides,
+} from "./hf-compactor.js";
 export { CachePrefixVolatilityGuard, type CacheStampDecision } from "./cache-volatility-guard.js";
 export { renderLedgerReport, type LedgerReportOptions, type LedgerReportSpool } from "./report.js";
 export {
