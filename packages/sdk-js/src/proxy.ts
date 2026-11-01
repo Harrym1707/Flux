@@ -5,8 +5,10 @@ import {
   collectRequestText,
   measureOutputReEmission,
   normalizeProviderUsage,
+  providerServerToolUsage,
   responseServiceTier,
 } from "../../core/dist/src/index.js";
+import { meterServerToolHygiene } from "./server-tool-hygiene.js";
 import { responseText } from "./replay-gate.js";
 import { CachePrefixVolatilityGuard } from "./cache-volatility-guard.js";
 import { reduceRequest, type FluxTokenReductionConfig } from "./reduce-request.js";
@@ -48,6 +50,14 @@ export type FluxProxyOptions = {
   /** Override upstreams, e.g. a mock in tests or an OpenAI-compatible host. */
   anthropicUpstream?: string;
   openaiUpstream?: string;
+  /**
+   * Opt-in (default OFF) server-tool accumulation meter on Anthropic
+   * requests: records how much of the forwarded input is accumulated
+   * web_search/web_fetch result blocks, as token counts on the ledger event.
+   * Advise-only and lossless: it reads the forwarded body and never changes
+   * a byte of it. Server-tool FEES are recorded regardless of this flag.
+   */
+  serverToolMeter?: boolean;
 };
 
 export type FluxProxy = {
@@ -167,13 +177,22 @@ export function usageFromSse(provider: "anthropic" | "openai", sseText: string):
     if (startUsage === undefined) return undefined;
     let outputTokens: unknown = startUsage.output_tokens;
     let tier: unknown = (start?.message as AnyObject | undefined)?.service_tier ?? startUsage.service_tier;
+    // Server-tool counts (web searches run mid-stream) arrive on the
+    // message_delta usage, which is cumulative: the LAST one carrying
+    // server_tool_use wins, else whatever message_start reported.
+    let serverToolUse: unknown = startUsage.server_tool_use;
     for (const e of events) {
       if (e.type !== "message_delta") continue;
       const deltaUsage = e.usage as AnyObject | undefined;
       if (deltaUsage?.output_tokens !== undefined) outputTokens = deltaUsage.output_tokens;
+      if (deltaUsage?.server_tool_use !== undefined) serverToolUse = deltaUsage.server_tool_use;
     }
     return {
-      usage: { ...startUsage, output_tokens: outputTokens ?? 0 },
+      usage: {
+        ...startUsage,
+        output_tokens: outputTokens ?? 0,
+        ...(serverToolUse === undefined ? {} : { server_tool_use: serverToolUse }),
+      },
       ...(typeof tier === "string" ? { service_tier: tier } : {}),
     };
   }
@@ -339,6 +358,25 @@ export function startFluxProxy(options: FluxProxyOptions): Promise<FluxProxy> {
     // Reduce. reduceRequest never throws; a failure returns the original.
     const { request: reducedRequest, summary } = reduceRequest(body, reduction);
     const sendBody = JSON.stringify(reducedRequest);
+    // Advise-only meter, computed on the body EXACTLY as forwarded and after
+    // sendBody is fixed, so it cannot influence a single forwarded byte.
+    let serverToolDiagnostics: FluxRequestEvent["serverToolDiagnostics"];
+    if (options.serverToolMeter === true && surface.provider === "anthropic") {
+      try {
+        const report = meterServerToolHygiene(reducedRequest);
+        serverToolDiagnostics = {
+          inspectedInputTokens: report.inspectedInputTokens,
+          webSearchResultBlocks: report.webSearchResultBlocks,
+          webFetchResultBlocks: report.webFetchResultBlocks,
+          serverToolResultTokensEstimated: report.serverToolResultTokensEstimated,
+          serverToolResultShare: report.serverToolResultShare,
+          pinnedVersions: report.pinnedVersions,
+          codeExecutionEnabled: report.codeExecutionEnabled,
+        };
+      } catch {
+        serverToolDiagnostics = undefined;
+      }
+    }
     const applicationIdHeader = req.headers["x-flux-application"];
     const applicationId = ((Array.isArray(applicationIdHeader) ? applicationIdHeader[0] : applicationIdHeader) ?? "proxy").slice(0, 128);
     const headers = forwardHeaders(req, surface.provider);
@@ -471,6 +509,7 @@ export function startFluxProxy(options: FluxProxyOptions): Promise<FluxProxy> {
         : normalizeProviderUsage(responseShaped);
       const usage = usageResult?.status === "ok" ? usageResult.usage : undefined;
       const tier = responseShaped === undefined ? undefined : responseServiceTier(responseShaped);
+      const serverToolUsage = responseShaped === undefined ? undefined : providerServerToolUsage(responseShaped);
       // Output-waste metering on large completions only (real-trace ground
       // truth: the top 10% of turns carry ~half of output tokens).
       let outputDiagnostics: { inspectedOutputTokens: number; reEmittedOutputTokens: number; reEmittedCodeTokens: number } | undefined;
@@ -505,6 +544,8 @@ export function startFluxProxy(options: FluxProxyOptions): Promise<FluxProxy> {
         ...(tier === undefined ? {} : { responseServiceTier: tier }),
         ...(outputDiagnostics === undefined ? {} : { outputDiagnostics }),
         ...(duplicateOfRequestId === undefined ? {} : { duplicateOfRequestId }),
+        ...(serverToolUsage === undefined ? {} : { serverToolUsage }),
+        ...(serverToolDiagnostics === undefined ? {} : { serverToolDiagnostics }),
       };
       ledgerFor(applicationId, surface.provider).emit(event);
     } catch {

@@ -51,6 +51,12 @@ export type {
   SemanticCompactor,
 } from "./semantic-compaction.js";
 export { CachePrefixVolatilityGuard, type CacheStampDecision } from "./cache-volatility-guard.js";
+export {
+  meterServerToolHygiene,
+  serverToolModelClass,
+  type ServerToolAdvice,
+  type ServerToolHygieneReport,
+} from "./server-tool-hygiene.js";
 export { renderLedgerReport, type LedgerReportOptions, type LedgerReportSpool } from "./report.js";
 export type {
   FluxHistoryCompactionConfig,

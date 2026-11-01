@@ -1,4 +1,9 @@
-import type { LedgerGateVerdict, PriceCatalogue } from "../../core/dist/src/index.js";
+import type {
+  LedgerGateVerdict,
+  PriceCatalogue,
+  ServerToolFeeCatalogue,
+  ServerToolUsage,
+} from "../../core/dist/src/index.js";
 import type { FluxReductionSummary, FluxTokenReductionConfig } from "./reduce-request.js";
 export type FluxTelemetryConfig = {
   /**
@@ -47,6 +52,26 @@ export type FluxRequestEvent = {
   };
   /** This request was byte-identical to an earlier one from the same app. */
   duplicateOfRequestId?: string;
+  /**
+   * Provider-run tool counts from the response's usage.server_tool_use
+   * (summed across attempts). Counts only; the ledger prices any per-request
+   * fee against its fee catalogue and attributes it to the customer.
+   */
+  serverToolUsage?: ServerToolUsage;
+  /**
+   * Opt-in local diagnostics from the server-tool accumulation meter
+   * (FluxProxyOptions.serverToolMeter). Token counts and tool-version strings
+   * only, never content; never billed.
+   */
+  serverToolDiagnostics?: {
+    inspectedInputTokens: number;
+    webSearchResultBlocks: number;
+    webFetchResultBlocks: number;
+    serverToolResultTokensEstimated: number;
+    serverToolResultShare: number;
+    pinnedVersions: string[];
+    codeExecutionEnabled: boolean;
+  };
   /**
    * Provider-reported TTL split of the cache writes (Anthropic
    * usage.cache_creation). Present as a PAIR only when the provider reported
@@ -201,6 +226,8 @@ export type FluxSavingsLedgerConfig = {
    * event; the measured token-reduction delta bills only when it is present.
    */
   getBaselineUsd?: (event: FluxRequestEvent) => number | undefined;
+  /** Server-tool fee catalogue to price usage.server_tool_use against. Default: the published one. */
+  serverToolFees?: ServerToolFeeCatalogue;
 };
 
 export type FluxRequestContext = {
