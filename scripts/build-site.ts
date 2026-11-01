@@ -15,7 +15,7 @@
  * The generator verifies its own output and exits non-zero on anything
  * malformed, so a broken page can never ship silently.
  */
-import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { renderLanding } from "./landing-page.js";
@@ -385,5 +385,16 @@ if (failures.length > 0) {
   for (const failure of failures) console.error(`SITE BUILD FAILED: ${failure}`);
   process.exit(1);
 }
+// Host the downloadable CLI at /flux when it has been built, so the install
+// one-liner `curl -fsSL https://www.fluxtoken.dev/flux` resolves. Optional:
+// a site build without the CLI artifact just omits it (and says so).
+const cliArtifact = path.join(root, "packages/cli/pkg/flux");
+if (existsSync(cliArtifact)) {
+  copyFileSync(cliArtifact, path.join(outDir, "flux"));
+  console.log(`bundled CLI hosted at /flux (${(statSync(cliArtifact).size / 1024).toFixed(0)}KB)`);
+} else {
+  console.log(`note: packages/cli/pkg/flux not built — /flux download will 404. Run: npm run build:cli`);
+}
+
 console.log(`site built: ${built.length} pages + llms.txt + robots.txt + sitemap.xml -> ${path.relative(root, outDir)}`);
 console.log(`canonical origin: ${ORIGIN}${ORIGIN.includes("REPLACE") ? "  <- set FLUX_SITE_ORIGIN before deploying" : ""}`);

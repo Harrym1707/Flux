@@ -6,6 +6,26 @@ you can audit yourself. No signup, no account, no key handover: your API key
 passes through to the provider and is never stored. Works with Claude
 (Anthropic), OpenAI, and any OpenAI-compatible endpoint.
 
+## Claude Code — one command
+
+If you use Claude Code, this is the whole setup:
+
+```bash
+npx @flux-ai/flux start
+```
+
+That starts the FLUX proxy, points Claude Code at it, and runs **Theo** — your
+token engineer — alongside you. Use Claude Code exactly as normal; press Ctrl+C
+to stop and Claude Code reverts cleanly. Prefer a file you keep?
+
+```bash
+curl -fsSL https://www.fluxtoken.dev/flux -o flux && chmod +x flux && ./flux start
+```
+
+Check your own verified number any time with `flux verify`: it recomputes the
+invoice from your ledger, with no network calls. The rest of this page is the
+manual setup for any other app or language.
+
 ## Step 1 — run the proxy
 
 One command, nothing to clone:
