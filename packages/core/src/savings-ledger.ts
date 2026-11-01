@@ -6,6 +6,12 @@ import {
   resolveModelId,
   type PriceCatalogue,
 } from "./price-catalogue.js";
+import {
+  priceServerToolUsage,
+  serverToolFeeCatalogueVersion,
+  type LedgerServerToolUsage,
+  type ServerToolFeeCatalogue,
+} from "./server-tool-fees.js";
 
 /**
  * The savings ledger: the append-only record FLUX bills from, and the pure
@@ -153,6 +159,31 @@ export type BillableEvent = {
   };
   /** This request was byte-identical to an earlier one from the same app. */
   duplicateOfRequestId?: string;
+  /**
+   * Provider-run (server) tool usage on this request, from the response's
+   * usage.server_tool_use, with any catalogued per-request fee (web search
+   * bills per search ON TOP of tokens). Attributed to the CUSTOMER: it is
+   * spend, never a saving, and recomputeInvoice never reads it, so it cannot
+   * enter netVerifiedSavingsUsd. A count with no catalogued fee is flagged as
+   * an unpriced component rather than priced at a guess. Absent when the
+   * response reported no server-tool use.
+   */
+  serverToolUsage?: LedgerServerToolUsage;
+  /**
+   * Opt-in server-tool accumulation meter (advise-only, never billed, never
+   * mutating): local ESTIMATES of how much of the forwarded input was
+   * accumulated web_search/web_fetch result blocks. Token counts and tool
+   * version strings only, never content.
+   */
+  serverToolDiagnostics?: {
+    inspectedInputTokens: number;
+    webSearchResultBlocks: number;
+    webFetchResultBlocks: number;
+    serverToolResultTokensEstimated: number;
+    serverToolResultShare: number;
+    pinnedVersions: string[];
+    codeExecutionEnabled: boolean;
+  };
   /** Savings the customer already had. Recorded for transparency, NEVER billed. */
   excluded?: {
     providerCacheAlreadyOwnedUsd?: number;
@@ -449,6 +480,44 @@ export function auditEventPricing(event: BillableEvent, catalogue: PriceCatalogu
         recomputedUsd: recomputed ?? Number.NaN,
       };
     }
+  }
+  return { status: "verified" };
+}
+
+export type ServerToolFeeAudit =
+  | { status: "verified" }
+  | { status: "fee_catalogue_version_mismatch"; eventVersion: string; catalogueVersion: string }
+  | { status: "mismatch"; storedFeeUsd?: number; recomputedFeeUsd?: number };
+
+/**
+ * Recompute an event's server-tool fee record from its own counts and the fee
+ * catalogue, with zero tolerance. Events without server-tool usage verify
+ * trivially. Separate from auditEventPricing so token-cost audits are
+ * byte-for-byte unchanged.
+ */
+export function auditServerToolFees(event: BillableEvent, catalogue: ServerToolFeeCatalogue): ServerToolFeeAudit {
+  const stored = event.serverToolUsage;
+  if (stored === undefined) return { status: "verified" };
+  const version = serverToolFeeCatalogueVersion(catalogue);
+  if (stored.feeCatalogueVersion !== version) {
+    return { status: "fee_catalogue_version_mismatch", eventVersion: stored.feeCatalogueVersion, catalogueVersion: version };
+  }
+  const recomputed = priceServerToolUsage(catalogue, {
+    provider: event.provider,
+    at: event.timestamp.slice(0, 10),
+    usage: {
+      webSearchRequests: stored.webSearchRequests,
+      webFetchRequests: stored.webFetchRequests,
+      codeExecutionRequests: stored.codeExecutionRequests,
+      ...(stored.other === undefined ? {} : { other: stored.other }),
+    },
+  });
+  if (canonicalJson(recomputed) !== canonicalJson(stored)) {
+    return {
+      status: "mismatch",
+      ...(stored.feeUsd === undefined ? {} : { storedFeeUsd: stored.feeUsd }),
+      ...(recomputed.feeUsd === undefined ? {} : { recomputedFeeUsd: recomputed.feeUsd }),
+    };
   }
   return { status: "verified" };
 }

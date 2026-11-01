@@ -1,6 +1,8 @@
 import { randomUUID } from "node:crypto";
 import {
   normalizeProviderUsage,
+  providerServerToolUsage,
+  sumServerToolUsage,
   responseServiceTier as providerResponseServiceTier,
   type NormalizedProviderUsage,
 } from "../../core/dist/src/index.js";
@@ -391,9 +393,15 @@ export function withFlux<T extends AnyObject>(client: T, options: FluxOptions): 
           const responseServiceTier = attempts.length > 0
             ? serviceTierOf(attempts[attempts.length - 1].response)
             : undefined;
+          // Server-tool counts from every attempt that actually ran: a
+          // fallback retry's searches bill the customer too. An exact-cache
+          // hit ran nothing, so it carries none.
+          const serverToolUsage = sumServerToolUsage(
+            attempts.map(({ response: attemptResponse }) => providerServerToolUsage(attemptResponse)));
           const event: FluxRequestEvent = {
             requestId,
             applicationId: options.applicationId,
+            ...(serverToolUsage === undefined ? {} : { serverToolUsage }),
             ...(reduction === undefined ? {} : { reduction: reduction.summary }),
             provider: surface === "anthropic_messages" ? "anthropic-compatible" : "openai-compatible",
             model: finalModel,

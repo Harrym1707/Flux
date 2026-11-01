@@ -5,7 +5,9 @@ import {
   chainLedgerRecord,
   priceCompactionUsage,
   priceLedgerUsage,
+  priceServerToolUsage,
   publishedModelPrices,
+  publishedServerToolFees,
   type BillableEvent,
   type LedgerExecutionMode,
   type LedgerLever,
@@ -277,6 +279,16 @@ export function billableEventFromRequest(
     ...(event.compaction === undefined
       ? {}
       : { compaction: compactionOf(event, provider, executionMode, catalogue) }),
+    // Server-tool fees: the customer's spend, recorded for completeness and
+    // never read by the invoice (so never a FLUX saving).
+    ...(event.serverToolUsage === undefined ? {} : {
+      serverToolUsage: priceServerToolUsage(config.serverToolFees ?? publishedServerToolFees, {
+        provider,
+        at: event.timestamp.slice(0, 10),
+        usage: event.serverToolUsage,
+      }),
+    }),
+    ...(event.serverToolDiagnostics === undefined ? {} : { serverToolDiagnostics: event.serverToolDiagnostics }),
     status: event.status,
   };
 }

@@ -223,6 +223,68 @@ export function providerUsage(response: unknown): NormalizedProviderUsage | unde
   return result.status === "ok" ? result.usage : undefined;
 }
 
+/**
+ * Anthropic server-tool request counts, read from `usage.server_tool_use`.
+ *
+ * Deliberately a SEPARATE reader from normalizeProviderUsage, which stays
+ * byte-for-byte unchanged: server tools carry fees that are not token costs
+ * (web search bills per search on top of tokens), so they must never leak
+ * into the token figures the cache and tier economics are priced from.
+ * Field names as documented on platform.claude.com (fetched 2026-10-28):
+ * web_search_requests (web-search-tool page), web_fetch_requests (web-fetch-
+ * tool page), code_execution_requests (code-execution-tool page). Any other
+ * non-negative numeric counter in the object is kept verbatim in `other`, so
+ * a new server tool is visible on the ledger rather than silently dropped.
+ */
+export type ServerToolUsage = {
+  webSearchRequests: number;
+  webFetchRequests: number;
+  codeExecutionRequests: number;
+  /** Unrecognised server_tool_use counters, by provider field name. */
+  other?: Record<string, number>;
+};
+
+const KNOWN_SERVER_TOOL_FIELDS = new Set(["web_search_requests", "web_fetch_requests", "code_execution_requests"]);
+
+/** Server-tool counts on one response, or undefined when it reports none (all zero counts as none). */
+export function providerServerToolUsage(response: unknown): ServerToolUsage | undefined {
+  if (!isPlainObject(response)) return undefined;
+  const usage = isPlainObject(response.usage) ? response.usage : undefined;
+  const serverToolUse = usage !== undefined && isPlainObject(usage.server_tool_use) ? usage.server_tool_use : undefined;
+  if (serverToolUse === undefined) return undefined;
+  const other: Record<string, number> = {};
+  for (const [field, value] of Object.entries(serverToolUse)) {
+    if (KNOWN_SERVER_TOOL_FIELDS.has(field)) continue;
+    const count = asCount(value);
+    if (count !== undefined && count > 0) other[field] = count;
+  }
+  const result: ServerToolUsage = {
+    webSearchRequests: asCount(serverToolUse.web_search_requests) ?? 0,
+    webFetchRequests: asCount(serverToolUse.web_fetch_requests) ?? 0,
+    codeExecutionRequests: asCount(serverToolUse.code_execution_requests) ?? 0,
+    ...(Object.keys(other).length === 0 ? {} : { other }),
+  };
+  const any = result.webSearchRequests + result.webFetchRequests + result.codeExecutionRequests > 0 ||
+    result.other !== undefined;
+  return any ? result : undefined;
+}
+
+/** Sum server-tool counts across attempts (e.g. a fallback retry); undefined when none reported any. */
+export function sumServerToolUsage(usages: ReadonlyArray<ServerToolUsage | undefined>): ServerToolUsage | undefined {
+  const present = usages.filter((usage): usage is ServerToolUsage => usage !== undefined);
+  if (present.length === 0) return undefined;
+  const other: Record<string, number> = {};
+  for (const usage of present) {
+    for (const [field, count] of Object.entries(usage.other ?? {})) other[field] = (other[field] ?? 0) + count;
+  }
+  return {
+    webSearchRequests: present.reduce((sum, usage) => sum + usage.webSearchRequests, 0),
+    webFetchRequests: present.reduce((sum, usage) => sum + usage.webFetchRequests, 0),
+    codeExecutionRequests: present.reduce((sum, usage) => sum + usage.codeExecutionRequests, 0),
+    ...(Object.keys(other).length === 0 ? {} : { other }),
+  };
+}
+
 export type ResponseExecutionMode = "standard" | "flex" | "batch";
 
 /**
