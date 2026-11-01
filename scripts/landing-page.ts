@@ -77,102 +77,6 @@ export function renderLanding(origin: string, repoUrl: string): string {
   const savedPct = (savedTotal / spendTotal) * 100;
   const money = (v: number) => `${v < 0 ? "−" : ""}$${Math.abs(v).toFixed(4)}`;
 
-  const CANVAS_JS = `
-(function () {
-  var canvas = document.getElementById("field");
-  if (!canvas || !canvas.getContext) return;
-  var reduced = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  var ctx = canvas.getContext("2d");
-  var wrap = canvas.parentElement;
-  var dpr = Math.min(window.devicePixelRatio || 1, 1.75);
-  var W = 0, H = 0;
-  function resize() {
-    W = wrap.clientWidth; H = wrap.clientHeight;
-    canvas.width = W * dpr; canvas.height = H * dpr;
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  }
-  resize();
-  var rt; window.addEventListener("resize", function(){ clearTimeout(rt); rt = setTimeout(resize, 150); });
-
-  // Three particle wave surfaces layered down the page: ink on paper. Each
-  // layer is a perspective-projected grid on its own rolling height field,
-  // with its own drift speed, so the layers slide over one another. Every
-  // row runs the full width of the viewport (the world x is derived from the
-  // screen x, so perspective still compresses the far rows), the surfaces
-  // are deep enough to touch, and the cursor pushes a swell through
-  // whichever surface it is near.
-  var LAYERS = [
-    { horizon: 0.02, cam: 0.35, drift: 0.7,  phase: 0.0, dark: 0.50 },
-    { horizon: 0.28, cam: 0.37, drift: 1.0,  phase: 2.1, dark: 0.85 },
-    { horizon: 0.55, cam: 0.36, drift: 0.55, phase: 4.4, dark: 0.66 },
-  ];
-  var COLS = 130, ROWSZ = 30, FOV = 300;
-  var mx = -9999, my = -9999, smx = -9999, smy = -9999;
-  window.addEventListener("pointermove", function (e) {
-    var b = wrap.getBoundingClientRect();
-    mx = e.clientX - b.left; my = e.clientY - b.top;
-  }, { passive: true });
-  window.addEventListener("pointerleave", function(){ mx = -9999; my = -9999; });
-
-  function drawLayer(L, t) {
-    var cx = W / 2, horizon = H * L.horizon, camY = L.cam * H;
-    for (var zi = ROWSZ - 1; zi >= 0; zi--) {
-      var z = 40 + zi * 26;
-      var scale = FOV / (FOV + z);
-      var rowAlpha = (0.15 + 0.35 * scale) * L.dark;
-      var size = Math.max(1.2, 2.8 * scale);
-      // far rows Flux Blue (#2563EB), near rows Deep Graphite (#0B0F14)
-      var mixv = Math.min(1, scale * 1.3);
-      var r = Math.round(37 + (11 - 37) * mixv);
-      var g = Math.round(99 + (15 - 99) * mixv);
-      var b2 = Math.round(235 + (20 - 235) * mixv);
-      ctx.fillStyle = "rgba(" + r + "," + g + "," + b2 + "," + rowAlpha + ")";
-      var stag = (zi * 0.381966) % 1;
-      for (var xi = 0; xi < COLS; xi++) {
-        var sx = ((xi + stag) / (COLS - 1)) * W;
-        var xw = (sx - cx) / scale;
-        var amp = 30 + 42 * (1 - scale);
-        var tt = t * L.drift + L.phase;
-        var h =
-          Math.sin(xw * 0.0042 + tt * 1.1 + z * 0.012) * amp * 0.5 +
-          Math.sin(xw * 0.0095 - tt * 0.7 + z * 0.02) * amp * 0.3 +
-          Math.sin(xw * 0.021 + tt * 1.9) * amp * 0.14 +
-          Math.sin(xw * 0.0016 + z * 0.004 - tt * 0.35) * amp * 0.45;
-        var sy = horizon + (camY - h) * scale;
-        var ddx = sx - smx, ddy = sy - smy;
-        var pulse = Math.exp(-(ddx * ddx + ddy * ddy) / (2 * 150 * 150));
-        if (pulse > 0.03) {
-          sy -= pulse * 24 * scale;
-          ctx.fillStyle = "rgba(37,99,235," + Math.min(0.9, rowAlpha + pulse * 0.6) + ")";
-          ctx.fillRect(sx, sy, size + pulse * 1.4, size + pulse * 1.4);
-          ctx.fillStyle = "rgba(" + r + "," + g + "," + b2 + "," + rowAlpha + ")";
-        } else if (h > amp * 0.55) {
-          ctx.fillStyle = "rgba(37,99,235," + Math.min(0.8, rowAlpha + 0.18) + ")";
-          ctx.fillRect(sx, sy, size, size);
-          ctx.fillStyle = "rgba(" + r + "," + g + "," + b2 + "," + rowAlpha + ")";
-        } else {
-          ctx.fillRect(sx, sy, size, size);
-        }
-      }
-    }
-  }
-  function draw(t) {
-    ctx.clearRect(0, 0, W, H);
-    for (var i = 0; i < LAYERS.length; i++) drawLayer(LAYERS[i], t);
-  }
-  if (reduced) { draw(21.0); return; }
-  var vis = true;
-  new IntersectionObserver(function (es) { es.forEach(function (e) { vis = e.isIntersecting; }); }).observe(wrap);
-  var lastF = 0;
-  (function frame(now) {
-    requestAnimationFrame(frame);
-    if (document.hidden || !vis || now - lastF < 28) return;
-    lastF = now;
-    smx += (mx - smx) * 0.08; smy += (my - smy) * 0.08;
-    draw(now / 1000);
-  })(0);
-})();`;
-
   const PAGE_JS = `
 (function () {
   var reduced = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -331,7 +235,13 @@ export function renderLanding(origin: string, repoUrl: string): string {
 }
 *{box-sizing:border-box}
 html{scroll-behavior:smooth}
-body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 Manrope,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+body{margin:0;position:relative;background:var(--bg);color:var(--ink);font:16px/1.5 Manrope,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+/* One continuous silk-current behind the whole page: cool blue at the top,
+   warming through violet to a sunrise orange at the foot. The sections ride
+   above it transparently, so the page reads as one moving field. */
+.pagehue{position:absolute;inset:0;z-index:0;overflow:hidden;pointer-events:none}
+.pagehue .b{position:absolute;border-radius:50%;filter:blur(94px);will-change:transform}
+@media (prefers-reduced-motion:reduce){.pagehue .b{animation:none!important}}
 a{color:var(--ink)}
 .rise,.exchange .call,.exchange .response,.total-side .figure{opacity:0;transform:translateY(12px);transition:opacity .5s ease,transform .5s ease}
 .rise.in,.rise.in .call,.rise.in .response,.rise.in .figure{opacity:1;transform:none}
@@ -339,26 +249,34 @@ a{color:var(--ink)}
 
 @media (prefers-reduced-motion: reduce){.rise,.exchange .call,.exchange .response,.total-side .figure{opacity:1;transform:none;transition:none}html{scroll-behavior:auto}}
 
-/* ---------- hero: the poster. Type enacts the product. ---------- */
-.hero-wrap{position:relative;min-height:96svh;overflow:hidden}
-#field{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+/* ---------- hero: the hue. A silk-current field under big confident type. ---------- */
+.hero-wrap{position:relative;z-index:1;min-height:96svh;overflow:hidden;background:transparent}
+.field{position:absolute;inset:0;z-index:0;overflow:hidden;pointer-events:none}
+.field .b{position:absolute;border-radius:50%;filter:blur(72px);will-change:transform}
+.field .b1{width:900px;height:900px;right:-180px;top:-260px;background:#c3d6ff;opacity:.60;animation:drift1 22s ease-in-out infinite}
+.field .b2{width:680px;height:680px;right:60px;top:40px;background:#9bbcff;opacity:.42;animation:drift2 27s ease-in-out infinite}
+.field .b3{width:520px;height:520px;right:300px;bottom:-220px;background:#2563EB;opacity:.14;animation:drift3 31s ease-in-out infinite}
+.field .b4{width:420px;height:420px;right:520px;top:220px;background:#dbe6ff;opacity:.55;animation:drift2 25s ease-in-out infinite reverse}
+@keyframes drift1{0%,100%{transform:translate(0,0)}50%{transform:translate(-44px,36px)}}
+@keyframes drift2{0%,100%{transform:translate(0,0)}50%{transform:translate(36px,-30px)}}
+@keyframes drift3{0%,100%{transform:translate(0,0)}50%{transform:translate(-28px,-32px)}}
+.veil{position:absolute;inset:0;z-index:1;pointer-events:none;background:linear-gradient(100deg,var(--bg) 26%,rgba(250,250,249,.55) 48%,rgba(250,250,249,0) 68%)}
+@media (prefers-reduced-motion:reduce){.field .b{animation:none}}
 .hero{position:relative;min-height:96svh;display:flex;flex-direction:column;justify-content:center;align-items:flex-start;text-align:left;padding:var(--s7) var(--s4)}
-.hero .col{position:relative;z-index:2;max-width:54%;padding-left:4%}
-.hero-cube{position:absolute;right:-7vw;top:50%;height:118vh;width:auto;z-index:1;pointer-events:none;transform:translateY(-50%);animation:cubefloat 9s ease-in-out infinite}
-@keyframes cubefloat{0%,100%{transform:translateY(-50%)}50%{transform:translateY(calc(-50% - 16px))}}
-@media (prefers-reduced-motion:reduce){.hero-cube{animation:none}}
-.hero .brandlock{position:absolute;top:28px;left:var(--s4);display:flex;align-items:center;gap:11px;z-index:2;text-decoration:none;color:var(--ink)}
+.hero .col{position:relative;z-index:2;max-width:60rem;padding-left:4%}
+.hero .brandlock{position:absolute;top:28px;left:var(--s4);display:flex;align-items:center;gap:11px;z-index:3;text-decoration:none;color:var(--ink)}
 .hero .brandlock svg{height:36px;width:auto;display:block}
 .hero .brandlock b{font-size:25px;font-weight:800;letter-spacing:-.03em;color:var(--ink)}
-.hero .signin{position:absolute;top:52px;right:var(--s4);font-size:13px;color:var(--muted);text-decoration:none;z-index:2}
+.hero .signin{position:absolute;top:52px;right:var(--s4);font-size:13px;color:var(--muted);text-decoration:none;z-index:3}
 .hero .signin:hover{color:var(--accent)}
-.hero .col{max-width:60rem}
-.hero h1{margin:0 0 var(--s3);line-height:1}
-.hero h1 .in{display:block;font-size:clamp(40px,4.4vw,72px);font-weight:700;letter-spacing:-.02em;color:var(--muted);margin-bottom:var(--s1)}
-.hero h1 .out{display:block;font-size:clamp(64px,6.4vw,100px);font-weight:800;letter-spacing:-.03em;color:var(--ink)}
-.hero .sub{font-size:19px;line-height:1.55;color:var(--ink);margin:0 0 36px;max-width:30rem}
+.hero .kicker{margin:0 0 var(--s2);font-size:15px;font-weight:700;letter-spacing:.005em;color:var(--accent)}
+.hero h1{margin:0 0 var(--s3);font-size:clamp(52px,7.6vw,112px);font-weight:800;letter-spacing:-.04em;line-height:.95;max-width:9ch;color:var(--ink)}
+.hero .sub{font-size:19px;line-height:1.55;color:var(--ink);margin:0 0 36px;max-width:34rem}
 .hero .actions{display:flex;align-items:center;justify-content:flex-start;gap:var(--s3)}
-.hero .mark{z-index:2}
+.hero .col>.rise:nth-child(1){transition-delay:.04s}
+.hero .col>.rise:nth-child(2){transition-delay:.14s}
+.hero .col>.rise:nth-child(3){transition-delay:.24s}
+.hero .col>.rise:nth-child(4){transition-delay:.34s}
 .btn{display:inline-block;padding:12px 22px;border-radius:var(--radius);font-weight:700;font-size:16px;text-decoration:none;background:var(--accent);color:#fff;transition:background .18s ease}
 .btn:hover{background:var(--ocean)}
 .arrowlink{font-size:16px;color:var(--ocean);text-decoration:none;border-bottom:1px solid var(--line)}
@@ -366,10 +284,10 @@ a{color:var(--ink)}
 .arrowlink::after{content:" \\2192"}
 @media (max-width:760px){
   :root{--axis:24px}
-  .hero{min-height:92svh;justify-content:flex-start;padding-top:18svh}
+  .hero{min-height:92svh;justify-content:center;padding-top:18svh}
   .hero .col{max-width:100%;padding-left:0}
   .hero .sub{font-size:17px}
-  .hero-cube{height:50vh;right:auto;left:50%;top:auto;bottom:-3vh;transform:translateX(-50%);animation:none}
+  .veil{background:linear-gradient(180deg,rgba(250,250,249,.7) 30%,rgba(250,250,249,.2) 70%)}
 }
 
 /* ---------- the bands: the numbers, called out at poster size ---------- */
@@ -380,6 +298,18 @@ a{color:var(--ink)}
 .band .n span{font-size:.45em;font-weight:800}
 .band p{font-size:16px;line-height:1.5;color:var(--muted);max-width:30ch;margin:var(--s2) auto 0}
 .bandcap{text-align:center;font-size:16px;color:var(--muted);max-width:46rem;margin:var(--s6) auto 0}
+.theo-sect{padding:var(--s7) var(--s4)}
+.theo-lead{font-size:20px;line-height:1.6;color:var(--ink);max-width:42rem;margin:0 0 var(--s3)}
+.theo-note{font-size:16px;line-height:1.65;color:var(--muted);max-width:42rem;margin:0}
+/* Recurring hue: the hero's silk-current, carried softly behind mid-page sections. */
+.hued{position:relative;overflow:hidden}
+.hued>*{position:relative;z-index:1}
+.huebg{position:absolute;inset:0;z-index:0;pointer-events:none;overflow:hidden}
+.huebg .b{position:absolute;border-radius:50%;filter:blur(80px);will-change:transform}
+.huebg .ha{width:760px;height:760px;left:-200px;top:-220px;background:#cfe0ff;opacity:.5;animation:drift2 26s ease-in-out infinite}
+.huebg .hb{width:600px;height:600px;right:-160px;bottom:-240px;background:#9bbcff;opacity:.3;animation:drift1 30s ease-in-out infinite}
+.huebg .hc{width:420px;height:420px;right:30%;top:-120px;background:#2563EB;opacity:.08;animation:drift3 34s ease-in-out infinite}
+@media (prefers-reduced-motion:reduce){.huebg .b{animation:none}}
 .bandcap a{color:var(--ocean)}
 .bandcap strong{color:var(--ink)}
 
@@ -432,27 +362,16 @@ a{color:var(--ink)}
 .copy{font:12px/1 ui-monospace,monospace;background:none;border:1px solid var(--deep-line);color:var(--deep-muted);border-radius:4px;padding:4px 8px;cursor:pointer}
 .copy:hover{color:var(--accent);border-color:var(--accent)}
 
-/* ---------- colour fields: two chapter breaks, flat, full-bleed ---------- */
-.field-deep{background:var(--deep);color:var(--deep-ink)}
-.field-deep h2{color:var(--deep-ink)}
-.field-deep .total-side .note,.field-deep .total-side .cap{color:var(--deep-muted)}
-.field-deep .total-side .cap a{color:var(--accent)}
-.field-deep .total-side .figure{color:var(--deep-ink)}
+/* ---------- chapter blocks: now transparent, ink on the continuous hue ---------- */
+.field-deep{background:transparent;color:var(--ink)}
 .field-deep .slip{background:#ffffff}
-.field-ocean{background:var(--ocean);color:#F1F7FB}
-.field-ocean h2{color:#fff}
-.field-ocean p{color:#d7e9f7}
-.field-ocean .fig{color:#fff}
-.field-ocean .price-figure .per{color:#eaf4fb}
-.field-ocean ul{color:#eaf4fb}
-.field-ocean ul strong{color:#fff;border-bottom:2px solid var(--accent)}
-.field-ocean .overlap path{stroke:#9DD9F5}
-.field-ocean .overlap circle{fill:#F1F7FB}
-.field-ocean .btn{background:#F1F7FB;color:var(--ocean)}
-.field-ocean .btn:hover{background:#fff}
+.field-deep .total-side .figure{color:var(--ink)}
+.field-ocean{background:transparent;color:var(--ink)}
+.field-ocean .price-figure .fig{color:var(--accent)}
+.field-ocean ul strong{color:var(--ink);border-bottom:2px solid var(--accent)}
 
 /* ---------- sections ---------- */
-section{padding:var(--s7) var(--s4)}
+section{padding:var(--s7) var(--s4);position:relative;z-index:1}
 section h2{font-size:30px;font-weight:800;letter-spacing:-.01em;margin:0 0 var(--s6);position:relative;padding-bottom:18px}
 section h2::after{content:"";position:absolute;left:50%;transform:translateX(-50%);bottom:0;width:140px;height:12px;background:url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 140 12"><path d="M0 6 q6 -5 12 0 t12 0 q3 -9 6 0 t12 0 t12 0 q3 9 6 0 t12 0 t12 0 q6 -5 12 0 t12 0 t12 0" fill="none" stroke="%232864A5" stroke-width="1.6" opacity=".75"/></svg>') center/contain no-repeat}
 .field-ocean h2::after{opacity:.9}
@@ -488,7 +407,7 @@ section h2::after{content:"";position:absolute;left:50%;transform:translateX(-50
 .slip .total-row{display:flex;justify-content:space-between;background:var(--paper-ink);color:var(--paper);font-weight:800;padding:10px 12px;margin-top:16px;font-size:16px}
 
 /* the price, very large */
-.price-wrap{display:grid;grid-template-columns:1fr;gap:var(--s5);max-width:1080px;margin:0 auto;min-height:80svh;align-content:center}
+.price-wrap{display:grid;grid-template-columns:1fr;gap:var(--s5);max-width:1080px;margin:0 auto;align-content:center}
 @media (min-width:980px){.price-wrap{grid-template-columns:380px 1fr}}
 .price-side p{font-size:16px;line-height:1.6;max-width:38ch}
 .price-figure{position:relative}
@@ -504,7 +423,6 @@ section h2::after{content:"";position:absolute;left:50%;transform:translateX(-50
 .faq-wrap{display:grid;grid-template-columns:1fr;gap:var(--s5);max-width:1080px;margin:0 auto}
 @media (min-width:980px){.faq-wrap{grid-template-columns:320px 1fr}.faq-wrap h2{position:sticky;top:96px;margin:0}}
 .faq-wrap h2::after,.receipt-wrap h2::after,.price-wrap h2::after{left:0;transform:none}
-.field-deep h2::after{background:url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 140 12"><path d="M0 6 q6 -5 12 0 t12 0 q3 -9 6 0 t12 0 t12 0 q3 9 6 0 t12 0 t12 0 q6 -5 12 0 t12 0 t12 0" fill="none" stroke="%239DD9F5" stroke-width="1.6" opacity=".8"/></svg>') center/contain no-repeat}
 .faq-wrap h2{font-size:30px}
 .faq details{background:#ffffff;border-radius:var(--radius);margin-bottom:8px}
 .faq summary{list-style:none;cursor:pointer;display:flex;justify-content:space-between;align-items:center;min-height:72px;padding:0 24px;font-size:20px;font-weight:600}
@@ -535,7 +453,7 @@ section h2::after{content:"";position:absolute;left:50%;transform:translateX(-50
 @media (max-width:860px){.cta-row{grid-template-columns:1fr;margin:0}.cta-row .cta-main{height:auto;min-height:300px}.cta-row .cta-flat,.cta-row .xfade{height:120px}}
 
 /* single quiet line footer */
-.quiet-foot{margin-top:30svh;padding:0 var(--s4) 30px;display:grid;grid-template-columns:1fr auto 1fr;align-items:baseline;font-size:13px;color:var(--muted)}
+.quiet-foot{position:relative;z-index:1;margin-top:12svh;padding:0 var(--s4) 30px;display:grid;grid-template-columns:1fr auto 1fr;align-items:baseline;font-size:13px;color:var(--muted)}
 .quiet-foot .links{display:flex;gap:24px;flex-wrap:wrap;justify-content:center}
 .quiet-foot a{color:var(--ink);text-decoration:none}
 .quiet-foot a:hover{color:var(--accent)}
@@ -568,6 +486,31 @@ section h2::after{content:"";position:absolute;left:50%;transform:translateX(-50
   const savedRows = SAVED.map(([name, v]) =>
     `<div class="row"><span class="desc">${name}</span><span class="lead-dots"></span><span class="val">${money(v)}</span></div>`).join("\n      ");
 
+  // The continuous hue's colour journey down the page: [top%, side, offsetPx,
+  // sizePx, colour, opacity, driftAnim, durationSec]. Cool blue at the crown,
+  // warming through violet to a sunrise at the foot. All pastel so the ink
+  // stays readable over every zone.
+  const HUE_STOPS: [number, "left" | "right", number, number, string, number, string, number][] = [
+    [3, "left", -240, 900, "#9bbcff", 0.52, "drift2", 26],
+    [8, "right", -180, 860, "#b6ccff", 0.50, "drift1", 24],
+    [15, "left", -220, 820, "#c3d6ff", 0.52, "drift3", 30],
+    [23, "right", -160, 800, "#bcd3ff", 0.50, "drift2", 28],
+    [31, "left", -200, 820, "#cdd2ff", 0.50, "drift1", 32],
+    [39, "right", -160, 800, "#cbbfff", 0.50, "drift3", 29],
+    [47, "left", -200, 820, "#d8c3f5", 0.50, "drift2", 31],
+    [55, "right", -160, 800, "#f0c6ec", 0.48, "drift1", 27],
+    [63, "left", -200, 840, "#f6c3d4", 0.50, "drift3", 33],
+    [71, "right", -160, 820, "#ffc9a8", 0.54, "drift2", 26],
+    [79, "left", -200, 840, "#ffd3ac", 0.56, "drift1", 30],
+    [87, "right", -160, 820, "#ffe0b4", 0.56, "drift3", 34],
+    [94, "left", -200, 840, "#ffe7c6", 0.54, "drift2", 28],
+    [99, "right", -160, 780, "#ffdcc4", 0.50, "drift1", 25],
+  ];
+  const pageHue = HUE_STOPS.map(
+    ([top, side, off, size, color, op, anim, dur]) =>
+      `<span class="b" style="top:${top}%;${side}:${off}px;width:${size}px;height:${size}px;background:${color};opacity:${op};animation:${anim} ${dur}s ease-in-out infinite"></span>`,
+  ).join("");
+
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -597,19 +540,18 @@ section h2::after{content:"";position:absolute;left:50%;transform:translateX(-50
 </head>
 <body>
 
+<div class="pagehue" aria-hidden="true">${pageHue}</div>
+
 <div class="hero-wrap">
 <header class="hero">
   <a class="brandlock" href="index.html" aria-label="Flux home">${MARK}<b>flux</b></a>
   <a class="signin" href="start.html">Get started</a>
-  <svg class="hero-cube" viewBox="0 0 100 115" aria-hidden="true">
-    <polygon points="50,0 100,28.75 50,57.5 0,28.75" fill="#3B82F6"/>
-    <polygon points="0,28.75 0,86.25 50,115 50,57.5" fill="#2563EB"/>
-    <polygon points="100,28.75 100,86.25 50,115 50,57.5" fill="#1D4ED8"/>
-  </svg>
+  <div class="field" aria-hidden="true"><span class="b b1"></span><span class="b b2"></span><span class="b b3"></span><span class="b b4"></span></div>
+  <div class="veil" aria-hidden="true"></div>
   <div class="col">
-    <h1><span class="in">Less in.</span><span class="out">More out.</span></h1>
-    <p class="sub">FLUX removes the junk from your AI requests before you pay for it. Same answers by default, a smaller bill &mdash; and you can check every number yourself.</p>
-    <div class="actions">
+    <h1 class="rise">A smaller AI bill.</h1>
+    <p class="sub rise">Same answers &mdash; FLUX sits in front of your LLM traffic and strips out wasted tokens without changing a single reply. You pay 1% of the savings, verified on the provider&rsquo;s own usage, never our estimate.</p>
+    <div class="actions rise">
       <a class="btn" href="start.html">Get started</a>
       <a class="arrowlink" href="evidence.html">See the evidence</a>
     </div>
@@ -734,6 +676,14 @@ Anthropic SDK: new Anthropic({ baseURL: "http://127.0.0.1:8787" })</pre>
   </div>
 </section>
 
+<section aria-label="Theo, your token engineer" class="theo-sect">
+  <div class="axis-col">
+    <h2 class="rise">Meet Theo.</h2>
+    <p class="theo-lead rise">Theo is the token engineer that ships with FLUX. He studies your own traffic, finds new waste to cut, and only ever tunes FLUX &mdash; never your prompts, never your answers.</p>
+    <p class="theo-note rise">When he finds a saving he tells you what it is and what it might cost in quality, then waits for your yes. Anything that could touch an answer stays off until a replay of your own traffic proves it safe &mdash; and once a month he reports his own honesty: what he tried, what he saved, and where he held back.</p>
+  </div>
+</section>
+
 <section aria-label="Pricing" class="field-ocean">
   <div class="price-wrap">
     <div class="price-side rise">
@@ -792,7 +742,6 @@ Anthropic SDK: new Anthropic({ baseURL: "http://127.0.0.1:8787" })</pre>
   <span class="legal">Flux AI Technologies Limited &middot; registered in England and Wales &middot; company no. 17543982</span>
 </footer>
 
-<script>${CANVAS_JS}</script>
 <script>${PAGE_JS}</script>
 </body>
 </html>
