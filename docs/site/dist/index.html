@@ -24,15 +24,23 @@
 <script type="application/ld+json">{"@context":"https://schema.org","@type":"SoftwareApplication","name":"FLUX","applicationCategory":"DeveloperApplication","operatingSystem":"Any","url":"https://www.fluxtoken.dev/","description":"Cut LLM API costs on Claude and OpenAI. One-URL proxy or one-line SDK; savings verified per completed task into a customer-recomputable ledger; fee is a share of verified savings."}</script>
 <script type="application/ld+json">{"@context":"https://schema.org","@type":"Organization","name":"FLUX","url":"https://www.fluxtoken.dev/","logo":"https://www.fluxtoken.dev/favicon.svg","sameAs":["https://github.com/Harrym1707/Flux"],"slogan":"Less in. More out."}</script>
 <style>:root{
-  --bg:#F1F7FB; --surface:#0E2133; --surface-2:#13293E; --ink:#102A43; --muted:#486581;
-  --line:#d9e6f0; --accent:#9DD9F5; --accent-ink:#081522; --ocean:#2864A5; --paper:#ffffff; --paper-ink:#102A43;
-  --deep:#081522; --deep-ink:#F1F7FB; --deep-muted:#9FB3C8; --deep-line:#24415C;
+  /* FLUX brand: Off White ground, Deep Graphite ink, Flux Blue accent, Frost tone-step */
+  --bg:#FAFAF9; --surface:#0B0F14; --surface-2:#14181F; --ink:#0B0F14; --muted:#5B6472;
+  --line:#E5E7EB; --accent:#2563EB; --accent-ink:#ffffff; --ocean:#1D4ED8; --paper:#ffffff; --paper-ink:#0B0F14;
+  --deep:#0B0F14; --deep-ink:#FAFAF9; --deep-muted:#9AA3B2; --deep-line:#262B33;
+  --stone:#E7E5E4; --stone-2:#DAD6D1; --stone-line:#CFCAC3; --stone-muted:#57534E;
   --s1:8px; --s2:16px; --s3:24px; --s4:32px; --s5:48px; --s6:64px; --s7:96px;
   --axis:27vw; --radius:4px;
 }
 *{box-sizing:border-box}
 html{scroll-behavior:smooth}
-body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 Manrope,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+body{margin:0;position:relative;background:var(--bg);color:var(--ink);font:16px/1.5 Manrope,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+/* One continuous silk-current behind the whole page: cool blue at the top,
+   warming through violet to a sunrise orange at the foot. The sections ride
+   above it transparently, so the page reads as one moving field. */
+.pagehue{position:absolute;inset:0;z-index:0;overflow:hidden;pointer-events:none}
+.pagehue .b{position:absolute;border-radius:50%;filter:blur(94px);will-change:transform}
+@media (prefers-reduced-motion:reduce){.pagehue .b{animation:none!important}}
 a{color:var(--ink)}
 .rise,.exchange .call,.exchange .response,.total-side .figure{opacity:0;transform:translateY(12px);transition:opacity .5s ease,transform .5s ease}
 .rise.in,.rise.in .call,.rise.in .response,.rise.in .figure{opacity:1;transform:none}
@@ -40,29 +48,45 @@ a{color:var(--ink)}
 
 @media (prefers-reduced-motion: reduce){.rise,.exchange .call,.exchange .response,.total-side .figure{opacity:1;transform:none;transition:none}html{scroll-behavior:auto}}
 
-/* ---------- hero: the poster. Type enacts the product. ---------- */
-.hero-wrap{position:relative;min-height:96svh;overflow:hidden}
-#field{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
-.hero{position:relative;min-height:96svh;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;padding:var(--s7) var(--s4)}
-.hero .mark{position:absolute;top:40px;left:var(--s4);width:44px;height:44px}
-.hero .signin{position:absolute;top:52px;right:var(--s4);font-size:13px;color:var(--muted);text-decoration:none;z-index:2}
+/* ---------- hero: the hue. A silk-current field under big confident type. ---------- */
+.hero-wrap{position:relative;z-index:1;min-height:96svh;overflow:hidden;background:transparent}
+.field{position:absolute;inset:0;z-index:0;overflow:hidden;pointer-events:none}
+.field .b{position:absolute;border-radius:50%;filter:blur(72px);will-change:transform}
+.field .b1{width:900px;height:900px;right:-180px;top:-260px;background:#c3d6ff;opacity:.60;animation:drift1 22s ease-in-out infinite}
+.field .b2{width:680px;height:680px;right:60px;top:40px;background:#9bbcff;opacity:.42;animation:drift2 27s ease-in-out infinite}
+.field .b3{width:520px;height:520px;right:300px;bottom:-220px;background:#2563EB;opacity:.14;animation:drift3 31s ease-in-out infinite}
+.field .b4{width:420px;height:420px;right:520px;top:220px;background:#dbe6ff;opacity:.55;animation:drift2 25s ease-in-out infinite reverse}
+@keyframes drift1{0%,100%{transform:translate(0,0)}50%{transform:translate(-44px,36px)}}
+@keyframes drift2{0%,100%{transform:translate(0,0)}50%{transform:translate(36px,-30px)}}
+@keyframes drift3{0%,100%{transform:translate(0,0)}50%{transform:translate(-28px,-32px)}}
+.veil{position:absolute;inset:0;z-index:1;pointer-events:none;background:linear-gradient(100deg,var(--bg) 26%,rgba(250,250,249,.55) 48%,rgba(250,250,249,0) 68%)}
+@media (prefers-reduced-motion:reduce){.field .b{animation:none}}
+.hero{position:relative;min-height:96svh;display:flex;flex-direction:column;justify-content:center;align-items:flex-start;text-align:left;padding:var(--s7) var(--s4)}
+.hero .col{position:relative;z-index:2;max-width:60rem;padding-left:4%}
+.hero .brandlock{position:absolute;top:28px;left:var(--s4);display:flex;align-items:center;gap:11px;z-index:3;text-decoration:none;color:var(--ink)}
+.hero .brandlock svg{height:36px;width:auto;display:block}
+.hero .brandlock b{font-size:25px;font-weight:800;letter-spacing:-.03em;color:var(--ink)}
+.hero .signin{position:absolute;top:52px;right:var(--s4);font-size:13px;color:var(--muted);text-decoration:none;z-index:3}
 .hero .signin:hover{color:var(--accent)}
-.hero .col{max-width:60rem}
-.hero h1{margin:0 0 var(--s3);line-height:1}
-.hero h1 .in{display:block;font-size:clamp(20px,3vw,30px);font-weight:600;letter-spacing:.02em;color:var(--muted);opacity:.85;margin-bottom:var(--s1)}
-.hero h1 .out{display:block;font-size:clamp(64px,11vw,120px);font-weight:800;letter-spacing:-.045em;background:linear-gradient(135deg,#102A43 10%,#2864A5 70%,#4E8FC7 100%);-webkit-background-clip:text;background-clip:text;color:transparent}
-.hero .sub{font-size:20px;line-height:1.5;color:var(--muted);margin:0 auto 36px;max-width:34rem}
-.hero .actions{display:flex;align-items:center;justify-content:center;gap:var(--s3)}
-.hero .mark{z-index:2}
-.btn{display:inline-block;padding:12px 22px;border-radius:var(--radius);font-weight:700;font-size:16px;text-decoration:none;background:var(--ink);color:#F1F7FB;transition:background .18s ease}
+.hero .kicker{margin:0 0 var(--s2);font-size:15px;font-weight:700;letter-spacing:.005em;color:var(--accent)}
+.hero h1{margin:0 0 var(--s3);font-size:clamp(52px,7.6vw,112px);font-weight:800;letter-spacing:-.04em;line-height:.95;max-width:9ch;color:var(--ink)}
+.hero .sub{font-size:19px;line-height:1.55;color:var(--ink);margin:0 0 36px;max-width:34rem}
+.hero .actions{display:flex;align-items:center;justify-content:flex-start;gap:var(--s3)}
+.hero .col>.rise:nth-child(1){transition-delay:.04s}
+.hero .col>.rise:nth-child(2){transition-delay:.14s}
+.hero .col>.rise:nth-child(3){transition-delay:.24s}
+.hero .col>.rise:nth-child(4){transition-delay:.34s}
+.btn{display:inline-block;padding:12px 22px;border-radius:var(--radius);font-weight:700;font-size:16px;text-decoration:none;background:var(--accent);color:#fff;transition:background .18s ease}
 .btn:hover{background:var(--ocean)}
 .arrowlink{font-size:16px;color:var(--ocean);text-decoration:none;border-bottom:1px solid var(--line)}
 .arrowlink:hover{color:var(--accent);border-color:var(--accent)}
 .arrowlink::after{content:" \2192"}
 @media (max-width:760px){
   :root{--axis:24px}
-  .hero{min-height:84svh}
+  .hero{min-height:92svh;justify-content:center;padding-top:18svh}
+  .hero .col{max-width:100%;padding-left:0}
   .hero .sub{font-size:17px}
+  .veil{background:linear-gradient(180deg,rgba(250,250,249,.7) 30%,rgba(250,250,249,.2) 70%)}
 }
 
 /* ---------- the bands: the numbers, called out at poster size ---------- */
@@ -73,6 +97,18 @@ a{color:var(--ink)}
 .band .n span{font-size:.45em;font-weight:800}
 .band p{font-size:16px;line-height:1.5;color:var(--muted);max-width:30ch;margin:var(--s2) auto 0}
 .bandcap{text-align:center;font-size:16px;color:var(--muted);max-width:46rem;margin:var(--s6) auto 0}
+.theo-sect{padding:var(--s7) var(--s4)}
+.theo-lead{font-size:20px;line-height:1.6;color:var(--ink);max-width:42rem;margin:0 0 var(--s3)}
+.theo-note{font-size:16px;line-height:1.65;color:var(--muted);max-width:42rem;margin:0}
+/* Recurring hue: the hero's silk-current, carried softly behind mid-page sections. */
+.hued{position:relative;overflow:hidden}
+.hued>*{position:relative;z-index:1}
+.huebg{position:absolute;inset:0;z-index:0;pointer-events:none;overflow:hidden}
+.huebg .b{position:absolute;border-radius:50%;filter:blur(80px);will-change:transform}
+.huebg .ha{width:760px;height:760px;left:-200px;top:-220px;background:#cfe0ff;opacity:.5;animation:drift2 26s ease-in-out infinite}
+.huebg .hb{width:600px;height:600px;right:-160px;bottom:-240px;background:#9bbcff;opacity:.3;animation:drift1 30s ease-in-out infinite}
+.huebg .hc{width:420px;height:420px;right:30%;top:-120px;background:#2563EB;opacity:.08;animation:drift3 34s ease-in-out infinite}
+@media (prefers-reduced-motion:reduce){.huebg .b{animation:none}}
 .bandcap a{color:var(--ocean)}
 .bandcap strong{color:var(--ink)}
 
@@ -102,19 +138,19 @@ a{color:var(--ink)}
 #reducer pre{max-height:380px;overflow:auto}
 
 /* ---------- fragments: the product's own conventions ---------- */
-[data-ui]{background:var(--surface);border:1px solid var(--deep-line);border-radius:8px;font-size:13px;overflow:hidden;max-width:100%;color:#F1F7FB}
+[data-ui]{background:var(--stone);border:1px solid var(--stone-line);border-radius:8px;font-size:13px;overflow:hidden;max-width:100%;color:var(--ink);--surface-2:var(--stone-2);--deep-line:var(--stone-line);--deep-muted:var(--stone-muted)}
 [data-ui] .tblwrap{overflow-x:auto}
 [data-ui] table{min-width:540px}
 [data-ui] .bar{display:flex;align-items:center;justify-content:space-between;padding:10px 16px;border-bottom:1px solid var(--deep-line);font-weight:700;font-size:13px;color:var(--deep-muted)}
 [data-ui] .bar{min-width:0}
-[data-ui] .bar .pill{background:var(--surface-2);border:1px solid var(--deep-line);border-radius:999px;padding:2px 10px;font-variant-numeric:tabular-nums;color:#F1F7FB;white-space:nowrap;flex:none}
-[data-ui] pre{margin:0;padding:14px 16px;overflow-x:auto;font:13px/1.65 ui-monospace,SFMono-Regular,Menlo,monospace;color:#F1F7FB}
+[data-ui] .bar .pill{background:var(--surface-2);border:1px solid var(--deep-line);border-radius:999px;padding:2px 10px;font-variant-numeric:tabular-nums;color:var(--ink);white-space:nowrap;flex:none}
+[data-ui] pre{margin:0;padding:14px 16px;overflow-x:auto;font:13px/1.65 ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--ink)}
 [data-ui] .tok{color:var(--deep-muted)}
 [data-ui] .key{color:var(--accent)}
 [data-ui] .dup{transition:opacity .5s ease;text-decoration:line-through transparent}
 [data-ui] .dup.struck{opacity:.28;text-decoration:line-through}
 [data-ui] .footrow{display:flex;align-items:center;gap:12px;padding:10px 16px;border-top:1px solid var(--deep-line)}
-[data-ui] .ui-btn{font:inherit;font-weight:700;font-size:13px;background:var(--surface-2);color:#F1F7FB;border:1px solid var(--deep-line);border-radius:4px;padding:7px 14px;cursor:pointer}
+[data-ui] .ui-btn{font:inherit;font-weight:700;font-size:13px;background:var(--surface-2);color:var(--ink);border:1px solid var(--deep-line);border-radius:4px;padding:7px 14px;cursor:pointer}
 [data-ui] .ui-btn:hover{border-color:var(--accent);color:var(--accent)}
 [data-ui] .ok{font-size:13px;color:var(--accent);opacity:0;transition:opacity .4s ease}
 [data-ui] .ok.show{opacity:1}
@@ -125,27 +161,16 @@ a{color:var(--ink)}
 .copy{font:12px/1 ui-monospace,monospace;background:none;border:1px solid var(--deep-line);color:var(--deep-muted);border-radius:4px;padding:4px 8px;cursor:pointer}
 .copy:hover{color:var(--accent);border-color:var(--accent)}
 
-/* ---------- colour fields: two chapter breaks, flat, full-bleed ---------- */
-.field-deep{background:var(--deep);color:var(--deep-ink)}
-.field-deep h2{color:var(--deep-ink)}
-.field-deep .total-side .note,.field-deep .total-side .cap{color:var(--deep-muted)}
-.field-deep .total-side .cap a{color:var(--accent)}
-.field-deep .total-side .figure{color:var(--deep-ink)}
+/* ---------- chapter blocks: now transparent, ink on the continuous hue ---------- */
+.field-deep{background:transparent;color:var(--ink)}
 .field-deep .slip{background:#ffffff}
-.field-ocean{background:var(--ocean);color:#F1F7FB}
-.field-ocean h2{color:#fff}
-.field-ocean p{color:#d7e9f7}
-.field-ocean .fig{color:#fff}
-.field-ocean .price-figure .per{color:#eaf4fb}
-.field-ocean ul{color:#eaf4fb}
-.field-ocean ul strong{color:#fff;border-bottom:2px solid var(--accent)}
-.field-ocean .overlap path{stroke:#9DD9F5}
-.field-ocean .overlap circle{fill:#F1F7FB}
-.field-ocean .btn{background:#F1F7FB;color:var(--ocean)}
-.field-ocean .btn:hover{background:#fff}
+.field-deep .total-side .figure{color:var(--ink)}
+.field-ocean{background:transparent;color:var(--ink)}
+.field-ocean .price-figure .fig{color:var(--accent)}
+.field-ocean ul strong{color:var(--ink);border-bottom:2px solid var(--accent)}
 
 /* ---------- sections ---------- */
-section{padding:var(--s7) var(--s4)}
+section{padding:var(--s7) var(--s4);position:relative;z-index:1}
 section h2{font-size:30px;font-weight:800;letter-spacing:-.01em;margin:0 0 var(--s6);position:relative;padding-bottom:18px}
 section h2::after{content:"";position:absolute;left:50%;transform:translateX(-50%);bottom:0;width:140px;height:12px;background:url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 140 12"><path d="M0 6 q6 -5 12 0 t12 0 q3 -9 6 0 t12 0 t12 0 q3 9 6 0 t12 0 t12 0 q6 -5 12 0 t12 0 t12 0" fill="none" stroke="%232864A5" stroke-width="1.6" opacity=".75"/></svg>') center/contain no-repeat}
 .field-ocean h2::after{opacity:.9}
@@ -156,7 +181,7 @@ section h2::after{content:"";position:absolute;left:50%;transform:translateX(-50
 /* call and response */
 .exchange{margin-bottom:88px}
 .exchange .lead{font-size:20px;font-weight:600;margin:0 0 var(--s2);text-align:center}
-.exchange .call{background:var(--surface);border-radius:8px;position:relative;color:#F1F7FB}
+.exchange .call{background:var(--stone);border-radius:8px;position:relative;color:var(--ink);--surface-2:var(--stone-2);--deep-line:var(--stone-line);--deep-muted:var(--stone-muted)}
 .exchange .call .copy{position:absolute;top:10px;right:10px}
 .exchange .response{margin-top:var(--s2)}
 .exchange .response.breakout{width:100%}
@@ -181,7 +206,7 @@ section h2::after{content:"";position:absolute;left:50%;transform:translateX(-50
 .slip .total-row{display:flex;justify-content:space-between;background:var(--paper-ink);color:var(--paper);font-weight:800;padding:10px 12px;margin-top:16px;font-size:16px}
 
 /* the price, very large */
-.price-wrap{display:grid;grid-template-columns:1fr;gap:var(--s5);max-width:1080px;margin:0 auto;min-height:80svh;align-content:center}
+.price-wrap{display:grid;grid-template-columns:1fr;gap:var(--s5);max-width:1080px;margin:0 auto;align-content:center}
 @media (min-width:980px){.price-wrap{grid-template-columns:380px 1fr}}
 .price-side p{font-size:16px;line-height:1.6;max-width:38ch}
 .price-figure{position:relative}
@@ -197,7 +222,6 @@ section h2::after{content:"";position:absolute;left:50%;transform:translateX(-50
 .faq-wrap{display:grid;grid-template-columns:1fr;gap:var(--s5);max-width:1080px;margin:0 auto}
 @media (min-width:980px){.faq-wrap{grid-template-columns:320px 1fr}.faq-wrap h2{position:sticky;top:96px;margin:0}}
 .faq-wrap h2::after,.receipt-wrap h2::after,.price-wrap h2::after{left:0;transform:none}
-.field-deep h2::after{background:url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 140 12"><path d="M0 6 q6 -5 12 0 t12 0 q3 -9 6 0 t12 0 t12 0 q3 9 6 0 t12 0 t12 0 q6 -5 12 0 t12 0 t12 0" fill="none" stroke="%239DD9F5" stroke-width="1.6" opacity=".8"/></svg>') center/contain no-repeat}
 .faq-wrap h2{font-size:30px}
 .faq details{background:#ffffff;border-radius:var(--radius);margin-bottom:8px}
 .faq summary{list-style:none;cursor:pointer;display:flex;justify-content:space-between;align-items:center;min-height:72px;padding:0 24px;font-size:20px;font-weight:600}
@@ -228,7 +252,7 @@ section h2::after{content:"";position:absolute;left:50%;transform:translateX(-50
 @media (max-width:860px){.cta-row{grid-template-columns:1fr;margin:0}.cta-row .cta-main{height:auto;min-height:300px}.cta-row .cta-flat,.cta-row .xfade{height:120px}}
 
 /* single quiet line footer */
-.quiet-foot{margin-top:30svh;padding:0 var(--s4) 30px;display:grid;grid-template-columns:1fr auto 1fr;align-items:baseline;font-size:13px;color:var(--muted)}
+.quiet-foot{position:relative;z-index:1;margin-top:12svh;padding:0 var(--s4) 30px;display:grid;grid-template-columns:1fr auto 1fr;align-items:baseline;font-size:13px;color:var(--muted)}
 .quiet-foot .links{display:flex;gap:24px;flex-wrap:wrap;justify-content:center}
 .quiet-foot a{color:var(--ink);text-decoration:none}
 .quiet-foot a:hover{color:var(--accent)}
@@ -240,15 +264,18 @@ section h2::after{content:"";position:absolute;left:50%;transform:translateX(-50
 </head>
 <body>
 
+<div class="pagehue" aria-hidden="true"><span class="b" style="top:3%;left:-240px;width:900px;height:900px;background:#9bbcff;opacity:0.52;animation:drift2 26s ease-in-out infinite"></span><span class="b" style="top:8%;right:-180px;width:860px;height:860px;background:#b6ccff;opacity:0.5;animation:drift1 24s ease-in-out infinite"></span><span class="b" style="top:15%;left:-220px;width:820px;height:820px;background:#c3d6ff;opacity:0.52;animation:drift3 30s ease-in-out infinite"></span><span class="b" style="top:23%;right:-160px;width:800px;height:800px;background:#bcd3ff;opacity:0.5;animation:drift2 28s ease-in-out infinite"></span><span class="b" style="top:31%;left:-200px;width:820px;height:820px;background:#cdd2ff;opacity:0.5;animation:drift1 32s ease-in-out infinite"></span><span class="b" style="top:39%;right:-160px;width:800px;height:800px;background:#cbbfff;opacity:0.5;animation:drift3 29s ease-in-out infinite"></span><span class="b" style="top:47%;left:-200px;width:820px;height:820px;background:#d8c3f5;opacity:0.5;animation:drift2 31s ease-in-out infinite"></span><span class="b" style="top:55%;right:-160px;width:800px;height:800px;background:#f0c6ec;opacity:0.48;animation:drift1 27s ease-in-out infinite"></span><span class="b" style="top:63%;left:-200px;width:840px;height:840px;background:#f6c3d4;opacity:0.5;animation:drift3 33s ease-in-out infinite"></span><span class="b" style="top:71%;right:-160px;width:820px;height:820px;background:#ffc9a8;opacity:0.54;animation:drift2 26s ease-in-out infinite"></span><span class="b" style="top:79%;left:-200px;width:840px;height:840px;background:#ffd3ac;opacity:0.56;animation:drift1 30s ease-in-out infinite"></span><span class="b" style="top:87%;right:-160px;width:820px;height:820px;background:#ffe0b4;opacity:0.56;animation:drift3 34s ease-in-out infinite"></span><span class="b" style="top:94%;left:-200px;width:840px;height:840px;background:#ffe7c6;opacity:0.54;animation:drift2 28s ease-in-out infinite"></span><span class="b" style="top:99%;right:-160px;width:780px;height:780px;background:#ffdcc4;opacity:0.5;animation:drift1 25s ease-in-out infinite"></span></div>
+
 <div class="hero-wrap">
-<canvas id="field" aria-hidden="true"></canvas>
 <header class="hero">
-  <span class="mark"><svg viewBox="0 0 48 48" fill="none" aria-hidden="true"><path d="M8 14c10 0 10 10 20 10h12" stroke="#2864A5" stroke-width="3.5" stroke-linecap="round"/><path d="M8 34c10 0 10-10 20-10" stroke="#2864A5" stroke-width="3.5" stroke-linecap="round" opacity=".75"/><circle cx="41" cy="24" r="4" fill="#9DD9F5"/></svg></span>
+  <a class="brandlock" href="index.html" aria-label="Flux home"><svg viewBox="0 0 120 130" fill="none" aria-hidden="true"><g transform="translate(60,42)" stroke="currentColor" stroke-width="4" stroke-linejoin="round" stroke-linecap="round"><path d="M0 -30 L26 -15 L26 15 L0 30 L-26 15 L-26 -15 Z"/><path d="M0 0 L26 -15 M0 0 L-26 -15 M0 0 L0 30"/><path d="M-26 15 L0 30 L0 60 L-26 75 L-52 60 L-52 30 Z"/><path d="M-26 45 L0 30 M-26 45 L-52 30 M-26 45 L-26 75"/><path d="M26 15 L52 30 L52 60 L26 75 L0 60 L0 30 Z"/><path d="M26 45 L52 30 M26 45 L0 30 M26 45 L26 75"/></g></svg><b>flux</b></a>
   <a class="signin" href="start.html">Get started</a>
+  <div class="field" aria-hidden="true"><span class="b b1"></span><span class="b b2"></span><span class="b b3"></span><span class="b b4"></span></div>
+  <div class="veil" aria-hidden="true"></div>
   <div class="col">
-    <h1><span class="in">Less in.</span><span class="out">More out.</span></h1>
-    <p class="sub">FLUX removes the junk from your AI requests before you pay for it. Same answers by default, smaller bill &mdash; and you can check every number yourself.</p>
-    <div class="actions">
+    <h1 class="rise">A smaller AI bill.</h1>
+    <p class="sub rise">Same answers &mdash; FLUX sits in front of your LLM traffic and strips out wasted tokens without changing a single reply. You pay 1% of the savings, verified on the provider&rsquo;s own usage, never our estimate.</p>
+    <div class="actions rise">
       <a class="btn" href="start.html">Get started</a>
       <a class="arrowlink" href="evidence.html">See the evidence</a>
     </div>
@@ -312,8 +339,8 @@ section h2::after{content:"";position:absolute;left:50%;transform:translateX(-50
   <div class="exchange rise">
     <p class="lead">First, point your client at it.</p>
     <div class="call"><button class="copy" type="button" data-copy="npx -y -p @flux-ai/sdk flux-proxy">copy</button><pre style="margin:0;padding:20px;font:13px/1.65 ui-monospace,Menlo,monospace;overflow-x:auto"><code>$ npx -y -p @flux-ai/sdk flux-proxy
-<span style="color:#9FB3C8"># then one line in your app &mdash; keep your own key</span>
-baseURL: <span style="color:#9DD9F5">"http://127.0.0.1:8787"</span></code></pre></div>
+<span style="color:#57534E"># then one line in your app &mdash; keep your own key</span>
+baseURL: <span style="color:#1D4ED8">"http://127.0.0.1:8787"</span></code></pre></div>
     <div class="response" data-ui>
       <div class="bar"><span>flux-proxy</span><span class="pill">running</span></div>
       <pre>FLUX proxy listening on http://127.0.0.1:8787
@@ -324,7 +351,7 @@ Anthropic SDK: new Anthropic({ baseURL: "http://127.0.0.1:8787" })</pre>
 
   <div class="exchange rise">
     <p class="lead">Then run your traffic as normal.</p>
-    <div class="call"><pre style="margin:0;padding:20px;font:13px/1.65 ui-monospace,Menlo,monospace;overflow-x:auto"><code>await anthropic.messages.create({ model, system, messages })  <span style="color:#9FB3C8">// unchanged</span></code></pre></div>
+    <div class="call"><pre style="margin:0;padding:20px;font:13px/1.65 ui-monospace,Menlo,monospace;overflow-x:auto"><code>await anthropic.messages.create({ model, system, messages })  <span style="color:#57534E">// unchanged</span></code></pre></div>
     <div class="response" data-ui>
       <div class="bar"><span>flux-ledger/my-app-anthropic.jsonl</span><span class="pill">hash-chained</span></div>
       <pre>{"seq":0,"prevHash":"000&hellip;0","event":{"requestId":"a1f2&hellip;","model":"claude-sonnet-5-5",
@@ -381,6 +408,14 @@ Anthropic SDK: new Anthropic({ baseURL: "http://127.0.0.1:8787" })</pre>
   </div>
 </section>
 
+<section aria-label="Theo, your token engineer" class="theo-sect">
+  <div class="axis-col">
+    <h2 class="rise">Meet Theo.</h2>
+    <p class="theo-lead rise">Theo is the token engineer that ships with FLUX. He studies your own traffic, finds new waste to cut, and only ever tunes FLUX &mdash; never your prompts, never your answers.</p>
+    <p class="theo-note rise">When he finds a saving he tells you what it is and what it might cost in quality, then waits for your yes. Anything that could touch an answer stays off until a replay of your own traffic proves it safe &mdash; and once a month he reports his own honesty: what he tried, what he saved, and where he held back.</p>
+  </div>
+</section>
+
 <section aria-label="Pricing" class="field-ocean">
   <div class="price-wrap">
     <div class="price-side rise">
@@ -389,7 +424,7 @@ Anthropic SDK: new Anthropic({ baseURL: "http://127.0.0.1:8787" })</pre>
     </div>
     <div class="price-figure rise">
       <div class="fig">1<sup>%</sup></div>
-      <span class="overlap"><svg viewBox="0 0 48 48" fill="none" aria-hidden="true"><path d="M8 14c10 0 10 10 20 10h12" stroke="#2864A5" stroke-width="3.5" stroke-linecap="round"/><path d="M8 34c10 0 10-10 20-10" stroke="#2864A5" stroke-width="3.5" stroke-linecap="round" opacity=".75"/><circle cx="41" cy="24" r="4" fill="#9DD9F5"/></svg></span>
+      <span class="overlap"><svg viewBox="0 0 120 130" fill="none" aria-hidden="true"><g transform="translate(60,42)" stroke="currentColor" stroke-width="4" stroke-linejoin="round" stroke-linecap="round"><path d="M0 -30 L26 -15 L26 15 L0 30 L-26 15 L-26 -15 Z"/><path d="M0 0 L26 -15 M0 0 L-26 -15 M0 0 L0 30"/><path d="M-26 15 L0 30 L0 60 L-26 75 L-52 60 L-52 30 Z"/><path d="M-26 45 L0 30 M-26 45 L-52 30 M-26 45 L-26 75"/><path d="M26 15 L52 30 L52 60 L26 75 L0 60 L0 30 Z"/><path d="M26 45 L52 30 M26 45 L0 30 M26 45 L26 75"/></g></svg></span>
       <p class="per">of verified savings, monthly &mdash; nothing else</p>
       <ul>
         <li>Savings counted per finished task, from your provider&rsquo;s own numbers</li>
@@ -439,101 +474,6 @@ Anthropic SDK: new Anthropic({ baseURL: "http://127.0.0.1:8787" })</pre>
   <span class="legal">Flux AI Technologies Limited &middot; registered in England and Wales &middot; company no. 17543982</span>
 </footer>
 
-<script>
-(function () {
-  var canvas = document.getElementById("field");
-  if (!canvas || !canvas.getContext) return;
-  var reduced = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  var ctx = canvas.getContext("2d");
-  var wrap = canvas.parentElement;
-  var dpr = Math.min(window.devicePixelRatio || 1, 1.75);
-  var W = 0, H = 0;
-  function resize() {
-    W = wrap.clientWidth; H = wrap.clientHeight;
-    canvas.width = W * dpr; canvas.height = H * dpr;
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  }
-  resize();
-  var rt; window.addEventListener("resize", function(){ clearTimeout(rt); rt = setTimeout(resize, 150); });
-
-  // Three particle wave surfaces layered down the page: ink on paper. Each
-  // layer is a perspective-projected grid on its own rolling height field,
-  // with its own drift speed, so the layers slide over one another. Every
-  // row runs the full width of the viewport (the world x is derived from the
-  // screen x, so perspective still compresses the far rows), the surfaces
-  // are deep enough to touch, and the cursor pushes a swell through
-  // whichever surface it is near.
-  var LAYERS = [
-    { horizon: 0.02, cam: 0.35, drift: 0.7,  phase: 0.0, dark: 0.50 },
-    { horizon: 0.28, cam: 0.37, drift: 1.0,  phase: 2.1, dark: 0.85 },
-    { horizon: 0.55, cam: 0.36, drift: 0.55, phase: 4.4, dark: 0.66 },
-  ];
-  var COLS = 130, ROWSZ = 30, FOV = 300;
-  var mx = -9999, my = -9999, smx = -9999, smy = -9999;
-  window.addEventListener("pointermove", function (e) {
-    var b = wrap.getBoundingClientRect();
-    mx = e.clientX - b.left; my = e.clientY - b.top;
-  }, { passive: true });
-  window.addEventListener("pointerleave", function(){ mx = -9999; my = -9999; });
-
-  function drawLayer(L, t) {
-    var cx = W / 2, horizon = H * L.horizon, camY = L.cam * H;
-    for (var zi = ROWSZ - 1; zi >= 0; zi--) {
-      var z = 40 + zi * 26;
-      var scale = FOV / (FOV + z);
-      var rowAlpha = (0.15 + 0.35 * scale) * L.dark;
-      var size = Math.max(1.2, 2.8 * scale);
-      // far rows ocean-blue, near rows midnight ink
-      var mixv = Math.min(1, scale * 1.3);
-      var r = Math.round(40 + (16 - 40) * mixv);
-      var g = Math.round(100 + (42 - 100) * mixv);
-      var b2 = Math.round(165 + (67 - 165) * mixv);
-      ctx.fillStyle = "rgba(" + r + "," + g + "," + b2 + "," + rowAlpha + ")";
-      var stag = (zi * 0.381966) % 1;
-      for (var xi = 0; xi < COLS; xi++) {
-        var sx = ((xi + stag) / (COLS - 1)) * W;
-        var xw = (sx - cx) / scale;
-        var amp = 30 + 42 * (1 - scale);
-        var tt = t * L.drift + L.phase;
-        var h =
-          Math.sin(xw * 0.0042 + tt * 1.1 + z * 0.012) * amp * 0.5 +
-          Math.sin(xw * 0.0095 - tt * 0.7 + z * 0.02) * amp * 0.3 +
-          Math.sin(xw * 0.021 + tt * 1.9) * amp * 0.14 +
-          Math.sin(xw * 0.0016 + z * 0.004 - tt * 0.35) * amp * 0.45;
-        var sy = horizon + (camY - h) * scale;
-        var ddx = sx - smx, ddy = sy - smy;
-        var pulse = Math.exp(-(ddx * ddx + ddy * ddy) / (2 * 150 * 150));
-        if (pulse > 0.03) {
-          sy -= pulse * 24 * scale;
-          ctx.fillStyle = "rgba(16,42,67," + Math.min(0.9, rowAlpha + pulse * 0.6) + ")";
-          ctx.fillRect(sx, sy, size + pulse * 1.4, size + pulse * 1.4);
-          ctx.fillStyle = "rgba(" + r + "," + g + "," + b2 + "," + rowAlpha + ")";
-        } else if (h > amp * 0.55) {
-          ctx.fillStyle = "rgba(40,100,165," + Math.min(0.8, rowAlpha + 0.18) + ")";
-          ctx.fillRect(sx, sy, size, size);
-          ctx.fillStyle = "rgba(" + r + "," + g + "," + b2 + "," + rowAlpha + ")";
-        } else {
-          ctx.fillRect(sx, sy, size, size);
-        }
-      }
-    }
-  }
-  function draw(t) {
-    ctx.clearRect(0, 0, W, H);
-    for (var i = 0; i < LAYERS.length; i++) drawLayer(LAYERS[i], t);
-  }
-  if (reduced) { draw(21.0); return; }
-  var vis = true;
-  new IntersectionObserver(function (es) { es.forEach(function (e) { vis = e.isIntersecting; }); }).observe(wrap);
-  var lastF = 0;
-  (function frame(now) {
-    requestAnimationFrame(frame);
-    if (document.hidden || !vis || now - lastF < 28) return;
-    lastF = now;
-    smx += (mx - smx) * 0.08; smy += (my - smy) * 0.08;
-    draw(now / 1000);
-  })(0);
-})();</script>
 <script>
 (function () {
   var reduced = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
