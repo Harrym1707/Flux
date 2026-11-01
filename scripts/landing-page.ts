@@ -577,8 +577,8 @@ section h2::after{content:"";position:absolute;left:50%;transform:translateX(-50
     <h1 class="rise">A smaller AI bill<span class="dot">.</span></h1>
     <p class="sub rise">Same answers &mdash; FLUX sits in front of your LLM traffic and strips out wasted tokens without changing a single reply. You pay 1% of the savings, verified on the provider&rsquo;s own usage, never our estimate.</p>
     <div class="actions rise">
-      <a class="btn-download" href="start.html"><svg class="arrow" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 3v11m0 0l-4.5-4.5M12 14l4.5-4.5M5 20h14" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>Download Flux</a>
-      <a class="arrowlink" href="evidence.html">See the evidence</a>
+      <a class="btn-download" href="flux" download="flux"><svg class="arrow" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 3v11m0 0l-4.5-4.5M12 14l4.5-4.5M5 20h14" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>Download Flux</a>
+      <a class="arrowlink" href="start.html">Setup guide</a>
     </div>
     <p class="cta-note rise">One command &middot; keep your own key &middot; <b>verify every number yourself</b></p>
   </div>
