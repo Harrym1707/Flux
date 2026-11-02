@@ -69,11 +69,21 @@ Requires `--input <file.jsonl>` (repeatable). Run `flux analyse --help` for the
 full option list. Prompt text is never written to the report; cache-breaking
 values are redacted unless `--show-examples` is passed.
 
-## Coming soon
+## `flux stop`
 
-These are being added and are **not yet available** in the shipped command set:
+Stop the background service without removing it — the service definition is
+kept, and Claude Code reverts to normal so it never points at a stopped proxy.
+Resume always-on any time with `flux install`. Your ledger is untouched.
 
-- `flux stop` — stop the background service without uninstalling it (today, use
-  `flux uninstall` to remove it, or `flux install` again to re-register it).
-- `flux update` — force a runtime update now (today, the bootstrap updates
-  itself automatically, checking at most once a day).
+## `flux update`
+
+Update the runtime now instead of waiting for the once-a-day automatic check.
+It fetches the manifest and, if newer, downloads and checksum-verifies the
+runtime, keeping the current one as a rollback point before swapping it in.
+
+```bash
+flux update              # update to the latest verified runtime
+flux update --rollback   # restore the previous runtime
+```
+
+It never overwrites a working runtime until the replacement passes its checksum.
