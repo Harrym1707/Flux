@@ -49,7 +49,7 @@ const require = __cr(import.meta.url);`;
 function bundle(entry: string, outfile: string, define: Record<string, string> = {}): void {
   const result = esbuild.buildSync({
     entryPoints: [path.join(cliDir, "src", entry)],
-    bundle: true, platform: "node", format: "esm", target: "node20",
+    bundle: true, platform: "node", format: "esm", target: "node22",
     outfile, banner: { js: BANNER }, define, logLevel: "warning",
   });
   if (result.errors.length > 0) { console.error(`esbuild failed on ${entry}`); process.exit(1); }
@@ -84,7 +84,7 @@ writeFileSync(path.join(outDir, "package.json"), `${JSON.stringify({
   type: "module",
   bin: { flux: "./flux-runtime" },
   files: ["flux-runtime", "README.md"],
-  engines: { node: ">=20" },
+  engines: { node: ">=22" },
   keywords: ["llm", "anthropic", "claude", "claude-code", "proxy", "cost", "tokens", "flux"],
   license: "BUSL-1.1",
   homepage: "https://www.fluxtoken.dev",
@@ -97,7 +97,7 @@ Cut your LLM bill — verified on your own usage, never an estimate.
 
 ## Install
 
-Download one small file (needs Node 20+); it fetches and verifies the runtime,
+Download one small file (needs Node 22+); it fetches and verifies the runtime,
 then keeps it up to date:
 
 \`\`\`sh
