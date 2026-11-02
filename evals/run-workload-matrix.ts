@@ -1,6 +1,6 @@
 import {
-  ANTHROPIC_CACHE_5M,
   ANTHROPIC_NO_CACHE,
+  anthropicCacheableMinimumTokens,
   approximateTokenCount,
   lookupPrice,
   publishedModelPrices,
@@ -240,7 +240,10 @@ function wire(request: AnyObject): { full: string; spans: string[] } {
   return { full, spans };
 }
 
-const MIN_CACHEABLE = 1_024; // claude-sonnet-5 documented minimum cacheable prefix
+// Derived from the model this fixture actually sends (claude-sonnet-5-5), not
+// hardcoded, so a future fixture that switches to a Haiku-class model picks
+// up that model's real 2,048-token minimum instead of silently keeping 1,024.
+const MIN_CACHEABLE = anthropicCacheableMinimumTokens("claude-sonnet-5-5");
 const TTL_SECONDS = 300;
 const inputRate = price.price.inputPerMillion / 1_000_000;
 const outputRate = price.price.outputPerMillion / 1_000_000;

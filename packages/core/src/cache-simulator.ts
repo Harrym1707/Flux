@@ -1,4 +1,5 @@
 import { estimateTokenCost, type TokenPrice } from "./cost.js";
+import { anthropicCacheableMinimumTokens } from "./model-prices.js";
 import { approximateTokenCount, type TokenCounter } from "./token-reduction.js";
 
 /**
@@ -55,7 +56,15 @@ export const OPENAI_CACHE: CachePolicy = {
   readMultiplier: 0.1,
 };
 
-/** Explicit breakpoints, 5-minute TTL, writes at 1.25x base. */
+/**
+ * Explicit breakpoints, 5-minute TTL, writes at 1.25x base.
+ *
+ * The 1,024-token minimum is the Sonnet-/Opus-class figure — the default for
+ * callers that have no model id to hand. A Haiku-class model's real minimum
+ * is 2,048; use `anthropicCachePolicyFor` whenever a model id is available so
+ * a Haiku-shaped workload is not simulated as cacheable below its actual
+ * floor.
+ */
 export const ANTHROPIC_CACHE_5M: CachePolicy = {
   name: "anthropic-ephemeral-5m",
   minimumCacheableTokens: 1_024,
@@ -81,7 +90,10 @@ export const ANTHROPIC_NO_CACHE: CachePolicy = {
   readMultiplier: 1,
 };
 
-/** The hour-long TTL, which doubles the write charge. */
+/**
+ * The hour-long TTL, which doubles the write charge. Same Sonnet-/Opus-class
+ * minimum caveat as `ANTHROPIC_CACHE_5M` above.
+ */
 export const ANTHROPIC_CACHE_1H: CachePolicy = {
   name: "anthropic-ephemeral-1h",
   minimumCacheableTokens: 1_024,
@@ -90,6 +102,19 @@ export const ANTHROPIC_CACHE_1H: CachePolicy = {
   writeMultiplier: 2,
   readMultiplier: 0.1,
 };
+
+/**
+ * Build the Anthropic policy for the TTL asked for, with the minimum
+ * cacheable prefix set from the model actually being simulated rather than
+ * assumed. Below that minimum the provider does not cache at all (see
+ * `anthropicCacheableMinimumTokens`), so a policy built without a model id
+ * — the flat constants above — can only ever be exactly right for Sonnet-
+ * and Opus-class models and silently optimistic for Haiku-class ones.
+ */
+export function anthropicCachePolicyFor(modelId: string, ttl: "5m" | "1h"): CachePolicy {
+  const base = ttl === "5m" ? ANTHROPIC_CACHE_5M : ANTHROPIC_CACHE_1H;
+  return { ...base, minimumCacheableTokens: anthropicCacheableMinimumTokens(modelId) };
+}
 
 export type SimulatedRequest = {
   /** Seconds since the run began. Drives TTL expiry. */
