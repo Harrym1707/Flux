@@ -13,6 +13,7 @@ var BASE = (process.env.FLUX_BASE_URL ?? "https://www.fluxtoken.dev").replace(/\
 var DIR = join(homedir(), ".flux", "runtime");
 var RUNTIME = join(DIR, "flux-runtime.mjs");
 var VERSION_FILE = join(DIR, "version");
+var SHA_FILE = join(DIR, "sha256");
 var LAST_CHECK = join(DIR, ".last-check");
 var CHECK_INTERVAL_MS = 24 * 60 * 60 * 1e3;
 function readText(path) {
@@ -82,6 +83,7 @@ async function ensureRuntime() {
   }
   writeFileSync(RUNTIME, bytes);
   writeFileSync(VERSION_FILE, manifest.version);
+  writeFileSync(SHA_FILE, manifest.sha256);
   stampCheck();
   process.stderr.write("ready.\n");
 }

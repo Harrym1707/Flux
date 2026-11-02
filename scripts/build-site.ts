@@ -339,6 +339,8 @@ for (const [marker, why] of [
   ['class="field-deep"', "dark chapter break missing"],
   ["prefers-reduced-motion", "reduced-motion guard missing"],
   ["A smaller AI bill", "hero promise missing"],
+  ['id="install"', "install section missing"],
+  ["install.sh | sh", "install command missing"],
   ["npx -y -p @flux-ai/sdk flux-proxy", "the install command missing"],
   ["do not pay us", "the do-not-pay-us admission missing"],
   ["evidence.html", "evidence link missing"],
@@ -399,6 +401,8 @@ if (existsSync(path.join(cliPkg, "flux"))) {
 } else {
   console.log(`note: packages/cli/pkg not built — /flux download will 404. Run: npm run build:cli`);
 }
+// The install one-liner's target: curl -fsSL https://.../install.sh | sh
+copyFileSync(path.join(siteDir, "install.sh"), path.join(outDir, "install.sh"));
 
 console.log(`site built: ${built.length} pages + llms.txt + robots.txt + sitemap.xml -> ${path.relative(root, outDir)}`);
 console.log(`canonical origin: ${ORIGIN}${ORIGIN.includes("REPLACE") ? "  <- set FLUX_SITE_ORIGIN before deploying" : ""}`);

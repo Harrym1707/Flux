@@ -57,23 +57,32 @@ passes through to the provider and is never stored. Works with Claude
 
 ## Claude Code — one command
 
-If you use Claude Code, this is the whole setup:
+Install the `flux` command (needs Node 22+, which Claude Code already uses):
 
 ```bash
-npx @flux-ai/flux start
+curl -fsSL https://www.fluxtoken.dev/install.sh | sh
 ```
 
-That starts the FLUX proxy, points Claude Code at it, and runs **Theo** — your
-token engineer — alongside you. Use Claude Code exactly as normal; press Ctrl+C
-to stop and Claude Code reverts cleanly. Prefer a file you keep?
+Then start it:
 
 ```bash
-curl -fsSL https://www.fluxtoken.dev/flux -o flux && chmod +x flux && ./flux start
+flux start
 ```
 
-Check your own verified number any time with `flux verify`: it recomputes the
-invoice from your ledger, with no network calls. The rest of this page is the
-manual setup for any other app or language.
+That points Claude Code at FLUX and runs **Theo** — your token engineer —
+alongside you. Use Claude Code exactly as normal; press Ctrl+C to stop and
+Claude Code reverts cleanly. Check your own verified number any time with
+`flux verify`.
+
+The installer drops one tiny launcher that fetches and checksum-verifies the
+runtime; it never touches your API key. Read it first if you like:
+`curl -fsSL https://www.fluxtoken.dev/install.sh | less`.
+
+**Other ways in:** once `@flux-ai/flux` is published, `npx @flux-ai/flux start`
+works with no install. Or grab the launcher directly:
+`curl -fsSL https://www.fluxtoken.dev/flux -o flux && chmod +x flux && ./flux start`.
+
+The rest of this page is the manual setup for any other app or language.
 
 ## Step 1 — run the proxy
 

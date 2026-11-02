@@ -2119,9 +2119,9 @@ function createSavingsLedger(config) {
       try {
         const billable = billableEventFromRequest(event, config, catalogue, pinnedCatalogueVersion);
         const record = chainLedgerRecord(billable, previous);
-        mkdirSync(dirname(config.path), { recursive: true });
+        mkdirSync(dirname(config.path), { recursive: true, mode: 448 });
         appendFileSync(config.path, `${JSON.stringify(record)}
-`, "utf8");
+`, { encoding: "utf8", mode: 384 });
         previous = record;
       } catch {
         disabled = true;
@@ -2146,7 +2146,7 @@ var init_savings_ledger3 = __esm({
 // packages/sdk-js/src/proxy.ts
 import { createServer } from "node:http";
 import { createHash as createHash5, randomUUID } from "node:crypto";
-import { appendFileSync as appendFileSync2 } from "node:fs";
+import { appendFileSync as appendFileSync2, mkdirSync as mkdirSync2 } from "node:fs";
 import { join } from "node:path";
 function forwardHeaders(req, provider) {
   const out = {};
@@ -2283,14 +2283,21 @@ ${provider}`;
   const blindFeaturesKey = options.blindFeaturesKey;
   const writeBlindFeatures = (applicationId, provider, record) => {
     const safeApp = applicationId.replace(/[^A-Za-z0-9._-]/g, "_").slice(0, 64) || "proxy";
+    mkdirSync2(options.ledgerDirectory, { recursive: true, mode: 448 });
     appendFileSync2(join(options.ledgerDirectory, `${safeApp}-${provider}.features.jsonl`), `${JSON.stringify(record)}
-`);
+`, { mode: 384 });
   };
   const handle = async (req, res) => {
     const path = (req.url ?? "").split("?")[0];
     if (!hostAllowed(req)) {
       res.writeHead(403, { "content-type": "application/json" });
       res.end(JSON.stringify({ error: "FLUX proxy serves loopback clients only." }));
+      return;
+    }
+    const fetchSite = req.headers["sec-fetch-site"];
+    if (fetchSite === "cross-site" || fetchSite === "same-site") {
+      res.writeHead(403, { "content-type": "application/json" });
+      res.end(JSON.stringify({ error: "FLUX proxy does not serve cross-origin browser requests." }));
       return;
     }
     if (req.method === "GET" && path.startsWith("/v1/")) {
@@ -2520,6 +2527,7 @@ ${provider}`;
       }
     });
   });
+  server.maxConnections = 256;
   return new Promise((resolve2, reject) => {
     server.once("error", reject);
     server.listen(options.port ?? 0, "127.0.0.1", () => {
@@ -2685,7 +2693,7 @@ __export(start_exports, {
 import { randomBytes } from "node:crypto";
 import {
   existsSync as existsSync2,
-  mkdirSync as mkdirSync2,
+  mkdirSync as mkdirSync3,
   readFileSync as readFileSync2,
   readdirSync,
   writeFileSync
@@ -2729,7 +2737,7 @@ function blindKey() {
   return key;
 }
 function configureClaudeCode(baseUrl) {
-  mkdirSync2(join2(homedir(), ".claude"), { recursive: true });
+  mkdirSync3(join2(homedir(), ".claude"), { recursive: true });
   let settings = {};
   let hadFile = false;
   if (existsSync2(CLAUDE_SETTINGS)) {
@@ -2795,8 +2803,8 @@ function summariseLedger(ledgerDir) {
   };
 }
 async function startProxyWithPolicy(port, ledgerDir) {
-  mkdirSync2(FLUX_HOME, { recursive: true });
-  mkdirSync2(ledgerDir, { recursive: true });
+  mkdirSync3(FLUX_HOME, { recursive: true });
+  mkdirSync3(ledgerDir, { recursive: true });
   const policyPath = join2(FLUX_HOME, "theo-policy.json");
   const policy = existsSync2(policyPath) ? JSON.parse(readFileSync2(policyPath, "utf8")) : defaultPolicy("local", (/* @__PURE__ */ new Date()).toISOString());
   if (!existsSync2(policyPath)) writeFileSync(policyPath, `${JSON.stringify(policy, null, 2)}
@@ -2910,7 +2918,7 @@ var init_start = __esm({
     init_savings_ledger();
     init_proxy();
     init_theo_policy();
-    BUILD_COMMIT = true ? "b2be585" : process.env.FLUX_BUILD_COMMIT ?? "dev";
+    BUILD_COMMIT = true ? "5d948bb" : process.env.FLUX_BUILD_COMMIT ?? "dev";
     FLUX_HOME = join2(homedir(), ".flux");
     CLAUDE_SETTINGS = join2(homedir(), ".claude", "settings.json");
     DEFAULT_PORT = 8787;
@@ -2923,11 +2931,12 @@ var daemon_exports = {};
 __export(daemon_exports, {
   runInstall: () => runInstall,
   runStatus: () => runStatus,
+  runStop: () => runStop,
   runUninstall: () => runUninstall
 });
 import { connect } from "node:net";
 import { execFileSync } from "node:child_process";
-import { chmodSync, copyFileSync, existsSync as existsSync3, mkdirSync as mkdirSync3, readFileSync as readFileSync3, rmSync, writeFileSync as writeFileSync2 } from "node:fs";
+import { chmodSync, copyFileSync, existsSync as existsSync3, mkdirSync as mkdirSync4, readFileSync as readFileSync3, rmSync, writeFileSync as writeFileSync2 } from "node:fs";
 import { homedir as homedir2, platform } from "node:os";
 import { dirname as dirname2, join as join3, resolve } from "node:path";
 function requireMac(action) {
@@ -2974,7 +2983,7 @@ function portUp(port, timeoutMs = 800) {
   });
 }
 function setClaudeBaseUrl(url) {
-  mkdirSync3(dirname2(CLAUDE_SETTINGS), { recursive: true });
+  mkdirSync4(dirname2(CLAUDE_SETTINGS), { recursive: true });
   let settings = {};
   if (existsSync3(CLAUDE_SETTINGS)) {
     try {
@@ -3020,14 +3029,14 @@ ${argXml}
 </dict>
 </plist>
 `;
-  mkdirSync3(dirname2(PLIST), { recursive: true });
+  mkdirSync4(dirname2(PLIST), { recursive: true });
   writeFileSync2(PLIST, plist);
 }
 async function runInstall(argv) {
   requireMac("install");
   const port = parsePort(argv);
-  mkdirSync3(join3(FLUX_HOME, "bin"), { recursive: true });
-  mkdirSync3(DEFAULT_LEDGER, { recursive: true });
+  mkdirSync4(join3(FLUX_HOME, "bin"), { recursive: true });
+  mkdirSync4(DEFAULT_LEDGER, { recursive: true });
   const self = resolve(process.env.FLUX_BOOTSTRAP_PATH ?? process.argv[1] ?? "");
   if (self !== STABLE_BIN) copyFileSync(self, STABLE_BIN);
   chmodSync(STABLE_BIN, 493);
@@ -3067,6 +3076,23 @@ function runUninstall(_argv) {
   console.log(`  Your ledger is kept at ${DEFAULT_LEDGER} \u2014 recompute any time with: flux verify`);
   console.log("");
 }
+function runStop(_argv) {
+  requireMac("stop");
+  if (!isLoaded()) {
+    console.log("");
+    console.log(`  No FLUX background service is running.`);
+    console.log(`  (A foreground \`flux start\` is stopped with Ctrl+C.)`);
+    console.log("");
+    return;
+  }
+  launchctl("unload", "-w", PLIST);
+  clearClaudeBaseUrl();
+  console.log("");
+  console.log(`  \u2B22 theo \u2014 FLUX service stopped. Claude Code is back to normal.`);
+  console.log(`  The service is kept \u2014 resume always-on any time with: flux install`);
+  console.log(`  Your ledger is untouched.`);
+  console.log("");
+}
 async function runStatus(_argv) {
   const loaded = platform() === "darwin" ? isLoaded() : false;
   const port = DEFAULT_PORT;
@@ -3099,14 +3125,103 @@ var init_daemon = __esm({
   }
 });
 
+// packages/cli/src/update.ts
+var update_exports = {};
+__export(update_exports, {
+  runUpdate: () => runUpdate
+});
+import { createHash as createHash6 } from "node:crypto";
+import { copyFileSync as copyFileSync2, existsSync as existsSync4, mkdirSync as mkdirSync5, readFileSync as readFileSync4, writeFileSync as writeFileSync3 } from "node:fs";
+import { homedir as homedir3 } from "node:os";
+import { join as join4 } from "node:path";
+function read(path) {
+  try {
+    return readFileSync4(path, "utf8").trim();
+  } catch {
+    return null;
+  }
+}
+function rollback() {
+  if (!existsSync4(BACKUP)) {
+    console.error("No previous runtime to roll back to.");
+    process.exit(1);
+  }
+  copyFileSync2(BACKUP, RUNTIME);
+  const prev = read(BACKUP_VERSION) ?? "previous";
+  writeFileSync3(VERSION_FILE, prev);
+  if (existsSync4(BACKUP_SHA)) copyFileSync2(BACKUP_SHA, SHA_FILE);
+  console.log(`Rolled back to ${prev}.`);
+}
+async function runUpdate(argv) {
+  if (argv.includes("--rollback")) {
+    rollback();
+    return;
+  }
+  mkdirSync5(DIR, { recursive: true });
+  const have = existsSync4(VERSION_FILE) ? read(VERSION_FILE) : null;
+  let manifest;
+  try {
+    const res = await fetch(`${BASE}/flux-version.json`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    manifest = await res.json();
+  } catch (error) {
+    console.error(`Couldn't reach ${BASE} to check for updates (${String(error)}).`);
+    process.exit(1);
+  }
+  if (have === manifest.version) {
+    console.log(`Already up to date (${have}).`);
+    return;
+  }
+  process.stdout.write(`Updating ${have ?? "(none)"} \u2192 ${manifest.version}\u2026 `);
+  let bytes;
+  try {
+    const res = await fetch(`${BASE}/${manifest.runtime ?? "flux-runtime"}`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    bytes = Buffer.from(await res.arrayBuffer());
+  } catch (error) {
+    console.log("failed");
+    console.error(String(error));
+    process.exit(1);
+  }
+  if (createHash6("sha256").update(bytes).digest("hex") !== manifest.sha256) {
+    console.log("failed");
+    console.error("The downloaded runtime failed its checksum \u2014 refusing to install it.");
+    process.exit(1);
+  }
+  if (existsSync4(RUNTIME)) {
+    copyFileSync2(RUNTIME, BACKUP);
+    if (have !== null) writeFileSync3(BACKUP_VERSION, have);
+    if (existsSync4(SHA_FILE)) copyFileSync2(SHA_FILE, BACKUP_SHA);
+  }
+  writeFileSync3(RUNTIME, bytes);
+  writeFileSync3(VERSION_FILE, manifest.version);
+  writeFileSync3(SHA_FILE, manifest.sha256);
+  console.log("done.");
+  console.log(`Now on ${manifest.version}. Roll back with: flux update --rollback`);
+}
+var BASE, DIR, RUNTIME, VERSION_FILE, SHA_FILE, BACKUP, BACKUP_VERSION, BACKUP_SHA;
+var init_update = __esm({
+  "packages/cli/src/update.ts"() {
+    BASE = (process.env.FLUX_BASE_URL ?? "https://www.fluxtoken.dev").replace(/\/$/, "");
+    DIR = join4(homedir3(), ".flux", "runtime");
+    RUNTIME = join4(DIR, "flux-runtime.mjs");
+    VERSION_FILE = join4(DIR, "version");
+    SHA_FILE = join4(DIR, "sha256");
+    BACKUP = join4(DIR, "flux-runtime.previous.mjs");
+    BACKUP_VERSION = join4(DIR, "version.previous");
+    BACKUP_SHA = join4(DIR, "sha256.previous");
+  }
+});
+
 // packages/cli/src/verify.ts
 var verify_exports = {};
 __export(verify_exports, {
   runVerify: () => runVerify
 });
-import { existsSync as existsSync4, readFileSync as readFileSync4, readdirSync as readdirSync2 } from "node:fs";
-import { homedir as homedir3 } from "node:os";
-import { join as join4 } from "node:path";
+import { createHash as createHash7 } from "node:crypto";
+import { existsSync as existsSync5, readFileSync as readFileSync5, readdirSync as readdirSync2 } from "node:fs";
+import { homedir as homedir4 } from "node:os";
+import { join as join5 } from "node:path";
 function sampleRequest() {
   const dup = "Records 0-19: settlement entry nominal, reconciliation standard, no notification sent, annotation routine.";
   const schema = {
@@ -3127,7 +3242,19 @@ function sampleRequest() {
 }
 async function runVerify(_argv) {
   const checks = [];
-  checks.push({ name: "provenance", ok: true, detail: `built from commit ${BUILD_COMMIT}` });
+  const runtimeDir = join5(homedir4(), ".flux", "runtime");
+  const runtimeFile = join5(runtimeDir, "flux-runtime.mjs");
+  const recordedSha = existsSync5(join5(runtimeDir, "sha256")) ? readFileSync5(join5(runtimeDir, "sha256"), "utf8").trim() : null;
+  if (recordedSha !== null && existsSync5(runtimeFile)) {
+    const actual = createHash7("sha256").update(readFileSync5(runtimeFile)).digest("hex");
+    checks.push({
+      name: "provenance",
+      ok: actual === recordedSha,
+      detail: actual === recordedSha ? `build ${BUILD_COMMIT}; cached runtime matches its download checksum` : `build ${BUILD_COMMIT}; CACHED RUNTIME ALTERED since download (checksum mismatch)`
+    });
+  } else {
+    checks.push({ name: "provenance", ok: true, detail: `build ${BUILD_COMMIT} (npm or dev build \u2014 no download checksum to re-verify)` });
+  }
   const { summary } = reduceRequest(sampleRequest(), { toolSchemas: true, duplicateContext: true, repairCachePrefix: true });
   const reducerOk = !summary.skipped && summary.estimatedLosslessTokensSaved > 0;
   checks.push({
@@ -3135,7 +3262,7 @@ async function runVerify(_argv) {
     ok: reducerOk,
     detail: reducerOk ? `lossless: ${summary.estimatedTokensBefore} \u2192 ${summary.estimatedTokensAfter} tokens (\u2212${summary.estimatedLosslessTokensSaved}), ${summary.changes.length} lever(s)` : `reducer did not fire (${summary.skippedReason ?? "no lossless saving"})`
   });
-  if (!existsSync4(LEDGER_DIR) || readdirSync2(LEDGER_DIR).filter((f) => f.endsWith(".jsonl") && !f.endsWith(".features.jsonl")).length === 0) {
+  if (!existsSync5(LEDGER_DIR) || readdirSync2(LEDGER_DIR).filter((f) => f.endsWith(".jsonl") && !f.endsWith(".features.jsonl")).length === 0) {
     checks.push({ name: "ledger", ok: true, detail: "no ledger yet \u2014 run `flux start` and use Claude Code, then verify again" });
     checks.push({ name: "determinism", ok: true, detail: "nothing to recompute yet" });
   } else {
@@ -3146,7 +3273,7 @@ async function runVerify(_argv) {
     let total = 0;
     for (const spool of spools) {
       const records = [];
-      for (const line of readFileSync4(join4(LEDGER_DIR, spool), "utf8").trim().split(/\r?\n/)) {
+      for (const line of readFileSync5(join5(LEDGER_DIR, spool), "utf8").trim().split(/\r?\n/)) {
         if (line.trim() === "") continue;
         try {
           records.push(JSON.parse(line));
@@ -3197,7 +3324,119 @@ var init_verify = __esm({
     init_savings_ledger();
     init_reduce_request();
     init_start();
-    LEDGER_DIR = join4(homedir3(), ".flux", "ledger");
+    LEDGER_DIR = join5(homedir4(), ".flux", "ledger");
+  }
+});
+
+// packages/cli/src/diag.ts
+var diag_exports = {};
+__export(diag_exports, {
+  runDoctor: () => runDoctor,
+  runVersion: () => runVersion
+});
+import { execFileSync as execFileSync2 } from "node:child_process";
+import { existsSync as existsSync6, readFileSync as readFileSync6 } from "node:fs";
+import { connect as connect2 } from "node:net";
+import { platform as platform2 } from "node:os";
+import { join as join6 } from "node:path";
+function portUp2(port, timeoutMs = 700) {
+  return new Promise((res) => {
+    const sock = connect2({ host: "127.0.0.1", port });
+    const done = (ok) => {
+      sock.destroy();
+      res(ok);
+    };
+    sock.setTimeout(timeoutMs);
+    sock.once("connect", () => done(true));
+    sock.once("timeout", () => done(false));
+    sock.once("error", () => done(false));
+  });
+}
+function serviceLoaded() {
+  if (platform2() !== "darwin") return false;
+  try {
+    execFileSync2("launchctl", ["list", LAUNCHD_LABEL], { stdio: "pipe" });
+    return true;
+  } catch {
+    return false;
+  }
+}
+function runVersion(argv) {
+  const info = { version: VERSION, build: BUILD_COMMIT, node: process.versions.node, platform: `${platform2()}-${process.arch}` };
+  if (argv.includes("--json")) {
+    console.log(JSON.stringify(info));
+    return;
+  }
+  console.log(`flux ${info.version} (build ${info.build}) \xB7 node ${info.node} \xB7 ${info.platform}`);
+}
+async function runDoctor(argv) {
+  const checks = [];
+  const port = DEFAULT_PORT;
+  const nodeOk = nodeMajor() >= 22;
+  checks.push({
+    ok: nodeMajor() >= 20,
+    warn: !nodeOk && nodeMajor() >= 20,
+    name: "node",
+    detail: `v${process.versions.node}${nodeOk ? "" : " (Node 22 LTS recommended)"}`,
+    fix: nodeOk ? void 0 : "Upgrade to Node 22 LTS: https://nodejs.org"
+  });
+  const runtimeVersion = existsSync6(join6(FLUX_HOME, "runtime", "version")) ? readFileSync6(join6(FLUX_HOME, "runtime", "version"), "utf8").trim() : null;
+  checks.push({
+    ok: true,
+    name: "runtime",
+    detail: runtimeVersion ? `cached ${runtimeVersion}` : "running in place (no fetched runtime cached yet)"
+  });
+  const up = await portUp2(port);
+  checks.push({ ok: true, warn: !up, name: "proxy", detail: up ? `up on 127.0.0.1:${port}` : `not running on :${port}`, fix: up ? void 0 : "Start it with: flux start" });
+  let settingsDetail = "no ~/.claude/settings.json (Claude Code not configured for FLUX)";
+  let settingsOk = true;
+  if (existsSync6(CLAUDE_SETTINGS)) {
+    try {
+      const s2 = JSON.parse(readFileSync6(CLAUDE_SETTINGS, "utf8"));
+      const base = s2.env?.ANTHROPIC_BASE_URL;
+      settingsDetail = base ? `ANTHROPIC_BASE_URL \u2192 ${base}` : "valid, but ANTHROPIC_BASE_URL not set";
+    } catch {
+      settingsOk = false;
+      settingsDetail = "~/.claude/settings.json is not valid JSON";
+    }
+  }
+  checks.push({ ok: settingsOk, name: "claude", detail: settingsDetail, fix: settingsOk ? void 0 : "Fix or remove ~/.claude/settings.json; FLUX won't overwrite invalid JSON." });
+  if (platform2() === "darwin") {
+    const loaded = serviceLoaded();
+    checks.push({ ok: true, name: "service", detail: loaded ? "launchd service installed (always-on)" : "not installed (foreground only)" });
+  }
+  const s = summariseLedger(join6(FLUX_HOME, "ledger"));
+  checks.push({
+    ok: s.chainOk,
+    name: "ledger",
+    detail: s.events === 0 ? "no ledger yet" : `${s.events} records${s.chainOk ? ", chain verified" : `, CHAIN BROKEN at ${s.brokenAt}`}`,
+    fix: s.chainOk ? void 0 : "Run `flux verify` and report this \u2014 the ledger should never break."
+  });
+  if (argv.includes("--json")) {
+    console.log(JSON.stringify({ checks }));
+    return;
+  }
+  console.log("");
+  console.log(`  flux doctor \u2014 build ${BUILD_COMMIT}`);
+  console.log("");
+  let hardFail = false;
+  for (const c of checks) {
+    hardFail = hardFail || !c.ok;
+    const mark = !c.ok ? "\u2717" : c.warn ? "\u26A0" : "\u2713";
+    console.log(`  ${mark} ${c.name.padEnd(9)} ${c.detail}`);
+    if (c.fix) console.log(`              \u21B3 ${c.fix}`);
+  }
+  console.log("");
+  console.log(hardFail ? "  Some checks failed \u2014 see above." : "  Looks healthy.");
+  if (hardFail) process.exitCode = 1;
+}
+var VERSION, LAUNCHD_LABEL, nodeMajor;
+var init_diag = __esm({
+  "packages/cli/src/diag.ts"() {
+    init_start();
+    VERSION = true ? "0.1.0" : process.env.FLUX_VERSION ?? "0.0.0";
+    LAUNCHD_LABEL = "dev.fluxtoken.flux";
+    nodeMajor = () => Number.parseInt(process.versions.node.split(".")[0] ?? "0", 10);
   }
 });
 
@@ -3210,10 +3449,15 @@ Usage: flux <command> [options]
              alongside you. One command; reverts cleanly on exit.
   install    Always-on: run FLUX as a background service so every Claude Code
              session is optimised, with nothing to start by hand.
+  stop       Stop the background service (kept, resume with install); restore Claude Code.
   uninstall  Stop and remove the background service; restore Claude Code.
   status     Is the service up, and what has Theo saved so far?
+  update     Update the runtime now (--rollback to revert to the previous one).
   verify     Re-prove FLUX's claims on this machine: the build's provenance,
              your ledger's hash-chain, and a deterministic invoice recompute.
+  doctor     Diagnose this machine: Node, the proxy, Claude Code wiring, the
+             service, and the ledger \u2014 each with a one-line fix.
+  version    Print the installed version and build.
 
 Run "flux <command> --help" for command options.`;
 async function main() {
@@ -3226,10 +3470,18 @@ async function main() {
     await (await Promise.resolve().then(() => (init_daemon(), daemon_exports))).runInstall(process.argv.slice(3));
   } else if (sub === "uninstall") {
     (await Promise.resolve().then(() => (init_daemon(), daemon_exports))).runUninstall(process.argv.slice(3));
+  } else if (sub === "stop") {
+    (await Promise.resolve().then(() => (init_daemon(), daemon_exports))).runStop(process.argv.slice(3));
   } else if (sub === "status") {
     await (await Promise.resolve().then(() => (init_daemon(), daemon_exports))).runStatus(process.argv.slice(3));
+  } else if (sub === "update") {
+    await (await Promise.resolve().then(() => (init_update(), update_exports))).runUpdate(process.argv.slice(3));
   } else if (sub === "verify") {
     await (await Promise.resolve().then(() => (init_verify(), verify_exports))).runVerify(process.argv.slice(3));
+  } else if (sub === "doctor") {
+    await (await Promise.resolve().then(() => (init_diag(), diag_exports))).runDoctor(process.argv.slice(3));
+  } else if (sub === "version" || sub === "--version" || sub === "-v") {
+    (await Promise.resolve().then(() => (init_diag(), diag_exports))).runVersion(process.argv.slice(3));
   } else {
     console.log(TOP_USAGE);
   }

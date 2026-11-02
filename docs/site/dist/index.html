@@ -97,6 +97,22 @@ h2.rise{opacity:1;transform:none;transition:none}
 @media (prefers-reduced-motion:reduce){.btn-download .arrow{animation:none}}
 .hero .cta-note{margin-top:16px;font-size:14px;color:var(--muted)}
 .hero .cta-note b{color:var(--ink);font-weight:700}
+/* ---------- install section: centered, OS-switchable command ---------- */
+.install-sect{padding:var(--s7) var(--s4);text-align:center}
+.os-tabs{display:inline-flex;gap:4px;background:var(--stone);border-radius:10px;padding:4px;margin:0 auto var(--s4)}
+.os-tab{font:14px/1 Manrope,-apple-system,sans-serif;font-weight:600;border:none;background:none;color:var(--muted);padding:9px 16px;border-radius:7px;cursor:pointer;transition:background .15s ease,color .15s ease}
+.os-tab[aria-selected="true"]{background:#fff;color:var(--ink);font-weight:700}
+.os-tab:disabled{opacity:.55;cursor:default}
+.install-cmd{display:flex;align-items:center;gap:14px;max-width:41rem;margin:0 auto;background:var(--ink);color:#F5F7FA;border-radius:10px;padding:16px 16px 16px 20px;font:14.5px/1.4 ui-monospace,Menlo,Consolas,monospace;text-align:left}
+.install-cmd[hidden]{display:none}
+.install-cmd .prompt{color:#7D8BA1;flex:none;user-select:none}
+.install-cmd code{flex:1;min-width:0;overflow-x:auto;white-space:nowrap}
+.install-cmd .copy{flex:none;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.22);color:#F5F7FA;font:12px/1 ui-monospace,monospace;border-radius:5px;padding:7px 12px;cursor:pointer;transition:background .15s ease}
+.install-cmd .copy:hover{background:rgba(255,255,255,.22)}
+.install-note{margin-top:var(--s3);font-size:14px;color:var(--muted)}
+.install-note code{font:13px/1 ui-monospace,Menlo,monospace;background:var(--stone);color:var(--ink);padding:2px 7px;border-radius:5px}
+.install-note b{color:var(--ink);font-weight:700}
+.install-note a{color:var(--ocean)}
 @media (max-width:860px){
   .hero{flex-direction:column;align-items:flex-start;gap:var(--s4)}
   .hero-proof{text-align:left;max-width:100%;align-self:stretch}
@@ -204,6 +220,11 @@ section{padding:var(--s7) var(--s4);position:relative;z-index:1}
 section h2{font-size:30px;font-weight:800;letter-spacing:-.01em;margin:0 0 var(--s6);position:relative;padding-bottom:18px}
 section h2::after{content:"";position:absolute;left:50%;transform:translateX(-50%);bottom:0;width:140px;height:12px;background:url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 140 12"><path d="M0 6 q6 -5 12 0 t12 0 q3 -9 6 0 t12 0 t12 0 q3 9 6 0 t12 0 t12 0 q6 -5 12 0 t12 0 t12 0" fill="none" stroke="%232864A5" stroke-width="1.6" opacity=".75"/></svg>') center/contain no-repeat}
 .field-ocean h2::after{opacity:.9}
+/* A section header that fills the frame: the heading on the left, a quiet signpost closing the right margin. */
+.sec-head{display:flex;align-items:baseline;justify-content:space-between;gap:var(--s4);flex-wrap:wrap}
+.sec-head h2{margin-bottom:var(--s6)}
+.sec-tag{font-size:14px;color:var(--muted);letter-spacing:.01em;white-space:nowrap;flex:0 0 auto}
+@media (max-width:600px){.sec-tag{display:none}}
 
 .axis-col{max-width:720px;margin:0 auto}
 .axis-col{margin-left:auto;margin-right:auto}
@@ -311,8 +332,8 @@ section h2::after{content:"";position:absolute;left:50%;transform:translateX(-50
     <h1 class="rise">A smaller AI bill<span class="dot">.</span></h1>
     <p class="sub rise">Same answers &mdash; FLUX sits in front of your LLM traffic and strips out wasted tokens without changing a single reply. You pay 1% of the savings, verified on the provider&rsquo;s own usage, never our estimate.</p>
     <div class="actions rise">
-      <a class="btn-download" href="flux" download="flux"><svg class="arrow" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 3v11m0 0l-4.5-4.5M12 14l4.5-4.5M5 20h14" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>Download Flux</a>
-      <a class="arrowlink" href="start.html">Setup guide</a>
+      <a class="btn-download" href="#install"><svg class="arrow" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 3v11m0 0l-4.5-4.5M12 14l4.5-4.5M5 20h14" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>Install FLUX</a>
+      <a class="arrowlink" href="evidence.html">See the evidence</a>
     </div>
     <p class="cta-note rise">One command &middot; keep your own key &middot; <b>verify every number yourself</b></p>
   </div>
@@ -321,6 +342,18 @@ section h2::after{content:"";position:absolute;left:50%;transform:translateX(-50
   </aside>
 </header>
 </div>
+
+<section id="install" aria-label="Install FLUX" class="install-sect">
+  <h2 class="rise">Install in one command.</h2>
+  <div class="os-tabs rise" role="tablist" aria-label="Choose your platform">
+    <button class="os-tab" type="button" role="tab" data-os="unix" aria-selected="true">macOS &amp; Linux</button>
+    <button class="os-tab" type="button" role="tab" data-os="npm" aria-selected="false">npm</button>
+    <button class="os-tab" type="button" role="tab" disabled title="Windows support is coming">Windows &middot; soon</button>
+  </div>
+  <div class="install-cmd rise" data-os-panel="unix"><span class="prompt">$</span><code>curl -fsSL https://www.fluxtoken.dev/install.sh | sh</code><button class="copy" type="button" data-copy="curl -fsSL https://www.fluxtoken.dev/install.sh | sh">copy</button></div>
+  <div class="install-cmd rise" data-os-panel="npm" hidden><span class="prompt">$</span><code>npx @flux-ai/flux start</code><button class="copy" type="button" data-copy="npx @flux-ai/flux start">copy</button></div>
+  <p class="install-note rise">Then <code>flux start</code> &middot; needs Node 22+ &middot; <b>your key never leaves Claude Code</b> &middot; <a href="start.html">full setup guide</a></p>
+</section>
 
 <section aria-label="Measured bands" class="bands">
   <h2 class="rise">Measured savings.</h2>
@@ -333,7 +366,7 @@ section h2::after{content:"";position:absolute;left:50%;transform:translateX(-50
 </section>
 
 <section aria-label="Works with every provider" class="works">
-  <h2 class="rise">Works with what you already use.</h2>
+  <div class="sec-head"><h2>Works with what you already use.</h2><span class="sec-tag">keep your own key</span></div>
   <div class="works-row rise">
     <span class="wlogo"><svg aria-hidden="true" fill="#ffffff" role="img" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Anthropic</title><path d="M17.3041 3.541h-3.6718l6.696 16.918H24Zm-10.6082 0L0 20.459h3.7442l1.3693-3.5527h7.0052l1.3693 3.5528h3.7442L10.5363 3.5409Zm-.3712 10.2232 2.2914-5.9456 2.2914 5.9456Z"/></svg><span>Claude</span></span>
     <span class="wlogo wordmark"><span>OpenAI</span></span>
@@ -348,7 +381,7 @@ section h2::after{content:"";position:absolute;left:50%;transform:translateX(-50
 
 <section aria-label="The reduction, performed" class="demo-sect">
   <div class="axis-col-wide">
-  <h2 class="rise">Watch a request lose its waste.</h2>
+  <div class="sec-head"><h2>Watch a request lose its waste.</h2><span class="sec-tag">counts built from the sample</span></div>
   <div data-ui id="reducer" class="rise">
     <div class="bar"><span>reducer &mdash; a busy agent&rsquo;s turn 5</span>
       <span class="pill"><span id="tok-count">1102</span> tokens &middot; $<span id="cost-count">0.00220</span></span></div>
@@ -374,7 +407,7 @@ section h2::after{content:"";position:absolute;left:50%;transform:translateX(-50
 
 <section aria-label="How it works">
   <div class="axis-col">
-  <h2 class="rise">One URL. Three exchanges.</h2>
+  <div class="sec-head"><h2>One URL. Three exchanges.</h2><span class="sec-tag">your code stays the same</span></div>
 
   <div class="exchange rise">
     <p class="lead">First, point your client at it.</p>
@@ -670,6 +703,23 @@ Anthropic SDK: new Anthropic({ baseURL: "http://127.0.0.1:8787" })</pre>
       b.textContent = "copied"; setTimeout(function () { b.textContent = "copy"; }, 1200);
     });
   });
+
+  // Install section: switch the command shown by platform tab. Degrades to the
+  // default (curl) command with JS off, since the npm panel starts [hidden].
+  var osTabs = document.querySelectorAll(".os-tab[data-os]");
+  if (osTabs.length) {
+    var showOs = function (os) {
+      document.querySelectorAll(".os-tab[data-os]").forEach(function (t) {
+        t.setAttribute("aria-selected", String(t.getAttribute("data-os") === os));
+      });
+      document.querySelectorAll("[data-os-panel]").forEach(function (p) {
+        p.hidden = p.getAttribute("data-os-panel") !== os;
+      });
+    };
+    osTabs.forEach(function (t) {
+      t.addEventListener("click", function () { showOs(t.getAttribute("data-os")); });
+    });
+  }
 })();</script>
 <script>
 (function(){
