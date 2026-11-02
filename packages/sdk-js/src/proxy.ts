@@ -1,6 +1,6 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import { createHash, randomUUID } from "node:crypto";
-import { appendFileSync } from "node:fs";
+import { appendFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 // Import the specific core modules, not the package barrel: the barrel
 // re-exports the whole library (router, triage, observability adapters,
@@ -282,7 +282,9 @@ export function startFluxProxy(options: FluxProxyOptions): Promise<FluxProxy> {
   const blindFeaturesKey = options.blindFeaturesKey;
   const writeBlindFeatures = (applicationId: string, provider: "anthropic" | "openai", record: unknown): void => {
     const safeApp = applicationId.replace(/[^A-Za-z0-9._-]/g, "_").slice(0, 64) || "proxy";
-    appendFileSync(join(options.ledgerDirectory, `${safeApp}-${provider}.features.jsonl`), `${JSON.stringify(record)}\n`);
+    // Private to the user: metadata + keyed hashes only, but not world-readable.
+    mkdirSync(options.ledgerDirectory, { recursive: true, mode: 0o700 });
+    appendFileSync(join(options.ledgerDirectory, `${safeApp}-${provider}.features.jsonl`), `${JSON.stringify(record)}\n`, { mode: 0o600 });
   };
 
   const handle = async (req: IncomingMessage, res: ServerResponse): Promise<void> => {
@@ -293,6 +295,20 @@ export function startFluxProxy(options: FluxProxyOptions): Promise<FluxProxy> {
     if (!hostAllowed(req)) {
       res.writeHead(403, { "content-type": "application/json" });
       res.end(JSON.stringify({ error: "FLUX proxy serves loopback clients only." }));
+      return;
+    }
+
+    // CSRF-to-localhost defense. A web page in the user's browser can reach this
+    // loopback port, but when it drives a cross-origin request the browser
+    // attaches Sec-Fetch-Site: cross-site / same-site (and the page cannot forge
+    // it). A real local CLI client (Claude Code, an SDK) sends no Sec-Fetch
+    // headers at all. Reject the browser cross-origin case; it can only ever be
+    // forced noise/DoS (the proxy injects no credentials, so no key/quota is at
+    // stake), but it has no legitimate use.
+    const fetchSite = req.headers["sec-fetch-site"];
+    if (fetchSite === "cross-site" || fetchSite === "same-site") {
+      res.writeHead(403, { "content-type": "application/json" });
+      res.end(JSON.stringify({ error: "FLUX proxy does not serve cross-origin browser requests." }));
       return;
     }
 
@@ -565,6 +581,9 @@ export function startFluxProxy(options: FluxProxyOptions): Promise<FluxProxy> {
       }
     });
   });
+  // Bound concurrency: each in-flight request may buffer up to the 64MB body
+  // cap, so cap simultaneous connections to keep worst-case memory bounded.
+  server.maxConnections = 256;
 
   return new Promise((resolve, reject) => {
     server.once("error", reject);

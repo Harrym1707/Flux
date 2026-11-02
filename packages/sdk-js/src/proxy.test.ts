@@ -287,6 +287,19 @@ describe("FLUX proxy hardening (pre-launch security review)", () => {
     expect(status).toBe(403);
   });
 
+  it("rejects cross-origin browser requests (CSRF-to-localhost)", async () => {
+    // A browser driving a cross-origin request attaches Sec-Fetch-Site; a CLI
+    // client sends none. Both same-site and cross-site must be refused.
+    for (const site of ["cross-site", "same-site"]) {
+      const response = await fetch(`${proxy.url}/v1/messages`, {
+        method: "POST",
+        headers: { "content-type": "application/json", "sec-fetch-site": site },
+        body: JSON.stringify({ model: "claude-sonnet-5-5", max_tokens: 16, messages: [{ role: "user", content: "hi" }] }),
+      });
+      expect(response.status).toBe(403);
+    }
+  });
+
   it("shares one ledger (one chain) between raw app ids that sanitize alike", async () => {
     for (const raw of ["app one", "app_one"]) {
       await fetch(`${proxy.url}/v1/messages`, {

@@ -303,8 +303,8 @@ export function createSavingsLedger(config: FluxSavingsLedgerConfig): SavingsLed
       try {
         const billable = billableEventFromRequest(event, config, catalogue, pinnedCatalogueVersion);
         const record = chainLedgerRecord(billable, previous);
-        mkdirSync(dirname(config.path), { recursive: true });
-        appendFileSync(config.path, `${JSON.stringify(record)}\n`, "utf8");
+        mkdirSync(dirname(config.path), { recursive: true, mode: 0o700 });
+        appendFileSync(config.path, `${JSON.stringify(record)}\n`, { encoding: "utf8", mode: 0o600 });
         previous = record;
       } catch {
         // The meter must never throw into the request path; a failed append
