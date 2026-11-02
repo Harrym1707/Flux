@@ -2,12 +2,11 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import { createHash, randomUUID } from "node:crypto";
 import { appendFileSync } from "node:fs";
 import { join } from "node:path";
-import {
-  collectRequestText,
-  measureOutputReEmission,
-  normalizeProviderUsage,
-  responseServiceTier,
-} from "../../core/dist/src/index.js";
+// Import the specific core modules, not the package barrel: the barrel
+// re-exports the whole library (router, triage, observability adapters,
+// billing), which would all bundle into anything that depends on the proxy.
+import { collectRequestText, measureOutputReEmission } from "../../core/dist/src/output-diagnostics.js";
+import { normalizeProviderUsage, responseServiceTier } from "../../core/dist/src/provider-usage.js";
 import { responseText } from "./replay-gate.js";
 import { CachePrefixVolatilityGuard } from "./cache-volatility-guard.js";
 import { reduceRequest, type FluxTokenReductionConfig } from "./reduce-request.js";

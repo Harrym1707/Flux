@@ -1,4 +1,5 @@
-import type { LedgerGateVerdict, PriceCatalogue } from "../../core/dist/src/index.js";
+import type { LedgerGateVerdict } from "../../core/dist/src/savings-ledger.js";
+import type { PriceCatalogue } from "../../core/dist/src/price-catalogue.js";
 import type { FluxReductionSummary, FluxTokenReductionConfig } from "./reduce-request.js";
 export type FluxTelemetryConfig = {
   /**

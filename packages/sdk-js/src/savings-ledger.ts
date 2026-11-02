@@ -1,17 +1,16 @@
 import { appendFileSync, existsSync, mkdirSync, readFileSync } from "node:fs";
 import { dirname } from "node:path";
+import { catalogueVersion, type PriceCatalogue } from "../../core/dist/src/price-catalogue.js";
+import { publishedModelPrices } from "../../core/dist/src/model-prices.js";
 import {
-  catalogueVersion,
   chainLedgerRecord,
   priceLedgerUsage,
-  publishedModelPrices,
   type BillableEvent,
   type LedgerExecutionMode,
   type LedgerLever,
   type LedgerRecord,
   type LedgerUsage,
-  type PriceCatalogue,
-} from "../../core/dist/src/index.js";
+} from "../../core/dist/src/savings-ledger.js";
 import type { FluxRequestEvent, FluxSavingsLedgerConfig } from "./types.js";
 
 /**

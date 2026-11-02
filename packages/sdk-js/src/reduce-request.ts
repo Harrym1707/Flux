@@ -1,13 +1,8 @@
-import {
-  anthropicCacheableMinimumTokens,
-  approximateTokenCount,
-  dedupeRepeatedBlocks,
-  dedupeRepeatedLeadingBlock,
-  minifyToolSchemas,
-  publishedModelPrices,
-  resolveModelId,
-  type TokenCounter,
-} from "../../core/dist/src/index.js";
+// Specific core modules, not the barrel — see the note in proxy.ts.
+import { anthropicCacheableMinimumTokens, publishedModelPrices } from "../../core/dist/src/model-prices.js";
+import { approximateTokenCount, dedupeRepeatedBlocks, dedupeRepeatedLeadingBlock, type TokenCounter } from "../../core/dist/src/token-reduction.js";
+import { minifyToolSchemas } from "../../core/dist/src/tool-schema.js";
+import { resolveModelId } from "../../core/dist/src/price-catalogue.js";
 
 /**
  * Reduce a request before it is sent.
