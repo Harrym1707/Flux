@@ -17,8 +17,10 @@ Usage: flux <command> [options]
              alongside you. One command; reverts cleanly on exit.
   install    Always-on: run FLUX as a background service so every Claude Code
              session is optimised, with nothing to start by hand.
+  stop       Stop the background service (kept, resume with install); restore Claude Code.
   uninstall  Stop and remove the background service; restore Claude Code.
   status     Is the service up, and what has Theo saved so far?
+  update     Update the runtime now (--rollback to revert to the previous one).
   verify     Re-prove FLUX's claims on this machine: the build's provenance,
              your ledger's hash-chain, and a deterministic invoice recompute.
   doctor     Diagnose this machine: Node, the proxy, Claude Code wiring, the
@@ -37,8 +39,12 @@ async function main(): Promise<void> {
     await (await import("./daemon.js")).runInstall(process.argv.slice(3));
   } else if (sub === "uninstall") {
     (await import("./daemon.js")).runUninstall(process.argv.slice(3));
+  } else if (sub === "stop") {
+    (await import("./daemon.js")).runStop(process.argv.slice(3));
   } else if (sub === "status") {
     await (await import("./daemon.js")).runStatus(process.argv.slice(3));
+  } else if (sub === "update") {
+    await (await import("./update.js")).runUpdate(process.argv.slice(3));
   } else if (sub === "verify") {
     await (await import("./verify.js")).runVerify(process.argv.slice(3));
   } else if (sub === "doctor") {

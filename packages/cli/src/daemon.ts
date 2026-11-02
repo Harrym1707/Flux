@@ -159,6 +159,26 @@ export function runUninstall(_argv: string[]): void {
   console.log("");
 }
 
+/** Stop the background service without removing it. Claude Code reverts to
+ *  normal; the service definition stays so `flux install` resumes it. */
+export function runStop(_argv: string[]): void {
+  requireMac("stop");
+  if (!isLoaded()) {
+    console.log("");
+    console.log(`  No FLUX background service is running.`);
+    console.log(`  (A foreground \`flux start\` is stopped with Ctrl+C.)`);
+    console.log("");
+    return;
+  }
+  launchctl("unload", "-w", PLIST);
+  clearClaudeBaseUrl();
+  console.log("");
+  console.log(`  ⬢ theo — FLUX service stopped. Claude Code is back to normal.`);
+  console.log(`  The service is kept — resume always-on any time with: flux install`);
+  console.log(`  Your ledger is untouched.`);
+  console.log("");
+}
+
 export async function runStatus(_argv: string[]): Promise<void> {
   const loaded = platform() === "darwin" ? isLoaded() : false;
   const port = DEFAULT_PORT;
