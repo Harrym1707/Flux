@@ -388,12 +388,16 @@ if (failures.length > 0) {
 // Host the downloadable CLI at /flux when it has been built, so the install
 // one-liner `curl -fsSL https://www.fluxtoken.dev/flux` resolves. Optional:
 // a site build without the CLI artifact just omits it (and says so).
-const cliArtifact = path.join(root, "packages/cli/pkg/flux");
-if (existsSync(cliArtifact)) {
-  copyFileSync(cliArtifact, path.join(outDir, "flux"));
-  console.log(`bundled CLI hosted at /flux (${(statSync(cliArtifact).size / 1024).toFixed(0)}KB)`);
+// Host the CLI: /flux is the tiny bootstrap users download; it fetches and
+// verifies /flux-runtime against /flux-version.json and caches it. Build the
+// artifacts first with `npm run build:cli`.
+const cliPkg = path.join(root, "packages/cli/pkg");
+const cliFiles = ["flux", "flux-runtime", "flux-version.json"];
+if (existsSync(path.join(cliPkg, "flux"))) {
+  for (const file of cliFiles) copyFileSync(path.join(cliPkg, file), path.join(outDir, file));
+  console.log(`CLI hosted: /flux (${(statSync(path.join(cliPkg, "flux")).size / 1024).toFixed(0)}KB bootstrap), /flux-runtime, /flux-version.json`);
 } else {
-  console.log(`note: packages/cli/pkg/flux not built — /flux download will 404. Run: npm run build:cli`);
+  console.log(`note: packages/cli/pkg not built — /flux download will 404. Run: npm run build:cli`);
 }
 
 console.log(`site built: ${built.length} pages + llms.txt + robots.txt + sitemap.xml -> ${path.relative(root, outDir)}`);

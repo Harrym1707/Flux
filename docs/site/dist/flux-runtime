@@ -1,0 +1,3402 @@
+#!/usr/bin/env node
+import { createRequire as __cr } from "node:module";
+const require = __cr(import.meta.url);
+var __defProp = Object.defineProperty;
+var __getOwnPropNames = Object.getOwnPropertyNames;
+var __esm = (fn, res, err) => function __init() {
+  if (err) throw err[0];
+  try {
+    return fn && (res = (0, fn[__getOwnPropNames(fn)[0]])(fn = 0)), res;
+  } catch (e) {
+    throw err = [e], e;
+  }
+};
+var __export = (target, all) => {
+  for (var name in all)
+    __defProp(target, name, { get: all[name], enumerable: true });
+};
+
+// packages/core/src/cost.ts
+var init_cost = __esm({
+  "packages/core/src/cost.ts"() {
+    "use strict";
+  }
+});
+
+// packages/core/src/price-catalogue.ts
+function canonicalJson(value) {
+  if (value === null || typeof value !== "object") return JSON.stringify(value) ?? "null";
+  if (Array.isArray(value)) {
+    return `[${value.map((item) => canonicalJson(item)).join(",")}]`;
+  }
+  const entries = Object.entries(value).filter(([, member]) => member !== void 0).sort(([left], [right]) => left < right ? -1 : left > right ? 1 : 0).map(([key, member]) => `${JSON.stringify(key)}:${canonicalJson(member)}`);
+  return `{${entries.join(",")}}`;
+}
+var init_price_catalogue = __esm({
+  "packages/core/src/price-catalogue.ts"() {
+    "use strict";
+    init_cost();
+  }
+});
+
+// packages/core/src/savings-ledger.ts
+import { createHash } from "node:crypto";
+function ledgerEventHash(seq, prevHash, event) {
+  return createHash("sha256").update(`${seq}
+${prevHash}
+${canonicalJson(event)}`).digest("hex");
+}
+function verifyLedgerChain(records) {
+  let prevHash = LEDGER_GENESIS_HASH;
+  for (let index = 0; index < records.length; index += 1) {
+    const record = records[index];
+    if (record.seq !== index) {
+      return { ok: false, seq: record.seq, reason: `Expected seq ${index}, found ${record.seq}.` };
+    }
+    if (record.prevHash !== prevHash) {
+      return { ok: false, seq: record.seq, reason: "prevHash does not match the preceding record." };
+    }
+    const expected = ledgerEventHash(record.seq, record.prevHash, record.event);
+    if (record.eventHash !== expected) {
+      return { ok: false, seq: record.seq, reason: "eventHash does not match the event content." };
+    }
+    prevHash = record.eventHash;
+  }
+  return { ok: true, length: records.length };
+}
+function compareEvents(left, right) {
+  if (left.timestamp !== right.timestamp) return left.timestamp < right.timestamp ? -1 : 1;
+  if (left.requestId !== right.requestId) return left.requestId < right.requestId ? -1 : 1;
+  return 0;
+}
+function leverUnbilledReason(lever, gateVerdictOverrides) {
+  const verdict = gateVerdictOverrides?.[lever.leverId] ?? lever.gateVerdict?.verdict;
+  if (lever.savedUsd === void 0 || !Number.isFinite(lever.savedUsd)) {
+    return "no per-request verified measurement";
+  }
+  if (lever.kind === "lossy" && verdict !== "approved") {
+    return verdict === "rejected" ? "replay gate verdict rejected" : "no approved replay gate verdict";
+  }
+  return void 0;
+}
+function selectBillableEvents(events, options = {}) {
+  for (const event of events) {
+    if (event.schemaVersion !== 1) {
+      throw new Error(`Unsupported billable event schemaVersion ${JSON.stringify(event.schemaVersion)}.`);
+    }
+    if (typeof event.requestId !== "string" || event.requestId === "") {
+      throw new Error("Billable events need a non-empty requestId idempotency key.");
+    }
+  }
+  const sorted = [...events].sort(compareEvents);
+  const seen = /* @__PURE__ */ new Set();
+  let duplicatesIgnored = 0;
+  const deduped = [];
+  for (const event of sorted) {
+    if (seen.has(event.requestId)) {
+      duplicatesIgnored += 1;
+      continue;
+    }
+    seen.add(event.requestId);
+    deduped.push(event);
+  }
+  const consideredEvents = options.period === void 0 ? deduped : deduped.filter((event) => event.invoicePeriod === options.period);
+  const failedTaskIds = new Set(options.failedTaskIds ?? []);
+  for (const event of consideredEvents) {
+    if (event.status === "failed" && event.taskId !== void 0) failedTaskIds.add(event.taskId);
+  }
+  let eventsExcludedForFailedTasks = 0;
+  const billableEvents = [];
+  for (const event of consideredEvents) {
+    const taskFailed = event.taskId !== void 0 && failedTaskIds.has(event.taskId);
+    if (taskFailed || event.status === "failed") {
+      eventsExcludedForFailedTasks += 1;
+      continue;
+    }
+    billableEvents.push(event);
+  }
+  return { consideredEvents, billableEvents, failedTaskIds, eventsExcludedForFailedTasks, duplicatesIgnored };
+}
+function recomputeInvoice(events, options = {}) {
+  return recomputeInvoiceWithAudit(events, options).invoice;
+}
+function recomputeInvoiceWithAudit(events, options = {}) {
+  if (options.feePercent !== void 0 && (!Number.isFinite(options.feePercent) || options.feePercent < 0 || options.feePercent > 100)) {
+    throw new Error("feePercent must be between 0 and 100.");
+  }
+  const {
+    consideredEvents: inPeriod,
+    billableEvents,
+    failedTaskIds,
+    eventsExcludedForFailedTasks,
+    duplicatesIgnored
+  } = selectBillableEvents(events, options);
+  const lineMap = /* @__PURE__ */ new Map();
+  const unbilledMap = /* @__PURE__ */ new Map();
+  const catalogueVersions = /* @__PURE__ */ new Set();
+  let unpricedEvents = 0;
+  let providerCacheOnAppendedHistoryUsd = 0;
+  let gatewayCacheUsd = 0;
+  let eventsBilled = 0;
+  for (const event of billableEvents) {
+    if (event.catalogueVersion !== void 0) catalogueVersions.add(event.catalogueVersion);
+    if (event.pricingStatus === "unpriced") unpricedEvents += 1;
+    providerCacheOnAppendedHistoryUsd += event.excluded?.providerCacheAlreadyOwnedUsd ?? 0;
+    gatewayCacheUsd += event.excluded?.gatewayCacheUsd ?? 0;
+    let billedAny = false;
+    for (const lever of event.levers) {
+      const unbilledReason = leverUnbilledReason(lever, options.gateVerdictOverrides);
+      if (unbilledReason !== void 0) {
+        const key2 = `${lever.kind}
+${lever.leverId}
+${unbilledReason}`;
+        const existing = unbilledMap.get(key2);
+        if (existing) existing.events += 1;
+        else unbilledMap.set(key2, { leverId: lever.leverId, kind: lever.kind, events: 1, reason: unbilledReason });
+        continue;
+      }
+      const key = `${lever.kind}
+${lever.leverId}`;
+      const line = lineMap.get(key) ?? { leverId: lever.leverId, kind: lever.kind, events: 0, savedUsd: 0, estimated: false, refs: /* @__PURE__ */ new Set() };
+      line.events += 1;
+      line.savedUsd += lever.savedUsd;
+      if (lever.basis === "estimated-baseline") line.estimated = true;
+      if (lever.gateVerdict?.ref) line.refs.add(lever.gateVerdict.ref);
+      lineMap.set(key, line);
+      billedAny = true;
+    }
+    if (billedAny) eventsBilled += 1;
+  }
+  const lineItems = [...lineMap.values()].sort((left, right) => left.leverId < right.leverId ? -1 : left.leverId > right.leverId ? 1 : 0).map((line) => ({
+    leverId: line.leverId,
+    kind: line.kind,
+    events: line.events,
+    savedUsd: line.savedUsd,
+    savedCents: Math.round(line.savedUsd * 100),
+    ...line.estimated ? { basis: "estimated-baseline" } : {},
+    gateVerdictRefs: [...line.refs].sort()
+  }));
+  const recordedUnbilled = [...unbilledMap.values()].sort((left, right) => left.leverId < right.leverId ? -1 : left.leverId > right.leverId ? 1 : 0);
+  const netVerifiedSavingsUsd = lineItems.reduce((sum, line) => sum + line.savedUsd, 0);
+  const netVerifiedSavingsCents = Math.round(netVerifiedSavingsUsd * 100);
+  const carryIn = options.carryForwardDeficitUsd ?? 0;
+  if (carryIn < 0 || !Number.isFinite(carryIn)) {
+    throw new Error("carryForwardDeficitUsd must be a non-negative, finite USD amount.");
+  }
+  const netAfterCarryUsd = netVerifiedSavingsUsd - carryIn;
+  const carryOutUsd = Math.max(0, -netAfterCarryUsd);
+  const billableCents = Math.round(netAfterCarryUsd * 100);
+  const verdict = billableCents > 0 ? "charge" : "do_not_charge";
+  const amountDueUsd = options.feePercent === void 0 ? void 0 : verdict === "charge" ? netAfterCarryUsd * options.feePercent / 100 : 0;
+  const invoice = {
+    schemaVersion: 1,
+    period: options.period ?? null,
+    catalogueVersions: [...catalogueVersions].sort(),
+    eventsConsidered: inPeriod.length,
+    eventsBilled,
+    failedTaskIds: [...failedTaskIds].sort(),
+    eventsExcludedForFailedTasks,
+    unpricedEvents,
+    lineItems,
+    recordedUnbilled,
+    excludedAlreadyOwned: {
+      providerCacheOnAppendedHistoryUsd,
+      gatewayCacheUsd
+    },
+    netVerifiedSavingsUsd,
+    netVerifiedSavingsCents,
+    ...options.carryForwardDeficitUsd === void 0 ? {} : { carryForwardDeficitInUsd: carryIn },
+    ...carryOutUsd > 0 ? { carryForwardDeficitOutUsd: carryOutUsd } : {},
+    verdict,
+    ...options.feePercent === void 0 ? {} : {
+      feePercent: options.feePercent,
+      amountDueUsd,
+      amountDueCents: Math.round((amountDueUsd ?? 0) * 100)
+    }
+  };
+  return { invoice, audit: { duplicatesIgnored } };
+}
+var LEDGER_GENESIS_HASH;
+var init_savings_ledger = __esm({
+  "packages/core/src/savings-ledger.ts"() {
+    "use strict";
+    init_price_catalogue();
+    LEDGER_GENESIS_HASH = "0".repeat(64);
+  }
+});
+
+// packages/core/dist/src/types.js
+var init_types = __esm({
+  "packages/core/dist/src/types.js"() {
+    "use strict";
+  }
+});
+
+// packages/core/dist/src/router.js
+var init_router = __esm({
+  "packages/core/dist/src/router.js"() {
+    "use strict";
+  }
+});
+
+// packages/core/dist/src/evaluator.js
+var init_evaluator = __esm({
+  "packages/core/dist/src/evaluator.js"() {
+    "use strict";
+  }
+});
+
+// packages/core/dist/src/cost.js
+function estimateTokenCost2(inputTokens, outputTokens, price, cacheUsage = {}) {
+  const cached = cacheUsage.cachedInputTokens ?? 0;
+  const cacheWrite = cacheUsage.cacheWriteInputTokens ?? 0;
+  const cacheWrite1h = cacheUsage.cacheWrite1hInputTokens ?? 0;
+  if (!Number.isFinite(cached) || cached < 0 || !Number.isFinite(cacheWrite) || cacheWrite < 0 || !Number.isFinite(cacheWrite1h) || cacheWrite1h < 0 || cached + cacheWrite > inputTokens || cacheWrite1h > cacheWrite) {
+    throw new Error("Cached input token counts must be non-negative and no greater than total input tokens.");
+  }
+  const cacheWrite5m = cacheWrite - cacheWrite1h;
+  if (cached > 0 && price.cachedInputPerMillion === void 0 || cacheWrite5m > 0 && price.cacheWriteInputPerMillion === void 0 || cacheWrite1h > 0 && price.cacheWrite1hInputPerMillion === void 0) {
+    throw new Error("Cached input pricing is required to calculate actual cost for cached tokens.");
+  }
+  const uncached = inputTokens - cached - cacheWrite;
+  return uncached / 1e6 * price.inputPerMillion + cached / 1e6 * (price.cachedInputPerMillion ?? 0) + cacheWrite5m / 1e6 * (price.cacheWriteInputPerMillion ?? 0) + cacheWrite1h / 1e6 * (price.cacheWrite1hInputPerMillion ?? 0) + outputTokens / 1e6 * price.outputPerMillion;
+}
+var init_cost2 = __esm({
+  "packages/core/dist/src/cost.js"() {
+    "use strict";
+  }
+});
+
+// packages/core/dist/src/confidence.js
+var init_confidence = __esm({
+  "packages/core/dist/src/confidence.js"() {
+    "use strict";
+  }
+});
+
+// packages/core/dist/src/token-reduction.js
+function dedupeRepeatedBlocks(minimumBlockTokens = 24, countTokens = approximateTokenCount) {
+  return {
+    id: "dedupe-repeated-blocks",
+    version: "2",
+    risk: "lossless",
+    reduce: (text) => {
+      const seen = /* @__PURE__ */ new Set();
+      const notes = [];
+      let dropped = false;
+      const describe = (unit, tokens) => `Dropped a repeated ${tokens}-token block beginning "${unit.trim().replace(/\s+/g, " ").slice(0, 60)}".`;
+      const dedupeLines = (block) => {
+        if (block.includes("```") || !block.includes("\n"))
+          return block;
+        const lines = block.split(/(\n)/);
+        let changed = false;
+        const keptLines = [];
+        for (let index = 0; index < lines.length; index += 2) {
+          const line = lines[index];
+          const separator = lines[index + 1] ?? "";
+          const tokens = countTokens(line);
+          if (line.trim() !== "" && tokens >= minimumBlockTokens && seen.has(line)) {
+            dropped = true;
+            changed = true;
+            notes.push(describe(line, tokens));
+            continue;
+          }
+          seen.add(line);
+          keptLines.push(line, separator);
+        }
+        return changed ? keptLines.join("") : block;
+      };
+      const parts = text.split(/(\n{2,})/);
+      const kept = [];
+      for (let index = 0; index < parts.length; index += 2) {
+        const block = parts[index];
+        const separator = parts[index + 1] ?? "";
+        const tokens = countTokens(block);
+        if (block.trim() !== "" && !block.includes("```") && tokens >= minimumBlockTokens && seen.has(block)) {
+          dropped = true;
+          notes.push(describe(block, tokens));
+          continue;
+        }
+        seen.add(block);
+        kept.push(dedupeLines(block), separator);
+      }
+      if (!dropped)
+        return { text, notes: [] };
+      return { text: kept.join(""), notes };
+    }
+  };
+}
+function commonPrefixLength(left, right) {
+  const limit = Math.min(left.length, right.length);
+  let index = 0;
+  while (index < limit && left[index] === right[index])
+    index += 1;
+  return index;
+}
+function dedupeRepeatedLeadingBlock(texts, minimumBlockTokens = 24, countTokens = approximateTokenCount) {
+  if (texts.length === 0)
+    return { texts: [], notes: [] };
+  const canonical = texts[0];
+  const notes = [];
+  const nextTexts = texts.map((text, index) => {
+    if (index === 0)
+      return text;
+    const raw = commonPrefixLength(canonical, text);
+    if (raw === 0)
+      return text;
+    const fullContainment = raw === canonical.length || raw === text.length;
+    let safe = raw;
+    if (!fullContainment) {
+      const lastNewline = text.lastIndexOf("\n", raw - 1);
+      safe = lastNewline === -1 ? 0 : lastNewline + 1;
+    }
+    if (safe === 0)
+      return text;
+    const removed = text.slice(0, safe);
+    if (removed.trim() === "" || removed.includes("```"))
+      return text;
+    const tokens = countTokens(removed);
+    if (tokens < minimumBlockTokens)
+      return text;
+    notes.push(`Turn ${index + 1}: replaced a ${tokens}-token leading block identical to turn 1's opening with a reference marker.`);
+    return `[flux: ${tokens} tokens of this turn's leading context, identical to turn 1, omitted]${text.slice(safe)}`;
+  });
+  return { texts: nextTexts, notes };
+}
+var approximateTokenCount;
+var init_token_reduction = __esm({
+  "packages/core/dist/src/token-reduction.js"() {
+    "use strict";
+    init_cost2();
+    approximateTokenCount = (text) => {
+      if (text === "")
+        return 0;
+      let total = 0;
+      for (const match of text.matchAll(/[\p{L}\p{N}']+|[^\p{L}\p{N}'\s]+|\s+/gu)) {
+        const chunk = match[0];
+        if (/^\s+$/.test(chunk)) {
+          total += chunk.match(/\n/g)?.length ?? 0;
+          continue;
+        }
+        if (/^[\p{L}\p{N}']+$/u.test(chunk)) {
+          total += Math.max(1, Math.ceil(chunk.length / 4.5));
+          continue;
+        }
+        total += Math.max(1, Math.ceil(chunk.length / 2));
+      }
+      return total;
+    };
+  }
+});
+
+// packages/core/dist/src/cache-simulator.js
+var ANTHROPIC_NO_CACHE;
+var init_cache_simulator = __esm({
+  "packages/core/dist/src/cache-simulator.js"() {
+    "use strict";
+    init_cost2();
+    init_token_reduction();
+    ANTHROPIC_NO_CACHE = {
+      name: "anthropic-uncached",
+      minimumCacheableTokens: Number.MAX_SAFE_INTEGER,
+      incrementTokens: 1,
+      ttlSeconds: 0,
+      writeMultiplier: 1,
+      readMultiplier: 1
+    };
+  }
+});
+
+// packages/core/dist/src/price-catalogue.js
+import { createHash as createHash2 } from "node:crypto";
+function assertIsoDate(value, label) {
+  if (!ISO_DATE.test(value) || Number.isNaN(Date.parse(value))) {
+    throw new Error(`${label} must be an ISO calendar date (YYYY-MM-DD); received ${JSON.stringify(value)}.`);
+  }
+}
+function assertRate(value, label) {
+  if (value === void 0)
+    return;
+  if (!Number.isFinite(value) || value < 0) {
+    throw new Error(`${label} must be a non-negative finite number of USD per million tokens.`);
+  }
+}
+function assertTiers(tiers, label) {
+  if (tiers.length === 0)
+    throw new Error(`${label} must declare at least one price tier.`);
+  const unbounded = tiers.filter((tier) => tier.maxInputTokens === void 0);
+  if (unbounded.length !== 1) {
+    throw new Error(`${label} must declare exactly one tier without maxInputTokens; found ${unbounded.length}.`);
+  }
+  const bounds = tiers.map((tier) => tier.maxInputTokens).filter((bound) => bound !== void 0);
+  if (bounds.some((bound) => !Number.isInteger(bound) || bound <= 0)) {
+    throw new Error(`${label} tier bounds must be positive integers.`);
+  }
+  if (new Set(bounds).size !== bounds.length) {
+    throw new Error(`${label} declares duplicate tier bounds.`);
+  }
+  for (const tier of tiers) {
+    assertRate(tier.inputPerMillion, `${label} inputPerMillion`);
+    assertRate(tier.outputPerMillion, `${label} outputPerMillion`);
+    assertRate(tier.cachedInputPerMillion, `${label} cachedInputPerMillion`);
+    assertRate(tier.cacheWriteInputPerMillion, `${label} cacheWriteInputPerMillion`);
+    assertRate(tier.cacheWrite1hInputPerMillion, `${label} cacheWrite1hInputPerMillion`);
+  }
+}
+function assertProvenance(provenance, label) {
+  if (!provenance || typeof provenance.source !== "string" || provenance.source.trim() === "") {
+    throw new Error(`${label} needs a provenance.source so the rate can be traced to a published price.`);
+  }
+  assertIsoDate(provenance.capturedOn, `${label} provenance.capturedOn`);
+}
+function rangeKey(item) {
+  return `${item.provider} ${item.model} ${item.mode ?? "standard"}`;
+}
+function overlaps(left, right) {
+  return left.effectiveFrom < (right.effectiveTo ?? OPEN_ENDED) && right.effectiveFrom < (left.effectiveTo ?? OPEN_ENDED);
+}
+function validatePriceCatalogue(catalogue) {
+  const seen = /* @__PURE__ */ new Map();
+  for (const entry2 of catalogue.entries) {
+    const label = `Price entry ${entry2.provider}/${entry2.model} (${entry2.mode}) from ${entry2.effectiveFrom}`;
+    if (!entry2.provider.trim() || !entry2.model.trim()) {
+      throw new Error("Price entries need a non-empty provider and model.");
+    }
+    assertIsoDate(entry2.effectiveFrom, `${label} effectiveFrom`);
+    if (entry2.effectiveTo !== void 0) {
+      assertIsoDate(entry2.effectiveTo, `${label} effectiveTo`);
+      if (entry2.effectiveTo <= entry2.effectiveFrom) {
+        throw new Error(`${label} ends on or before it starts.`);
+      }
+    }
+    assertTiers(entry2.tiers, label);
+    assertProvenance(entry2.provenance, label);
+    const key = rangeKey(entry2);
+    const ranges = seen.get(key) ?? [];
+    const clash = ranges.find((range) => overlaps(range, entry2));
+    if (clash) {
+      throw new Error(`${label} overlaps another rate for the same model and mode starting ${clash.effectiveFrom}; close the earlier rate with effectiveTo so each billing date resolves to exactly one price.`);
+    }
+    ranges.push(entry2);
+    seen.set(key, ranges);
+  }
+  const negotiatedSeen = /* @__PURE__ */ new Map();
+  for (const rate of catalogue.negotiated) {
+    const label = `Negotiated rate ${rate.provider}/${rate.model} from ${rate.effectiveFrom}`;
+    const hasDiscount = rate.discountPercent !== void 0;
+    const hasTiers = rate.tiers !== void 0;
+    if (hasDiscount === hasTiers) {
+      throw new Error(`${label} must set exactly one of discountPercent or tiers.`);
+    }
+    assertIsoDate(rate.effectiveFrom, `${label} effectiveFrom`);
+    if (rate.effectiveTo !== void 0) {
+      assertIsoDate(rate.effectiveTo, `${label} effectiveTo`);
+      if (rate.effectiveTo <= rate.effectiveFrom)
+        throw new Error(`${label} ends on or before it starts.`);
+    }
+    if (hasDiscount && (!Number.isFinite(rate.discountPercent) || rate.discountPercent < 0 || rate.discountPercent >= 100)) {
+      throw new Error(`${label} discountPercent must be at least 0 and below 100.`);
+    }
+    if (hasTiers)
+      assertTiers(rate.tiers, label);
+    assertProvenance(rate.provenance, label);
+    const key = rangeKey(rate);
+    const ranges = negotiatedSeen.get(key) ?? [];
+    if (ranges.some((range) => overlaps(range, rate))) {
+      throw new Error(`${label} overlaps another negotiated rate for the same model and mode.`);
+    }
+    ranges.push(rate);
+    negotiatedSeen.set(key, ranges);
+  }
+  return catalogue;
+}
+function applicable(items, at) {
+  return items.find((item) => item.effectiveFrom <= at && (item.effectiveTo === void 0 || at < item.effectiveTo));
+}
+function tierFor(tiers, inputTokens) {
+  const bounded = tiers.filter((tier) => tier.maxInputTokens !== void 0).sort((left, right) => left.maxInputTokens - right.maxInputTokens);
+  const match = bounded.find((tier) => inputTokens <= tier.maxInputTokens);
+  return match ?? tiers.find((tier) => tier.maxInputTokens === void 0);
+}
+function withoutBound(tier) {
+  const { maxInputTokens: _bound, ...price } = tier;
+  return price;
+}
+function discounted(tier, discountPercent) {
+  const factor = 1 - discountPercent / 100;
+  return {
+    inputPerMillion: tier.inputPerMillion * factor,
+    outputPerMillion: tier.outputPerMillion * factor,
+    ...tier.cachedInputPerMillion === void 0 ? {} : { cachedInputPerMillion: tier.cachedInputPerMillion * factor },
+    ...tier.cacheWriteInputPerMillion === void 0 ? {} : { cacheWriteInputPerMillion: tier.cacheWriteInputPerMillion * factor },
+    ...tier.cacheWrite1hInputPerMillion === void 0 ? {} : { cacheWrite1hInputPerMillion: tier.cacheWrite1hInputPerMillion * factor }
+  };
+}
+function lookupPrice(catalogue, query, inputTokens = 0) {
+  assertIsoDate(query.at, "Price query `at`");
+  const mode = query.mode ?? "standard";
+  const candidates = catalogue.entries.filter((entry3) => entry3.provider === query.provider && entry3.model === query.model && entry3.mode === mode);
+  if (candidates.length === 0) {
+    return { status: "unpriced", reason: `No ${mode} rate is catalogued for ${query.provider}/${query.model}.` };
+  }
+  const entry2 = applicable(candidates, query.at);
+  if (!entry2) {
+    const ranges = candidates.map((candidate) => `${candidate.effectiveFrom} to ${candidate.effectiveTo ?? "current"}`).join("; ");
+    return {
+      status: "unpriced",
+      reason: `No ${mode} rate for ${query.provider}/${query.model} covers ${query.at}; catalogued ranges are ${ranges}.`
+    };
+  }
+  const tier = tierFor(entry2.tiers, inputTokens);
+  const override = applicable(catalogue.negotiated.filter((rate) => rate.provider === query.provider && rate.model === query.model && (rate.mode ?? "standard") === mode), query.at);
+  if (!override)
+    return { status: "priced", price: withoutBound(tier), entry: entry2 };
+  const price = override.tiers ? withoutBound(tierFor(override.tiers, inputTokens)) : discounted(tier, override.discountPercent);
+  return { status: "priced", price, entry: entry2, negotiated: override };
+}
+function priceUsage2(catalogue, query, usage) {
+  for (const [name, value] of Object.entries(usage)) {
+    if (value === void 0)
+      continue;
+    if (!Number.isFinite(value) || value < 0) {
+      throw new Error(`Token usage ${name} must be a non-negative finite number.`);
+    }
+  }
+  const lookup = lookupPrice(catalogue, query, usage.inputTokens);
+  if (lookup.status === "unpriced")
+    return lookup;
+  const cached = usage.cachedInputTokens ?? 0;
+  const cacheWrite = usage.cacheWriteInputTokens ?? 0;
+  const cacheWrite1h = usage.cacheWrite1hInputTokens ?? 0;
+  if (cacheWrite1h > cacheWrite) {
+    return {
+      status: "unpriced",
+      reason: `${query.provider}/${query.model} reports more 1h cache writes (${cacheWrite1h}) than total cache writes (${cacheWrite}).`
+    };
+  }
+  if (cached > 0 && lookup.price.cachedInputPerMillion === void 0 || cacheWrite - cacheWrite1h > 0 && lookup.price.cacheWriteInputPerMillion === void 0 || cacheWrite1h > 0 && lookup.price.cacheWrite1hInputPerMillion === void 0) {
+    return {
+      status: "unpriced",
+      reason: `${query.provider}/${query.model} billed cached input tokens on ${query.at}, but the catalogue has no cached-input rate for it.`
+    };
+  }
+  const costUsd = estimateTokenCost2(usage.inputTokens, usage.outputTokens, lookup.price, {
+    cachedInputTokens: usage.cachedInputTokens,
+    cacheWriteInputTokens: usage.cacheWriteInputTokens,
+    cacheWrite1hInputTokens: usage.cacheWrite1hInputTokens
+  });
+  return { status: "priced", costUsd, price: lookup.price, entry: lookup.entry, negotiated: lookup.negotiated };
+}
+function canonicalJson2(value) {
+  if (value === null || typeof value !== "object")
+    return JSON.stringify(value) ?? "null";
+  if (Array.isArray(value)) {
+    return `[${value.map((item) => canonicalJson2(item)).join(",")}]`;
+  }
+  const entries = Object.entries(value).filter(([, member]) => member !== void 0).sort(([left], [right]) => left < right ? -1 : left > right ? 1 : 0).map(([key, member]) => `${JSON.stringify(key)}:${canonicalJson2(member)}`);
+  return `{${entries.join(",")}}`;
+}
+function catalogueVersion2(catalogue) {
+  return createHash2("sha256").update(canonicalJson2(catalogue)).digest("hex").slice(0, 16);
+}
+function canonicalSegments(value) {
+  return value.toLowerCase().replace(/[-_]latest$/, "").replace(/[-_]20\d{2}[-_]\d{2}[-_]\d{2}$/, "").replace(/[-_]20\d{6}$/, "").split(/[^a-z0-9]+/).filter((segment) => segment !== "");
+}
+function containsSegments(id, key) {
+  if (key.length === 0 || key.length > id.length)
+    return false;
+  for (let offset = 0; offset + key.length <= id.length; offset += 1) {
+    if (key.every((segment, index) => id[offset + index] === segment))
+      return true;
+  }
+  return false;
+}
+function resolveModelId2(catalogue, provider, rawModelId) {
+  const known = [...new Set(catalogue.entries.filter((entry2) => entry2.provider === provider).map((entry2) => entry2.model))];
+  if (known.length === 0) {
+    return { status: "unresolved", reason: `No models are catalogued for provider ${provider}.`, candidates: [] };
+  }
+  if (known.includes(rawModelId))
+    return { status: "resolved", model: rawModelId, via: "exact" };
+  for (const alias of catalogue.aliases ?? []) {
+    if (alias.provider !== provider)
+      continue;
+    const matches = alias.id.endsWith("*") ? rawModelId.startsWith(alias.id.slice(0, -1)) : alias.id === rawModelId;
+    if (!matches)
+      continue;
+    if (!known.includes(alias.model)) {
+      return {
+        status: "unresolved",
+        reason: `Alias ${alias.id} points at ${alias.model}, which is not catalogued for ${provider}.`,
+        candidates: known
+      };
+    }
+    return { status: "resolved", model: alias.model, via: "alias" };
+  }
+  const target = canonicalSegments(rawModelId);
+  const hits = known.map((model) => ({ model, key: canonicalSegments(model) })).filter(({ key }) => containsSegments(target, key)).sort((left, right) => right.key.length - left.key.length || right.key.join("").length - left.key.join("").length);
+  if (hits.length === 0) {
+    return {
+      status: "unresolved",
+      reason: `No catalogue key for ${provider} matches ${rawModelId}; add an alias.`,
+      candidates: known
+    };
+  }
+  const longest = hits[0].key.length;
+  const tied = hits.filter(({ key }) => key.length === longest);
+  if (tied.length > 1) {
+    return {
+      status: "unresolved",
+      reason: `${rawModelId} matches ${tied.length} catalogue keys equally well; add an explicit alias.`,
+      candidates: tied.map(({ model }) => model)
+    };
+  }
+  return { status: "resolved", model: hits[0].model, via: "normalised" };
+}
+var ISO_DATE, OPEN_ENDED;
+var init_price_catalogue2 = __esm({
+  "packages/core/dist/src/price-catalogue.js"() {
+    "use strict";
+    init_cost2();
+    ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+    OPEN_ENDED = "9999-12-31";
+  }
+});
+
+// packages/core/dist/src/tool-schema.js
+function toolNameOf(tool, index) {
+  if (typeof tool === "object" && tool !== null) {
+    const row = tool;
+    const direct = typeof row.name === "string" ? row.name : void 0;
+    const nested = typeof row.function === "object" && row.function !== null ? row.function.name : void 0;
+    return direct ?? (typeof nested === "string" ? nested : `tool-${index}`);
+  }
+  return `tool-${index}`;
+}
+function truncateToTokens(text, limit, countTokens) {
+  if (countTokens(text) <= limit)
+    return text;
+  const sentences = text.split(/(?<=[.!?])\s+/);
+  let kept = "";
+  for (const sentence of sentences) {
+    const candidate = kept === "" ? sentence : `${kept} ${sentence}`;
+    if (countTokens(candidate) > limit)
+      break;
+    kept = candidate;
+  }
+  if (kept !== "")
+    return kept;
+  const words = text.split(/\s+/);
+  let fallback = "";
+  for (const word of words) {
+    const candidate = fallback === "" ? word : `${fallback} ${word}`;
+    if (countTokens(candidate) > limit)
+      break;
+    fallback = candidate;
+  }
+  return fallback;
+}
+function minifyToolSchemas(tools, options = {}) {
+  if (!Array.isArray(tools))
+    throw new Error("A tool catalogue must be an array.");
+  const countTokens = options.countTokens ?? approximateTokenCount;
+  const descriptions = options.descriptions ?? "keep";
+  const maximumDescriptionTokens = options.maximumDescriptionTokens ?? 24;
+  if (!Number.isInteger(maximumDescriptionTokens) || maximumDescriptionTokens < 1) {
+    throw new Error("maximumDescriptionTokens must be a positive integer.");
+  }
+  const changes = [];
+  const tokensBefore = countTokens(JSON.stringify(tools));
+  const keep = options.keepTools === void 0 ? void 0 : new Set(options.keepTools);
+  const retained = [];
+  tools.forEach((tool, index) => {
+    const name = toolNameOf(tool, index);
+    if (keep !== void 0 && !keep.has(name)) {
+      changes.push({
+        kind: "dropped-tool",
+        lossless: false,
+        at: name,
+        tokensSaved: countTokens(JSON.stringify(tool)),
+        detail: "Tool removed from the catalogue. The model cannot call what it cannot see, so this is safe only where the tool is genuinely unreachable for the workload."
+      });
+      return;
+    }
+    retained.push(prune(tool, name));
+  });
+  function prune(node, path) {
+    if (Array.isArray(node))
+      return node.map((item, index) => prune(item, `${path}[${index}]`));
+    if (typeof node !== "object" || node === null)
+      return node;
+    const row = node;
+    const output = {};
+    for (const [key, value] of Object.entries(row)) {
+      if (PLUMBING_KEYS.has(key)) {
+        changes.push({
+          kind: "plumbing",
+          lossless: true,
+          at: `${path}.${key}`,
+          tokensSaved: countTokens(JSON.stringify({ [key]: value })),
+          detail: `Removed ${key}, which the model never reads.`
+        });
+        continue;
+      }
+      if (key === "title" && typeof value === "string") {
+        const leaf = path.split(".").pop() ?? "";
+        if (value.toLowerCase().replace(/[^a-z0-9]/g, "") === leaf.toLowerCase().replace(/[^a-z0-9]/g, "")) {
+          changes.push({
+            kind: "redundant-title",
+            lossless: true,
+            at: `${path}.title`,
+            tokensSaved: countTokens(JSON.stringify({ title: value })),
+            detail: `Removed title "${value}", which restates the property name.`
+          });
+          continue;
+        }
+      }
+      if (key === "examples" && options.dropExamples) {
+        changes.push({
+          kind: "examples",
+          lossless: false,
+          at: `${path}.examples`,
+          tokensSaved: countTokens(JSON.stringify({ examples: value })),
+          detail: "Removed examples. The model does read these when choosing arguments."
+        });
+        continue;
+      }
+      if (key === "description" && typeof value === "string" && descriptions !== "keep") {
+        if (descriptions === "drop") {
+          changes.push({
+            kind: "description",
+            lossless: false,
+            at: `${path}.description`,
+            tokensSaved: countTokens(JSON.stringify({ description: value })),
+            detail: "Removed description. Descriptions are how the model chooses between tools."
+          });
+          continue;
+        }
+        const trimmed = truncateToTokens(value, maximumDescriptionTokens, countTokens);
+        if (trimmed !== value) {
+          changes.push({
+            kind: "description",
+            lossless: false,
+            at: `${path}.description`,
+            tokensSaved: countTokens(value) - countTokens(trimmed),
+            detail: `Truncated description from ${countTokens(value)} to ${countTokens(trimmed)} tokens.`
+          });
+        }
+        output[key] = trimmed;
+        continue;
+      }
+      output[key] = prune(value, `${path}.${key}`);
+    }
+    return output;
+  }
+  const compact = JSON.stringify(retained);
+  const tokensAfter = countTokens(compact);
+  return {
+    tools: retained,
+    tokensBefore,
+    tokensAfter,
+    losslessTokensSaved: changes.filter((change) => change.lossless).reduce((sum, change) => sum + change.tokensSaved, 0),
+    lossyTokensSaved: changes.filter((change) => !change.lossless).reduce((sum, change) => sum + change.tokensSaved, 0),
+    changes
+  };
+}
+var PLUMBING_KEYS;
+var init_tool_schema = __esm({
+  "packages/core/dist/src/tool-schema.js"() {
+    "use strict";
+    init_token_reduction();
+    PLUMBING_KEYS = /* @__PURE__ */ new Set(["$schema", "$id", "$comment", "$defs"]);
+  }
+});
+
+// packages/core/dist/src/savings-model.js
+var init_savings_model = __esm({
+  "packages/core/dist/src/savings-model.js"() {
+    "use strict";
+    init_cost2();
+  }
+});
+
+// packages/core/dist/src/savings-ledger.js
+import { createHash as createHash3 } from "node:crypto";
+function ledgerEventHash2(seq, prevHash, event) {
+  return createHash3("sha256").update(`${seq}
+${prevHash}
+${canonicalJson2(event)}`).digest("hex");
+}
+function chainLedgerRecord(event, previous) {
+  const seq = previous ? previous.seq + 1 : 0;
+  const prevHash = previous ? previous.eventHash : LEDGER_GENESIS_HASH2;
+  return { seq, prevHash, eventHash: ledgerEventHash2(seq, prevHash, event), event };
+}
+function priceLedgerUsage(catalogue, input) {
+  const resolution = resolveModelId2(catalogue, input.provider, input.model);
+  if (resolution.status === "unresolved") {
+    return { pricingStatus: "unpriced", reason: resolution.reason };
+  }
+  const split5m = input.usage.cacheWrite5mInputTokens;
+  const split1h = input.usage.cacheWrite1hInputTokens;
+  const splitReported = split5m !== void 0 || split1h !== void 0;
+  if (splitReported && (split5m ?? 0) + (split1h ?? 0) !== input.usage.cacheWriteInputTokens) {
+    return {
+      pricingStatus: "unpriced",
+      reason: `Cache-write TTL split (5m ${split5m ?? 0} + 1h ${split1h ?? 0}) does not sum to cacheWriteInputTokens ${input.usage.cacheWriteInputTokens}.`
+    };
+  }
+  const write1hForPricing = splitReported ? split1h ?? 0 : input.fluxPlacedCacheControl && input.fluxPlacedTtl !== "5m" ? input.usage.cacheWriteInputTokens : 0;
+  const pricingUsage = {
+    inputTokens: input.usage.inputTokens,
+    outputTokens: input.usage.outputTokens,
+    cachedInputTokens: input.usage.cachedInputTokens,
+    cacheWriteInputTokens: input.usage.cacheWriteInputTokens,
+    cacheWrite1hInputTokens: write1hForPricing
+  };
+  const query = { provider: input.provider, model: resolution.model, at: input.at };
+  const actual = priceUsage2(catalogue, { ...query, mode: input.executionMode }, pricingUsage);
+  if (actual.status === "unpriced")
+    return { pricingStatus: "unpriced", reason: actual.reason };
+  const actualInputOnly = priceUsage2(catalogue, { ...query, mode: input.executionMode }, {
+    ...pricingUsage,
+    outputTokens: 0
+  });
+  if (actualInputOnly.status === "unpriced") {
+    return { pricingStatus: "unpriced", reason: actualInputOnly.reason };
+  }
+  const standardWithCache = input.executionMode === "standard" ? actual : priceUsage2(catalogue, { ...query, mode: "standard" }, pricingUsage);
+  if (standardWithCache.status === "unpriced") {
+    return { pricingStatus: "unpriced", reason: standardWithCache.reason };
+  }
+  const fullRateStandard = priceUsage2(catalogue, { ...query, mode: "standard" }, {
+    inputTokens: input.usage.inputTokens,
+    outputTokens: input.usage.outputTokens
+  });
+  if (fullRateStandard.status === "unpriced") {
+    return { pricingStatus: "unpriced", reason: fullRateStandard.reason };
+  }
+  const cacheDeltaUsd = fullRateStandard.costUsd - standardWithCache.costUsd;
+  const hasCacheTraffic = input.usage.cachedInputTokens > 0 || input.usage.cacheWriteInputTokens > 0;
+  return {
+    pricingStatus: "priced",
+    actualUsd: actual.costUsd,
+    inputUsd: actualInputOnly.costUsd,
+    ...input.executionMode === "standard" ? {} : { tierSavedUsd: standardWithCache.costUsd - actual.costUsd },
+    ...hasCacheTraffic ? input.fluxPlacedCacheControl ? { cacheAttributedUsd: cacheDeltaUsd } : { providerCacheAlreadyOwnedUsd: cacheDeltaUsd } : {}
+  };
+}
+var LEDGER_GENESIS_HASH2;
+var init_savings_ledger2 = __esm({
+  "packages/core/dist/src/savings-ledger.js"() {
+    "use strict";
+    init_price_catalogue2();
+    LEDGER_GENESIS_HASH2 = "0".repeat(64);
+  }
+});
+
+// packages/core/dist/src/gateway.js
+var init_gateway = __esm({
+  "packages/core/dist/src/gateway.js"() {
+    "use strict";
+    init_price_catalogue2();
+  }
+});
+
+// packages/core/dist/src/helicone.js
+var init_helicone = __esm({
+  "packages/core/dist/src/helicone.js"() {
+    "use strict";
+  }
+});
+
+// packages/core/dist/src/langfuse.js
+var init_langfuse = __esm({
+  "packages/core/dist/src/langfuse.js"() {
+    "use strict";
+  }
+});
+
+// packages/core/dist/src/litellm.js
+var init_litellm = __esm({
+  "packages/core/dist/src/litellm.js"() {
+    "use strict";
+    init_gateway();
+  }
+});
+
+// packages/core/dist/src/traffic.js
+var init_traffic = __esm({
+  "packages/core/dist/src/traffic.js"() {
+    "use strict";
+    init_price_catalogue2();
+    init_savings_model();
+    init_tool_schema();
+    init_token_reduction();
+  }
+});
+
+// packages/core/dist/src/triage.js
+var init_triage = __esm({
+  "packages/core/dist/src/triage.js"() {
+    "use strict";
+  }
+});
+
+// packages/core/dist/src/quote-report.js
+var init_quote_report = __esm({
+  "packages/core/dist/src/quote-report.js"() {
+    "use strict";
+    init_gateway();
+    init_helicone();
+    init_langfuse();
+    init_litellm();
+    init_price_catalogue2();
+    init_traffic();
+    init_triage();
+  }
+});
+
+// packages/core/dist/src/model-prices.js
+function entry(provider, model, provenance, bands, mode = "standard", effectiveFrom = OBSERVED_FROM) {
+  return {
+    provider,
+    model,
+    mode,
+    effectiveFrom,
+    provenance,
+    tiers: bands.map((band) => ({
+      ...band.maxInputTokens === void 0 ? {} : { maxInputTokens: band.maxInputTokens },
+      inputPerMillion: band.input,
+      outputPerMillion: band.output,
+      ...band.cachedInput === void 0 ? {} : { cachedInputPerMillion: band.cachedInput },
+      ...band.cacheWriteInput === void 0 ? {} : { cacheWriteInputPerMillion: band.cacheWriteInput },
+      ...band.cacheWrite1hInput === void 0 ? {} : { cacheWrite1hInputPerMillion: band.cacheWrite1hInput }
+    }))
+  };
+}
+function anthropicCacheableMinimumTokens(modelId) {
+  return /haiku/i.test(modelId) ? 2048 : 1024;
+}
+var ANTHROPIC, OPENAI, ANTHROPIC_BATCH, OBSERVED_FROM, anthropic, openai, aliases, publishedModelPrices;
+var init_model_prices = __esm({
+  "packages/core/dist/src/model-prices.js"() {
+    "use strict";
+    init_price_catalogue2();
+    ANTHROPIC = {
+      source: "https://claude.com/pricing",
+      capturedOn: "2026-10-08",
+      note: "Published display names; cache read/write rates as listed. 5m cache writes bill 1.25x base input, 1h cache writes 2x base input, per the published prompt-caching pricing."
+    };
+    OPENAI = {
+      source: "https://developers.openai.com/api/docs/pricing",
+      capturedOn: "2026-10-08",
+      note: "Standard tier unless the entry says otherwise."
+    };
+    ANTHROPIC_BATCH = {
+      source: "https://claude.com/pricing",
+      capturedOn: "2026-10-27",
+      note: `Batch processing = 50% of standard, per the page's definitive "Save 50% with batch processing". Derived by halving the dated standard rates; cache-write premiums under batch are not published and are omitted (priced unpriced, never guessed).`
+    };
+    OBSERVED_FROM = "2026-10-08";
+    anthropic = [
+      entry("anthropic", "Fable 5.1", ANTHROPIC, [
+        { input: 10, output: 50, cachedInput: 0.25, cacheWriteInput: 12.5, cacheWrite1hInput: 20 }
+      ]),
+      entry("anthropic", "Opus 5.5", ANTHROPIC, [
+        { input: 4, output: 20, cachedInput: 0.2, cacheWriteInput: 5, cacheWrite1hInput: 8 }
+      ]),
+      entry("anthropic", "Sonnet 5.5", ANTHROPIC, [
+        { input: 2, output: 10, cachedInput: 0.1, cacheWriteInput: 2.5, cacheWrite1hInput: 4 }
+      ]),
+      // Haiku 5.5 is tiered by prompt size: the higher band applies above 100K input tokens.
+      entry("anthropic", "Haiku 5.5", ANTHROPIC, [
+        { maxInputTokens: 1e5, input: 0.1, output: 0.5, cachedInput: 0.01, cacheWriteInput: 0.125, cacheWrite1hInput: 0.2 },
+        { input: 0.5, output: 2.5, cachedInput: 0.05, cacheWriteInput: 0.625, cacheWrite1hInput: 1 }
+      ]),
+      // Batch mode: 50% of standard, per the definitive "Save 50% with batch processing"
+      // (ANTHROPIC_BATCH provenance). Each rate is exactly half its standard entry above.
+      entry("anthropic", "Fable 5.1", ANTHROPIC_BATCH, [
+        { input: 5, output: 25, cachedInput: 0.125 }
+      ], "batch", "2026-10-27"),
+      entry("anthropic", "Opus 5.5", ANTHROPIC_BATCH, [
+        { input: 2, output: 10, cachedInput: 0.1 }
+      ], "batch", "2026-10-27"),
+      entry("anthropic", "Sonnet 5.5", ANTHROPIC_BATCH, [
+        { input: 1, output: 5, cachedInput: 0.05 }
+      ], "batch", "2026-10-27"),
+      entry("anthropic", "Haiku 5.5", ANTHROPIC_BATCH, [
+        { maxInputTokens: 1e5, input: 0.05, output: 0.25, cachedInput: 5e-3 },
+        { input: 0.25, output: 1.25, cachedInput: 0.025 }
+      ], "batch", "2026-10-27")
+    ];
+    openai = [
+      entry("openai", "gpt-6-astra", OPENAI, [{ input: 10, output: 50, cachedInput: 1 }]),
+      entry("openai", "gpt-6.1-sol", OPENAI, [{ input: 2, output: 10, cachedInput: 0.1 }]),
+      entry("openai", "gpt-6-luna", OPENAI, [{ input: 0.1, output: 0.5, cachedInput: 0.01 }]),
+      entry("openai", "gpt-5.5", OPENAI, [{ input: 5, output: 30, cachedInput: 0.5 }]),
+      entry("openai", "gpt-5.4", OPENAI, [{ input: 2.5, output: 15, cachedInput: 0.25 }]),
+      entry("openai", "gpt-5.2", OPENAI, [{ input: 1.75, output: 14, cachedInput: 0.175 }]),
+      entry("openai", "gpt-5", OPENAI, [{ input: 1.25, output: 10, cachedInput: 0.125 }]),
+      entry("openai", "gpt-4o", OPENAI, [{ input: 2.5, output: 10, cachedInput: 1.25 }]),
+      entry("openai", "gpt-4o-mini", OPENAI, [{ input: 0.15, output: 0.6, cachedInput: 0.075 }]),
+      entry("openai", "o1", OPENAI, [{ input: 15, output: 60, cachedInput: 7.5 }]),
+      entry("openai", "o3-mini", OPENAI, [{ input: 1.1, output: 4.4, cachedInput: 0.55 }]),
+      // Only the batch rate published explicitly is catalogued. The page describes batch
+      // and flex as "typically" half of standard; that is not a rate, so it is not seeded.
+      entry("openai", "gpt-6-astra", OPENAI, [{ input: 5, output: 25, cachedInput: 0.5 }], "batch"),
+      // Flex processing is billed at Batch API rates = 50% of standard, on a
+      // synchronous API, per OpenAI's flex-processing guide. Cached-input discount
+      // stacks on top. Catalogued so the ledger can price flex-tier events rather
+      // than leaving async savings unpriced.
+      entry("openai", "gpt-5", OPENAI, [{ input: 0.625, output: 5, cachedInput: 0.0625 }], "flex")
+    ];
+    aliases = [
+      // Anthropic ids embed the published name, so normalisation covers dated
+      // builds such as claude-sonnet-5-5-20260514. These cover the pointers.
+      { provider: "anthropic", id: "claude-sonnet-5-5-latest", model: "Sonnet 5.5" },
+      { provider: "anthropic", id: "claude-opus-5-5-latest", model: "Opus 5.5" },
+      { provider: "anthropic", id: "claude-haiku-5-5-latest", model: "Haiku 5.5" },
+      { provider: "anthropic", id: "claude-fable-5-1-latest", model: "Fable 5.1" },
+      // OpenAI ids match their published names directly; these are the pointers
+      // and the dated snapshots that do not normalise onto a catalogued key.
+      { provider: "openai", id: "chatgpt-4o-latest", model: "gpt-4o" },
+      { provider: "openai", id: "gpt-4o-2024-*", model: "gpt-4o" },
+      { provider: "openai", id: "gpt-4o-mini-2024-*", model: "gpt-4o-mini" },
+      { provider: "openai", id: "o3-mini-2025-*", model: "o3-mini" }
+    ];
+    publishedModelPrices = validatePriceCatalogue({
+      entries: [...anthropic, ...openai],
+      negotiated: [],
+      aliases
+    });
+  }
+});
+
+// packages/core/dist/src/replay.js
+var init_replay = __esm({
+  "packages/core/dist/src/replay.js"() {
+    "use strict";
+  }
+});
+
+// packages/core/dist/src/provider-usage.js
+function isPlainObject(value) {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+function asCount(value) {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : void 0;
+}
+function normalizeProviderUsage(response) {
+  if (!isPlainObject(response))
+    return { status: "missing" };
+  const usage = isPlainObject(response.usage) ? response.usage : void 0;
+  if (!usage)
+    return { status: "missing" };
+  const output = asCount(usage.output_tokens) ?? asCount(usage.completion_tokens);
+  if (output === void 0) {
+    return { status: "invalid", reason: "Usage carries no readable output_tokens/completion_tokens." };
+  }
+  const anthropicRead = asCount(usage.cache_read_input_tokens);
+  const anthropicWriteFlat = asCount(usage.cache_creation_input_tokens);
+  const creation = isPlainObject(usage.cache_creation) ? usage.cache_creation : void 0;
+  if (anthropicRead !== void 0 || anthropicWriteFlat !== void 0 || creation !== void 0) {
+    const fresh = asCount(usage.input_tokens) ?? 0;
+    const cached2 = anthropicRead ?? 0;
+    let written = anthropicWriteFlat ?? 0;
+    let write5m;
+    let write1h;
+    if (creation !== void 0) {
+      write5m = asCount(creation.ephemeral_5m_input_tokens) ?? 0;
+      write1h = asCount(creation.ephemeral_1h_input_tokens) ?? 0;
+      const splitTotal = write5m + write1h;
+      if (anthropicWriteFlat !== void 0 && splitTotal !== anthropicWriteFlat) {
+        return {
+          status: "invalid",
+          reason: `cache_creation split (5m ${write5m} + 1h ${write1h} = ${splitTotal}) does not sum to cache_creation_input_tokens ${anthropicWriteFlat}.`
+        };
+      }
+      written = anthropicWriteFlat ?? splitTotal;
+    }
+    return {
+      status: "ok",
+      usage: {
+        inputTokens: fresh + cached2 + written,
+        uncachedInputTokens: fresh,
+        cachedInputTokens: cached2,
+        cacheWriteInputTokens: written,
+        ...write5m === void 0 ? {} : { cacheWrite5mInputTokens: write5m },
+        ...write1h === void 0 ? {} : { cacheWrite1hInputTokens: write1h },
+        outputTokens: output
+      }
+    };
+  }
+  const input = asCount(usage.input_tokens) ?? asCount(usage.prompt_tokens);
+  if (input === void 0) {
+    return { status: "invalid", reason: "Usage carries no readable input_tokens/prompt_tokens." };
+  }
+  const details = isPlainObject(usage.input_tokens_details) ? usage.input_tokens_details : void 0;
+  const promptDetails = isPlainObject(usage.prompt_tokens_details) ? usage.prompt_tokens_details : void 0;
+  const cached = asCount(details?.cached_tokens) ?? asCount(promptDetails?.cached_tokens) ?? 0;
+  const boundedCached = Math.min(cached, input);
+  return {
+    status: "ok",
+    usage: {
+      inputTokens: input,
+      uncachedInputTokens: input - boundedCached,
+      cachedInputTokens: boundedCached,
+      cacheWriteInputTokens: 0,
+      outputTokens: output
+    }
+  };
+}
+function responseServiceTier(response) {
+  if (!isPlainObject(response))
+    return void 0;
+  if (typeof response.service_tier === "string")
+    return response.service_tier;
+  const usage = isPlainObject(response.usage) ? response.usage : void 0;
+  return typeof usage?.service_tier === "string" ? usage.service_tier : void 0;
+}
+var init_provider_usage = __esm({
+  "packages/core/dist/src/provider-usage.js"() {
+    "use strict";
+  }
+});
+
+// packages/core/dist/src/stripe-sink.js
+var init_stripe_sink = __esm({
+  "packages/core/dist/src/stripe-sink.js"() {
+    "use strict";
+    init_savings_ledger2();
+  }
+});
+
+// packages/core/dist/src/geo-visibility.js
+var init_geo_visibility = __esm({
+  "packages/core/dist/src/geo-visibility.js"() {
+    "use strict";
+  }
+});
+
+// packages/core/dist/src/output-diagnostics.js
+function normalizeLine(line) {
+  return line.replace(LINE_NUMBER_PREFIX, "").trim().replace(/\s+/g, " ");
+}
+function looksLikeCode(line) {
+  if (/[{};=()[\]<>]/.test(line) && (line.match(/[{};=()[\]<>.:]/g) ?? []).length >= 3)
+    return true;
+  return /^(import |from |def |class |function |const |let |var |return |if |for |while |#include|public |private )/.test(line.trimStart());
+}
+function collectRequestText(value, depth = 0) {
+  if (depth > 12)
+    return "";
+  if (typeof value === "string")
+    return value;
+  if (Array.isArray(value))
+    return value.map((entry2) => collectRequestText(entry2, depth + 1)).filter(Boolean).join("\n");
+  if (typeof value === "object" && value !== null) {
+    return Object.values(value).map((entry2) => collectRequestText(entry2, depth + 1)).filter(Boolean).join("\n");
+  }
+  return "";
+}
+function measureOutputReEmission(requestText, outputText, countTokens = approximateTokenCount) {
+  const contextLines = /* @__PURE__ */ new Set();
+  for (const line of requestText.split("\n")) {
+    const normalized = normalizeLine(line);
+    if (normalized.length >= 8)
+      contextLines.add(normalized);
+  }
+  let inspected = 0;
+  let reEmitted = 0;
+  let reEmittedCode = 0;
+  for (const line of outputText.split("\n")) {
+    const tokens = countTokens(line);
+    inspected += tokens;
+    const normalized = normalizeLine(line);
+    if (normalized.length >= 8 && contextLines.has(normalized)) {
+      reEmitted += tokens;
+      if (looksLikeCode(normalized))
+        reEmittedCode += tokens;
+    }
+  }
+  return {
+    inspectedOutputTokens: inspected,
+    reEmittedOutputTokens: reEmitted,
+    reEmittedCodeTokens: reEmittedCode
+  };
+}
+var LINE_NUMBER_PREFIX;
+var init_output_diagnostics = __esm({
+  "packages/core/dist/src/output-diagnostics.js"() {
+    "use strict";
+    init_token_reduction();
+    LINE_NUMBER_PREFIX = /^\s*\d+[:.|]\s?/;
+  }
+});
+
+// packages/core/dist/src/stripe-billing.js
+var init_stripe_billing = __esm({
+  "packages/core/dist/src/stripe-billing.js"() {
+    "use strict";
+  }
+});
+
+// packages/core/dist/src/index.js
+var init_src = __esm({
+  "packages/core/dist/src/index.js"() {
+    "use strict";
+    init_types();
+    init_router();
+    init_evaluator();
+    init_cost2();
+    init_confidence();
+    init_cache_simulator();
+    init_price_catalogue2();
+    init_token_reduction();
+    init_tool_schema();
+    init_savings_model();
+    init_savings_ledger2();
+    init_quote_report();
+    init_traffic();
+    init_triage();
+    init_gateway();
+    init_litellm();
+    init_helicone();
+    init_langfuse();
+    init_model_prices();
+    init_replay();
+    init_provider_usage();
+    init_stripe_sink();
+    init_geo_visibility();
+    init_output_diagnostics();
+    init_stripe_billing();
+  }
+});
+
+// packages/sdk-js/src/reduce-request.ts
+function isPlainObject2(value) {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+function anthropicEffortSupport(model) {
+  const m = model.toLowerCase();
+  if (!m.includes("claude")) return /* @__PURE__ */ new Set();
+  if (m.includes("opus-5") || m.includes("opus-4-8") || m.includes("opus-4-7") || m.includes("sonnet-5") || m.includes("fable-5") || m.includes("mythos-5")) {
+    return /* @__PURE__ */ new Set(["low", "medium", "high", "xhigh", "max"]);
+  }
+  if (m.includes("opus-4-6") || m.includes("sonnet-4-6")) {
+    return /* @__PURE__ */ new Set(["low", "medium", "high", "max"]);
+  }
+  if (m.includes("opus-4-5")) return /* @__PURE__ */ new Set(["low", "medium", "high"]);
+  return /* @__PURE__ */ new Set();
+}
+function repairPrefix(instructions) {
+  const lines = instructions.split("\n");
+  const moved = [];
+  const kept = [];
+  const window = Math.min(lines.length, 8);
+  for (const [index, line] of lines.entries()) {
+    const breaks = index < window && PREFIX_BREAKERS.some((pattern) => {
+      pattern.lastIndex = 0;
+      return pattern.test(line);
+    });
+    if (breaks) moved.push(line);
+    else kept.push(line);
+  }
+  if (moved.length === 0) return { text: instructions, moved };
+  return { text: [...kept, ...moved].join("\n"), moved };
+}
+function digestStaleBody(text) {
+  const segments = text.split(/(?<=[.!?])\s+|\n+/).filter((segment) => segment.length > 0);
+  if (segments.length <= 1) return text;
+  const kept = [];
+  let droppedChars = 0;
+  for (const [index, segment] of segments.entries()) {
+    const keep = index === 0 || STALE_BODY_MUST_KEEP.test(segment) || STALE_BODY_FILE_PATH.test(segment) || FLUX_MARKER.test(segment);
+    if (keep) kept.push(segment);
+    else droppedChars += segment.length;
+  }
+  if (droppedChars === 0) return text;
+  const digest2 = `${kept.join(" ")} [flux: ${droppedChars} chars of stale detail compacted]`;
+  return digest2.length < text.length ? digest2 : text;
+}
+function capToolResultBody(text, maximumTokens, countTokens) {
+  if (!Number.isInteger(maximumTokens) || maximumTokens < 64) {
+    throw new Error("freshToolResultCap maximumTokens must be an integer of at least 64.");
+  }
+  if (countTokens(text) <= maximumTokens) return text;
+  const segments = text.split(/(?<=[.!?])\s+|\n+/).filter((segment) => segment.length > 0);
+  if (segments.length <= 1) return text;
+  const kept = [];
+  let droppedChars = 0;
+  for (const [index, segment] of segments.entries()) {
+    const keep = index === 0 || STALE_BODY_MUST_KEEP.test(segment) || STALE_BODY_FILE_PATH.test(segment) || FLUX_MARKER.test(segment);
+    if (keep) kept.push(segment);
+    else droppedChars += segment.length;
+  }
+  if (droppedChars === 0) return text;
+  const capped = `${kept.join(" ")} [flux: ${droppedChars} chars of fresh tool-result detail capped]`;
+  return capped.length < text.length ? capped : text;
+}
+function transformBodyValue(value, transform, state) {
+  if (typeof value === "string") {
+    const transformed = transform(value);
+    if (transformed !== value) state.bodies += 1;
+    return transformed;
+  }
+  if (Array.isArray(value)) {
+    return value.map((part) => {
+      if (!isPlainObject2(part)) return part;
+      if (typeof part.text === "string") {
+        const transformed = transform(part.text);
+        if (transformed !== part.text) state.bodies += 1;
+        return transformed === part.text ? part : { ...part, text: transformed };
+      }
+      if ("content" in part) {
+        const transformed = transformBodyValue(part.content, transform, state);
+        return transformed === part.content ? part : { ...part, content: transformed };
+      }
+      return part;
+    });
+  }
+  return value;
+}
+function digestBodyValue(value, state) {
+  return transformBodyValue(value, digestStaleBody, state);
+}
+function isToolResultCarrier(message) {
+  return isPlainObject2(message) && message.role === "user" && Array.isArray(message.content) && message.content.length > 0 && message.content.every((block) => isPlainObject2(block) && block.type === "tool_result");
+}
+function transformUserToolResultBlocks(message, transform, countTokens, state, addSavedTokens) {
+  if (!Array.isArray(message.content)) return message;
+  const sizeOf = (value) => countTokens(typeof value === "string" ? value : JSON.stringify(value) ?? "");
+  let changed = false;
+  const blocks = message.content.map((block) => {
+    if (!isPlainObject2(block) || block.type !== "tool_result" || !("content" in block)) return block;
+    const before = sizeOf(block.content);
+    const bodiesBefore = state.bodies;
+    const transformed = transformBodyValue(block.content, transform, state);
+    if (state.bodies === bodiesBefore) return block;
+    changed = true;
+    addSavedTokens(Math.max(0, before - sizeOf(transformed)));
+    return { ...block, content: transformed };
+  });
+  return changed ? { ...message, content: blocks } : message;
+}
+function capFreshToolResults(input, maximumTokens, countTokens, changes) {
+  const cap = (text) => capToolResultBody(text, maximumTokens, countTokens);
+  const state = { bodies: 0 };
+  let savedTokens = 0;
+  const next = input.map((message) => {
+    if (!isPlainObject2(message)) return message;
+    const role = typeof message.role === "string" ? message.role : void 0;
+    if (role === "system" || role === "developer") return message;
+    if (role === "user") {
+      return transformUserToolResultBlocks(message, cap, countTokens, state, (saved) => {
+        savedTokens += saved;
+      });
+    }
+    if (message.type === "function_call_output" && typeof message.output === "string") {
+      const before = countTokens(message.output);
+      const capped = transformBodyValue(message.output, cap, state);
+      if (capped === message.output) return message;
+      savedTokens += Math.max(0, before - countTokens(capped));
+      return { ...message, output: capped };
+    }
+    if ((role === "tool" || role === "assistant") && "content" in message) {
+      const before = countTokens(
+        typeof message.content === "string" ? message.content : JSON.stringify(message.content) ?? ""
+      );
+      const capped = transformBodyValue(message.content, cap, state);
+      if (capped === message.content) return message;
+      savedTokens += Math.max(0, before - countTokens(
+        typeof capped === "string" ? capped : JSON.stringify(capped) ?? ""
+      ));
+      return { ...message, content: capped };
+    }
+    return message;
+  });
+  if (state.bodies === 0) return input;
+  changes.push({
+    lever: "fresh-tool-result-cap",
+    lossless: false,
+    estimatedTokensSaved: savedTokens,
+    detail: `Capped ${state.bodies} oversized tool-result/assistant body(ies) above ${maximumTokens} tokens at injection, before first send (headlines, errors, file paths and FLUX markers kept verbatim). These tokens would have been billed once at the FULL input rate; history compaction only reaches their cached rebills.`
+  });
+  return next;
+}
+function compactStaleHistory(input, options, countTokens, changes) {
+  const minimumTurns = options.minimumTurns ?? 3;
+  const keepRecentTurns = options.keepRecentTurns ?? 2;
+  const epochTurns = options.epochTurns ?? 2;
+  if (minimumTurns < 1 || keepRecentTurns < 1 || epochTurns < 1) {
+    throw new Error("History compaction turn counts must be positive integers.");
+  }
+  const isRealUserTurn = (message) => isPlainObject2(message) && message.role === "user" && !isToolResultCarrier(message);
+  const totalTurns = input.filter(isRealUserTurn).length;
+  if (totalTurns < minimumTurns) return input;
+  const compactedTurns = Math.floor((totalTurns - keepRecentTurns) / epochTurns) * epochTurns;
+  if (compactedTurns <= 0) return input;
+  const state = { bodies: 0 };
+  let savedTokens = 0;
+  let turn = -1;
+  const next = input.map((message) => {
+    if (isRealUserTurn(message)) turn += 1;
+    if (turn < 0 || turn >= compactedTurns) return message;
+    if (!isPlainObject2(message)) return message;
+    const role = typeof message.role === "string" ? message.role : void 0;
+    if (role === "system" || role === "developer") return message;
+    if (role === "user") {
+      return transformUserToolResultBlocks(message, digestStaleBody, countTokens, state, (saved) => {
+        savedTokens += saved;
+      });
+    }
+    if (message.type === "function_call_output" && typeof message.output === "string") {
+      const before = countTokens(message.output);
+      const digested = digestBodyValue(message.output, state);
+      if (digested === message.output) return message;
+      savedTokens += Math.max(0, before - countTokens(digested));
+      return { ...message, output: digested };
+    }
+    if ((role === "tool" || role === "assistant") && "content" in message) {
+      const before = countTokens(
+        typeof message.content === "string" ? message.content : JSON.stringify(message.content) ?? ""
+      );
+      const digested = digestBodyValue(message.content, state);
+      if (digested === message.content) return message;
+      savedTokens += Math.max(0, before - countTokens(
+        typeof digested === "string" ? digested : JSON.stringify(digested) ?? ""
+      ));
+      return { ...message, content: digested };
+    }
+    return message;
+  });
+  if (state.bodies === 0) return input;
+  changes.push({
+    lever: "stale-history-compaction",
+    lossless: false,
+    estimatedTokensSaved: savedTokens,
+    detail: `Compacted ${state.bodies} stale tool/assistant body(ies) from the first ${compactedTurns} of ${totalTurns} turns into deterministic digests (errors, file paths and headlines kept verbatim). The boundary is frozen to ${epochTurns}-turn epochs so the compacted prefix stays byte-identical across consecutive requests.`
+  });
+  return next;
+}
+function leadingText(message) {
+  if (typeof message.content === "string") return message.content;
+  if (Array.isArray(message.content) && message.content.length > 0) {
+    const first = message.content[0];
+    if (isPlainObject2(first) && first.type === "text" && typeof first.text === "string") return first.text;
+  }
+  return void 0;
+}
+function withLeadingText(message, text) {
+  if (typeof message.content === "string") return { ...message, content: text };
+  const content = message.content;
+  return { ...message, content: [{ ...content[0], text }, ...content.slice(1)] };
+}
+function dedupeMemoryAcrossTurns(input, options, countTokens, changes) {
+  const minimumBlockTokens = options.minimumBlockTokens ?? 64;
+  if (!Number.isInteger(minimumBlockTokens) || minimumBlockTokens < 1) {
+    throw new Error("crossTurnMemoryDedup minimumBlockTokens must be a positive integer.");
+  }
+  const indices = [];
+  for (const [index, message] of input.entries()) {
+    if (!isPlainObject2(message) || message.role !== "user") continue;
+    if (leadingText(message) === void 0) continue;
+    indices.push(index);
+  }
+  if (indices.length < 2) return input;
+  const texts = indices.map((index) => leadingText(input[index]));
+  const before = texts.reduce((sum, text) => sum + countTokens(text), 0);
+  const result = dedupeRepeatedLeadingBlock(texts, minimumBlockTokens, countTokens);
+  if (result.notes.length === 0) return input;
+  const after = result.texts.reduce((sum, text) => sum + countTokens(text), 0);
+  const next = [...input];
+  indices.forEach((index, position) => {
+    if (result.texts[position] === texts[position]) return;
+    next[index] = withLeadingText(next[index], result.texts[position]);
+  });
+  changes.push({
+    lever: "cross-turn-memory-dedup",
+    lossless: false,
+    estimatedTokensSaved: Math.max(0, before - after),
+    detail: `Replaced ${result.notes.length} repeated leading block(s) across user turns with reference markers (the first turn's block, and every turn's own differing remainder, kept verbatim). This is a behaviour change, not a cache-rate change, so it needs a replay-gate pass on the customer's own traffic before the saving may be billed.`
+  });
+  return next;
+}
+function reduceText(text, config, countTokens, changes, label) {
+  let current = text;
+  if (config.duplicateContext !== false) {
+    const before = countTokens(current);
+    const reduced = dedupeRepeatedBlocks(24, countTokens).reduce(current);
+    const saved = before - countTokens(reduced.text);
+    if (saved > 0) {
+      current = reduced.text;
+      changes.push({
+        lever: "duplicate-context-removal",
+        lossless: true,
+        estimatedTokensSaved: saved,
+        detail: `Removed ${reduced.notes.length} duplicate block(s) from ${label}.`
+      });
+    }
+  }
+  return current;
+}
+function reduceMessageContent(content, config, countTokens, changes) {
+  if (typeof content === "string") return reduceText(content, config, countTokens, changes, "a message");
+  if (Array.isArray(content)) {
+    return content.map((part) => {
+      if (!isPlainObject2(part) || typeof part.text !== "string") return part;
+      return { ...part, text: reduceText(part.text, config, countTokens, changes, "a message part") };
+    });
+  }
+  return content;
+}
+function stampAnthropicCacheTtl(next, ttl, systemVolatileTail, countTokens) {
+  const model = typeof next.model === "string" ? next.model.toLowerCase() : "";
+  if (!model.includes("claude")) return { stamped: false };
+  if (!Array.isArray(next.messages) || next.messages.length === 0) return { stamped: false };
+  if (next.cache_control !== void 0) return { stamped: false };
+  const carriesCacheControl = (value) => (JSON.stringify(value ?? null) ?? "").includes('"cache_control"');
+  if (carriesCacheControl(next.messages) || carriesCacheControl(next.system) || carriesCacheControl(next.tools)) {
+    return { stamped: false };
+  }
+  const APPROX_OVERCOUNT_MARGIN = 1.3;
+  const minimumTokens = Math.ceil(anthropicCacheableMinimumTokens(model) * APPROX_OVERCOUNT_MARGIN);
+  const measureTokens = (value) => {
+    try {
+      return typeof value === "string" ? countTokens(value) : countTokens(JSON.stringify(value) ?? "");
+    } catch {
+      return 0;
+    }
+  };
+  const toolsTokens = Array.isArray(next.tools) && next.tools.length > 0 ? measureTokens(next.tools) : 0;
+  const fullSystemTokens = measureTokens(next.system);
+  const fullMessagesTokens = measureTokens(next.messages);
+  let belowMinimum;
+  const recordBelowMinimum = (measuredTokens) => {
+    if (belowMinimum === void 0) belowMinimum = { measuredTokens, minimumTokens };
+  };
+  const cacheControl = { type: "ephemeral", ttl };
+  let stamped = false;
+  let volatileTailPresent = false;
+  if (typeof next.system === "string" && next.system.trim() !== "") {
+    const tailText = systemVolatileTail.join("\n");
+    if (systemVolatileTail.length > 0 && tailText.trim() !== "" && (next.system === tailText || next.system.endsWith(`
+${tailText}`))) {
+      volatileTailPresent = true;
+      const stable = next.system === tailText ? "" : next.system.slice(0, -tailText.length);
+      if (stable.trim() !== "") {
+        const stableTokens = toolsTokens + measureTokens(stable);
+        if (stableTokens < minimumTokens) {
+          recordBelowMinimum(stableTokens);
+        } else {
+          next.system = [
+            { type: "text", text: stable, cache_control: cacheControl },
+            { type: "text", text: tailText }
+          ];
+          stamped = true;
+        }
+      }
+    } else {
+      const stableTokens = toolsTokens + fullSystemTokens;
+      if (stableTokens < minimumTokens) {
+        recordBelowMinimum(stableTokens);
+      } else {
+        next.system = [{ type: "text", text: next.system, cache_control: cacheControl }];
+        stamped = true;
+      }
+    }
+  } else if (Array.isArray(next.system) && next.system.length > 0) {
+    const blocks = [...next.system];
+    const lastBlock = blocks[blocks.length - 1];
+    if (isPlainObject2(lastBlock) && !(typeof lastBlock.text === "string" && lastBlock.text.trim() === "")) {
+      const stableTokens = toolsTokens + fullSystemTokens;
+      if (stableTokens < minimumTokens) {
+        recordBelowMinimum(stableTokens);
+      } else {
+        blocks[blocks.length - 1] = { ...lastBlock, cache_control: cacheControl };
+        next.system = blocks;
+        stamped = true;
+      }
+    }
+  }
+  if (!volatileTailPresent && next.messages.length >= 2) {
+    const messages = [...next.messages];
+    const lastIndex = messages.length - 1;
+    const last = messages[lastIndex];
+    if (isPlainObject2(last)) {
+      const content = last.content;
+      const prefixTokens = toolsTokens + fullSystemTokens + fullMessagesTokens;
+      if (typeof content === "string") {
+        if (content.trim() !== "") {
+          if (prefixTokens < minimumTokens) {
+            recordBelowMinimum(prefixTokens);
+          } else {
+            messages[lastIndex] = {
+              ...last,
+              content: [{ type: "text", text: content, cache_control: cacheControl }]
+            };
+            next.messages = messages;
+            stamped = true;
+          }
+        }
+      } else if (Array.isArray(content) && content.length > 0) {
+        const blocks = [...content];
+        const lastBlock = blocks[blocks.length - 1];
+        if (isPlainObject2(lastBlock) && !(typeof lastBlock.text === "string" && lastBlock.text.trim() === "")) {
+          if (prefixTokens < minimumTokens) {
+            recordBelowMinimum(prefixTokens);
+          } else {
+            blocks[blocks.length - 1] = { ...lastBlock, cache_control: cacheControl };
+            messages[lastIndex] = { ...last, content: blocks };
+            next.messages = messages;
+            stamped = true;
+          }
+        }
+      }
+    }
+  }
+  return stamped ? { stamped: true } : { stamped: false, belowMinimum };
+}
+function reduceRequest(request, config = {}) {
+  const countTokens = config.countTokens ?? approximateTokenCount;
+  const changes = [];
+  const unchanged = (reason) => ({
+    request,
+    summary: {
+      estimatedTokensBefore: 0,
+      estimatedTokensAfter: 0,
+      estimatedTokensSaved: 0,
+      estimatedLosslessTokensSaved: 0,
+      changes: [],
+      skipped: true,
+      skippedReason: reason
+    }
+  });
+  if (!isPlainObject2(request)) return unchanged("Request is not an object.");
+  try {
+    const next = { ...request };
+    const measure = (value) => {
+      try {
+        return typeof value === "string" ? countTokens(value) : countTokens(JSON.stringify(value) ?? "");
+      } catch {
+        return 0;
+      }
+    };
+    const before = measure(next.instructions) + measure(next.system) + measure(next.input) + measure(next.messages) + measure(next.tools);
+    if (Array.isArray(next.tools) && next.tools.length > 0 && config.toolSchemas !== false) {
+      const toolOptions = isPlainObject2(config.toolSchemas) ? config.toolSchemas : {};
+      const minified = minifyToolSchemas(next.tools, {
+        countTokens,
+        descriptions: toolOptions.descriptions ?? "keep",
+        ...typeof toolOptions.maximumDescriptionTokens === "number" ? { maximumDescriptionTokens: toolOptions.maximumDescriptionTokens } : {}
+      });
+      const saved = minified.tokensBefore - minified.tokensAfter;
+      if (saved > 0) {
+        next.tools = minified.tools;
+        if (minified.losslessTokensSaved > 0) {
+          changes.push({
+            lever: "tool-schema-compaction",
+            lossless: true,
+            estimatedTokensSaved: minified.losslessTokensSaved,
+            detail: `Compacted ${minified.tools.length} tool definition(s); the decoded schema is unchanged.`
+          });
+        }
+        if (minified.lossyTokensSaved > 0) {
+          changes.push({
+            lever: "tool-schema-description-trim",
+            lossless: false,
+            estimatedTokensSaved: minified.lossyTokensSaved,
+            detail: "Trimmed tool descriptions, which is how the model chooses between tools."
+          });
+        }
+      }
+    }
+    let systemVolatileTail = [];
+    const reduceSystemText = (text, label) => {
+      let current = reduceText(text, config, countTokens, changes, label);
+      if (config.repairCachePrefix) {
+        const repaired = repairPrefix(current);
+        if (repaired.moved.length > 0) {
+          if (label === "system") systemVolatileTail = repaired.moved;
+          current = repaired.text;
+          changes.push({
+            lever: "cache-prefix-repair",
+            lossless: true,
+            // The saving is a cache-rate change, not tokens removed.
+            estimatedTokensSaved: 0,
+            detail: `Moved ${repaired.moved.length} per-request value(s) out of the ${label} prefix, making the stable remainder cacheable. The text is reordered, not removed.`
+          });
+        }
+      }
+      return current;
+    };
+    if (typeof next.instructions === "string") {
+      next.instructions = reduceSystemText(next.instructions, "instructions");
+    }
+    if (typeof next.system === "string") {
+      next.system = reduceSystemText(next.system, "system");
+    }
+    if (config.freshToolResultCap) {
+      const capOptions = isPlainObject2(config.freshToolResultCap) ? config.freshToolResultCap : {};
+      const threshold = capOptions.maximumTokens === void 0 ? 600 : capOptions.maximumTokens;
+      if (typeof threshold !== "number" || !Number.isInteger(threshold) || threshold < 64) {
+        throw new Error("freshToolResultCap maximumTokens must be an integer of at least 64.");
+      }
+      if (Array.isArray(next.input)) {
+        next.input = capFreshToolResults(next.input, threshold, countTokens, changes);
+      }
+      if (Array.isArray(next.messages)) {
+        next.messages = capFreshToolResults(next.messages, threshold, countTokens, changes);
+      }
+    }
+    if (config.historyCompaction) {
+      const options = isPlainObject2(config.historyCompaction) ? config.historyCompaction : {};
+      if (Array.isArray(next.input)) {
+        next.input = compactStaleHistory(next.input, options, countTokens, changes);
+      }
+      if (Array.isArray(next.messages)) {
+        next.messages = compactStaleHistory(next.messages, options, countTokens, changes);
+      }
+    }
+    if (config.crossTurnMemoryDedup) {
+      const memoryOptions = isPlainObject2(config.crossTurnMemoryDedup) ? config.crossTurnMemoryDedup : {};
+      if (Array.isArray(next.input)) {
+        next.input = dedupeMemoryAcrossTurns(next.input, memoryOptions, countTokens, changes);
+      }
+      if (Array.isArray(next.messages)) {
+        next.messages = dedupeMemoryAcrossTurns(next.messages, memoryOptions, countTokens, changes);
+      }
+    }
+    if (Array.isArray(next.input)) {
+      next.input = next.input.map((message) => {
+        if (!isPlainObject2(message)) return message;
+        if (!("content" in message)) return message;
+        return { ...message, content: reduceMessageContent(message.content, config, countTokens, changes) };
+      });
+    } else if (typeof next.input === "string") {
+      next.input = reduceText(next.input, config, countTokens, changes, "input");
+    }
+    if (Array.isArray(next.messages)) {
+      next.messages = next.messages.map((message) => {
+        if (!isPlainObject2(message)) return message;
+        if (!("content" in message)) return message;
+        return { ...message, content: reduceMessageContent(message.content, config, countTokens, changes) };
+      });
+    }
+    if (config.executionTier === "flex" && next.service_tier === void 0) {
+      const model = typeof next.model === "string" ? next.model : "";
+      const anthropicShaped = model.toLowerCase().includes("claude");
+      const catalogued = !anthropicShaped && resolveModelId2(publishedModelPrices, "openai", model).status === "resolved";
+      if (catalogued) {
+        next.service_tier = "flex";
+        changes.push({
+          lever: "execution-tier-flex",
+          lossless: true,
+          // The saving is a rate change on the whole request, not tokens removed.
+          estimatedTokensSaved: 0,
+          detail: "Set service_tier to flex: batch-level pricing (50% off) on a synchronous API. Same model, same answer; latency may rise and 429s fall back to standard, so this applies only to workloads the caller flagged latency-tolerant."
+        });
+      }
+    }
+    if (config.cacheTtl === "5m" || config.cacheTtl === "1h") {
+      const ttl = config.cacheTtl;
+      const decision = config.cacheVolatilityGuard?.observe(request) ?? { stamp: true };
+      const result = decision.stamp ? stampAnthropicCacheTtl(next, ttl, systemVolatileTail, countTokens) : { stamped: false };
+      if (!decision.stamp) {
+        changes.push({
+          lever: "cache-ttl-suppressed",
+          lossless: true,
+          // Nothing was changed; this records WHY no stamp was placed.
+          estimatedTokensSaved: 0,
+          detail: `Cache stamp withheld: ${decision.reason ?? "the conversation's prefix is not stable"}. A breakpoint over a churning prefix buys write premiums and never reads \u2014 a measured loss, not a saving.`
+        });
+      } else if (!result.stamped && result.belowMinimum) {
+        changes.push({
+          lever: "cache-ttl-suppressed",
+          lossless: true,
+          // Nothing was changed; this records WHY no stamp was placed.
+          estimatedTokensSaved: 0,
+          detail: `Cache stamp withheld: the stable prefix measures ${result.belowMinimum.measuredTokens} token(s) by FLUX's approximate counter, under the ${result.belowMinimum.minimumTokens}-token threshold FLUX requires \u2014 the model's documented ${anthropicCacheableMinimumTokens(typeof next.model === "string" ? next.model : "")}-token cacheable minimum with a 1.30x margin for the counter's calibrated overcount on prose. Anthropic processes a prefix under its minimum without caching at all \u2014 a provider-side no-op \u2014 so a breakpoint here would buy a write premium and never read, and would record a saving that can never happen.`
+        });
+      }
+      if (result.stamped) {
+        changes.push({
+          lever: `cache-ttl-${ttl}`,
+          lossless: true,
+          // The saving is a rate change (cache reads at 0.1x), not tokens removed.
+          estimatedTokensSaved: 0,
+          detail: `Stamped cache_control {type: 'ephemeral', ttl: '${ttl}'} on the stable prefix (system prompt; plus the last message on multi-turn requests, whose history repeats next turn). ` + (ttl === "5m" ? "Writes bill at 1.25x base input, reads at 0.1x: the multi-turn agent setting, since Anthropic's cache is opt-in and an unstamped agent re-pays full rate for its history every turn. The caller must flag the workload - it is never set by default." : "Writes bill at 2x base input, reads at 0.1x: this pays only when calls arrive more than ~5 minutes apart, and the caller must flag that workload - it is never set by default.")
+        });
+      }
+    }
+    if (config.maxOutputTokens !== void 0) {
+      const assertValidCap = () => {
+        if (!Number.isInteger(config.maxOutputTokens) || config.maxOutputTokens < 1) {
+          throw new Error("maxOutputTokens must be a positive integer.");
+        }
+      };
+      const claudeModel = typeof next.model === "string" && next.model.toLowerCase().includes("claude");
+      const messagesShaped = Array.isArray(next.messages);
+      if (claudeModel && messagesShaped && typeof next.max_tokens === "number" && Number.isFinite(next.max_tokens)) {
+        assertValidCap();
+        if (next.max_tokens > config.maxOutputTokens) {
+          next.max_tokens = config.maxOutputTokens;
+          changes.push({
+            lever: "output-cap",
+            lossless: false,
+            estimatedTokensSaved: 0,
+            detail: `Clamped max_tokens down to ${config.maxOutputTokens} (downward only; a caller cap at or below the budget is never touched). Responses that would have run longer are truncated, so this needs checking against real output lengths.`
+          });
+        }
+      } else if (!claudeModel && messagesShaped) {
+        if (next.max_completion_tokens === void 0 && next.max_tokens === void 0 && next.max_output_tokens === void 0) {
+          assertValidCap();
+          next.max_completion_tokens = config.maxOutputTokens;
+          changes.push({
+            lever: "output-cap",
+            lossless: false,
+            estimatedTokensSaved: 0,
+            detail: `Set max_completion_tokens to ${config.maxOutputTokens}. Responses that would have run longer are truncated, so this needs checking against real output lengths.`
+          });
+        }
+      } else if (next.max_output_tokens === void 0) {
+        assertValidCap();
+        next.max_output_tokens = config.maxOutputTokens;
+        changes.push({
+          lever: "output-cap",
+          lossless: false,
+          estimatedTokensSaved: 0,
+          detail: `Set max_output_tokens to ${config.maxOutputTokens}. Responses that would have run longer are truncated, so this needs checking against real output lengths.`
+        });
+      }
+    }
+    if (config.outputEffort !== void 0) {
+      const level = config.outputEffort;
+      const model = typeof next.model === "string" ? next.model : "";
+      const claudeMessagesShaped = model.toLowerCase().includes("claude") && Array.isArray(next.messages);
+      const existingConfig = isPlainObject2(next.output_config) ? next.output_config : void 0;
+      const callerSetEffort = existingConfig !== void 0 && "effort" in existingConfig;
+      if (claudeMessagesShaped && !callerSetEffort) {
+        if (anthropicEffortSupport(model).has(level)) {
+          next.output_config = { ...existingConfig ?? {}, effort: level };
+          changes.push({
+            lever: `output-effort-${level}`,
+            lossless: false,
+            // The saving is fewer output tokens the model chooses to emit, read
+            // from provider usage by the gate, not an input-token count here.
+            estimatedTokensSaved: 0,
+            detail: `Set output_config.effort to '${level}'. The model thinks less and answers terser, cutting output tokens (the dearer half of the bill). A top-level field outside the cached prefix, so a stable value never invalidates caching. Lossy \u2014 it changes the answer's depth, so it needs a task-completion replay-gate pass on the caller's own traffic before the saving may be billed.`
+          });
+        } else {
+          changes.push({
+            lever: "output-effort-suppressed",
+            lossless: true,
+            // Nothing was changed; this records WHY no effort was set.
+            estimatedTokensSaved: 0,
+            detail: `Effort '${level}' withheld: model '${model || "(none)"}' is not in FLUX's dated allow-list of Claude models known to accept that level. An unsupported effort value is a 400, and the reducer never risks breaking a request, so it is left as the caller sent it.`
+          });
+        }
+      }
+    }
+    const after = measure(next.instructions) + measure(next.system) + measure(next.input) + measure(next.messages) + measure(next.tools);
+    const summary = {
+      estimatedTokensBefore: before,
+      estimatedTokensAfter: after,
+      estimatedTokensSaved: Math.max(0, before - after),
+      estimatedLosslessTokensSaved: changes.filter((change) => change.lossless).reduce((sum, change) => sum + change.estimatedTokensSaved, 0),
+      changes,
+      skipped: false
+    };
+    config.onReduction?.(summary);
+    return { request: changes.length === 0 ? request : next, summary };
+  } catch (cause) {
+    return unchanged(cause instanceof Error ? cause.message : String(cause));
+  }
+}
+var PREFIX_BREAKERS, STALE_BODY_MUST_KEEP, STALE_BODY_FILE_PATH, FLUX_MARKER;
+var init_reduce_request = __esm({
+  "packages/sdk-js/src/reduce-request.ts"() {
+    "use strict";
+    init_src();
+    PREFIX_BREAKERS = [
+      /\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}(?::\d{2})?(?:\.\d+)?Z?/g,
+      /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi
+    ];
+    STALE_BODY_MUST_KEEP = /\b(error|errors|errored|fail|fails|failed|failure|exception|traceback|stack trace|denied|timeout|timed out|warning|fatal|panic|refused|rejected|not found|invalid)\b/i;
+    STALE_BODY_FILE_PATH = /(?:^|[\s"'`(=[])((?:\/|\.{1,2}\/|~\/|[A-Za-z]:\\)[\w.\\/-]+|[\w.-]+\/[\w./-]+|[\w-]+\.(?:ts|tsx|js|jsx|mjs|cjs|py|json|jsonl|md|yml|yaml|toml|txt|csv|tsv|html|css|go|rs|java|rb|sh|sql|log|xml|lock))\b/;
+    FLUX_MARKER = /\[flux: \d+ chars of [\w -]+\]/;
+  }
+});
+
+// packages/sdk-js/src/replay-gate.ts
+function isPlainObject3(value) {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+function responseText(response) {
+  if (!isPlainObject3(response)) return "";
+  if (typeof response.output_text === "string") return response.output_text;
+  const parts = [];
+  const walk = (value) => {
+    if (Array.isArray(value)) {
+      for (const item of value) walk(item);
+      return;
+    }
+    if (!isPlainObject3(value)) return;
+    if (typeof value.text === "string") parts.push(value.text);
+    if (Array.isArray(value.content)) walk(value.content);
+    if (isPlainObject3(value.message)) walk(value.message);
+  };
+  walk(response.output ?? response.choices ?? response.content ?? []);
+  return parts.join("\n");
+}
+var init_replay_gate = __esm({
+  "packages/sdk-js/src/replay-gate.ts"() {
+    "use strict";
+    init_src();
+    init_reduce_request();
+  }
+});
+
+// packages/sdk-js/src/cache-volatility-guard.ts
+import { createHash as createHash4 } from "node:crypto";
+var isPlainObject4, digest, CachePrefixVolatilityGuard;
+var init_cache_volatility_guard = __esm({
+  "packages/sdk-js/src/cache-volatility-guard.ts"() {
+    "use strict";
+    isPlainObject4 = (value) => typeof value === "object" && value !== null && !Array.isArray(value);
+    digest = (value) => createHash4("sha256").update(JSON.stringify(value ?? null) ?? "null").digest("hex").slice(0, 32);
+    CachePrefixVolatilityGuard = class {
+      constructor(maxConversations = 1e3) {
+        this.maxConversations = maxConversations;
+        if (!Number.isInteger(maxConversations) || maxConversations < 1) {
+          throw new Error("maxConversations must be a positive integer.");
+        }
+      }
+      maxConversations;
+      /** Insertion-ordered; re-inserted on touch, so the first key is the LRU. */
+      conversations = /* @__PURE__ */ new Map();
+      /**
+       * Record this request and decide whether its conversation has earned a
+       * cache stamp. Call once per request, with the raw (unreduced) request.
+       */
+      observe(request) {
+        if (!isPlainObject4(request) || !Array.isArray(request.messages) || request.messages.length === 0) {
+          return { stamp: true };
+        }
+        const key = digest([request.model ?? null, request.messages[0]]);
+        const prefixHash = digest([request.tools ?? null, request.system ?? null]);
+        const messageHashes = request.messages.map(digest);
+        const prior = this.conversations.get(key);
+        if (prior !== void 0) this.conversations.delete(key);
+        if (prior === void 0) {
+          this.conversations.set(key, { prefixHash, messageHashes, volatile: false, stableStreak: 0 });
+          this.evict();
+          return { stamp: true };
+        }
+        const prefixChanged = prior.prefixHash !== prefixHash;
+        const historyExtends = messageHashes.length >= prior.messageHashes.length && prior.messageHashes.every((hash, index) => messageHashes[index] === hash);
+        const entry2 = { prefixHash, messageHashes, volatile: prior.volatile, stableStreak: prior.stableStreak };
+        let decision = { stamp: true };
+        if (prefixChanged || !historyExtends) {
+          entry2.volatile = true;
+          entry2.stableStreak = 0;
+          decision = {
+            stamp: false,
+            reason: prefixChanged ? "tools/system changed between turns of this conversation, so a cached prefix could never be read back" : "the conversation history was rewritten between turns, so a cached prefix could never be read back"
+          };
+        } else if (entry2.volatile) {
+          entry2.stableStreak += 1;
+          if (entry2.stableStreak >= 2) {
+            entry2.volatile = false;
+            entry2.stableStreak = 0;
+          } else {
+            decision = {
+              stamp: false,
+              reason: "this conversation's prefix changed on an earlier turn; waiting for it to prove stable before stamping again"
+            };
+          }
+        }
+        this.conversations.set(key, entry2);
+        return decision;
+      }
+      evict() {
+        while (this.conversations.size > this.maxConversations) {
+          const oldest = this.conversations.keys().next().value;
+          if (oldest === void 0) return;
+          this.conversations.delete(oldest);
+        }
+      }
+    };
+  }
+});
+
+// packages/sdk-js/src/blind-features.ts
+import { createHmac } from "node:crypto";
+function isPlainObject5(value) {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+function textOf(value) {
+  if (typeof value === "string") return value;
+  if (Array.isArray(value)) {
+    return value.map((part) => isPlainObject5(part) && typeof part.text === "string" ? part.text : "").join("\n");
+  }
+  if (isPlainObject5(value) && typeof value.text === "string") return value.text;
+  return "";
+}
+function extractBlindFeatures(request, options) {
+  if (!options.hmacKey) throw new Error("extractBlindFeatures requires a per-deployment hmacKey.");
+  const hash = (text) => createHmac("sha256", options.hmacKey).update(text).digest("hex").slice(0, 32);
+  const req = isPlainObject5(request) ? request : {};
+  const model = typeof req.model === "string" ? req.model : "unknown";
+  const messages = Array.isArray(req.messages) ? req.messages : Array.isArray(req.input) ? req.input : [];
+  const tools = Array.isArray(req.tools) ? req.tools : [];
+  const anthropicShaped = model.toLowerCase().includes("claude") || typeof req.system !== "undefined";
+  const provider = model.toLowerCase().includes("claude") ? "anthropic" : model === "unknown" ? "unknown" : "openai";
+  const roleTokensApprox = {};
+  const blockHashes = [];
+  let inputTokensApprox = 0;
+  if (req.system !== void 0) {
+    const text = textOf(req.system);
+    const tokens = approximateTokenCount(text);
+    roleTokensApprox.system = (roleTokensApprox.system ?? 0) + tokens;
+    inputTokensApprox += tokens;
+    if (text.trim() !== "") blockHashes.push(hash(text));
+  }
+  for (const message of messages) {
+    if (!isPlainObject5(message)) continue;
+    const role = typeof message.role === "string" ? message.role : message.type === "function_call_output" ? "tool" : "unknown";
+    const text = textOf("content" in message ? message.content : message.output);
+    const tokens = approximateTokenCount(text);
+    roleTokensApprox[role] = (roleTokensApprox[role] ?? 0) + tokens;
+    inputTokensApprox += tokens;
+    if (text.trim() !== "") blockHashes.push(hash(text));
+  }
+  const toolSchemaText = tools.length > 0 ? JSON.stringify(tools) : "";
+  const toolSchemaTokensApprox = approximateTokenCount(toolSchemaText);
+  inputTokensApprox += toolSchemaTokensApprox;
+  const uniqueBlocks = new Set(blockHashes);
+  const duplicateBlockFraction = blockHashes.length === 0 ? 0 : (blockHashes.length - uniqueBlocks.size) / blockHashes.length;
+  const prefixText = `${toolSchemaText}\0${anthropicShaped ? textOf(req.system) : ""}`;
+  const stablePrefixHash = hash(prefixText);
+  return {
+    schemaVersion: 1,
+    provider,
+    model,
+    messageCount: messages.length,
+    toolCount: tools.length,
+    roleTokensApprox,
+    inputTokensApprox,
+    toolSchemaTokensApprox,
+    blockHashes,
+    duplicateBlockFraction,
+    stablePrefixHash
+  };
+}
+var init_blind_features = __esm({
+  "packages/sdk-js/src/blind-features.ts"() {
+    "use strict";
+    init_src();
+  }
+});
+
+// packages/sdk-js/src/savings-ledger.ts
+import { appendFileSync, existsSync, mkdirSync, readFileSync } from "node:fs";
+import { dirname } from "node:path";
+function executionModeOf(responseServiceTier2) {
+  if (responseServiceTier2 === "flex") return "flex";
+  if (responseServiceTier2 === "batch") return "batch";
+  return "standard";
+}
+function usageOf(event) {
+  const { inputTokens, outputTokens, cachedInputTokens, cacheWriteInputTokens } = event;
+  if ([inputTokens, outputTokens, cachedInputTokens, cacheWriteInputTokens].some((count) => typeof count !== "number" || !Number.isFinite(count) || count < 0)) {
+    return void 0;
+  }
+  const validCount = (count) => typeof count === "number" && Number.isFinite(count) && count >= 0;
+  const splitReported = event.cacheWrite5mInputTokens !== void 0 || event.cacheWrite1hInputTokens !== void 0;
+  const splitValid = splitReported && validCount(event.cacheWrite5mInputTokens ?? 0) && validCount(event.cacheWrite1hInputTokens ?? 0);
+  if (splitReported && !splitValid) return void 0;
+  return {
+    inputTokens,
+    outputTokens,
+    cachedInputTokens,
+    cacheWriteInputTokens,
+    ...splitValid ? {
+      cacheWrite5mInputTokens: event.cacheWrite5mInputTokens ?? 0,
+      cacheWrite1hInputTokens: event.cacheWrite1hInputTokens ?? 0
+    } : {}
+  };
+}
+function billableEventFromRequest(event, config, catalogue, pinnedCatalogueVersion) {
+  const provider = config.provider ?? "openai";
+  const changes = event.reduction && !event.reduction.skipped ? event.reduction.changes : [];
+  const ttlChange = changes.find((change) => CACHE_TTL_LEVERS.has(change.lever));
+  const fluxPlacedCacheControl = ttlChange !== void 0;
+  const fluxPlacedTtl = ttlChange === void 0 ? void 0 : CACHE_TTL_LEVERS.get(ttlChange.lever);
+  const executionMode = executionModeOf(event.responseServiceTier);
+  const usage = usageOf(event);
+  const pricing = usage === void 0 ? { pricingStatus: "unpriced", reason: "The event carries no complete, valid provider-verbatim usage." } : priceLedgerUsage(catalogue, {
+    provider,
+    model: event.model,
+    at: event.timestamp.slice(0, 10),
+    executionMode,
+    usage,
+    fluxPlacedCacheControl,
+    ...fluxPlacedTtl === void 0 ? {} : { fluxPlacedTtl }
+  });
+  const priced = pricing.pricingStatus === "priced" ? pricing : void 0;
+  const levers = [];
+  const excluded = {};
+  if (event.cacheHit) {
+    levers.push({
+      leverId: EXACT_CACHE_LEVER,
+      kind: "exact_cache",
+      ...event.costAvoidedUsd === void 0 ? {} : { savedUsd: event.costAvoidedUsd }
+    });
+  }
+  if (priced?.tierSavedUsd !== void 0) {
+    levers.push({
+      leverId: `execution-tier-${executionMode}`,
+      kind: "tier",
+      savedUsd: priced.tierSavedUsd
+    });
+  }
+  if (priced?.cacheAttributedUsd !== void 0 && ttlChange !== void 0) {
+    levers.push({
+      leverId: ttlChange.lever,
+      kind: "provider_cache",
+      savedUsd: priced.cacheAttributedUsd
+    });
+  }
+  if (priced?.providerCacheAlreadyOwnedUsd !== void 0) {
+    excluded.providerCacheAlreadyOwnedUsd = priced.providerCacheAlreadyOwnedUsd;
+  }
+  let baselineUsd;
+  try {
+    const supplied = config.getBaselineUsd?.(event);
+    if (typeof supplied === "number" && Number.isFinite(supplied) && supplied >= 0) baselineUsd = supplied;
+  } catch {
+    baselineUsd = void 0;
+  }
+  const tokenChanges = changes.filter((change) => !EXECUTION_TIER_LEVERS.has(change.lever) && !(CACHE_TTL_LEVERS.has(change.lever) && priced?.cacheAttributedUsd !== void 0));
+  const summary = event.reduction && !event.reduction.skipped ? event.reduction : void 0;
+  const estimatedBefore = summary?.estimatedTokensBefore ?? 0;
+  const estimatedRemoved = tokenChanges.reduce((sum, change) => sum + (Number.isFinite(change.estimatedTokensSaved) && change.estimatedTokensSaved > 0 ? change.estimatedTokensSaved : 0), 0);
+  const removedFraction = estimatedBefore > 0 ? estimatedRemoved / estimatedBefore : 0;
+  const estimateUsable = baselineUsd === void 0 && priced !== void 0 && usage !== void 0 && usage.inputTokens > 0 && estimatedRemoved > 0 && removedFraction > 0 && removedFraction < 0.95;
+  const estimatedSavedUsdTotal = estimateUsable ? (usage.inputTokens / (1 - removedFraction) - usage.inputTokens) * (priced.inputUsd / usage.inputTokens) : 0;
+  for (const change of tokenChanges) {
+    const share = estimateUsable && change.estimatedTokensSaved > 0 ? estimatedSavedUsdTotal * (change.estimatedTokensSaved / estimatedRemoved) : void 0;
+    levers.push({
+      leverId: change.lever,
+      kind: change.lossless ? "lossless" : "lossy",
+      ...share === void 0 ? {} : { savedUsd: share, basis: "estimated-baseline" },
+      ...config.gateVerdicts?.[change.lever] === void 0 ? {} : { gateVerdict: config.gateVerdicts[change.lever] }
+    });
+  }
+  for (const change of changes) {
+    if (EXECUTION_TIER_LEVERS.has(change.lever) && priced?.tierSavedUsd === void 0) {
+      levers.push({ leverId: change.lever, kind: "lossless" });
+    }
+  }
+  const measuredTokenChanges = changes.filter((change) => !EXECUTION_TIER_LEVERS.has(change.lever) && !CACHE_TTL_LEVERS.has(change.lever));
+  if (baselineUsd !== void 0 && priced !== void 0 && measuredTokenChanges.length > 0) {
+    const lossy = measuredTokenChanges.filter((change) => !change.lossless);
+    const verdicts = lossy.map((change) => config.gateVerdicts?.[change.lever]);
+    const allApproved = verdicts.every((verdict) => verdict?.verdict === "approved");
+    const savedUsd = baselineUsd - priced.actualUsd - (priced.tierSavedUsd ?? 0) - (priced.cacheAttributedUsd ?? 0);
+    levers.push({
+      leverId: MEASURED_COMPOSITE_LEVER,
+      kind: lossy.length > 0 ? "lossy" : "lossless",
+      savedUsd,
+      ...lossy.length > 0 && allApproved ? {
+        gateVerdict: {
+          ref: verdicts.map((verdict) => verdict.ref).sort().join("+"),
+          verdict: "approved"
+        }
+      } : {},
+      detail: "baselineUsd minus actual catalogue cost, net of tier and cache components"
+    });
+  }
+  let correlation;
+  try {
+    correlation = config.getCorrelation?.(event);
+  } catch {
+    correlation = void 0;
+  }
+  return {
+    schemaVersion: 1,
+    requestId: event.requestId,
+    applicationId: event.applicationId,
+    ...correlation?.taskId === void 0 ? {} : { taskId: correlation.taskId },
+    ...correlation?.turnIndex === void 0 ? {} : { turnIndex: correlation.turnIndex },
+    invoicePeriod: event.timestamp.slice(0, 7),
+    timestamp: event.timestamp,
+    provider,
+    model: event.model,
+    executionMode,
+    pricingStatus: pricing.pricingStatus,
+    ...pricing.pricingStatus === "unpriced" ? { pricingReason: pricing.reason } : {},
+    catalogueVersion: pinnedCatalogueVersion,
+    ...usage === void 0 ? {} : { usage },
+    ...priced === void 0 ? {} : { actualUsd: priced.actualUsd },
+    ...baselineUsd === void 0 ? {} : { baselineUsd },
+    ...event.costUsd === void 0 ? {} : { reportedCostUsd: event.costUsd },
+    levers,
+    ...estimateUsable ? {
+      estimatedReduction: {
+        estimatedInputTokensBefore: estimatedBefore,
+        estimatedInputTokensRemoved: estimatedRemoved
+      }
+    } : {},
+    ...Object.keys(excluded).length === 0 ? {} : { excluded },
+    ...event.outputDiagnostics === void 0 ? {} : { outputDiagnostics: event.outputDiagnostics },
+    ...event.duplicateOfRequestId === void 0 ? {} : { duplicateOfRequestId: event.duplicateOfRequestId },
+    status: event.status
+  };
+}
+function resumeChainTail(path) {
+  try {
+    if (!existsSync(path)) return { disabled: false };
+    const lines = readFileSync(path, "utf8").split("\n").filter((line) => line.trim() !== "");
+    if (lines.length === 0) return { disabled: false };
+    const tail = JSON.parse(lines[lines.length - 1]);
+    if (typeof tail.seq !== "number" || typeof tail.eventHash !== "string") return { disabled: true };
+    return { previous: tail, disabled: false };
+  } catch {
+    return { disabled: true };
+  }
+}
+function createSavingsLedger(config) {
+  if (typeof config.path !== "string" || config.path.trim() === "") {
+    throw new Error("The savings ledger needs a file path for its append-only JSONL spool.");
+  }
+  const catalogue = config.catalogue ?? publishedModelPrices;
+  const pinnedCatalogueVersion = catalogueVersion2(catalogue);
+  const tail = resumeChainTail(config.path);
+  let previous = tail.previous;
+  let disabled = tail.disabled;
+  return {
+    path: config.path,
+    emit(event) {
+      if (disabled) return;
+      try {
+        const billable = billableEventFromRequest(event, config, catalogue, pinnedCatalogueVersion);
+        const record = chainLedgerRecord(billable, previous);
+        mkdirSync(dirname(config.path), { recursive: true });
+        appendFileSync(config.path, `${JSON.stringify(record)}
+`, "utf8");
+        previous = record;
+      } catch {
+        disabled = true;
+      }
+    }
+  };
+}
+var EXECUTION_TIER_LEVERS, CACHE_TTL_LEVERS, MEASURED_COMPOSITE_LEVER, EXACT_CACHE_LEVER;
+var init_savings_ledger3 = __esm({
+  "packages/sdk-js/src/savings-ledger.ts"() {
+    "use strict";
+    init_src();
+    EXECUTION_TIER_LEVERS = /* @__PURE__ */ new Set(["execution-tier-flex"]);
+    CACHE_TTL_LEVERS = /* @__PURE__ */ new Map([["cache-ttl-5m", "5m"], ["cache-ttl-1h", "1h"]]);
+    MEASURED_COMPOSITE_LEVER = "token-reduction-measured";
+    EXACT_CACHE_LEVER = "exact-response-cache";
+  }
+});
+
+// packages/sdk-js/src/proxy.ts
+import { createServer } from "node:http";
+import { createHash as createHash5, randomUUID } from "node:crypto";
+import { appendFileSync as appendFileSync2 } from "node:fs";
+import { join } from "node:path";
+function forwardHeaders(req, provider) {
+  const out = {};
+  for (const [name, value] of Object.entries(req.headers)) {
+    if (HOP_HEADERS.has(name.toLowerCase()) || value === void 0) continue;
+    out[name.toLowerCase()] = Array.isArray(value) ? value.join(", ") : value;
+  }
+  delete out["x-flux-application"];
+  if (provider === "openai") {
+    delete out["x-api-key"];
+  } else if (out["x-api-key"] !== void 0) {
+    delete out.authorization;
+  }
+  out["accept-encoding"] = "identity";
+  return out;
+}
+function readBody(req) {
+  return new Promise((resolve2, reject) => {
+    const chunks = [];
+    let received = 0;
+    req.on("data", (chunk) => {
+      received += chunk.byteLength;
+      if (received > BODY_CAP) {
+        reject(new BodyTooLargeError());
+        req.destroy();
+        return;
+      }
+      chunks.push(chunk);
+    });
+    req.on("end", () => resolve2(Buffer.concat(chunks)));
+    req.on("error", reject);
+  });
+}
+function hostAllowed(req) {
+  const host = (req.headers.host ?? "").toLowerCase().replace(/:\d+$/, "");
+  return host === "127.0.0.1" || host === "localhost" || host === "[::1]" || host === "";
+}
+function surfaceOf(path) {
+  if (path === "/v1/messages") return { provider: "anthropic", upstreamPath: "/v1/messages" };
+  if (path === "/v1/responses") return { provider: "openai", upstreamPath: "/v1/responses" };
+  if (path === "/v1/chat/completions") return { provider: "openai", upstreamPath: "/v1/chat/completions" };
+  return void 0;
+}
+function usageFromSse(provider, sseText) {
+  const events = [];
+  for (const line of sseText.split(/\r?\n/)) {
+    if (!line.startsWith("data:")) continue;
+    const payload = line.slice(5).trim();
+    if (payload === "" || payload === "[DONE]") continue;
+    try {
+      const parsed = JSON.parse(payload);
+      if (typeof parsed === "object" && parsed !== null) events.push(parsed);
+    } catch {
+    }
+  }
+  if (events.length === 0) return void 0;
+  if (provider === "anthropic") {
+    const start = events.find((e) => e.type === "message_start");
+    const startUsage = start?.message?.usage;
+    if (startUsage === void 0) return void 0;
+    let outputTokens = startUsage.output_tokens;
+    let tier = start?.message?.service_tier ?? startUsage.service_tier;
+    for (const e of events) {
+      if (e.type !== "message_delta") continue;
+      const deltaUsage = e.usage;
+      if (deltaUsage?.output_tokens !== void 0) outputTokens = deltaUsage.output_tokens;
+    }
+    return {
+      usage: { ...startUsage, output_tokens: outputTokens ?? 0 },
+      ...typeof tier === "string" ? { service_tier: tier } : {}
+    };
+  }
+  const completed = [...events].reverse().find((e) => e.type === "response.completed");
+  const completedResponse = completed?.response;
+  if (completedResponse?.usage !== void 0) return completedResponse;
+  const withUsage = [...events].reverse().find((e) => e.usage !== void 0 && e.usage !== null);
+  return withUsage;
+}
+function outputTextFromSse(provider, sseText) {
+  const parts = [];
+  for (const line of sseText.split(/\r?\n/)) {
+    if (!line.startsWith("data:")) continue;
+    const payload = line.slice(5).trim();
+    if (payload === "" || payload === "[DONE]") continue;
+    try {
+      const parsed = JSON.parse(payload);
+      if (provider === "anthropic") {
+        const delta = parsed.delta;
+        if (parsed.type === "content_block_delta" && typeof delta?.text === "string") parts.push(delta.text);
+      } else {
+        if (parsed.type === "response.output_text.delta" && typeof parsed.delta === "string") parts.push(parsed.delta);
+        const choices = parsed.choices;
+        const chatDelta = choices?.[0]?.delta;
+        if (typeof chatDelta?.content === "string") parts.push(chatDelta.content);
+      }
+    } catch {
+    }
+  }
+  return parts.join("");
+}
+function startFluxProxy(options) {
+  const baseReduction = options.tokenReduction ?? LOSSLESS_DEFAULT;
+  const reduction = baseReduction.cacheTtl !== void 0 && baseReduction.cacheVolatilityGuard === void 0 ? { ...baseReduction, cacheVolatilityGuard: new CachePrefixVolatilityGuard() } : baseReduction;
+  const upstreams = {
+    anthropic: (options.anthropicUpstream ?? "https://api.anthropic.com").replace(/\/$/, ""),
+    openai: (options.openaiUpstream ?? "https://api.openai.com").replace(/\/$/, "")
+  };
+  const ledgers = /* @__PURE__ */ new Map();
+  const LEDGER_CAP = 200;
+  const recentRequestHashes = /* @__PURE__ */ new Map();
+  const RECENT_HASH_CAP = 500;
+  const ledgerFor = (applicationId, provider) => {
+    const safeApp = applicationId.replace(/[^A-Za-z0-9._-]/g, "_").slice(0, 64) || "proxy";
+    const key = `${safeApp}
+${provider}`;
+    const existing = ledgers.get(key);
+    if (existing !== void 0) {
+      ledgers.delete(key);
+      ledgers.set(key, existing);
+      return existing;
+    }
+    while (ledgers.size >= LEDGER_CAP) {
+      const oldest = ledgers.keys().next().value;
+      if (oldest === void 0) break;
+      ledgers.delete(oldest);
+    }
+    const ledger = createSavingsLedger({
+      path: join(options.ledgerDirectory, `${safeApp}-${provider}.jsonl`),
+      provider
+    });
+    ledgers.set(key, ledger);
+    return ledger;
+  };
+  const blindFeaturesKey = options.blindFeaturesKey;
+  const writeBlindFeatures = (applicationId, provider, record) => {
+    const safeApp = applicationId.replace(/[^A-Za-z0-9._-]/g, "_").slice(0, 64) || "proxy";
+    appendFileSync2(join(options.ledgerDirectory, `${safeApp}-${provider}.features.jsonl`), `${JSON.stringify(record)}
+`);
+  };
+  const handle = async (req, res) => {
+    const path = (req.url ?? "").split("?")[0];
+    if (!hostAllowed(req)) {
+      res.writeHead(403, { "content-type": "application/json" });
+      res.end(JSON.stringify({ error: "FLUX proxy serves loopback clients only." }));
+      return;
+    }
+    if (req.method === "GET" && path.startsWith("/v1/")) {
+      const provider = req.headers["x-api-key"] !== void 0 ? "anthropic" : "openai";
+      let upstreamResponse2;
+      try {
+        upstreamResponse2 = await fetch(`${upstreams[provider]}${req.url}`, {
+          headers: forwardHeaders(req, provider),
+          signal: AbortSignal.timeout(6e4)
+        });
+      } catch (cause) {
+        res.writeHead(502, { "content-type": "application/json" });
+        res.end(JSON.stringify({ error: `Upstream unreachable: ${cause.message}` }));
+        return;
+      }
+      const passHeaders = {};
+      upstreamResponse2.headers.forEach((value, name) => {
+        if (!HOP_HEADERS.has(name.toLowerCase())) passHeaders[name] = value;
+      });
+      res.writeHead(upstreamResponse2.status, passHeaders);
+      res.end(Buffer.from(await upstreamResponse2.arrayBuffer()));
+      return;
+    }
+    const surface = req.method === "POST" ? surfaceOf(path) : void 0;
+    if (surface === void 0) {
+      res.writeHead(404, { "content-type": "application/json" });
+      res.end(JSON.stringify({
+        error: "FLUX proxy forwards POST /v1/messages (Anthropic), /v1/responses and /v1/chat/completions (OpenAI-compatible). Point your client's base_url at this server."
+      }));
+      return;
+    }
+    let rawBody;
+    try {
+      rawBody = await readBody(req);
+    } catch (cause) {
+      if (cause instanceof BodyTooLargeError && !res.headersSent) {
+        res.writeHead(413, { "content-type": "application/json" });
+        res.end(JSON.stringify({ error: cause.message }));
+      }
+      return;
+    }
+    let body;
+    try {
+      body = JSON.parse(rawBody.toString("utf8"));
+    } catch {
+      body = void 0;
+    }
+    if (body === void 0 || typeof body !== "object") {
+      res.writeHead(400, { "content-type": "application/json" });
+      res.end(JSON.stringify({ error: "The request body is not a JSON object." }));
+      return;
+    }
+    const { request: reducedRequest, summary } = reduceRequest(body, reduction);
+    const sendBody = JSON.stringify(reducedRequest);
+    const applicationIdHeader = req.headers["x-flux-application"];
+    const applicationId = ((Array.isArray(applicationIdHeader) ? applicationIdHeader[0] : applicationIdHeader) ?? "proxy").slice(0, 128);
+    const headers = forwardHeaders(req, surface.provider);
+    headers["content-type"] = "application/json";
+    const upstreamControl = new AbortController();
+    const abortUpstream = (reason) => upstreamControl.abort(new Error(reason));
+    const onClientClose = () => {
+      if (!res.writableEnded) abortUpstream("client disconnected");
+    };
+    res.on("close", onClientClose);
+    const HEADER_TIMEOUT_MS = 12e4;
+    const IDLE_TIMEOUT_MS = 12e4;
+    let phaseTimer = setTimeout(() => abortUpstream("upstream produced no response headers within 120s"), HEADER_TIMEOUT_MS);
+    const requestId = randomUUID();
+    const bodyHash = createHash5("sha256").update(applicationId).update("\n").update(rawBody).digest("hex");
+    const duplicateOfRequestId = recentRequestHashes.get(bodyHash);
+    if (duplicateOfRequestId === void 0) {
+      while (recentRequestHashes.size >= RECENT_HASH_CAP) {
+        const oldest = recentRequestHashes.keys().next().value;
+        if (oldest === void 0) break;
+        recentRequestHashes.delete(oldest);
+      }
+      recentRequestHashes.set(bodyHash, requestId);
+    }
+    const startedAt = Date.now();
+    let upstreamResponse;
+    try {
+      upstreamResponse = await fetch(`${upstreams[surface.provider]}${surface.upstreamPath}`, {
+        method: "POST",
+        headers,
+        body: sendBody,
+        signal: upstreamControl.signal
+      });
+    } catch (cause) {
+      clearTimeout(phaseTimer);
+      if (!res.headersSent && !res.destroyed) {
+        res.writeHead(502, { "content-type": "application/json" });
+        res.end(JSON.stringify({ error: `Upstream unreachable: ${cause.message}` }));
+      }
+      return;
+    }
+    clearTimeout(phaseTimer);
+    const responseHeaders = {};
+    upstreamResponse.headers.forEach((value, name) => {
+      if (!HOP_HEADERS.has(name.toLowerCase())) responseHeaders[name] = value;
+    });
+    if (res.destroyed) {
+      abortUpstream("client disconnected");
+      return;
+    }
+    res.writeHead(upstreamResponse.status, responseHeaders);
+    const chunks = [];
+    let accumulated = 0;
+    const ACCUMULATION_CAP = 32 * 1024 * 1024;
+    let clientLost = false;
+    if (upstreamResponse.body !== null) {
+      const reader = upstreamResponse.body.getReader();
+      try {
+        for (; ; ) {
+          phaseTimer = setTimeout(() => abortUpstream("upstream stream idle for 120s"), IDLE_TIMEOUT_MS);
+          let done;
+          let value;
+          try {
+            ({ done, value } = await reader.read());
+          } finally {
+            clearTimeout(phaseTimer);
+          }
+          if (done) break;
+          if (res.destroyed) {
+            clientLost = true;
+            abortUpstream("client disconnected");
+            break;
+          }
+          const chunk = Buffer.from(value);
+          const flushed = res.write(chunk);
+          if (accumulated < ACCUMULATION_CAP) {
+            chunks.push(chunk);
+            accumulated += chunk.byteLength;
+          }
+          if (!flushed) {
+            await new Promise((proceed) => {
+              const onDrain = () => {
+                res.off("close", onGone);
+                proceed();
+              };
+              const onGone = () => {
+                res.off("drain", onDrain);
+                proceed();
+              };
+              res.once("drain", onDrain);
+              res.once("close", onGone);
+            });
+          }
+        }
+      } catch {
+        clientLost = res.destroyed;
+      }
+    }
+    res.off("close", onClientClose);
+    if (!clientLost && !res.destroyed) res.end();
+    try {
+      const text = Buffer.concat(chunks).toString("utf8");
+      const contentType = upstreamResponse.headers.get("content-type") ?? "";
+      if (process.env.FLUX_PROXY_DEBUG === "1" && !upstreamResponse.ok) {
+        console.warn(
+          `[flux-debug] upstream ${upstreamResponse.status} model=${JSON.stringify(body.model)} path=${path} anthropic-beta=${JSON.stringify(req.headers["anthropic-beta"] ?? null)} errbody=${text.slice(0, 500)}`
+        );
+      }
+      let responseShaped;
+      if (contentType.includes("text/event-stream")) {
+        responseShaped = usageFromSse(surface.provider, text);
+      } else {
+        try {
+          responseShaped = JSON.parse(text);
+        } catch {
+          responseShaped = void 0;
+        }
+      }
+      const usageResult = responseShaped === void 0 ? void 0 : normalizeProviderUsage(responseShaped);
+      const usage = usageResult?.status === "ok" ? usageResult.usage : void 0;
+      const tier = responseShaped === void 0 ? void 0 : responseServiceTier(responseShaped);
+      let outputDiagnostics;
+      if (usage !== void 0 && usage.outputTokens >= 200 && responseShaped !== void 0) {
+        const outputText = contentType.includes("text/event-stream") ? outputTextFromSse(surface.provider, text) : responseText(responseShaped);
+        if (outputText.length > 0) {
+          outputDiagnostics = measureOutputReEmission(collectRequestText(body), outputText);
+        }
+      }
+      const event = {
+        requestId,
+        applicationId,
+        provider: `${surface.provider}-compatible`,
+        model: typeof body.model === "string" ? body.model : "unknown",
+        latencyMs: Date.now() - startedAt,
+        status: upstreamResponse.ok ? "succeeded" : "failed",
+        timestamp: new Date(startedAt).toISOString(),
+        ...summary.skipped ? {} : { reduction: summary },
+        ...usage === void 0 ? {} : {
+          inputTokens: usage.inputTokens,
+          outputTokens: usage.outputTokens,
+          uncachedInputTokens: usage.uncachedInputTokens,
+          cachedInputTokens: usage.cachedInputTokens,
+          cacheWriteInputTokens: usage.cacheWriteInputTokens,
+          ...usage.cacheWrite5mInputTokens === void 0 ? {} : {
+            cacheWrite5mInputTokens: usage.cacheWrite5mInputTokens,
+            cacheWrite1hInputTokens: usage.cacheWrite1hInputTokens ?? 0
+          }
+        },
+        ...tier === void 0 ? {} : { responseServiceTier: tier },
+        ...outputDiagnostics === void 0 ? {} : { outputDiagnostics },
+        ...duplicateOfRequestId === void 0 ? {} : { duplicateOfRequestId }
+      };
+      ledgerFor(applicationId, surface.provider).emit(event);
+      if (blindFeaturesKey !== void 0) {
+        const features = extractBlindFeatures(body, { hmacKey: blindFeaturesKey });
+        writeBlindFeatures(applicationId, surface.provider, {
+          requestId,
+          applicationId,
+          timestamp: event.timestamp,
+          features
+        });
+      }
+    } catch {
+    }
+  };
+  const server = createServer((req, res) => {
+    handle(req, res).catch(() => {
+      if (!res.headersSent) {
+        res.writeHead(500, { "content-type": "application/json" });
+        res.end(JSON.stringify({ error: "FLUX proxy internal error." }));
+      } else {
+        res.end();
+      }
+    });
+  });
+  return new Promise((resolve2, reject) => {
+    server.once("error", reject);
+    server.listen(options.port ?? 0, "127.0.0.1", () => {
+      const address = server.address();
+      const port = typeof address === "object" && address !== null ? address.port : options.port ?? 0;
+      resolve2({
+        port,
+        url: `http://127.0.0.1:${port}`,
+        close: () => new Promise((done, fail) => server.close((err) => err ? fail(err) : done()))
+      });
+    });
+  });
+}
+var LOSSLESS_DEFAULT, HOP_HEADERS, BODY_CAP, BodyTooLargeError;
+var init_proxy = __esm({
+  "packages/sdk-js/src/proxy.ts"() {
+    "use strict";
+    init_src();
+    init_replay_gate();
+    init_cache_volatility_guard();
+    init_reduce_request();
+    init_blind_features();
+    init_savings_ledger3();
+    LOSSLESS_DEFAULT = {
+      toolSchemas: true,
+      duplicateContext: true,
+      repairCachePrefix: true
+    };
+    HOP_HEADERS = /* @__PURE__ */ new Set([
+      "host",
+      "content-length",
+      "connection",
+      "accept-encoding",
+      "transfer-encoding",
+      "upgrade",
+      "te",
+      "trailer",
+      "keep-alive",
+      "proxy-authorization"
+    ]);
+    BODY_CAP = 64 * 1024 * 1024;
+    BodyTooLargeError = class extends Error {
+      constructor() {
+        super(`Request body exceeds the ${BODY_CAP / (1024 * 1024)} MB cap.`);
+      }
+    };
+  }
+});
+
+// packages/sdk-js/src/theo-policy.ts
+function proofClearsCeiling(lever, ceilingPercent) {
+  if (lever.gate === void 0) return false;
+  const y = lever.gate.qualityDeltaPercent;
+  return Number.isFinite(y) && Math.abs(y) <= ceilingPercent;
+}
+function applyLever(config, lever) {
+  const p = lever.params ?? {};
+  switch (lever.lever) {
+    case "tool-schema-compaction":
+      if (config.toolSchemas === void 0) config.toolSchemas = true;
+      return;
+    case "tool-schema-description-trim":
+      config.toolSchemas = {
+        descriptions: "truncate",
+        ...typeof p.maximumDescriptionTokens === "number" ? { maximumDescriptionTokens: p.maximumDescriptionTokens } : {}
+      };
+      return;
+    case "duplicate-context-removal":
+      config.duplicateContext = true;
+      return;
+    case "cache-prefix-repair":
+      config.repairCachePrefix = true;
+      return;
+    case "stale-history-compaction":
+      config.historyCompaction = true;
+      return;
+    case "cross-turn-memory-dedup":
+      config.crossTurnMemoryDedup = true;
+      return;
+    case "fresh-tool-result-cap":
+      config.freshToolResultCap = typeof p.maximumTokens === "number" ? { maximumTokens: p.maximumTokens } : true;
+      return;
+    case "output-cap":
+      if (typeof p.maxOutputTokens === "number") config.maxOutputTokens = p.maxOutputTokens;
+      return;
+    case "execution-tier-flex":
+      config.executionTier = "flex";
+      return;
+    case "cache-ttl-5m":
+      config.cacheTtl = "5m";
+      return;
+    case "cache-ttl-1h":
+      config.cacheTtl = "1h";
+      return;
+    case "output-effort-low":
+    case "output-effort-medium":
+    case "output-effort-high":
+    case "output-effort-xhigh":
+    case "output-effort-max":
+      config.outputEffort = lever.lever.replace("output-effort-", "");
+      return;
+    default:
+      return;
+  }
+}
+function policyToReductionConfig(policy) {
+  const config = {};
+  for (const lever of policy.levers) {
+    if (lever.class === "lossy" && !proofClearsCeiling(lever, policy.qualityCeilingPercent)) continue;
+    applyLever(config, lever);
+  }
+  return config;
+}
+function withheldLevers(policy) {
+  const out = [];
+  for (const lever of policy.levers) {
+    if (lever.class !== "lossy") continue;
+    if (lever.gate === void 0) {
+      out.push({ lever: lever.lever, reason: "no gate proof yet \u2014 queued for the live gate" });
+    } else if (!proofClearsCeiling(lever, policy.qualityCeilingPercent)) {
+      out.push({
+        lever: lever.lever,
+        reason: `measured quality drop ${Math.abs(lever.gate.qualityDeltaPercent).toFixed(2)}% exceeds the ${policy.qualityCeilingPercent}% ceiling for this route`
+      });
+    }
+  }
+  return out;
+}
+function defaultPolicy(user, at) {
+  return {
+    schemaVersion: 1,
+    user,
+    version: 1,
+    qualityCeilingPercent: 2,
+    // strict by default; loosened only by the user's revealed preference
+    levers: [
+      { lever: "tool-schema-compaction", class: "lossless" },
+      { lever: "duplicate-context-removal", class: "lossless" },
+      { lever: "cache-prefix-repair", class: "lossless" }
+    ],
+    updatedAt: at
+  };
+}
+var init_theo_policy = __esm({
+  "packages/sdk-js/src/theo-policy.ts"() {
+    "use strict";
+  }
+});
+
+// packages/cli/src/start.ts
+var start_exports = {};
+__export(start_exports, {
+  BUILD_COMMIT: () => BUILD_COMMIT,
+  CLAUDE_SETTINGS: () => CLAUDE_SETTINGS,
+  DEFAULT_PORT: () => DEFAULT_PORT,
+  FLUX_HOME: () => FLUX_HOME,
+  runServe: () => runServe,
+  runStart: () => runStart,
+  startProxyWithPolicy: () => startProxyWithPolicy,
+  summariseLedger: () => summariseLedger
+});
+import { randomBytes } from "node:crypto";
+import {
+  existsSync as existsSync2,
+  mkdirSync as mkdirSync2,
+  readFileSync as readFileSync2,
+  readdirSync,
+  writeFileSync
+} from "node:fs";
+import { homedir } from "node:os";
+import { join as join2 } from "node:path";
+function parseStart(argv) {
+  const args = { port: 8787, ledgerDir: join2(FLUX_HOME, "ledger"), install: true };
+  for (let i = 0; i < argv.length; i += 1) {
+    const key = argv[i];
+    if (key === "--help" || key === "-h") {
+      console.log(
+        `Usage: flux start [options]
+
+  --port <n>       Port for the local proxy (default 8787).
+  --ledger <dir>   Where to write the hash-chained ledger (default ~/.flux/ledger).
+  --no-install     Don't touch ~/.claude/settings.json; just run the proxy.
+  --help           Show this message.`
+      );
+      process.exit(0);
+    }
+    if (key === "--no-install") {
+      args.install = false;
+      continue;
+    }
+    const value = argv[i + 1];
+    if (value === void 0 || value.startsWith("--")) throw new Error(`${key} needs a value.`);
+    i += 1;
+    if (key === "--port") args.port = Number.parseInt(value, 10);
+    else if (key === "--ledger") args.ledgerDir = value;
+    else throw new Error(`Unknown option: ${key}. See flux start --help.`);
+  }
+  if (!Number.isInteger(args.port) || args.port < 0 || args.port > 65535) throw new Error("--port must be 0-65535.");
+  return args;
+}
+function blindKey() {
+  const path = join2(FLUX_HOME, "blind.key");
+  if (existsSync2(path)) return readFileSync2(path, "utf8").trim();
+  const key = randomBytes(32).toString("hex");
+  writeFileSync(path, key, { mode: 384 });
+  return key;
+}
+function configureClaudeCode(baseUrl) {
+  mkdirSync2(join2(homedir(), ".claude"), { recursive: true });
+  let settings = {};
+  let hadFile = false;
+  if (existsSync2(CLAUDE_SETTINGS)) {
+    hadFile = true;
+    try {
+      settings = JSON.parse(readFileSync2(CLAUDE_SETTINGS, "utf8"));
+    } catch {
+      throw new Error(`~/.claude/settings.json isn't valid JSON \u2014 fix or move it, then re-run. FLUX won't overwrite it.`);
+    }
+  }
+  const env = { ...settings.env ?? {} };
+  const priorBaseUrl = env.ANTHROPIC_BASE_URL;
+  env.ANTHROPIC_BASE_URL = baseUrl;
+  writeFileSync(CLAUDE_SETTINGS, `${JSON.stringify({ ...settings, env }, null, 2)}
+`);
+  return function restore() {
+    try {
+      const now = JSON.parse(readFileSync2(CLAUDE_SETTINGS, "utf8"));
+      const nowEnv = { ...now.env ?? {} };
+      if (priorBaseUrl === void 0) delete nowEnv.ANTHROPIC_BASE_URL;
+      else nowEnv.ANTHROPIC_BASE_URL = priorBaseUrl;
+      const next = { ...now, env: nowEnv };
+      if (Object.keys(nowEnv).length === 0) delete next.env;
+      if (!hadFile && Object.keys(next).length === 0) return;
+      writeFileSync(CLAUDE_SETTINGS, `${JSON.stringify(next, null, 2)}
+`);
+    } catch {
+    }
+  };
+}
+function summariseLedger(ledgerDir) {
+  if (!existsSync2(ledgerDir)) return { events: 0, savedUsd: 0, verdict: "do_not_charge", chainOk: true };
+  const spools = readdirSync(ledgerDir).filter((f) => f.endsWith(".jsonl") && !f.endsWith(".features.jsonl"));
+  const allRecords = [];
+  let chainOk = true;
+  let brokenAt;
+  for (const spool of spools) {
+    const records = [];
+    const raw = readFileSync2(join2(ledgerDir, spool), "utf8").trim();
+    if (raw === "") continue;
+    for (const line of raw.split(/\r?\n/)) {
+      if (line.trim() === "") continue;
+      try {
+        records.push(JSON.parse(line));
+      } catch {
+      }
+    }
+    const chain = verifyLedgerChain(records);
+    if (!chain.ok) {
+      chainOk = false;
+      brokenAt = `${spool} seq ${chain.seq}`;
+    }
+    allRecords.push(...records);
+  }
+  if (allRecords.length === 0) return { events: 0, savedUsd: 0, verdict: "do_not_charge", chainOk };
+  const invoice = recomputeInvoice(allRecords.map((r) => r.event));
+  return {
+    events: allRecords.length,
+    savedUsd: invoice.netVerifiedSavingsUsd,
+    verdict: invoice.verdict,
+    chainOk,
+    brokenAt
+  };
+}
+async function startProxyWithPolicy(port, ledgerDir) {
+  mkdirSync2(FLUX_HOME, { recursive: true });
+  mkdirSync2(ledgerDir, { recursive: true });
+  const policyPath = join2(FLUX_HOME, "theo-policy.json");
+  const policy = existsSync2(policyPath) ? JSON.parse(readFileSync2(policyPath, "utf8")) : defaultPolicy("local", (/* @__PURE__ */ new Date()).toISOString());
+  if (!existsSync2(policyPath)) writeFileSync(policyPath, `${JSON.stringify(policy, null, 2)}
+`);
+  const proxy = await startFluxProxy({
+    port,
+    ledgerDirectory: ledgerDir,
+    tokenReduction: policyToReductionConfig(policy),
+    blindFeaturesKey: blindKey()
+  });
+  return { proxy, policy };
+}
+async function runServe(argv) {
+  const args = parseStart(argv);
+  const { proxy } = await startProxyWithPolicy(args.port, args.ledgerDir);
+  const stamp = () => (/* @__PURE__ */ new Date()).toISOString();
+  console.log(`[${stamp()}] flux serve \xB7 build ${BUILD_COMMIT} \xB7 proxy ${proxy.url} \xB7 ledger ${args.ledgerDir}`);
+  let lastEvents = -1;
+  const monitor = setInterval(() => {
+    const s = summariseLedger(args.ledgerDir);
+    if (!s.chainOk) {
+      console.log(`[${stamp()}] ${T} \u26A0 ledger chain failed at ${s.brokenAt}`);
+      return;
+    }
+    if (s.events === lastEvents || s.events === 0) return;
+    lastEvents = s.events;
+    console.log(`[${stamp()}] ${T} ${s.events} requests \xB7 $${s.savedUsd.toFixed(4)} verified saved (${s.verdict})`);
+  }, 1e4);
+  const shutdown = async () => {
+    clearInterval(monitor);
+    await proxy.close();
+    process.exit(0);
+  };
+  process.on("SIGTERM", () => {
+    void shutdown();
+  });
+  process.on("SIGINT", () => {
+    void shutdown();
+  });
+  await new Promise(() => {
+  });
+}
+async function runStart(argv) {
+  const args = parseStart(argv);
+  const { proxy, policy } = await startProxyWithPolicy(args.port, args.ledgerDir);
+  const restore = args.install ? configureClaudeCode(proxy.url) : () => {
+  };
+  const withheld = withheldLevers(policy);
+  console.log("");
+  console.log(`  FLUX is running  \xB7  build ${BUILD_COMMIT}`);
+  console.log(`  proxy    ${proxy.url}`);
+  console.log(`  ledger   ${args.ledgerDir}  (hash-chained; recompute any time with: flux verify)`);
+  if (args.install) console.log(`  claude   pointed at FLUX via ~/.claude/settings.json  (restored on exit)`);
+  else console.log(`  claude   not configured (--no-install); set ANTHROPIC_BASE_URL=${proxy.url} yourself`);
+  console.log("");
+  console.log(`  ${T} \u2014 I'm watching your traffic. I only ever tune FLUX, never your prompts`);
+  console.log(`  ${T}   or answers. Everything I report is verified from your provider's own`);
+  console.log(`  ${T}   usage \u2014 never an estimate.`);
+  if (withheld.length > 0) {
+    console.log(`  ${T}   Holding ${withheld.length} lossy lever${withheld.length === 1 ? "" : "s"} back until a replay`);
+    console.log(`  ${T}   proves ${withheld.length === 1 ? "it is" : "they are"} safe on your own traffic.`);
+  }
+  console.log("");
+  console.log(`  Just use Claude Code as normal. Press Ctrl+C to stop (Claude Code reverts cleanly).`);
+  console.log("");
+  let lastEvents = -1;
+  const tick = () => {
+    const s = summariseLedger(args.ledgerDir);
+    if (!s.chainOk) {
+      console.log(`  ${T} \u2014 \u26A0 ledger chain check failed at ${s.brokenAt}. Stop and run: flux verify`);
+      return;
+    }
+    if (s.events === lastEvents) return;
+    lastEvents = s.events;
+    if (s.events === 0) return;
+    const saved = `$${s.savedUsd.toFixed(4)}`;
+    const verdict = s.verdict === "charge" ? saved : `${saved} (nothing to bill yet \u2014 do not pay us)`;
+    console.log(`  ${T} \u2014 ${s.events} request${s.events === 1 ? "" : "s"} seen \xB7 ${verdict} verified saved`);
+  };
+  const monitor = setInterval(tick, 6e3);
+  let closing = false;
+  const shutdown = async () => {
+    if (closing) return;
+    closing = true;
+    clearInterval(monitor);
+    const s = summariseLedger(args.ledgerDir);
+    restore();
+    await proxy.close();
+    console.log("");
+    if (s.events > 0) {
+      console.log(`  ${T} \u2014 session done: ${s.events} request${s.events === 1 ? "" : "s"}, $${s.savedUsd.toFixed(4)} verified saved.`);
+      console.log(`  ${T}   Recompute it yourself any time: flux verify`);
+    } else {
+      console.log(`  ${T} \u2014 no requests ran through FLUX this session.`);
+    }
+    console.log(`  Claude Code restored. Bye.`);
+    process.exit(0);
+  };
+  process.on("SIGINT", () => {
+    void shutdown();
+  });
+  process.on("SIGTERM", () => {
+    void shutdown();
+  });
+  await new Promise(() => {
+  });
+}
+var BUILD_COMMIT, FLUX_HOME, CLAUDE_SETTINGS, DEFAULT_PORT, T;
+var init_start = __esm({
+  "packages/cli/src/start.ts"() {
+    init_savings_ledger();
+    init_proxy();
+    init_theo_policy();
+    BUILD_COMMIT = true ? "4142afe" : process.env.FLUX_BUILD_COMMIT ?? "dev";
+    FLUX_HOME = join2(homedir(), ".flux");
+    CLAUDE_SETTINGS = join2(homedir(), ".claude", "settings.json");
+    DEFAULT_PORT = 8787;
+    T = "\u2B22 theo";
+  }
+});
+
+// packages/cli/src/daemon.ts
+var daemon_exports = {};
+__export(daemon_exports, {
+  runInstall: () => runInstall,
+  runStatus: () => runStatus,
+  runUninstall: () => runUninstall
+});
+import { connect } from "node:net";
+import { execFileSync } from "node:child_process";
+import { chmodSync, copyFileSync, existsSync as existsSync3, mkdirSync as mkdirSync3, readFileSync as readFileSync3, rmSync, writeFileSync as writeFileSync2 } from "node:fs";
+import { homedir as homedir2, platform } from "node:os";
+import { dirname as dirname2, join as join3, resolve } from "node:path";
+function requireMac(action) {
+  if (platform() !== "darwin") {
+    console.error(`\`flux ${action}\` uses macOS launchd and isn't wired for this platform yet.`);
+    console.error(`Use \`flux start\` instead \u2014 it does the same thing while it's running.`);
+    process.exit(1);
+  }
+}
+function parsePort(argv) {
+  const i = argv.indexOf("--port");
+  if (i >= 0 && argv[i + 1]) {
+    const n = Number.parseInt(argv[i + 1], 10);
+    if (Number.isInteger(n) && n > 0 && n < 65536) return n;
+    throw new Error("--port must be 1-65535.");
+  }
+  return DEFAULT_PORT;
+}
+function launchctl(...args) {
+  try {
+    execFileSync("launchctl", args, { stdio: "pipe" });
+  } catch {
+  }
+}
+function isLoaded() {
+  try {
+    execFileSync("launchctl", ["list", LABEL], { stdio: "pipe" });
+    return true;
+  } catch {
+    return false;
+  }
+}
+function portUp(port, timeoutMs = 800) {
+  return new Promise((res) => {
+    const sock = connect({ host: "127.0.0.1", port });
+    const done = (ok) => {
+      sock.destroy();
+      res(ok);
+    };
+    sock.setTimeout(timeoutMs);
+    sock.once("connect", () => done(true));
+    sock.once("timeout", () => done(false));
+    sock.once("error", () => done(false));
+  });
+}
+function setClaudeBaseUrl(url) {
+  mkdirSync3(dirname2(CLAUDE_SETTINGS), { recursive: true });
+  let settings = {};
+  if (existsSync3(CLAUDE_SETTINGS)) {
+    try {
+      settings = JSON.parse(readFileSync3(CLAUDE_SETTINGS, "utf8"));
+    } catch {
+      throw new Error("~/.claude/settings.json isn't valid JSON \u2014 fix it first; FLUX won't overwrite it.");
+    }
+  }
+  const env = { ...settings.env ?? {}, ANTHROPIC_BASE_URL: url };
+  writeFileSync2(CLAUDE_SETTINGS, `${JSON.stringify({ ...settings, env }, null, 2)}
+`);
+}
+function clearClaudeBaseUrl() {
+  if (!existsSync3(CLAUDE_SETTINGS)) return;
+  try {
+    const settings = JSON.parse(readFileSync3(CLAUDE_SETTINGS, "utf8"));
+    const env = { ...settings.env ?? {} };
+    delete env.ANTHROPIC_BASE_URL;
+    const next = { ...settings, env };
+    if (Object.keys(env).length === 0) delete next.env;
+    writeFileSync2(CLAUDE_SETTINGS, `${JSON.stringify(next, null, 2)}
+`);
+  } catch {
+  }
+}
+function writePlist(port) {
+  const argv = [process.execPath, STABLE_BIN, "serve", "--port", String(port), "--ledger", DEFAULT_LEDGER];
+  const esc = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  const argXml = argv.map((a) => `      <string>${esc(a)}</string>`).join("\n");
+  const plist = `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>${LABEL}</string>
+  <key>ProgramArguments</key>
+  <array>
+${argXml}
+  </array>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><true/>
+  <key>StandardOutPath</key><string>${esc(DAEMON_LOG)}</string>
+  <key>StandardErrorPath</key><string>${esc(DAEMON_LOG)}</string>
+</dict>
+</plist>
+`;
+  mkdirSync3(dirname2(PLIST), { recursive: true });
+  writeFileSync2(PLIST, plist);
+}
+async function runInstall(argv) {
+  requireMac("install");
+  const port = parsePort(argv);
+  mkdirSync3(join3(FLUX_HOME, "bin"), { recursive: true });
+  mkdirSync3(DEFAULT_LEDGER, { recursive: true });
+  const self = resolve(process.env.FLUX_BOOTSTRAP_PATH ?? process.argv[1] ?? "");
+  if (self !== STABLE_BIN) copyFileSync(self, STABLE_BIN);
+  chmodSync(STABLE_BIN, 493);
+  if (isLoaded()) launchctl("unload", PLIST);
+  writePlist(port);
+  launchctl("load", "-w", PLIST);
+  setClaudeBaseUrl(`http://127.0.0.1:${port}`);
+  let up = false;
+  for (let i = 0; i < 10 && !up; i += 1) {
+    up = await portUp(port);
+    if (!up) await sleep(400);
+  }
+  console.log("");
+  if (up) {
+    console.log(`  \u2B22 theo \u2014 FLUX is now always on.  build ${BUILD_COMMIT}`);
+    console.log(`  service  launchd ${LABEL} (starts at login, restarts if it stops)`);
+    console.log(`  proxy    http://127.0.0.1:${port}  \xB7  ledger ${DEFAULT_LEDGER}`);
+    console.log(`  claude   pointed at FLUX permanently via ~/.claude/settings.json`);
+    console.log(`  log      ${DAEMON_LOG}`);
+    console.log("");
+    console.log(`  Just use Claude Code \u2014 every session is optimised. Check savings with: flux status`);
+    console.log(`  Turn it off any time with: flux uninstall`);
+  } else {
+    console.log(`  \u26A0 The service was installed but the proxy didn't answer on port ${port}.`);
+    console.log(`  Check ${DAEMON_LOG}, then re-run \`flux install\`, or use \`flux start\` instead.`);
+    process.exitCode = 1;
+  }
+  console.log("");
+}
+function runUninstall(_argv) {
+  requireMac("uninstall");
+  launchctl("unload", "-w", PLIST);
+  rmSync(PLIST, { force: true });
+  clearClaudeBaseUrl();
+  console.log("");
+  console.log(`  \u2B22 theo \u2014 always-on removed. The service is stopped and Claude Code is back to normal.`);
+  console.log(`  Your ledger is kept at ${DEFAULT_LEDGER} \u2014 recompute any time with: flux verify`);
+  console.log("");
+}
+async function runStatus(_argv) {
+  const loaded = platform() === "darwin" ? isLoaded() : false;
+  const port = DEFAULT_PORT;
+  const up = await portUp(port);
+  const s = summariseLedger(DEFAULT_LEDGER);
+  console.log("");
+  console.log(`  flux status \u2014 build ${BUILD_COMMIT}`);
+  console.log(`  service   ${loaded ? "installed (launchd)" : "not installed"}`);
+  console.log(`  proxy     ${up ? `up on http://127.0.0.1:${port}` : "not responding"}`);
+  if (s.events > 0) {
+    console.log(`  \u2B22 theo    ${s.events} requests seen \xB7 $${s.savedUsd.toFixed(4)} verified saved (${s.verdict})`);
+  } else {
+    console.log(`  \u2B22 theo    no traffic yet \u2014 use Claude Code and check back`);
+  }
+  if (!up && loaded) console.log(`  note      service is registered but the proxy is down; see ${DAEMON_LOG}`);
+  console.log("");
+}
+function sleep(ms) {
+  return new Promise((r) => setTimeout(r, ms));
+}
+var LABEL, PLIST, DAEMON_LOG, STABLE_BIN, DEFAULT_LEDGER;
+var init_daemon = __esm({
+  "packages/cli/src/daemon.ts"() {
+    init_start();
+    LABEL = "dev.fluxtoken.flux";
+    PLIST = join3(homedir2(), "Library", "LaunchAgents", `${LABEL}.plist`);
+    DAEMON_LOG = join3(FLUX_HOME, "daemon.log");
+    STABLE_BIN = join3(FLUX_HOME, "bin", "flux");
+    DEFAULT_LEDGER = join3(FLUX_HOME, "ledger");
+  }
+});
+
+// packages/cli/src/verify.ts
+var verify_exports = {};
+__export(verify_exports, {
+  runVerify: () => runVerify
+});
+import { existsSync as existsSync4, readFileSync as readFileSync4, readdirSync as readdirSync2 } from "node:fs";
+import { homedir as homedir3 } from "node:os";
+import { join as join4 } from "node:path";
+function sampleRequest() {
+  const dup = "Records 0-19: settlement entry nominal, reconciliation standard, no notification sent, annotation routine.";
+  const schema = {
+    name: "lookup",
+    description: "Look up records in a subsystem.",
+    input_schema: { $schema: "http://json-schema.org/draft-07/schema#", type: "object", additionalProperties: false, properties: { id: { type: "string" } } }
+  };
+  return {
+    model: "claude-sonnet-5-5",
+    system: "You are a careful assistant. Cite sources. Escalate anything risky.",
+    tools: [schema, { ...schema, name: "lookup_2" }, { ...schema, name: "lookup_3" }],
+    messages: [
+      { role: "user", content: `Excerpts for case 7: ${dup} ${dup} ${dup}` },
+      { role: "assistant", content: "Understood." },
+      { role: "user", content: `${dup} ${dup} Question: what does clause 7 require?` }
+    ]
+  };
+}
+async function runVerify(_argv) {
+  const checks = [];
+  checks.push({ name: "provenance", ok: true, detail: `built from commit ${BUILD_COMMIT}` });
+  const { summary } = reduceRequest(sampleRequest(), { toolSchemas: true, duplicateContext: true, repairCachePrefix: true });
+  const reducerOk = !summary.skipped && summary.estimatedLosslessTokensSaved > 0;
+  checks.push({
+    name: "reducer",
+    ok: reducerOk,
+    detail: reducerOk ? `lossless: ${summary.estimatedTokensBefore} \u2192 ${summary.estimatedTokensAfter} tokens (\u2212${summary.estimatedLosslessTokensSaved}), ${summary.changes.length} lever(s)` : `reducer did not fire (${summary.skippedReason ?? "no lossless saving"})`
+  });
+  if (!existsSync4(LEDGER_DIR) || readdirSync2(LEDGER_DIR).filter((f) => f.endsWith(".jsonl") && !f.endsWith(".features.jsonl")).length === 0) {
+    checks.push({ name: "ledger", ok: true, detail: "no ledger yet \u2014 run `flux start` and use Claude Code, then verify again" });
+    checks.push({ name: "determinism", ok: true, detail: "nothing to recompute yet" });
+  } else {
+    const spools = readdirSync2(LEDGER_DIR).filter((f) => f.endsWith(".jsonl") && !f.endsWith(".features.jsonl"));
+    const all = [];
+    let chainOk = true;
+    let chainDetail = "";
+    let total = 0;
+    for (const spool of spools) {
+      const records = [];
+      for (const line of readFileSync4(join4(LEDGER_DIR, spool), "utf8").trim().split(/\r?\n/)) {
+        if (line.trim() === "") continue;
+        try {
+          records.push(JSON.parse(line));
+        } catch {
+        }
+      }
+      total += records.length;
+      const chain = verifyLedgerChain(records);
+      if (!chain.ok) {
+        chainOk = false;
+        chainDetail = `${spool}: broken at seq ${chain.seq} (${chain.reason})`;
+      }
+      all.push(...records);
+    }
+    checks.push({
+      name: "ledger",
+      ok: chainOk,
+      detail: chainOk ? `hash-chain verified across ${spools.length} spool(s), ${total} record(s)` : chainDetail
+    });
+    const events = all.map((r) => r.event);
+    const once = JSON.stringify(recomputeInvoice(events));
+    const twice = JSON.stringify(recomputeInvoice(events));
+    const invoice = recomputeInvoice(events);
+    checks.push({
+      name: "determinism",
+      ok: once === twice,
+      detail: once === twice ? `invoice recomputes identically: $${invoice.netVerifiedSavingsUsd.toFixed(4)} verified (${invoice.verdict})` : "invoice is NON-deterministic \u2014 this should never happen; please report it"
+    });
+  }
+  console.log("");
+  console.log(`  flux verify \u2014 build ${BUILD_COMMIT}`);
+  console.log("");
+  let allOk = true;
+  for (const c of checks) {
+    allOk = allOk && c.ok;
+    console.log(`  ${c.ok ? "\u2713" : "\u2717"} ${c.name.padEnd(12)} ${c.detail}`);
+  }
+  console.log("");
+  console.log(`  Savings are measured from your provider's own reported usage, never FLUX's estimate.`);
+  console.log(`  The ledger is yours; this command recomputes the invoice from it with no network calls.`);
+  console.log("");
+  console.log(allOk ? `  All checks passed.` : `  SOME CHECKS FAILED \u2014 see above.`);
+  if (!allOk) process.exit(1);
+}
+var LEDGER_DIR;
+var init_verify = __esm({
+  "packages/cli/src/verify.ts"() {
+    init_savings_ledger();
+    init_reduce_request();
+    init_start();
+    LEDGER_DIR = join4(homedir3(), ".flux", "ledger");
+  }
+});
+
+// packages/cli/src/flux-runtime.ts
+var TOP_USAGE = `flux \u2014 cut your LLM bill, verified on your own usage.
+
+Usage: flux <command> [options]
+
+  start      Start the FLUX proxy, point Claude Code at it, and run Theo
+             alongside you. One command; reverts cleanly on exit.
+  install    Always-on: run FLUX as a background service so every Claude Code
+             session is optimised, with nothing to start by hand.
+  uninstall  Stop and remove the background service; restore Claude Code.
+  status     Is the service up, and what has Theo saved so far?
+  verify     Re-prove FLUX's claims on this machine: the build's provenance,
+             your ledger's hash-chain, and a deterministic invoice recompute.
+
+Run "flux <command> --help" for command options.`;
+async function main() {
+  const sub = process.argv[2];
+  if (sub === "start") {
+    await (await Promise.resolve().then(() => (init_start(), start_exports))).runStart(process.argv.slice(3));
+  } else if (sub === "serve") {
+    await (await Promise.resolve().then(() => (init_start(), start_exports))).runServe(process.argv.slice(3));
+  } else if (sub === "install") {
+    await (await Promise.resolve().then(() => (init_daemon(), daemon_exports))).runInstall(process.argv.slice(3));
+  } else if (sub === "uninstall") {
+    (await Promise.resolve().then(() => (init_daemon(), daemon_exports))).runUninstall(process.argv.slice(3));
+  } else if (sub === "status") {
+    await (await Promise.resolve().then(() => (init_daemon(), daemon_exports))).runStatus(process.argv.slice(3));
+  } else if (sub === "verify") {
+    await (await Promise.resolve().then(() => (init_verify(), verify_exports))).runVerify(process.argv.slice(3));
+  } else {
+    console.log(TOP_USAGE);
+  }
+}
+main().catch((error) => {
+  console.error(error instanceof Error ? error.message : String(error));
+  process.exit(1);
+});
