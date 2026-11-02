@@ -15,8 +15,8 @@ import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 
-import { recomputeInvoice, verifyLedgerChain, type LedgerRecord } from "../../core/src/index.js";
-import { reduceRequest } from "../../sdk-js/src/index.js";
+import { recomputeInvoice, verifyLedgerChain, type LedgerRecord } from "../../core/src/savings-ledger.js";
+import { reduceRequest } from "../../sdk-js/src/reduce-request.js";
 import { BUILD_COMMIT } from "./start.js";
 
 const LEDGER_DIR = join(homedir(), ".flux", "ledger");

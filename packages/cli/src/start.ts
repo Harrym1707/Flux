@@ -26,13 +26,13 @@ import {
 import { homedir } from "node:os";
 import { join } from "node:path";
 
-import { recomputeInvoice, verifyLedgerChain, type LedgerRecord } from "../../core/src/index.js";
-import {
-  startFluxProxy,
-  defaultPolicy,
-  policyToReductionConfig,
-  withheldLevers,
-} from "../../sdk-js/src/index.js";
+// Import the specific modules, NOT the package barrels: the barrels re-export
+// the whole library (router, triage, observability adapters, billing), which
+// would all bundle into the client runtime. Direct imports keep it to the
+// client surface: proxy + reducer + ledger + Theo policy.
+import { recomputeInvoice, verifyLedgerChain, type LedgerRecord } from "../../core/src/savings-ledger.js";
+import { startFluxProxy } from "../../sdk-js/src/proxy.js";
+import { defaultPolicy, policyToReductionConfig, withheldLevers } from "../../sdk-js/src/theo-policy.js";
 
 declare const __FLUX_BUILD_COMMIT__: string | undefined;
 export const BUILD_COMMIT =

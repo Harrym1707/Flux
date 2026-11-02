@@ -114,9 +114,10 @@ export async function runInstall(argv: string[]): Promise<void> {
   mkdirSync(join(FLUX_HOME, "bin"), { recursive: true });
   mkdirSync(DEFAULT_LEDGER, { recursive: true });
 
-  // Copy the running binary to a stable home so moving the download can't break
-  // the service. (Only works from the bundled binary, not a dev tsx run.)
-  const self = resolve(process.argv[1] ?? "");
+  // Register the self-updating bootstrap (not the runtime) with launchd, copied
+  // to a stable home so moving the download can't break the service. The
+  // bootstrap sets FLUX_BOOTSTRAP_PATH before running us; fall back to argv[1].
+  const self = resolve(process.env.FLUX_BOOTSTRAP_PATH ?? process.argv[1] ?? "");
   if (self !== STABLE_BIN) copyFileSync(self, STABLE_BIN);
   chmodSync(STABLE_BIN, 0o755);
 
