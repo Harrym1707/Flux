@@ -1,11 +1,13 @@
 import { describe, expect, it } from "vitest";
-import type { TokenPrice } from "./cost.js";
 import {
+  ANTHROPIC_CACHE_1H,
   ANTHROPIC_CACHE_5M,
+  anthropicCachePolicyFor,
   OPENAI_CACHE,
   simulateCache,
   type SimulatedRequest,
 } from "./cache-simulator.js";
+import type { TokenPrice } from "./cost.js";
 
 // Base rates only, so the simulator derives cached and write rates from the
 // policy's multipliers rather than from a catalogue entry.
@@ -138,5 +140,40 @@ describe("cache simulator", () => {
     expect(() => simulateCache([], OPENAI_CACHE, price)).toThrow(/at least one request/);
     expect(() => simulateCache(stream([filler(100)]), { ...OPENAI_CACHE, incrementTokens: 0 }, price))
       .toThrow(/at least 1 token/);
+  });
+});
+
+describe("anthropicCachePolicyFor", () => {
+  it("keeps the 1,024-token minimum for Sonnet- and Opus-class models", () => {
+    expect(anthropicCachePolicyFor("claude-sonnet-5-5-20260514", "5m").minimumCacheableTokens).toBe(1024);
+    expect(anthropicCachePolicyFor("claude-opus-5-5-latest", "1h").minimumCacheableTokens).toBe(1024);
+  });
+
+  it("raises the minimum to 2,048 tokens for Haiku-class models", () => {
+    expect(anthropicCachePolicyFor("claude-haiku-5-5-latest", "5m").minimumCacheableTokens).toBe(2048);
+    expect(anthropicCachePolicyFor("claude-haiku-5-5-latest", "1h").minimumCacheableTokens).toBe(2048);
+  });
+
+  it("otherwise matches the flat TTL constant it is built from", () => {
+    const sonnet5m = anthropicCachePolicyFor("claude-sonnet-5-5-latest", "5m");
+    expect(sonnet5m).toEqual(ANTHROPIC_CACHE_5M);
+    const sonnet1h = anthropicCachePolicyFor("claude-sonnet-5-5-latest", "1h");
+    expect(sonnet1h).toEqual(ANTHROPIC_CACHE_1H);
+  });
+
+  it("a prefix between 1,024 and 2,048 tokens caches for Sonnet but misses for Haiku", () => {
+    // Below the flat constant's minimum this would wrongly miss for everyone;
+    // above the Haiku-class minimum it would wrongly hit for Haiku. filler()
+    // emits roughly 2 tokens per word, so 700 words sits in the ~1,400-token
+    // gap the flat 1,024 constant used to mis-simulate.
+    const prefix = filler(700);
+    const prompts = Array.from({ length: 3 }, (_, index) => `${prefix}\nQuestion ${index}`);
+
+    const sonnet = simulateCache(stream(prompts), anthropicCachePolicyFor("claude-sonnet-5-5-latest", "5m"), price);
+    expect(sonnet.hitRate).toBeGreaterThan(0);
+
+    const haiku = simulateCache(stream(prompts), anthropicCachePolicyFor("claude-haiku-5-5-latest", "5m"), price);
+    expect(haiku.hitRate).toBe(0);
+    expect(haiku.calls[1]!.missReason).toBe("below-minimum");
   });
 });
