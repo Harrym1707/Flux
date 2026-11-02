@@ -225,27 +225,6 @@ var init_savings_ledger = __esm({
   }
 });
 
-// packages/core/dist/src/types.js
-var init_types = __esm({
-  "packages/core/dist/src/types.js"() {
-    "use strict";
-  }
-});
-
-// packages/core/dist/src/router.js
-var init_router = __esm({
-  "packages/core/dist/src/router.js"() {
-    "use strict";
-  }
-});
-
-// packages/core/dist/src/evaluator.js
-var init_evaluator = __esm({
-  "packages/core/dist/src/evaluator.js"() {
-    "use strict";
-  }
-});
-
 // packages/core/dist/src/cost.js
 function estimateTokenCost2(inputTokens, outputTokens, price, cacheUsage = {}) {
   const cached = cacheUsage.cachedInputTokens ?? 0;
@@ -263,13 +242,6 @@ function estimateTokenCost2(inputTokens, outputTokens, price, cacheUsage = {}) {
 }
 var init_cost2 = __esm({
   "packages/core/dist/src/cost.js"() {
-    "use strict";
-  }
-});
-
-// packages/core/dist/src/confidence.js
-var init_confidence = __esm({
-  "packages/core/dist/src/confidence.js"() {
     "use strict";
   }
 });
@@ -389,21 +361,150 @@ var init_token_reduction = __esm({
   }
 });
 
-// packages/core/dist/src/cache-simulator.js
-var ANTHROPIC_NO_CACHE;
-var init_cache_simulator = __esm({
-  "packages/core/dist/src/cache-simulator.js"() {
+// packages/core/dist/src/output-diagnostics.js
+function normalizeLine(line) {
+  return line.replace(LINE_NUMBER_PREFIX, "").trim().replace(/\s+/g, " ");
+}
+function looksLikeCode(line) {
+  if (/[{};=()[\]<>]/.test(line) && (line.match(/[{};=()[\]<>.:]/g) ?? []).length >= 3)
+    return true;
+  return /^(import |from |def |class |function |const |let |var |return |if |for |while |#include|public |private )/.test(line.trimStart());
+}
+function collectRequestText(value, depth = 0) {
+  if (depth > 12)
+    return "";
+  if (typeof value === "string")
+    return value;
+  if (Array.isArray(value))
+    return value.map((entry2) => collectRequestText(entry2, depth + 1)).filter(Boolean).join("\n");
+  if (typeof value === "object" && value !== null) {
+    return Object.values(value).map((entry2) => collectRequestText(entry2, depth + 1)).filter(Boolean).join("\n");
+  }
+  return "";
+}
+function measureOutputReEmission(requestText, outputText, countTokens = approximateTokenCount) {
+  const contextLines = /* @__PURE__ */ new Set();
+  for (const line of requestText.split("\n")) {
+    const normalized = normalizeLine(line);
+    if (normalized.length >= 8)
+      contextLines.add(normalized);
+  }
+  let inspected = 0;
+  let reEmitted = 0;
+  let reEmittedCode = 0;
+  for (const line of outputText.split("\n")) {
+    const tokens = countTokens(line);
+    inspected += tokens;
+    const normalized = normalizeLine(line);
+    if (normalized.length >= 8 && contextLines.has(normalized)) {
+      reEmitted += tokens;
+      if (looksLikeCode(normalized))
+        reEmittedCode += tokens;
+    }
+  }
+  return {
+    inspectedOutputTokens: inspected,
+    reEmittedOutputTokens: reEmitted,
+    reEmittedCodeTokens: reEmittedCode
+  };
+}
+var LINE_NUMBER_PREFIX;
+var init_output_diagnostics = __esm({
+  "packages/core/dist/src/output-diagnostics.js"() {
     "use strict";
-    init_cost2();
     init_token_reduction();
-    ANTHROPIC_NO_CACHE = {
-      name: "anthropic-uncached",
-      minimumCacheableTokens: Number.MAX_SAFE_INTEGER,
-      incrementTokens: 1,
-      ttlSeconds: 0,
-      writeMultiplier: 1,
-      readMultiplier: 1
+    LINE_NUMBER_PREFIX = /^\s*\d+[:.|]\s?/;
+  }
+});
+
+// packages/core/dist/src/provider-usage.js
+function isPlainObject(value) {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+function asCount(value) {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : void 0;
+}
+function normalizeProviderUsage(response) {
+  if (!isPlainObject(response))
+    return { status: "missing" };
+  const usage = isPlainObject(response.usage) ? response.usage : void 0;
+  if (!usage)
+    return { status: "missing" };
+  const output = asCount(usage.output_tokens) ?? asCount(usage.completion_tokens);
+  if (output === void 0) {
+    return { status: "invalid", reason: "Usage carries no readable output_tokens/completion_tokens." };
+  }
+  const anthropicRead = asCount(usage.cache_read_input_tokens);
+  const anthropicWriteFlat = asCount(usage.cache_creation_input_tokens);
+  const creation = isPlainObject(usage.cache_creation) ? usage.cache_creation : void 0;
+  if (anthropicRead !== void 0 || anthropicWriteFlat !== void 0 || creation !== void 0) {
+    const fresh = asCount(usage.input_tokens) ?? 0;
+    const cached2 = anthropicRead ?? 0;
+    let written = anthropicWriteFlat ?? 0;
+    let write5m;
+    let write1h;
+    if (creation !== void 0) {
+      write5m = asCount(creation.ephemeral_5m_input_tokens) ?? 0;
+      write1h = asCount(creation.ephemeral_1h_input_tokens) ?? 0;
+      const splitTotal = write5m + write1h;
+      if (anthropicWriteFlat !== void 0 && splitTotal !== anthropicWriteFlat) {
+        return {
+          status: "invalid",
+          reason: `cache_creation split (5m ${write5m} + 1h ${write1h} = ${splitTotal}) does not sum to cache_creation_input_tokens ${anthropicWriteFlat}.`
+        };
+      }
+      written = anthropicWriteFlat ?? splitTotal;
+    }
+    return {
+      status: "ok",
+      usage: {
+        inputTokens: fresh + cached2 + written,
+        uncachedInputTokens: fresh,
+        cachedInputTokens: cached2,
+        cacheWriteInputTokens: written,
+        ...write5m === void 0 ? {} : { cacheWrite5mInputTokens: write5m },
+        ...write1h === void 0 ? {} : { cacheWrite1hInputTokens: write1h },
+        outputTokens: output
+      }
     };
+  }
+  const input = asCount(usage.input_tokens) ?? asCount(usage.prompt_tokens);
+  if (input === void 0) {
+    return { status: "invalid", reason: "Usage carries no readable input_tokens/prompt_tokens." };
+  }
+  const details = isPlainObject(usage.input_tokens_details) ? usage.input_tokens_details : void 0;
+  const promptDetails = isPlainObject(usage.prompt_tokens_details) ? usage.prompt_tokens_details : void 0;
+  const cached = asCount(details?.cached_tokens) ?? asCount(promptDetails?.cached_tokens) ?? 0;
+  const boundedCached = Math.min(cached, input);
+  return {
+    status: "ok",
+    usage: {
+      inputTokens: input,
+      uncachedInputTokens: input - boundedCached,
+      cachedInputTokens: boundedCached,
+      cacheWriteInputTokens: 0,
+      outputTokens: output
+    }
+  };
+}
+function responseServiceTier(response) {
+  if (!isPlainObject(response))
+    return void 0;
+  if (typeof response.service_tier === "string")
+    return response.service_tier;
+  const usage = isPlainObject(response.usage) ? response.usage : void 0;
+  return typeof usage?.service_tier === "string" ? usage.service_tier : void 0;
+}
+var init_provider_usage = __esm({
+  "packages/core/dist/src/provider-usage.js"() {
+    "use strict";
+  }
+});
+
+// packages/core/dist/src/confidence.js
+var init_confidence = __esm({
+  "packages/core/dist/src/confidence.js"() {
+    "use strict";
   }
 });
 
@@ -663,6 +764,122 @@ var init_price_catalogue2 = __esm({
   }
 });
 
+// packages/core/dist/src/model-prices.js
+function entry(provider, model, provenance, bands, mode = "standard", effectiveFrom = OBSERVED_FROM) {
+  return {
+    provider,
+    model,
+    mode,
+    effectiveFrom,
+    provenance,
+    tiers: bands.map((band) => ({
+      ...band.maxInputTokens === void 0 ? {} : { maxInputTokens: band.maxInputTokens },
+      inputPerMillion: band.input,
+      outputPerMillion: band.output,
+      ...band.cachedInput === void 0 ? {} : { cachedInputPerMillion: band.cachedInput },
+      ...band.cacheWriteInput === void 0 ? {} : { cacheWriteInputPerMillion: band.cacheWriteInput },
+      ...band.cacheWrite1hInput === void 0 ? {} : { cacheWrite1hInputPerMillion: band.cacheWrite1hInput }
+    }))
+  };
+}
+function anthropicCacheableMinimumTokens(modelId) {
+  return /haiku/i.test(modelId) ? 2048 : 1024;
+}
+var ANTHROPIC, OPENAI, ANTHROPIC_BATCH, OBSERVED_FROM, anthropic, openai, aliases, publishedModelPrices;
+var init_model_prices = __esm({
+  "packages/core/dist/src/model-prices.js"() {
+    "use strict";
+    init_price_catalogue2();
+    ANTHROPIC = {
+      source: "https://claude.com/pricing",
+      capturedOn: "2026-10-08",
+      note: "Published display names; cache read/write rates as listed. 5m cache writes bill 1.25x base input, 1h cache writes 2x base input, per the published prompt-caching pricing."
+    };
+    OPENAI = {
+      source: "https://developers.openai.com/api/docs/pricing",
+      capturedOn: "2026-10-08",
+      note: "Standard tier unless the entry says otherwise."
+    };
+    ANTHROPIC_BATCH = {
+      source: "https://claude.com/pricing",
+      capturedOn: "2026-10-27",
+      note: `Batch processing = 50% of standard, per the page's definitive "Save 50% with batch processing". Derived by halving the dated standard rates; cache-write premiums under batch are not published and are omitted (priced unpriced, never guessed).`
+    };
+    OBSERVED_FROM = "2026-10-08";
+    anthropic = [
+      entry("anthropic", "Fable 5.1", ANTHROPIC, [
+        { input: 10, output: 50, cachedInput: 0.25, cacheWriteInput: 12.5, cacheWrite1hInput: 20 }
+      ]),
+      entry("anthropic", "Opus 5.5", ANTHROPIC, [
+        { input: 4, output: 20, cachedInput: 0.2, cacheWriteInput: 5, cacheWrite1hInput: 8 }
+      ]),
+      entry("anthropic", "Sonnet 5.5", ANTHROPIC, [
+        { input: 2, output: 10, cachedInput: 0.1, cacheWriteInput: 2.5, cacheWrite1hInput: 4 }
+      ]),
+      // Haiku 5.5 is tiered by prompt size: the higher band applies above 100K input tokens.
+      entry("anthropic", "Haiku 5.5", ANTHROPIC, [
+        { maxInputTokens: 1e5, input: 0.1, output: 0.5, cachedInput: 0.01, cacheWriteInput: 0.125, cacheWrite1hInput: 0.2 },
+        { input: 0.5, output: 2.5, cachedInput: 0.05, cacheWriteInput: 0.625, cacheWrite1hInput: 1 }
+      ]),
+      // Batch mode: 50% of standard, per the definitive "Save 50% with batch processing"
+      // (ANTHROPIC_BATCH provenance). Each rate is exactly half its standard entry above.
+      entry("anthropic", "Fable 5.1", ANTHROPIC_BATCH, [
+        { input: 5, output: 25, cachedInput: 0.125 }
+      ], "batch", "2026-10-27"),
+      entry("anthropic", "Opus 5.5", ANTHROPIC_BATCH, [
+        { input: 2, output: 10, cachedInput: 0.1 }
+      ], "batch", "2026-10-27"),
+      entry("anthropic", "Sonnet 5.5", ANTHROPIC_BATCH, [
+        { input: 1, output: 5, cachedInput: 0.05 }
+      ], "batch", "2026-10-27"),
+      entry("anthropic", "Haiku 5.5", ANTHROPIC_BATCH, [
+        { maxInputTokens: 1e5, input: 0.05, output: 0.25, cachedInput: 5e-3 },
+        { input: 0.25, output: 1.25, cachedInput: 0.025 }
+      ], "batch", "2026-10-27")
+    ];
+    openai = [
+      entry("openai", "gpt-6-astra", OPENAI, [{ input: 10, output: 50, cachedInput: 1 }]),
+      entry("openai", "gpt-6.1-sol", OPENAI, [{ input: 2, output: 10, cachedInput: 0.1 }]),
+      entry("openai", "gpt-6-luna", OPENAI, [{ input: 0.1, output: 0.5, cachedInput: 0.01 }]),
+      entry("openai", "gpt-5.5", OPENAI, [{ input: 5, output: 30, cachedInput: 0.5 }]),
+      entry("openai", "gpt-5.4", OPENAI, [{ input: 2.5, output: 15, cachedInput: 0.25 }]),
+      entry("openai", "gpt-5.2", OPENAI, [{ input: 1.75, output: 14, cachedInput: 0.175 }]),
+      entry("openai", "gpt-5", OPENAI, [{ input: 1.25, output: 10, cachedInput: 0.125 }]),
+      entry("openai", "gpt-4o", OPENAI, [{ input: 2.5, output: 10, cachedInput: 1.25 }]),
+      entry("openai", "gpt-4o-mini", OPENAI, [{ input: 0.15, output: 0.6, cachedInput: 0.075 }]),
+      entry("openai", "o1", OPENAI, [{ input: 15, output: 60, cachedInput: 7.5 }]),
+      entry("openai", "o3-mini", OPENAI, [{ input: 1.1, output: 4.4, cachedInput: 0.55 }]),
+      // Only the batch rate published explicitly is catalogued. The page describes batch
+      // and flex as "typically" half of standard; that is not a rate, so it is not seeded.
+      entry("openai", "gpt-6-astra", OPENAI, [{ input: 5, output: 25, cachedInput: 0.5 }], "batch"),
+      // Flex processing is billed at Batch API rates = 50% of standard, on a
+      // synchronous API, per OpenAI's flex-processing guide. Cached-input discount
+      // stacks on top. Catalogued so the ledger can price flex-tier events rather
+      // than leaving async savings unpriced.
+      entry("openai", "gpt-5", OPENAI, [{ input: 0.625, output: 5, cachedInput: 0.0625 }], "flex")
+    ];
+    aliases = [
+      // Anthropic ids embed the published name, so normalisation covers dated
+      // builds such as claude-sonnet-5-5-20260514. These cover the pointers.
+      { provider: "anthropic", id: "claude-sonnet-5-5-latest", model: "Sonnet 5.5" },
+      { provider: "anthropic", id: "claude-opus-5-5-latest", model: "Opus 5.5" },
+      { provider: "anthropic", id: "claude-haiku-5-5-latest", model: "Haiku 5.5" },
+      { provider: "anthropic", id: "claude-fable-5-1-latest", model: "Fable 5.1" },
+      // OpenAI ids match their published names directly; these are the pointers
+      // and the dated snapshots that do not normalise onto a catalogued key.
+      { provider: "openai", id: "chatgpt-4o-latest", model: "gpt-4o" },
+      { provider: "openai", id: "gpt-4o-2024-*", model: "gpt-4o" },
+      { provider: "openai", id: "gpt-4o-mini-2024-*", model: "gpt-4o-mini" },
+      { provider: "openai", id: "o3-mini-2025-*", model: "o3-mini" }
+    ];
+    publishedModelPrices = validatePriceCatalogue({
+      entries: [...anthropic, ...openai],
+      negotiated: [],
+      aliases
+    });
+  }
+});
+
 // packages/core/dist/src/tool-schema.js
 function toolNameOf(tool, index) {
   if (typeof tool === "object" && tool !== null) {
@@ -809,468 +1026,6 @@ var init_tool_schema = __esm({
     "use strict";
     init_token_reduction();
     PLUMBING_KEYS = /* @__PURE__ */ new Set(["$schema", "$id", "$comment", "$defs"]);
-  }
-});
-
-// packages/core/dist/src/savings-model.js
-var init_savings_model = __esm({
-  "packages/core/dist/src/savings-model.js"() {
-    "use strict";
-    init_cost2();
-  }
-});
-
-// packages/core/dist/src/savings-ledger.js
-import { createHash as createHash3 } from "node:crypto";
-function ledgerEventHash2(seq, prevHash, event) {
-  return createHash3("sha256").update(`${seq}
-${prevHash}
-${canonicalJson2(event)}`).digest("hex");
-}
-function chainLedgerRecord(event, previous) {
-  const seq = previous ? previous.seq + 1 : 0;
-  const prevHash = previous ? previous.eventHash : LEDGER_GENESIS_HASH2;
-  return { seq, prevHash, eventHash: ledgerEventHash2(seq, prevHash, event), event };
-}
-function priceLedgerUsage(catalogue, input) {
-  const resolution = resolveModelId2(catalogue, input.provider, input.model);
-  if (resolution.status === "unresolved") {
-    return { pricingStatus: "unpriced", reason: resolution.reason };
-  }
-  const split5m = input.usage.cacheWrite5mInputTokens;
-  const split1h = input.usage.cacheWrite1hInputTokens;
-  const splitReported = split5m !== void 0 || split1h !== void 0;
-  if (splitReported && (split5m ?? 0) + (split1h ?? 0) !== input.usage.cacheWriteInputTokens) {
-    return {
-      pricingStatus: "unpriced",
-      reason: `Cache-write TTL split (5m ${split5m ?? 0} + 1h ${split1h ?? 0}) does not sum to cacheWriteInputTokens ${input.usage.cacheWriteInputTokens}.`
-    };
-  }
-  const write1hForPricing = splitReported ? split1h ?? 0 : input.fluxPlacedCacheControl && input.fluxPlacedTtl !== "5m" ? input.usage.cacheWriteInputTokens : 0;
-  const pricingUsage = {
-    inputTokens: input.usage.inputTokens,
-    outputTokens: input.usage.outputTokens,
-    cachedInputTokens: input.usage.cachedInputTokens,
-    cacheWriteInputTokens: input.usage.cacheWriteInputTokens,
-    cacheWrite1hInputTokens: write1hForPricing
-  };
-  const query = { provider: input.provider, model: resolution.model, at: input.at };
-  const actual = priceUsage2(catalogue, { ...query, mode: input.executionMode }, pricingUsage);
-  if (actual.status === "unpriced")
-    return { pricingStatus: "unpriced", reason: actual.reason };
-  const actualInputOnly = priceUsage2(catalogue, { ...query, mode: input.executionMode }, {
-    ...pricingUsage,
-    outputTokens: 0
-  });
-  if (actualInputOnly.status === "unpriced") {
-    return { pricingStatus: "unpriced", reason: actualInputOnly.reason };
-  }
-  const standardWithCache = input.executionMode === "standard" ? actual : priceUsage2(catalogue, { ...query, mode: "standard" }, pricingUsage);
-  if (standardWithCache.status === "unpriced") {
-    return { pricingStatus: "unpriced", reason: standardWithCache.reason };
-  }
-  const fullRateStandard = priceUsage2(catalogue, { ...query, mode: "standard" }, {
-    inputTokens: input.usage.inputTokens,
-    outputTokens: input.usage.outputTokens
-  });
-  if (fullRateStandard.status === "unpriced") {
-    return { pricingStatus: "unpriced", reason: fullRateStandard.reason };
-  }
-  const cacheDeltaUsd = fullRateStandard.costUsd - standardWithCache.costUsd;
-  const hasCacheTraffic = input.usage.cachedInputTokens > 0 || input.usage.cacheWriteInputTokens > 0;
-  return {
-    pricingStatus: "priced",
-    actualUsd: actual.costUsd,
-    inputUsd: actualInputOnly.costUsd,
-    ...input.executionMode === "standard" ? {} : { tierSavedUsd: standardWithCache.costUsd - actual.costUsd },
-    ...hasCacheTraffic ? input.fluxPlacedCacheControl ? { cacheAttributedUsd: cacheDeltaUsd } : { providerCacheAlreadyOwnedUsd: cacheDeltaUsd } : {}
-  };
-}
-var LEDGER_GENESIS_HASH2;
-var init_savings_ledger2 = __esm({
-  "packages/core/dist/src/savings-ledger.js"() {
-    "use strict";
-    init_price_catalogue2();
-    LEDGER_GENESIS_HASH2 = "0".repeat(64);
-  }
-});
-
-// packages/core/dist/src/gateway.js
-var init_gateway = __esm({
-  "packages/core/dist/src/gateway.js"() {
-    "use strict";
-    init_price_catalogue2();
-  }
-});
-
-// packages/core/dist/src/helicone.js
-var init_helicone = __esm({
-  "packages/core/dist/src/helicone.js"() {
-    "use strict";
-  }
-});
-
-// packages/core/dist/src/langfuse.js
-var init_langfuse = __esm({
-  "packages/core/dist/src/langfuse.js"() {
-    "use strict";
-  }
-});
-
-// packages/core/dist/src/litellm.js
-var init_litellm = __esm({
-  "packages/core/dist/src/litellm.js"() {
-    "use strict";
-    init_gateway();
-  }
-});
-
-// packages/core/dist/src/traffic.js
-var init_traffic = __esm({
-  "packages/core/dist/src/traffic.js"() {
-    "use strict";
-    init_price_catalogue2();
-    init_savings_model();
-    init_tool_schema();
-    init_token_reduction();
-  }
-});
-
-// packages/core/dist/src/triage.js
-var init_triage = __esm({
-  "packages/core/dist/src/triage.js"() {
-    "use strict";
-  }
-});
-
-// packages/core/dist/src/quote-report.js
-var init_quote_report = __esm({
-  "packages/core/dist/src/quote-report.js"() {
-    "use strict";
-    init_gateway();
-    init_helicone();
-    init_langfuse();
-    init_litellm();
-    init_price_catalogue2();
-    init_traffic();
-    init_triage();
-  }
-});
-
-// packages/core/dist/src/model-prices.js
-function entry(provider, model, provenance, bands, mode = "standard", effectiveFrom = OBSERVED_FROM) {
-  return {
-    provider,
-    model,
-    mode,
-    effectiveFrom,
-    provenance,
-    tiers: bands.map((band) => ({
-      ...band.maxInputTokens === void 0 ? {} : { maxInputTokens: band.maxInputTokens },
-      inputPerMillion: band.input,
-      outputPerMillion: band.output,
-      ...band.cachedInput === void 0 ? {} : { cachedInputPerMillion: band.cachedInput },
-      ...band.cacheWriteInput === void 0 ? {} : { cacheWriteInputPerMillion: band.cacheWriteInput },
-      ...band.cacheWrite1hInput === void 0 ? {} : { cacheWrite1hInputPerMillion: band.cacheWrite1hInput }
-    }))
-  };
-}
-function anthropicCacheableMinimumTokens(modelId) {
-  return /haiku/i.test(modelId) ? 2048 : 1024;
-}
-var ANTHROPIC, OPENAI, ANTHROPIC_BATCH, OBSERVED_FROM, anthropic, openai, aliases, publishedModelPrices;
-var init_model_prices = __esm({
-  "packages/core/dist/src/model-prices.js"() {
-    "use strict";
-    init_price_catalogue2();
-    ANTHROPIC = {
-      source: "https://claude.com/pricing",
-      capturedOn: "2026-10-08",
-      note: "Published display names; cache read/write rates as listed. 5m cache writes bill 1.25x base input, 1h cache writes 2x base input, per the published prompt-caching pricing."
-    };
-    OPENAI = {
-      source: "https://developers.openai.com/api/docs/pricing",
-      capturedOn: "2026-10-08",
-      note: "Standard tier unless the entry says otherwise."
-    };
-    ANTHROPIC_BATCH = {
-      source: "https://claude.com/pricing",
-      capturedOn: "2026-10-27",
-      note: `Batch processing = 50% of standard, per the page's definitive "Save 50% with batch processing". Derived by halving the dated standard rates; cache-write premiums under batch are not published and are omitted (priced unpriced, never guessed).`
-    };
-    OBSERVED_FROM = "2026-10-08";
-    anthropic = [
-      entry("anthropic", "Fable 5.1", ANTHROPIC, [
-        { input: 10, output: 50, cachedInput: 0.25, cacheWriteInput: 12.5, cacheWrite1hInput: 20 }
-      ]),
-      entry("anthropic", "Opus 5.5", ANTHROPIC, [
-        { input: 4, output: 20, cachedInput: 0.2, cacheWriteInput: 5, cacheWrite1hInput: 8 }
-      ]),
-      entry("anthropic", "Sonnet 5.5", ANTHROPIC, [
-        { input: 2, output: 10, cachedInput: 0.1, cacheWriteInput: 2.5, cacheWrite1hInput: 4 }
-      ]),
-      // Haiku 5.5 is tiered by prompt size: the higher band applies above 100K input tokens.
-      entry("anthropic", "Haiku 5.5", ANTHROPIC, [
-        { maxInputTokens: 1e5, input: 0.1, output: 0.5, cachedInput: 0.01, cacheWriteInput: 0.125, cacheWrite1hInput: 0.2 },
-        { input: 0.5, output: 2.5, cachedInput: 0.05, cacheWriteInput: 0.625, cacheWrite1hInput: 1 }
-      ]),
-      // Batch mode: 50% of standard, per the definitive "Save 50% with batch processing"
-      // (ANTHROPIC_BATCH provenance). Each rate is exactly half its standard entry above.
-      entry("anthropic", "Fable 5.1", ANTHROPIC_BATCH, [
-        { input: 5, output: 25, cachedInput: 0.125 }
-      ], "batch", "2026-10-27"),
-      entry("anthropic", "Opus 5.5", ANTHROPIC_BATCH, [
-        { input: 2, output: 10, cachedInput: 0.1 }
-      ], "batch", "2026-10-27"),
-      entry("anthropic", "Sonnet 5.5", ANTHROPIC_BATCH, [
-        { input: 1, output: 5, cachedInput: 0.05 }
-      ], "batch", "2026-10-27"),
-      entry("anthropic", "Haiku 5.5", ANTHROPIC_BATCH, [
-        { maxInputTokens: 1e5, input: 0.05, output: 0.25, cachedInput: 5e-3 },
-        { input: 0.25, output: 1.25, cachedInput: 0.025 }
-      ], "batch", "2026-10-27")
-    ];
-    openai = [
-      entry("openai", "gpt-6-astra", OPENAI, [{ input: 10, output: 50, cachedInput: 1 }]),
-      entry("openai", "gpt-6.1-sol", OPENAI, [{ input: 2, output: 10, cachedInput: 0.1 }]),
-      entry("openai", "gpt-6-luna", OPENAI, [{ input: 0.1, output: 0.5, cachedInput: 0.01 }]),
-      entry("openai", "gpt-5.5", OPENAI, [{ input: 5, output: 30, cachedInput: 0.5 }]),
-      entry("openai", "gpt-5.4", OPENAI, [{ input: 2.5, output: 15, cachedInput: 0.25 }]),
-      entry("openai", "gpt-5.2", OPENAI, [{ input: 1.75, output: 14, cachedInput: 0.175 }]),
-      entry("openai", "gpt-5", OPENAI, [{ input: 1.25, output: 10, cachedInput: 0.125 }]),
-      entry("openai", "gpt-4o", OPENAI, [{ input: 2.5, output: 10, cachedInput: 1.25 }]),
-      entry("openai", "gpt-4o-mini", OPENAI, [{ input: 0.15, output: 0.6, cachedInput: 0.075 }]),
-      entry("openai", "o1", OPENAI, [{ input: 15, output: 60, cachedInput: 7.5 }]),
-      entry("openai", "o3-mini", OPENAI, [{ input: 1.1, output: 4.4, cachedInput: 0.55 }]),
-      // Only the batch rate published explicitly is catalogued. The page describes batch
-      // and flex as "typically" half of standard; that is not a rate, so it is not seeded.
-      entry("openai", "gpt-6-astra", OPENAI, [{ input: 5, output: 25, cachedInput: 0.5 }], "batch"),
-      // Flex processing is billed at Batch API rates = 50% of standard, on a
-      // synchronous API, per OpenAI's flex-processing guide. Cached-input discount
-      // stacks on top. Catalogued so the ledger can price flex-tier events rather
-      // than leaving async savings unpriced.
-      entry("openai", "gpt-5", OPENAI, [{ input: 0.625, output: 5, cachedInput: 0.0625 }], "flex")
-    ];
-    aliases = [
-      // Anthropic ids embed the published name, so normalisation covers dated
-      // builds such as claude-sonnet-5-5-20260514. These cover the pointers.
-      { provider: "anthropic", id: "claude-sonnet-5-5-latest", model: "Sonnet 5.5" },
-      { provider: "anthropic", id: "claude-opus-5-5-latest", model: "Opus 5.5" },
-      { provider: "anthropic", id: "claude-haiku-5-5-latest", model: "Haiku 5.5" },
-      { provider: "anthropic", id: "claude-fable-5-1-latest", model: "Fable 5.1" },
-      // OpenAI ids match their published names directly; these are the pointers
-      // and the dated snapshots that do not normalise onto a catalogued key.
-      { provider: "openai", id: "chatgpt-4o-latest", model: "gpt-4o" },
-      { provider: "openai", id: "gpt-4o-2024-*", model: "gpt-4o" },
-      { provider: "openai", id: "gpt-4o-mini-2024-*", model: "gpt-4o-mini" },
-      { provider: "openai", id: "o3-mini-2025-*", model: "o3-mini" }
-    ];
-    publishedModelPrices = validatePriceCatalogue({
-      entries: [...anthropic, ...openai],
-      negotiated: [],
-      aliases
-    });
-  }
-});
-
-// packages/core/dist/src/replay.js
-var init_replay = __esm({
-  "packages/core/dist/src/replay.js"() {
-    "use strict";
-  }
-});
-
-// packages/core/dist/src/provider-usage.js
-function isPlainObject(value) {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-function asCount(value) {
-  return typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : void 0;
-}
-function normalizeProviderUsage(response) {
-  if (!isPlainObject(response))
-    return { status: "missing" };
-  const usage = isPlainObject(response.usage) ? response.usage : void 0;
-  if (!usage)
-    return { status: "missing" };
-  const output = asCount(usage.output_tokens) ?? asCount(usage.completion_tokens);
-  if (output === void 0) {
-    return { status: "invalid", reason: "Usage carries no readable output_tokens/completion_tokens." };
-  }
-  const anthropicRead = asCount(usage.cache_read_input_tokens);
-  const anthropicWriteFlat = asCount(usage.cache_creation_input_tokens);
-  const creation = isPlainObject(usage.cache_creation) ? usage.cache_creation : void 0;
-  if (anthropicRead !== void 0 || anthropicWriteFlat !== void 0 || creation !== void 0) {
-    const fresh = asCount(usage.input_tokens) ?? 0;
-    const cached2 = anthropicRead ?? 0;
-    let written = anthropicWriteFlat ?? 0;
-    let write5m;
-    let write1h;
-    if (creation !== void 0) {
-      write5m = asCount(creation.ephemeral_5m_input_tokens) ?? 0;
-      write1h = asCount(creation.ephemeral_1h_input_tokens) ?? 0;
-      const splitTotal = write5m + write1h;
-      if (anthropicWriteFlat !== void 0 && splitTotal !== anthropicWriteFlat) {
-        return {
-          status: "invalid",
-          reason: `cache_creation split (5m ${write5m} + 1h ${write1h} = ${splitTotal}) does not sum to cache_creation_input_tokens ${anthropicWriteFlat}.`
-        };
-      }
-      written = anthropicWriteFlat ?? splitTotal;
-    }
-    return {
-      status: "ok",
-      usage: {
-        inputTokens: fresh + cached2 + written,
-        uncachedInputTokens: fresh,
-        cachedInputTokens: cached2,
-        cacheWriteInputTokens: written,
-        ...write5m === void 0 ? {} : { cacheWrite5mInputTokens: write5m },
-        ...write1h === void 0 ? {} : { cacheWrite1hInputTokens: write1h },
-        outputTokens: output
-      }
-    };
-  }
-  const input = asCount(usage.input_tokens) ?? asCount(usage.prompt_tokens);
-  if (input === void 0) {
-    return { status: "invalid", reason: "Usage carries no readable input_tokens/prompt_tokens." };
-  }
-  const details = isPlainObject(usage.input_tokens_details) ? usage.input_tokens_details : void 0;
-  const promptDetails = isPlainObject(usage.prompt_tokens_details) ? usage.prompt_tokens_details : void 0;
-  const cached = asCount(details?.cached_tokens) ?? asCount(promptDetails?.cached_tokens) ?? 0;
-  const boundedCached = Math.min(cached, input);
-  return {
-    status: "ok",
-    usage: {
-      inputTokens: input,
-      uncachedInputTokens: input - boundedCached,
-      cachedInputTokens: boundedCached,
-      cacheWriteInputTokens: 0,
-      outputTokens: output
-    }
-  };
-}
-function responseServiceTier(response) {
-  if (!isPlainObject(response))
-    return void 0;
-  if (typeof response.service_tier === "string")
-    return response.service_tier;
-  const usage = isPlainObject(response.usage) ? response.usage : void 0;
-  return typeof usage?.service_tier === "string" ? usage.service_tier : void 0;
-}
-var init_provider_usage = __esm({
-  "packages/core/dist/src/provider-usage.js"() {
-    "use strict";
-  }
-});
-
-// packages/core/dist/src/stripe-sink.js
-var init_stripe_sink = __esm({
-  "packages/core/dist/src/stripe-sink.js"() {
-    "use strict";
-    init_savings_ledger2();
-  }
-});
-
-// packages/core/dist/src/geo-visibility.js
-var init_geo_visibility = __esm({
-  "packages/core/dist/src/geo-visibility.js"() {
-    "use strict";
-  }
-});
-
-// packages/core/dist/src/output-diagnostics.js
-function normalizeLine(line) {
-  return line.replace(LINE_NUMBER_PREFIX, "").trim().replace(/\s+/g, " ");
-}
-function looksLikeCode(line) {
-  if (/[{};=()[\]<>]/.test(line) && (line.match(/[{};=()[\]<>.:]/g) ?? []).length >= 3)
-    return true;
-  return /^(import |from |def |class |function |const |let |var |return |if |for |while |#include|public |private )/.test(line.trimStart());
-}
-function collectRequestText(value, depth = 0) {
-  if (depth > 12)
-    return "";
-  if (typeof value === "string")
-    return value;
-  if (Array.isArray(value))
-    return value.map((entry2) => collectRequestText(entry2, depth + 1)).filter(Boolean).join("\n");
-  if (typeof value === "object" && value !== null) {
-    return Object.values(value).map((entry2) => collectRequestText(entry2, depth + 1)).filter(Boolean).join("\n");
-  }
-  return "";
-}
-function measureOutputReEmission(requestText, outputText, countTokens = approximateTokenCount) {
-  const contextLines = /* @__PURE__ */ new Set();
-  for (const line of requestText.split("\n")) {
-    const normalized = normalizeLine(line);
-    if (normalized.length >= 8)
-      contextLines.add(normalized);
-  }
-  let inspected = 0;
-  let reEmitted = 0;
-  let reEmittedCode = 0;
-  for (const line of outputText.split("\n")) {
-    const tokens = countTokens(line);
-    inspected += tokens;
-    const normalized = normalizeLine(line);
-    if (normalized.length >= 8 && contextLines.has(normalized)) {
-      reEmitted += tokens;
-      if (looksLikeCode(normalized))
-        reEmittedCode += tokens;
-    }
-  }
-  return {
-    inspectedOutputTokens: inspected,
-    reEmittedOutputTokens: reEmitted,
-    reEmittedCodeTokens: reEmittedCode
-  };
-}
-var LINE_NUMBER_PREFIX;
-var init_output_diagnostics = __esm({
-  "packages/core/dist/src/output-diagnostics.js"() {
-    "use strict";
-    init_token_reduction();
-    LINE_NUMBER_PREFIX = /^\s*\d+[:.|]\s?/;
-  }
-});
-
-// packages/core/dist/src/stripe-billing.js
-var init_stripe_billing = __esm({
-  "packages/core/dist/src/stripe-billing.js"() {
-    "use strict";
-  }
-});
-
-// packages/core/dist/src/index.js
-var init_src = __esm({
-  "packages/core/dist/src/index.js"() {
-    "use strict";
-    init_types();
-    init_router();
-    init_evaluator();
-    init_cost2();
-    init_confidence();
-    init_cache_simulator();
-    init_price_catalogue2();
-    init_token_reduction();
-    init_tool_schema();
-    init_savings_model();
-    init_savings_ledger2();
-    init_quote_report();
-    init_traffic();
-    init_triage();
-    init_gateway();
-    init_litellm();
-    init_helicone();
-    init_langfuse();
-    init_model_prices();
-    init_replay();
-    init_provider_usage();
-    init_stripe_sink();
-    init_geo_visibility();
-    init_output_diagnostics();
-    init_stripe_billing();
   }
 });
 
@@ -1918,7 +1673,10 @@ var PREFIX_BREAKERS, STALE_BODY_MUST_KEEP, STALE_BODY_FILE_PATH, FLUX_MARKER;
 var init_reduce_request = __esm({
   "packages/sdk-js/src/reduce-request.ts"() {
     "use strict";
-    init_src();
+    init_model_prices();
+    init_token_reduction();
+    init_tool_schema();
+    init_price_catalogue2();
     PREFIX_BREAKERS = [
       /\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}(?::\d{2})?(?:\.\d+)?Z?/g,
       /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi
@@ -1953,19 +1711,21 @@ function responseText(response) {
 var init_replay_gate = __esm({
   "packages/sdk-js/src/replay-gate.ts"() {
     "use strict";
-    init_src();
+    init_cost2();
+    init_provider_usage();
+    init_confidence();
     init_reduce_request();
   }
 });
 
 // packages/sdk-js/src/cache-volatility-guard.ts
-import { createHash as createHash4 } from "node:crypto";
+import { createHash as createHash3 } from "node:crypto";
 var isPlainObject4, digest, CachePrefixVolatilityGuard;
 var init_cache_volatility_guard = __esm({
   "packages/sdk-js/src/cache-volatility-guard.ts"() {
     "use strict";
     isPlainObject4 = (value) => typeof value === "object" && value !== null && !Array.isArray(value);
-    digest = (value) => createHash4("sha256").update(JSON.stringify(value ?? null) ?? "null").digest("hex").slice(0, 32);
+    digest = (value) => createHash3("sha256").update(JSON.stringify(value ?? null) ?? "null").digest("hex").slice(0, 32);
     CachePrefixVolatilityGuard = class {
       constructor(maxConversations = 1e3) {
         this.maxConversations = maxConversations;
@@ -2096,7 +1856,82 @@ function extractBlindFeatures(request, options) {
 var init_blind_features = __esm({
   "packages/sdk-js/src/blind-features.ts"() {
     "use strict";
-    init_src();
+    init_token_reduction();
+  }
+});
+
+// packages/core/dist/src/savings-ledger.js
+import { createHash as createHash4 } from "node:crypto";
+function ledgerEventHash2(seq, prevHash, event) {
+  return createHash4("sha256").update(`${seq}
+${prevHash}
+${canonicalJson2(event)}`).digest("hex");
+}
+function chainLedgerRecord(event, previous) {
+  const seq = previous ? previous.seq + 1 : 0;
+  const prevHash = previous ? previous.eventHash : LEDGER_GENESIS_HASH2;
+  return { seq, prevHash, eventHash: ledgerEventHash2(seq, prevHash, event), event };
+}
+function priceLedgerUsage(catalogue, input) {
+  const resolution = resolveModelId2(catalogue, input.provider, input.model);
+  if (resolution.status === "unresolved") {
+    return { pricingStatus: "unpriced", reason: resolution.reason };
+  }
+  const split5m = input.usage.cacheWrite5mInputTokens;
+  const split1h = input.usage.cacheWrite1hInputTokens;
+  const splitReported = split5m !== void 0 || split1h !== void 0;
+  if (splitReported && (split5m ?? 0) + (split1h ?? 0) !== input.usage.cacheWriteInputTokens) {
+    return {
+      pricingStatus: "unpriced",
+      reason: `Cache-write TTL split (5m ${split5m ?? 0} + 1h ${split1h ?? 0}) does not sum to cacheWriteInputTokens ${input.usage.cacheWriteInputTokens}.`
+    };
+  }
+  const write1hForPricing = splitReported ? split1h ?? 0 : input.fluxPlacedCacheControl && input.fluxPlacedTtl !== "5m" ? input.usage.cacheWriteInputTokens : 0;
+  const pricingUsage = {
+    inputTokens: input.usage.inputTokens,
+    outputTokens: input.usage.outputTokens,
+    cachedInputTokens: input.usage.cachedInputTokens,
+    cacheWriteInputTokens: input.usage.cacheWriteInputTokens,
+    cacheWrite1hInputTokens: write1hForPricing
+  };
+  const query = { provider: input.provider, model: resolution.model, at: input.at };
+  const actual = priceUsage2(catalogue, { ...query, mode: input.executionMode }, pricingUsage);
+  if (actual.status === "unpriced")
+    return { pricingStatus: "unpriced", reason: actual.reason };
+  const actualInputOnly = priceUsage2(catalogue, { ...query, mode: input.executionMode }, {
+    ...pricingUsage,
+    outputTokens: 0
+  });
+  if (actualInputOnly.status === "unpriced") {
+    return { pricingStatus: "unpriced", reason: actualInputOnly.reason };
+  }
+  const standardWithCache = input.executionMode === "standard" ? actual : priceUsage2(catalogue, { ...query, mode: "standard" }, pricingUsage);
+  if (standardWithCache.status === "unpriced") {
+    return { pricingStatus: "unpriced", reason: standardWithCache.reason };
+  }
+  const fullRateStandard = priceUsage2(catalogue, { ...query, mode: "standard" }, {
+    inputTokens: input.usage.inputTokens,
+    outputTokens: input.usage.outputTokens
+  });
+  if (fullRateStandard.status === "unpriced") {
+    return { pricingStatus: "unpriced", reason: fullRateStandard.reason };
+  }
+  const cacheDeltaUsd = fullRateStandard.costUsd - standardWithCache.costUsd;
+  const hasCacheTraffic = input.usage.cachedInputTokens > 0 || input.usage.cacheWriteInputTokens > 0;
+  return {
+    pricingStatus: "priced",
+    actualUsd: actual.costUsd,
+    inputUsd: actualInputOnly.costUsd,
+    ...input.executionMode === "standard" ? {} : { tierSavedUsd: standardWithCache.costUsd - actual.costUsd },
+    ...hasCacheTraffic ? input.fluxPlacedCacheControl ? { cacheAttributedUsd: cacheDeltaUsd } : { providerCacheAlreadyOwnedUsd: cacheDeltaUsd } : {}
+  };
+}
+var LEDGER_GENESIS_HASH2;
+var init_savings_ledger2 = __esm({
+  "packages/core/dist/src/savings-ledger.js"() {
+    "use strict";
+    init_price_catalogue2();
+    LEDGER_GENESIS_HASH2 = "0".repeat(64);
   }
 });
 
@@ -2298,7 +2133,9 @@ var EXECUTION_TIER_LEVERS, CACHE_TTL_LEVERS, MEASURED_COMPOSITE_LEVER, EXACT_CAC
 var init_savings_ledger3 = __esm({
   "packages/sdk-js/src/savings-ledger.ts"() {
     "use strict";
-    init_src();
+    init_price_catalogue2();
+    init_model_prices();
+    init_savings_ledger2();
     EXECUTION_TIER_LEVERS = /* @__PURE__ */ new Set(["execution-tier-flex"]);
     CACHE_TTL_LEVERS = /* @__PURE__ */ new Map([["cache-ttl-5m", "5m"], ["cache-ttl-1h", "1h"]]);
     MEASURED_COMPOSITE_LEVER = "token-reduction-measured";
@@ -2700,7 +2537,8 @@ var LOSSLESS_DEFAULT, HOP_HEADERS, BODY_CAP, BodyTooLargeError;
 var init_proxy = __esm({
   "packages/sdk-js/src/proxy.ts"() {
     "use strict";
-    init_src();
+    init_output_diagnostics();
+    init_provider_usage();
     init_replay_gate();
     init_cache_volatility_guard();
     init_reduce_request();
@@ -3072,7 +2910,7 @@ var init_start = __esm({
     init_savings_ledger();
     init_proxy();
     init_theo_policy();
-    BUILD_COMMIT = true ? "4142afe" : process.env.FLUX_BUILD_COMMIT ?? "dev";
+    BUILD_COMMIT = true ? "b2be585" : process.env.FLUX_BUILD_COMMIT ?? "dev";
     FLUX_HOME = join2(homedir(), ".flux");
     CLAUDE_SETTINGS = join2(homedir(), ".claude", "settings.json");
     DEFAULT_PORT = 8787;
