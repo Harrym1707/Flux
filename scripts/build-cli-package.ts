@@ -61,7 +61,7 @@ mkdirSync(outDir, { recursive: true });
 
 // 1. The runtime (scoped client entry), stamped with the commit.
 const runtimeFile = path.join(outDir, "flux-runtime");
-bundle("flux-runtime.ts", runtimeFile, { __FLUX_BUILD_COMMIT__: JSON.stringify(commit) });
+bundle("flux-runtime.ts", runtimeFile, { __FLUX_BUILD_COMMIT__: JSON.stringify(commit), __FLUX_VERSION__: JSON.stringify(version) });
 const runtimeBytes = readFileSync(runtimeFile);
 const runtimeSha = createHash("sha256").update(runtimeBytes).digest("hex");
 

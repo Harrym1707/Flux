@@ -21,6 +21,9 @@ Usage: flux <command> [options]
   status     Is the service up, and what has Theo saved so far?
   verify     Re-prove FLUX's claims on this machine: the build's provenance,
              your ledger's hash-chain, and a deterministic invoice recompute.
+  doctor     Diagnose this machine: Node, the proxy, Claude Code wiring, the
+             service, and the ledger — each with a one-line fix.
+  version    Print the installed version and build.
 
 Run "flux <command> --help" for command options.`;
 
@@ -38,6 +41,10 @@ async function main(): Promise<void> {
     await (await import("./daemon.js")).runStatus(process.argv.slice(3));
   } else if (sub === "verify") {
     await (await import("./verify.js")).runVerify(process.argv.slice(3));
+  } else if (sub === "doctor") {
+    await (await import("./diag.js")).runDoctor(process.argv.slice(3));
+  } else if (sub === "version" || sub === "--version" || sub === "-v") {
+    (await import("./diag.js")).runVersion(process.argv.slice(3));
   } else {
     console.log(TOP_USAGE);
   }
