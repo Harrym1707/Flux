@@ -20,8 +20,10 @@ const BASE = (process.env.FLUX_BASE_URL ?? "https://www.fluxtoken.dev").replace(
 const DIR = join(homedir(), ".flux", "runtime");
 const RUNTIME = join(DIR, "flux-runtime.mjs");
 const VERSION_FILE = join(DIR, "version");
+const SHA_FILE = join(DIR, "sha256");
 const BACKUP = join(DIR, "flux-runtime.previous.mjs");
 const BACKUP_VERSION = join(DIR, "version.previous");
+const BACKUP_SHA = join(DIR, "sha256.previous");
 
 type Manifest = { version: string; sha256: string; runtime?: string };
 
@@ -37,6 +39,7 @@ function rollback(): void {
   copyFileSync(BACKUP, RUNTIME);
   const prev = read(BACKUP_VERSION) ?? "previous";
   writeFileSync(VERSION_FILE, prev);
+  if (existsSync(BACKUP_SHA)) copyFileSync(BACKUP_SHA, SHA_FILE);
   console.log(`Rolled back to ${prev}.`);
 }
 
@@ -79,9 +82,11 @@ export async function runUpdate(argv: string[]): Promise<void> {
   if (existsSync(RUNTIME)) {
     copyFileSync(RUNTIME, BACKUP);
     if (have !== null) writeFileSync(BACKUP_VERSION, have);
+    if (existsSync(SHA_FILE)) copyFileSync(SHA_FILE, BACKUP_SHA);
   }
   writeFileSync(RUNTIME, bytes);
   writeFileSync(VERSION_FILE, manifest.version);
+  writeFileSync(SHA_FILE, manifest.sha256); // so `flux verify` can re-check the cached runtime
   console.log("done.");
   console.log(`Now on ${manifest.version}. Roll back with: flux update --rollback`);
 }

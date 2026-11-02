@@ -21,6 +21,7 @@ const BASE = (process.env.FLUX_BASE_URL ?? "https://www.fluxtoken.dev").replace(
 const DIR = join(homedir(), ".flux", "runtime");
 const RUNTIME = join(DIR, "flux-runtime.mjs");
 const VERSION_FILE = join(DIR, "version");
+const SHA_FILE = join(DIR, "sha256");
 const LAST_CHECK = join(DIR, ".last-check");
 const CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000;
 
@@ -80,6 +81,7 @@ async function ensureRuntime(): Promise<void> {
   }
   writeFileSync(RUNTIME, bytes);
   writeFileSync(VERSION_FILE, manifest.version);
+  writeFileSync(SHA_FILE, manifest.sha256); // so `flux verify` can re-check the cached runtime
   stampCheck();
   process.stderr.write("ready.\n");
 }

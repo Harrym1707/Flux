@@ -11,6 +11,7 @@
  *
  * Exits non-zero if any check fails, so it is safe to run in CI or a hook.
  */
+import { createHash } from "node:crypto";
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
@@ -46,8 +47,24 @@ type Check = { name: string; ok: boolean; detail: string };
 export async function runVerify(_argv: string[]): Promise<void> {
   const checks: Check[] = [];
 
-  // 1. PROVENANCE
-  checks.push({ name: "provenance", ok: true, detail: `built from commit ${BUILD_COMMIT}` });
+  // 1. PROVENANCE — the cached runtime is byte-identical to what passed its
+  // checksum when the bootstrap downloaded it (local integrity of the cached
+  // artifact; authenticity of a release comes from its CI signature/attestation).
+  const runtimeDir = join(homedir(), ".flux", "runtime");
+  const runtimeFile = join(runtimeDir, "flux-runtime.mjs");
+  const recordedSha = existsSync(join(runtimeDir, "sha256")) ? readFileSync(join(runtimeDir, "sha256"), "utf8").trim() : null;
+  if (recordedSha !== null && existsSync(runtimeFile)) {
+    const actual = createHash("sha256").update(readFileSync(runtimeFile)).digest("hex");
+    checks.push({
+      name: "provenance",
+      ok: actual === recordedSha,
+      detail: actual === recordedSha
+        ? `build ${BUILD_COMMIT}; cached runtime matches its download checksum`
+        : `build ${BUILD_COMMIT}; CACHED RUNTIME ALTERED since download (checksum mismatch)`,
+    });
+  } else {
+    checks.push({ name: "provenance", ok: true, detail: `build ${BUILD_COMMIT} (npm or dev build — no download checksum to re-verify)` });
+  }
 
   // 2. REDUCER — the real lossless reducer removes tokens from the sample.
   const { summary } = reduceRequest(sampleRequest(), { toolSchemas: true, duplicateContext: true, repairCachePrefix: true });
