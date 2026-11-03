@@ -33,6 +33,7 @@ import { join } from "node:path";
 import { recomputeInvoice, verifyLedgerChain, type LedgerRecord } from "../../core/src/savings-ledger.js";
 import { startFluxProxy } from "../../sdk-js/src/proxy.js";
 import { defaultPolicy, policyToReductionConfig, withheldLevers } from "../../sdk-js/src/theo-policy.js";
+import { pullNewerRuntime } from "./update.js";
 
 declare const __FLUX_BUILD_COMMIT__: string | undefined;
 export const BUILD_COMMIT =
@@ -214,7 +215,34 @@ export async function runServe(argv: string[]): Promise<void> {
     lastEvents = s.events;
     console.log(`[${stamp()}] ${T} ${s.events} requests · $${s.savedUsd.toFixed(4)} verified saved (${s.verdict})`);
   }, 10000);
-  const shutdown = async (): Promise<void> => { clearInterval(monitor); await proxy.close(); process.exit(0); };
+
+  // Keep the always-on service current. The bootstrap only checks for a newer
+  // runtime at launch, but the daemon launches once and runs for weeks — so
+  // without this it would serve the version it started with until the machine
+  // restarts (customers stuck on old FLUX). A few times a day, pull a newer
+  // published runtime (checksum-verified, with a rollback copy) and, when one
+  // lands, exit so launchd relaunches us on it. Disable with FLUX_NO_AUTO_UPDATE.
+  const UPDATE_CHECK_MS = 6 * 60 * 60 * 1000;
+  const autoUpdate = process.env.FLUX_NO_AUTO_UPDATE === undefined && BUILD_COMMIT !== "dev";
+  const updateTimer = autoUpdate ? setInterval(() => { void (async () => {
+    try {
+      const next = await pullNewerRuntime();
+      if (next && next !== BUILD_COMMIT) {
+        console.log(`[${stamp()}] ${T} runtime updated ${BUILD_COMMIT} → ${next}; restarting to apply.`);
+        clearInterval(monitor);
+        clearInterval(updateTimer!);
+        await proxy.close();
+        process.exit(0); // launchd KeepAlive relaunches → bootstrap runs the new runtime
+      }
+    } catch { /* an update check must never take the proxy down */ }
+  })(); }, UPDATE_CHECK_MS) : undefined;
+
+  const shutdown = async (): Promise<void> => {
+    clearInterval(monitor);
+    if (updateTimer) clearInterval(updateTimer);
+    await proxy.close();
+    process.exit(0);
+  };
   process.on("SIGTERM", () => { void shutdown(); });
   process.on("SIGINT", () => { void shutdown(); });
   await new Promise<void>(() => {});

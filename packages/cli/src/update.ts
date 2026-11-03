@@ -31,6 +31,45 @@ function read(path: string): string | null {
   try { return readFileSync(path, "utf8").trim(); } catch { return null; }
 }
 
+/**
+ * For the always-on daemon: fetch the manifest and, if a newer runtime is
+ * published, download + checksum-verify it and swap it in (keeping a rollback
+ * copy), exactly as `flux update` does — but with no printing and no exit.
+ * Returns the new version when it swapped the runtime, else null (already
+ * current, unreachable, or a failed checksum — never a partial/unsafe write).
+ * The daemon then restarts so launchd relaunches it on the new runtime.
+ */
+export async function pullNewerRuntime(): Promise<string | null> {
+  mkdirSync(DIR, { recursive: true });
+  const have = existsSync(VERSION_FILE) ? read(VERSION_FILE) : null;
+  let manifest: Manifest;
+  try {
+    const res = await fetch(`${BASE}/flux-version.json`);
+    if (!res.ok) return null;
+    manifest = (await res.json()) as Manifest;
+  } catch { return null; }
+  if (have === manifest.version) return null;
+
+  let bytes: Buffer;
+  try {
+    const res = await fetch(`${BASE}/${manifest.runtime ?? "flux-runtime"}`);
+    if (!res.ok) return null;
+    bytes = Buffer.from(await res.arrayBuffer());
+  } catch { return null; }
+  // Never install a runtime whose bytes don't match the published checksum.
+  if (createHash("sha256").update(bytes).digest("hex") !== manifest.sha256) return null;
+
+  if (existsSync(RUNTIME)) {
+    copyFileSync(RUNTIME, BACKUP);
+    if (have !== null) writeFileSync(BACKUP_VERSION, have);
+    if (existsSync(SHA_FILE)) copyFileSync(SHA_FILE, BACKUP_SHA);
+  }
+  writeFileSync(RUNTIME, bytes);
+  writeFileSync(VERSION_FILE, manifest.version);
+  writeFileSync(SHA_FILE, manifest.sha256);
+  return manifest.version;
+}
+
 function rollback(): void {
   if (!existsSync(BACKUP)) {
     console.error("No previous runtime to roll back to.");

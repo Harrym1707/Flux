@@ -146,3 +146,62 @@ describe("flux update (subprocess, isolated HOME + stub release server)", () => 
     expect(readFileSync(versionPath(), "utf8").trim()).toBe("good-1.0.0");
   });
 });
+
+// pullNewerRuntime is what the always-on daemon calls on a timer so it never
+// serves an old runtime forever. Same download + checksum + swap as `flux
+// update`, but it returns the new version (or null) instead of printing/exiting.
+const UPDATE_MOD = fileURLToPath(new URL("./update.ts", import.meta.url));
+function runPull(home: string, baseUrl: string): Promise<{ out: string; err: string }> {
+  const script =
+    `import(${JSON.stringify(UPDATE_MOD)}).then(async (m) => { const v = await m.pullNewerRuntime(); process.stdout.write("PULL:" + JSON.stringify(v ?? null)); });`;
+  return new Promise((resolve, reject) => {
+    const child = spawn(process.execPath, ["--import", "tsx", "-e", script], {
+      env: { ...process.env, HOME: home, FLUX_BASE_URL: baseUrl },
+    });
+    let out = "";
+    let err = "";
+    child.stdout.on("data", (c: Buffer) => { out += c.toString("utf8"); });
+    child.stderr.on("data", (c: Buffer) => { err += c.toString("utf8"); });
+    child.on("error", reject);
+    child.on("close", () => resolve({ out, err }));
+  });
+}
+
+describe("pullNewerRuntime (daemon self-update)", () => {
+  let home: string;
+  let stub: { server: Server; url: string; state: StubState };
+  const R1 = Buffer.from("export const flux = 'v1';\n");
+  const R2 = Buffer.from("export const flux = 'v2 newer';\n");
+  const rt = (): string => join(home, ".flux", "runtime", "flux-runtime.mjs");
+  const ver = (): string => join(home, ".flux", "runtime", "version");
+
+  beforeEach(async () => {
+    home = mkdtempSync(join(tmpdir(), "flux-pull-"));
+    stub = await startStub({ version: "1.0.0", sha256: sha256(R1), body: R1, runtimeName: "flux-runtime" });
+  });
+  afterEach(() => { stub.server.close(); rmSync(home, { recursive: true, force: true }); });
+
+  it("installs a newer runtime and returns its version", { timeout: 30_000 }, async () => {
+    const { out } = await runPull(home, stub.url);
+    expect(out).toBe(`PULL:${JSON.stringify("1.0.0")}`);
+    expect(readFileSync(rt())).toEqual(R1);
+    expect(readFileSync(ver(), "utf8").trim()).toBe("1.0.0");
+  });
+
+  it("returns null when already current (no redundant swap)", { timeout: 30_000 }, async () => {
+    await runPull(home, stub.url);
+    const { out } = await runPull(home, stub.url);
+    expect(out).toBe("PULL:null");
+  });
+
+  it("keeps the good runtime and returns null on a checksum mismatch", { timeout: 30_000 }, async () => {
+    await runPull(home, stub.url); // install v1
+    stub.state.version = "2.0.0";
+    stub.state.body = R2;
+    stub.state.sha256 = sha256(Buffer.from("a lie about the bytes"));
+    const { out } = await runPull(home, stub.url);
+    expect(out).toBe("PULL:null");
+    expect(readFileSync(rt())).toEqual(R1); // unchanged
+    expect(readFileSync(ver(), "utf8").trim()).toBe("1.0.0");
+  });
+});

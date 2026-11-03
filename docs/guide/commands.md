@@ -43,6 +43,12 @@ FLUX permanently, and confirms the proxy came up. Logs to `~/.flux/daemon.log`.
 On non-macOS platforms this reports that it isn't wired up yet and tells you to
 use `flux start`.
 
+**Stays current on its own.** The background service checks for a newer
+published runtime a few times a day and, when one lands, downloads and
+checksum-verifies it (keeping the previous one as a rollback) and restarts onto
+it — so an always-on install never serves a stale FLUX. Set `FLUX_NO_AUTO_UPDATE`
+to pin it to the installed runtime (then update deliberately with `flux update`).
+
 ## `flux uninstall`
 
 Stop and remove the background service and restore Claude Code to normal. **Your
