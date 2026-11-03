@@ -27,6 +27,8 @@ Usage: flux <command> [options]
   doctor     Diagnose this machine: Node, the proxy, Claude Code wiring, the
              service, and the ledger — each with a one-line fix.
   version    Print the installed version and build.
+  compaction Estimate, per task in your ledger, what context compaction would
+             save — and where it would cost more than it saves (advisory).
 
 Run "flux <command> --help" for command options.`;
 
@@ -54,6 +56,8 @@ async function main(): Promise<void> {
     await (await import("./dashboard.js")).runDashboard(process.argv.slice(3));
   } else if (sub === "version" || sub === "--version" || sub === "-v") {
     (await import("./diag.js")).runVersion(process.argv.slice(3));
+  } else if (sub === "compaction") {
+    await (await import("./compaction.js")).runCompaction(process.argv.slice(3));
   } else {
     console.log(TOP_USAGE);
   }

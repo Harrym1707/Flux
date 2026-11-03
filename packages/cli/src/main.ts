@@ -415,6 +415,8 @@ Usage: flux <command> [options]
   doctor     Diagnose this machine (Node, proxy, Claude Code, service, ledger).
   version    Print the installed version and build.
   analyse    Measure a traffic log and report what a reduction is worth.
+  compaction Estimate, per task in your ledger, what context compaction would
+             save — and where it would cost more than it saves (advisory).
 
 Run "flux <command> --help" for command options.`;
 
@@ -444,6 +446,8 @@ async function main(): Promise<void> {
     (await import("./diag.js")).runVersion(process.argv.slice(3));
   } else if (sub === "analyse" || sub === "analyze") {
     await runAnalyse(process.argv.slice(3));
+  } else if (sub === "compaction") {
+    await (await import("./compaction.js")).runCompaction(process.argv.slice(3));
   } else if (sub === undefined || sub === "--help" || sub === "-h") {
     console.log(TOP_USAGE);
   } else {
