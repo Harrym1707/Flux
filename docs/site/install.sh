@@ -16,17 +16,24 @@ if ! command -v node >/dev/null 2>&1; then
   exit 1
 fi
 NODE_MAJOR=$(node -p 'process.versions.node.split(".")[0]' 2>/dev/null || echo 0)
-if [ "$NODE_MAJOR" -lt 20 ]; then
-  printf 'Node %s is too old (and Node 20 is end-of-life). Install Node 22 LTS from https://nodejs.org and re-run.\n' "$NODE_MAJOR" >&2
+if [ "$NODE_MAJOR" -lt 22 ]; then
+  printf 'FLUX needs Node.js 22 LTS or newer (the runtime is built for Node 22); you have Node %s. Install Node 22 LTS from https://nodejs.org and re-run.\n' "$NODE_MAJOR" >&2
   exit 1
 fi
-if [ "$NODE_MAJOR" -lt 22 ]; then
-  printf 'Note: Node 22 LTS is recommended (you have Node %s). Continuing.\n' "$NODE_MAJOR" >&2
+
+# Download with whatever is present — curl on macOS/most Linux, wget elsewhere.
+if command -v curl >/dev/null 2>&1; then
+  fetch() { curl -fsSL "$1" -o "$2"; }
+elif command -v wget >/dev/null 2>&1; then
+  fetch() { wget -qO "$2" "$1"; }
+else
+  printf 'This needs curl or wget to download the launcher. Install one and re-run.\n' >&2
+  exit 1
 fi
 
 mkdir -p "$BIN_DIR"
 printf 'Downloading flux… '
-if ! curl -fsSL "$BASE/flux" -o "$BIN_DIR/flux"; then
+if ! fetch "$BASE/flux" "$BIN_DIR/flux"; then
   printf 'failed.\nCould not download %s/flux — check your connection.\n' "$BASE" >&2
   exit 1
 fi
@@ -39,15 +46,27 @@ case ":$PATH:" in
   *) ON_PATH=0 ;;
 esac
 if [ "$ON_PATH" -eq 0 ]; then
-  PROFILE="$HOME/.profile"
   case "${SHELL:-}" in
-    *zsh) PROFILE="$HOME/.zshrc" ;;
-    *bash) PROFILE="$HOME/.bashrc" ;;
+    *fish)
+      PROFILE="$HOME/.config/fish/config.fish"
+      mkdir -p "$HOME/.config/fish"
+      if ! grep -qs '.flux/bin' "$PROFILE" 2>/dev/null; then
+        printf '\n# FLUX\nif not contains "$HOME/.flux/bin" $PATH; set -gx PATH "$HOME/.flux/bin" $PATH; end\n' >> "$PROFILE"
+        printf 'Added ~/.flux/bin to your PATH in %s.\n' "$PROFILE"
+      fi
+      ;;
+    *)
+      PROFILE="$HOME/.profile"
+      case "${SHELL:-}" in
+        *zsh) PROFILE="$HOME/.zshrc" ;;
+        *bash) PROFILE="$HOME/.bashrc" ;;
+      esac
+      if ! grep -qs '.flux/bin' "$PROFILE" 2>/dev/null; then
+        printf '\n# FLUX\nexport PATH="$HOME/.flux/bin:$PATH"\n' >> "$PROFILE"
+        printf 'Added ~/.flux/bin to your PATH in %s.\n' "$PROFILE"
+      fi
+      ;;
   esac
-  if ! grep -qs '.flux/bin' "$PROFILE" 2>/dev/null; then
-    printf '\n# FLUX\nexport PATH="$HOME/.flux/bin:$PATH"\n' >> "$PROFILE"
-    printf 'Added ~/.flux/bin to your PATH in %s.\n' "$PROFILE"
-  fi
 fi
 
 printf '\n\342\234\223 flux is installed. Start it with:\n\n'

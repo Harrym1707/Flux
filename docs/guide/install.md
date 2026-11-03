@@ -7,9 +7,11 @@ provider — never stored, never logged.
 
 ## Requirements
 
-- **Node 22+** (`flux doctor` treats Node 20 as a warning and anything older as
-  a hard failure; 22 LTS is what we recommend and test on).
-- **macOS or Linux** today. Windows is coming.
+- **Node 22 LTS or newer.** The runtime is built for Node 22; the installer and
+  `flux doctor` reject anything older. Claude Code already runs on Node 22.
+- **macOS or Linux** for the one-line installer. On **Windows**, use the `npx`
+  route below — the runtime itself is cross-platform; only the always-on service
+  (`flux install`) is macOS-only today.
 
 ## Install (recommended)
 
@@ -45,14 +47,26 @@ none of the product code — just enough to fetch and verify the runtime:
 The runtime is cached under `~/.flux/runtime`. The launcher never reads, stores,
 or forwards your API key.
 
-## Alternative: run without installing
+## Alternative: run without installing (agents, CI, Windows)
 
-If you have Node already, you can run the launcher through `npx` with nothing to
-install:
+If you have Node already, you can run FLUX through `npx` with nothing installed
+and no changes to your PATH or shell profile — the best route for agents, CI
+jobs, containers and Windows:
 
 ```bash
 npx @flux-ai/flux start
 ```
+
+For a headless setup that wires nothing up for you, start the proxy without
+touching Claude Code's config and point your client at it yourself:
+
+```bash
+npx @flux-ai/flux start --no-install     # prints the proxy URL
+# then set ANTHROPIC_BASE_URL=http://127.0.0.1:8787 in your environment
+```
+
+`FLUX_BASE_URL` overrides where the launcher fetches the runtime from (for a
+mirror or an air-gapped cache).
 
 ## Next
 

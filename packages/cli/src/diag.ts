@@ -49,11 +49,12 @@ export async function runDoctor(argv: string[]): Promise<void> {
   const checks: Check[] = [];
   const port = DEFAULT_PORT;
 
-  // 1. Node runtime
+  // 1. Node runtime — the runtime is built for Node 22 (esbuild target node22),
+  // so anything older is a hard failure, matching the installer's floor.
   const nodeOk = nodeMajor() >= 22;
   checks.push({
-    ok: nodeMajor() >= 20, warn: !nodeOk && nodeMajor() >= 20,
-    name: "node", detail: `v${process.versions.node}${nodeOk ? "" : " (Node 22 LTS recommended)"}`,
+    ok: nodeOk,
+    name: "node", detail: `v${process.versions.node}${nodeOk ? "" : " (Node 22 LTS required)"}`,
     fix: nodeOk ? undefined : "Upgrade to Node 22 LTS: https://nodejs.org",
   });
 
