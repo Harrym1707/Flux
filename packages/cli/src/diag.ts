@@ -1,0 +1,112 @@
+/**
+ * `flux version` and `flux doctor` — the "is this installed and healthy?"
+ * commands every professional CLI has.
+ *
+ *   version  build + runtime identity, machine-readable with --json
+ *   doctor   environment diagnostics: Node version, the proxy, Claude Code
+ *            wiring, the background service, and the ledger — each ✓ / ⚠ / ✗
+ *            with a one-line fix. Exits non-zero if any check is a hard failure.
+ */
+import { execFileSync } from "node:child_process";
+import { existsSync, readFileSync } from "node:fs";
+import { connect } from "node:net";
+import { homedir, platform } from "node:os";
+import { join } from "node:path";
+
+import { BUILD_COMMIT, CLAUDE_SETTINGS, DEFAULT_PORT, FLUX_HOME, summariseLedger } from "./start.js";
+
+declare const __FLUX_VERSION__: string | undefined;
+const VERSION = typeof __FLUX_VERSION__ !== "undefined" ? __FLUX_VERSION__ : (process.env.FLUX_VERSION ?? "0.0.0");
+const LAUNCHD_LABEL = "dev.fluxtoken.flux";
+
+const nodeMajor = (): number => Number.parseInt(process.versions.node.split(".")[0] ?? "0", 10);
+
+function portUp(port: number, timeoutMs = 700): Promise<boolean> {
+  return new Promise((res) => {
+    const sock = connect({ host: "127.0.0.1", port });
+    const done = (ok: boolean): void => { sock.destroy(); res(ok); };
+    sock.setTimeout(timeoutMs);
+    sock.once("connect", () => done(true));
+    sock.once("timeout", () => done(false));
+    sock.once("error", () => done(false));
+  });
+}
+
+function serviceLoaded(): boolean {
+  if (platform() !== "darwin") return false;
+  try { execFileSync("launchctl", ["list", LAUNCHD_LABEL], { stdio: "pipe" }); return true; } catch { return false; }
+}
+
+export function runVersion(argv: string[]): void {
+  const info = { version: VERSION, build: BUILD_COMMIT, node: process.versions.node, platform: `${platform()}-${process.arch}` };
+  if (argv.includes("--json")) { console.log(JSON.stringify(info)); return; }
+  console.log(`flux ${info.version} (build ${info.build}) · node ${info.node} · ${info.platform}`);
+}
+
+type Check = { ok: boolean; warn?: boolean; name: string; detail: string; fix?: string };
+
+export async function runDoctor(argv: string[]): Promise<void> {
+  const checks: Check[] = [];
+  const port = DEFAULT_PORT;
+
+  // 1. Node runtime — the runtime is built for Node 22 (esbuild target node22),
+  // so anything older is a hard failure, matching the installer's floor.
+  const nodeOk = nodeMajor() >= 22;
+  checks.push({
+    ok: nodeOk,
+    name: "node", detail: `v${process.versions.node}${nodeOk ? "" : " (Node 22 LTS required)"}`,
+    fix: nodeOk ? undefined : "Upgrade to Node 22 LTS: https://nodejs.org",
+  });
+
+  // 2. Installed runtime cache
+  const runtimeVersion = existsSync(join(FLUX_HOME, "runtime", "version"))
+    ? readFileSync(join(FLUX_HOME, "runtime", "version"), "utf8").trim() : null;
+  checks.push({
+    ok: true, name: "runtime", detail: runtimeVersion ? `cached ${runtimeVersion}` : "running in place (no fetched runtime cached yet)",
+  });
+
+  // 3. Proxy reachable
+  const up = await portUp(port);
+  checks.push({ ok: true, warn: !up, name: "proxy", detail: up ? `up on 127.0.0.1:${port}` : `not running on :${port}`, fix: up ? undefined : "Start it with: flux start" });
+
+  // 4. Claude Code wiring
+  let settingsDetail = "no ~/.claude/settings.json (Claude Code not configured for FLUX)";
+  let settingsOk = true;
+  if (existsSync(CLAUDE_SETTINGS)) {
+    try {
+      const s = JSON.parse(readFileSync(CLAUDE_SETTINGS, "utf8")) as { env?: Record<string, string> };
+      const base = s.env?.ANTHROPIC_BASE_URL;
+      settingsDetail = base ? `ANTHROPIC_BASE_URL → ${base}` : "valid, but ANTHROPIC_BASE_URL not set";
+    } catch { settingsOk = false; settingsDetail = "~/.claude/settings.json is not valid JSON"; }
+  }
+  checks.push({ ok: settingsOk, name: "claude", detail: settingsDetail, fix: settingsOk ? undefined : "Fix or remove ~/.claude/settings.json; FLUX won't overwrite invalid JSON." });
+
+  // 5. Background service (macOS)
+  if (platform() === "darwin") {
+    const loaded = serviceLoaded();
+    checks.push({ ok: true, name: "service", detail: loaded ? "launchd service installed (always-on)" : "not installed (foreground only)" });
+  }
+
+  // 6. Ledger health
+  const s = summariseLedger(join(FLUX_HOME, "ledger"));
+  checks.push({
+    ok: s.chainOk, name: "ledger",
+    detail: s.events === 0 ? "no ledger yet" : `${s.events} records${s.chainOk ? ", chain verified" : `, CHAIN BROKEN at ${s.brokenAt}`}`,
+    fix: s.chainOk ? undefined : "Run `flux verify` and report this — the ledger should never break.",
+  });
+
+  if (argv.includes("--json")) { console.log(JSON.stringify({ checks })); return; }
+  console.log("");
+  console.log(`  flux doctor — build ${BUILD_COMMIT}`);
+  console.log("");
+  let hardFail = false;
+  for (const c of checks) {
+    hardFail = hardFail || !c.ok;
+    const mark = !c.ok ? "✗" : c.warn ? "⚠" : "✓";
+    console.log(`  ${mark} ${c.name.padEnd(9)} ${c.detail}`);
+    if (c.fix) console.log(`              ↳ ${c.fix}`);
+  }
+  console.log("");
+  console.log(hardFail ? "  Some checks failed — see above." : "  Looks healthy.");
+  if (hardFail) process.exitCode = 1;
+}

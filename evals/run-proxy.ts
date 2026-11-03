@@ -1,4 +1,5 @@
 import { mkdirSync } from "node:fs";
+import { randomBytes } from "node:crypto";
 import { join } from "node:path";
 import { startFluxProxy } from "../packages/sdk-js/src/proxy.js";
 
@@ -26,9 +27,19 @@ if (cacheTtl !== undefined && cacheTtl !== "5m" && cacheTtl !== "1h") {
   throw new Error(`FLUX_PROXY_CACHE_TTL must be "5m" or "1h", got ${JSON.stringify(cacheTtl)}.`);
 }
 
+// The provably-blind learning stream. Set FLUX_PROXY_BLIND_KEY to a stable
+// secret so features correlate across restarts and conversations; otherwise a
+// per-boot key is generated (features are still blind, just not comparable
+// across restarts). The key must live only in the gateway — in production,
+// sealed inside the enclave.
+const blindKeyFromEnv = process.env.FLUX_PROXY_BLIND_KEY;
+const generatedBlindKey = blindKeyFromEnv === undefined || blindKeyFromEnv.trim() === "";
+const blindFeaturesKey = generatedBlindKey ? randomBytes(32).toString("hex") : blindKeyFromEnv!.trim();
+
 const proxy = await startFluxProxy({
   port,
   ledgerDirectory,
+  blindFeaturesKey,
   tokenReduction: {
     toolSchemas: true,
     duplicateContext: true,
@@ -39,6 +50,9 @@ const proxy = await startFluxProxy({
 
 console.log(`FLUX proxy listening on ${proxy.url}`);
 console.log(`Ledger spools: ${ledgerDirectory} (one hash-chained JSONL per app + provider)`);
+console.log(`Blind learning stream: ${ledgerDirectory}/<app>-<provider>.features.jsonl ` +
+  `(irreversible keyed hashes + counts, NO prompt content)` +
+  (generatedBlindKey ? " — per-boot key; set FLUX_PROXY_BLIND_KEY for a stable one" : ""));
 console.log("");
 console.log("Point a client here, keeping its own key:");
 console.log(`  Anthropic SDK:  new Anthropic({ baseURL: "${proxy.url}" })`);

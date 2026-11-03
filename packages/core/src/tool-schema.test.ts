@@ -155,4 +155,28 @@ describe("auditToolCatalogue", () => {
     const audit = auditToolCatalogue([tool("a", LONG), tool("b", LONG)]);
     expect(audit.meanTokensPerTool).toBeCloseTo(audit.tokens / 2, 6);
   });
+
+  it("never claims a whitespace/formatting saving — the provider does not bill it", () => {
+    // A catalogue with no plumbing and no redundant titles has NOTHING the
+    // provider would tokenise differently; compacting its JSON is hygiene, not a
+    // saving. The minifier must report zero lossless tokens and no formatting change.
+    const clean = [{
+      type: "function",
+      function: {
+        name: "lookup",
+        description: "Look up a record by id.",
+        parameters: { type: "object", properties: { id: { type: "string", description: "The id." } }, required: ["id"] },
+      },
+    }];
+    const result = minifyToolSchemas(clean, { descriptions: "keep" });
+    expect(result.changes.some((c) => c.kind === "formatting")).toBe(false);
+    expect(result.losslessTokensSaved).toBe(0);
+  });
+
+  it("still credits real content removal (plumbing) as lossless", () => {
+    // The helper always carries parameters.$schema + a redundant accountId title.
+    const result = minifyToolSchemas([tool("lookup", "Look up a record by id.")], { descriptions: "keep" });
+    expect(result.losslessTokensSaved).toBeGreaterThan(0);
+    expect(result.changes.some((c) => c.kind === "plumbing")).toBe(true);
+  });
 });

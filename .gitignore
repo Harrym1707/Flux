@@ -11,3 +11,10 @@ packages/sdk-js/pkg/
 .flux-captures/
 coverage
 .DS_Store
+
+# shippable CLI build artifacts (reproducible via scripts/build-cli-package.ts)
+dist-bin/
+packages/cli/pkg/
+
+# Claude Code personal project settings (hooks, etc.)
+.claude/settings.local.json

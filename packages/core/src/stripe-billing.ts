@@ -93,9 +93,17 @@ export function buildStripeInvoicePlan(
 
   if (invoice.verdict !== "charge" || invoice.amountDueCents <= 0) {
     const carried = invoice.carryForwardDeficitOutUsd ?? 0;
-    const reason = carried > 0
-      ? `do_not_charge: $${carried.toFixed(4)} verified-savings deficit carries forward; fees resume only after it is recovered.`
-      : "do_not_charge: the period's net verified savings were not positive, so nothing is billed.";
+    let reason: string;
+    if (carried > 0) {
+      reason = `do_not_charge: $${carried.toFixed(4)} verified-savings deficit carries forward; fees resume only after it is recovered.`;
+    } else if (invoice.verdict === "charge" && invoice.netVerifiedSavingsUsd > 0) {
+      // Savings ARE positive, but the fee on them rounds below one cent — the
+      // smallest amount Stripe can bill — so nothing is billed yet. (Distinct
+      // from the zero/negative-savings case below, which this used to conflate.)
+      reason = `do_not_charge: the ${invoice.feePercent}% fee on $${invoice.netVerifiedSavingsUsd.toFixed(4)} net verified savings rounds below one cent, so nothing is billed yet.`;
+    } else {
+      reason = "do_not_charge: the period's net verified savings were not positive, so nothing is billed.";
+    }
     return { action: "do_not_bill", reason, chainUnverified: false };
   }
 

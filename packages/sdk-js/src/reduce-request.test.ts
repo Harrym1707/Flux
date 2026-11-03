@@ -683,3 +683,72 @@ describe("cacheTtl 1h stamping", () => {
     });
   });
 });
+
+describe("output effort governor", () => {
+  const anthropicRequest = (model = "claude-sonnet-5") => ({
+    model,
+    max_tokens: 512,
+    messages: [{ role: "user", content: "Summarise the incident." }],
+  });
+
+  it("sets output_config.effort on a supported Claude model and reports it lossy", () => {
+    const { request: reduced, summary } = reduceRequest(anthropicRequest(), { outputEffort: "low" });
+    expect((reduced as Record<string, unknown>).output_config).toEqual({ effort: "low" });
+    const change = summary.changes.find((c) => c.lever === "output-effort-low");
+    expect(change?.lossless).toBe(false);
+    expect(change?.estimatedTokensSaved).toBe(0);
+  });
+
+  it("is off by default", () => {
+    const { request: reduced } = reduceRequest(anthropicRequest(), {});
+    expect((reduced as Record<string, unknown>).output_config).toBeUndefined();
+  });
+
+  it("respects a caller who set their own effort and records no change", () => {
+    const req = { ...anthropicRequest(), output_config: { effort: "max" } };
+    const { request: reduced, summary } = reduceRequest(req, { outputEffort: "low" });
+    expect((reduced as Record<string, unknown>).output_config).toEqual({ effort: "max" });
+    expect(summary.changes.some((c) => c.lever.startsWith("output-effort"))).toBe(false);
+  });
+
+  it("merges into an existing output_config without effort, preserving other keys", () => {
+    const req = { ...anthropicRequest(), output_config: { format: { type: "json" } } };
+    const { request: reduced } = reduceRequest(req, { outputEffort: "medium" });
+    expect((reduced as Record<string, unknown>).output_config).toEqual({
+      format: { type: "json" },
+      effort: "medium",
+    });
+  });
+
+  it("suppresses rather than stamping an unsupported level on an older model", () => {
+    const { request: reduced, summary } =
+      reduceRequest(anthropicRequest("claude-opus-4-6"), { outputEffort: "xhigh" });
+    expect((reduced as Record<string, unknown>).output_config).toBeUndefined();
+    expect(summary.changes.some((c) => c.lever === "output-effort-suppressed")).toBe(true);
+  });
+
+  it("suppresses on a model with no effort support at all (Haiku)", () => {
+    const { request: reduced, summary } =
+      reduceRequest(anthropicRequest("claude-haiku-4-5"), { outputEffort: "low" });
+    expect((reduced as Record<string, unknown>).output_config).toBeUndefined();
+    expect(summary.changes.some((c) => c.lever === "output-effort-suppressed")).toBe(true);
+  });
+
+  it("never stamps a non-Claude request (OpenAI reasoning.effort is a different field)", () => {
+    const req = { model: "gpt-5", messages: [{ role: "user", content: "Hi" }] };
+    const { request: reduced, summary } = reduceRequest(req, { outputEffort: "low" });
+    expect((reduced as Record<string, unknown>).output_config).toBeUndefined();
+    expect(summary.changes.some((c) => c.lever.startsWith("output-effort"))).toBe(false);
+  });
+
+  it("is byte-stable: a stamped request re-reduces to the same bytes", () => {
+    const first = reduceRequest(anthropicRequest("claude-opus-5"), { outputEffort: "low" });
+    const second = reduceRequest(first.request, { outputEffort: "low" });
+    expect(JSON.stringify(second.request)).toBe(JSON.stringify(first.request));
+  });
+
+  it("does not stamp effort on a claude request with no messages array", () => {
+    const { request: reduced } = reduceRequest({ model: "claude-sonnet-5" }, { outputEffort: "low" });
+    expect((reduced as Record<string, unknown>).output_config).toBeUndefined();
+  });
+});

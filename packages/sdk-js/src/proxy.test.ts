@@ -287,6 +287,19 @@ describe("FLUX proxy hardening (pre-launch security review)", () => {
     expect(status).toBe(403);
   });
 
+  it("rejects cross-origin browser requests (CSRF-to-localhost)", async () => {
+    // A browser driving a cross-origin request attaches Sec-Fetch-Site; a CLI
+    // client sends none. Both same-site and cross-site must be refused.
+    for (const site of ["cross-site", "same-site"]) {
+      const response = await fetch(`${proxy.url}/v1/messages`, {
+        method: "POST",
+        headers: { "content-type": "application/json", "sec-fetch-site": site },
+        body: JSON.stringify({ model: "claude-sonnet-5-5", max_tokens: 16, messages: [{ role: "user", content: "hi" }] }),
+      });
+      expect(response.status).toBe(403);
+    }
+  });
+
   it("shares one ledger (one chain) between raw app ids that sanitize alike", async () => {
     for (const raw of ["app one", "app_one"]) {
       await fetch(`${proxy.url}/v1/messages`, {
@@ -379,5 +392,71 @@ describe("output-waste metering in the proxy", () => {
     expect(first.duplicateOfRequestId).toBeUndefined();
     expect(second.duplicateOfRequestId).toBe(first.requestId);
     expect(verifyLedgerChain(records).ok).toBe(true);
+  });
+});
+
+describe("FLUX proxy — provably-blind learning stream", () => {
+  const seen: AnyObject[] = [];
+  let upstream: { server: Server; url: string };
+  let proxy: FluxProxy;
+  let ledgerDir: string;
+
+  beforeAll(async () => {
+    upstream = await stubUpstream(seen);
+    ledgerDir = mkdtempSync(join(tmpdir(), "flux-blind-"));
+    proxy = await startFluxProxy({
+      ledgerDirectory: ledgerDir,
+      anthropicUpstream: upstream.url,
+      openaiUpstream: upstream.url,
+      blindFeaturesKey: "enclave-sealed-secret",
+    });
+  });
+
+  afterAll(async () => {
+    await proxy.close();
+    upstream.server.close();
+  });
+
+  const SECRET = "PATIENT JANE DOE acute lymphoblastic leukaemia treatment plan";
+
+  it("writes a features record that learns the structure but contains NO prompt content", async () => {
+    const res = await fetch(`${proxy.url}/v1/messages`, {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-api-key": "caller-key", "x-flux-application": "blind-app" },
+      body: JSON.stringify({
+        model: "claude-sonnet-5-5-20260514",
+        max_tokens: 100,
+        system: "You are a careful clinical assistant.",
+        messages: [{ role: "user", content: SECRET }],
+      }),
+    });
+    expect(res.status).toBe(200);
+
+    const raw = readFileSync(join(ledgerDir, "blind-app-anthropic.features.jsonl"), "utf8").trim();
+    // The sensitive prompt must appear NOWHERE in what the gateway persisted.
+    expect(raw).not.toContain("JANE DOE");
+    expect(raw.toLowerCase()).not.toContain("lymphoblastic");
+    expect(raw).not.toContain("clinical assistant");
+
+    const record = JSON.parse(raw.split("\n").at(-1)!) as AnyObject;
+    // ...but the structure needed to calibrate levers is there.
+    expect(record.features.provider).toBe("anthropic");
+    expect(record.features.messageCount).toBe(1);
+    expect(record.features.inputTokensApprox).toBeGreaterThan(0);
+    expect(Array.isArray(record.features.blockHashes)).toBe(true);
+    expect(record.features.blockHashes.length).toBeGreaterThan(0);
+  });
+
+  it("does not write any features file when no key is configured", async () => {
+    // A second proxy with blind features OFF must produce no features spool.
+    const dir = mkdtempSync(join(tmpdir(), "flux-noblind-"));
+    const p = await startFluxProxy({ ledgerDirectory: dir, anthropicUpstream: upstream.url, openaiUpstream: upstream.url });
+    await fetch(`${p.url}/v1/messages`, {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-api-key": "k", "x-flux-application": "plain" },
+      body: JSON.stringify({ model: "claude-sonnet-5-5-20260514", max_tokens: 10, messages: [{ role: "user", content: "hi" }] }),
+    });
+    await p.close();
+    expect(() => readFileSync(join(dir, "plain-anthropic.features.jsonl"), "utf8")).toThrow();
   });
 });

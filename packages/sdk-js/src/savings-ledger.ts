@@ -1,17 +1,16 @@
 import { appendFileSync, existsSync, mkdirSync, readFileSync } from "node:fs";
 import { dirname } from "node:path";
+import { catalogueVersion, type PriceCatalogue } from "../../core/dist/src/price-catalogue.js";
+import { publishedModelPrices } from "../../core/dist/src/model-prices.js";
 import {
-  catalogueVersion,
   chainLedgerRecord,
   priceLedgerUsage,
-  publishedModelPrices,
   type BillableEvent,
   type LedgerExecutionMode,
   type LedgerLever,
   type LedgerRecord,
   type LedgerUsage,
-  type PriceCatalogue,
-} from "../../core/dist/src/index.js";
+} from "../../core/dist/src/savings-ledger.js";
 import type { FluxRequestEvent, FluxSavingsLedgerConfig } from "./types.js";
 
 /**
@@ -304,8 +303,8 @@ export function createSavingsLedger(config: FluxSavingsLedgerConfig): SavingsLed
       try {
         const billable = billableEventFromRequest(event, config, catalogue, pinnedCatalogueVersion);
         const record = chainLedgerRecord(billable, previous);
-        mkdirSync(dirname(config.path), { recursive: true });
-        appendFileSync(config.path, `${JSON.stringify(record)}\n`, "utf8");
+        mkdirSync(dirname(config.path), { recursive: true, mode: 0o700 });
+        appendFileSync(config.path, `${JSON.stringify(record)}\n`, { encoding: "utf8", mode: 0o600 });
         previous = record;
       } catch {
         // The meter must never throw into the request path; a failed append

@@ -317,7 +317,8 @@ function buildReport(
   ].join("\n");
 }
 
-const args = parse(process.argv.slice(2));
+export async function runAnalyse(argv: string[]): Promise<void> {
+const args = parse(argv);
 const rows = await readRows(args.inputs);
 if (rows.length === 0) throw new Error("No rows were found in the supplied input.");
 
@@ -390,3 +391,68 @@ if (args.markdown) {
   await writeFile(args.markdown, `${report}\n`);
   console.log(`Markdown report written to ${args.markdown}`);
 }
+}
+
+// ---------------------------------------------------------------------------
+// Entry dispatch: `flux <command>`. `start` runs the proxy + Theo; `verify`
+// re-proves the claims on this machine; `analyse` is the original report.
+// ---------------------------------------------------------------------------
+const TOP_USAGE = `flux — cut your LLM bill, verified on your own usage.
+
+Usage: flux <command> [options]
+
+  start      Start the FLUX proxy, point Claude Code at it, and run Theo
+             alongside you. One command; reverts cleanly on exit.
+  install    Always-on: run FLUX as a background service (launchd) so every
+             Claude Code session is optimised, with nothing to start by hand.
+  stop       Stop the background service (kept; resume with install).
+  uninstall  Stop and remove the background service; restore Claude Code.
+  status     Is the service up, and what has Theo saved so far?
+  dashboard  Open a live local web view of your savings and what Theo is doing.
+  update     Update the runtime now (--rollback to revert).
+  verify     Re-prove FLUX's claims on this machine: the build's provenance,
+             your ledger's hash-chain, and a deterministic invoice recompute.
+  doctor     Diagnose this machine (Node, proxy, Claude Code, service, ledger).
+  version    Print the installed version and build.
+  analyse    Measure a traffic log and report what a reduction is worth.
+
+Run "flux <command> --help" for command options.`;
+
+async function main(): Promise<void> {
+  const sub = process.argv[2];
+  if (sub === "start") {
+    await (await import("./start.js")).runStart(process.argv.slice(3));
+  } else if (sub === "serve") {
+    await (await import("./start.js")).runServe(process.argv.slice(3));
+  } else if (sub === "install") {
+    await (await import("./daemon.js")).runInstall(process.argv.slice(3));
+  } else if (sub === "uninstall") {
+    (await import("./daemon.js")).runUninstall(process.argv.slice(3));
+  } else if (sub === "stop") {
+    (await import("./daemon.js")).runStop(process.argv.slice(3));
+  } else if (sub === "status") {
+    await (await import("./daemon.js")).runStatus(process.argv.slice(3));
+  } else if (sub === "update") {
+    await (await import("./update.js")).runUpdate(process.argv.slice(3));
+  } else if (sub === "verify") {
+    await (await import("./verify.js")).runVerify(process.argv.slice(3));
+  } else if (sub === "doctor") {
+    await (await import("./diag.js")).runDoctor(process.argv.slice(3));
+  } else if (sub === "dashboard") {
+    await (await import("./dashboard.js")).runDashboard(process.argv.slice(3));
+  } else if (sub === "version" || sub === "--version" || sub === "-v") {
+    (await import("./diag.js")).runVersion(process.argv.slice(3));
+  } else if (sub === "analyse" || sub === "analyze") {
+    await runAnalyse(process.argv.slice(3));
+  } else if (sub === undefined || sub === "--help" || sub === "-h") {
+    console.log(TOP_USAGE);
+  } else {
+    // Back-compat: bare flags (e.g. `flux --input x.jsonl`) still analyse.
+    await runAnalyse(process.argv.slice(2));
+  }
+}
+
+main().catch((error: unknown) => {
+  console.error(error instanceof Error ? error.message : String(error));
+  process.exit(1);
+});

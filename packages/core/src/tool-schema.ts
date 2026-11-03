@@ -9,10 +9,13 @@ import { approximateTokenCount, type TokenCounter } from "./token-reduction.js";
  *
  * Minification is split into two tiers and the distinction is not cosmetic.
  *
- *   Lossless: JSON formatting, schema plumbing the model does not read
- *   ($schema, $id, $comment), and `title` fields that only restate the property
- *   name. The decoded schema is semantically identical, so tool selection cannot
- *   change. This is billable without a quality gate.
+ *   Lossless (billable): schema plumbing the model does not read ($schema, $id,
+ *   $comment) and `title` fields that only restate the property name — content
+ *   the provider tokenises, so removing it is a real saving, billable without a
+ *   quality gate. Whitespace / JSON formatting is NOT in this tier: the provider
+ *   tokenises the PARSED structure, not the byte formatting (verified against
+ *   Anthropic count_tokens — pretty vs compact tools return an identical count),
+ *   so FLUX compacts it as hygiene but never claims it as a saving.
  *
  *   Lossy: descriptions, examples, and dropping tools. Descriptions are how the
  *   model decides which tool to call, so trimming them is a behaviour change,
@@ -112,7 +115,11 @@ export function minifyToolSchemas(tools: unknown[], options: MinifyOptions = {})
     throw new Error("maximumDescriptionTokens must be a positive integer.");
   }
   const changes: MinifyChange[] = [];
-  const tokensBefore = countTokens(JSON.stringify(tools, null, 2));
+  // Baseline is the COMPACT serialisation — what actually goes on the wire and
+  // what the provider tokenises. Measuring "before" as pretty-printed (indented)
+  // counted whitespace the provider never bills, which over-stated the saving
+  // (verified against Anthropic count_tokens: pretty vs compact tools -> identical).
+  const tokensBefore = countTokens(JSON.stringify(tools));
 
   const keep = options.keepTools === undefined ? undefined : new Set(options.keepTools);
   const retained: unknown[] = [];
@@ -202,19 +209,13 @@ export function minifyToolSchemas(tools: unknown[], options: MinifyOptions = {})
     return output;
   }
 
-  // Compact encoding is the remaining lossless win: the decoded value is identical.
+  // Compact serialisation is hygiene, NOT a billable saving: every client
+  // JSON-encodes the request body and the provider tokenises the parsed
+  // structure, not the byte formatting, so whitespace removal saves zero real
+  // tokens (verified against Anthropic count_tokens). No formatting change is
+  // recorded — the honest lossless savings are the content removals above.
   const compact = JSON.stringify(retained);
   const tokensAfter = countTokens(compact);
-  const prettyAfter = countTokens(JSON.stringify(retained, null, 2));
-  if (prettyAfter > tokensAfter) {
-    changes.push({
-      kind: "formatting",
-      lossless: true,
-      at: "catalogue",
-      tokensSaved: prettyAfter - tokensAfter,
-      detail: "Serialised without indentation. The decoded schema is identical.",
-    });
-  }
 
   return {
     tools: retained,
