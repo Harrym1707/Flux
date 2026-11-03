@@ -408,6 +408,7 @@ Usage: flux <command> [options]
   stop       Stop the background service (kept; resume with install).
   uninstall  Stop and remove the background service; restore Claude Code.
   status     Is the service up, and what has Theo saved so far?
+  dashboard  Open a live local web view of your savings and what Theo is doing.
   update     Update the runtime now (--rollback to revert).
   verify     Re-prove FLUX's claims on this machine: the build's provenance,
              your ledger's hash-chain, and a deterministic invoice recompute.
@@ -437,6 +438,8 @@ async function main(): Promise<void> {
     await (await import("./verify.js")).runVerify(process.argv.slice(3));
   } else if (sub === "doctor") {
     await (await import("./diag.js")).runDoctor(process.argv.slice(3));
+  } else if (sub === "dashboard") {
+    await (await import("./dashboard.js")).runDashboard(process.argv.slice(3));
   } else if (sub === "version" || sub === "--version" || sub === "-v") {
     (await import("./diag.js")).runVersion(process.argv.slice(3));
   } else if (sub === "analyse" || sub === "analyze") {

@@ -29,6 +29,23 @@ Is the service up, and what has Theo saved so far? Reports whether the launchd
 service is installed, whether the proxy is answering on `127.0.0.1:8787`, and the
 request count plus verified savings and verdict from your ledger.
 
+## `flux dashboard`
+
+A live local web view of what FLUX is doing for you — the terminal `status`,
+in a page that refreshes itself. Serves a self-contained page on `127.0.0.1`
+(default port `8799`) and opens it in your browser. It shows your verified
+savings and verdict, the per-lever breakdown, and what Theo is doing right now:
+the levers he's applying and the ones he's holding behind the replay-gate, with
+your quality ceiling. It reads your own ledger and Theo policy — nothing leaves
+the machine, and the numbers match `flux verify` exactly.
+
+| Option | Meaning |
+|---|---|
+| `--port <n>` | Port for the dashboard. Default `8799`. |
+| `--proxy-port <n>` | Proxy port to show as up/down. Default `8787`. |
+| `--ledger <dir>` | Ledger to read. Default `~/.flux/ledger`. |
+| `--no-open` | Don't open a browser; just print the URL. |
+
 ## `flux install`
 
 Always-on mode (macOS launchd). Copies the self-updating bootstrap to a stable

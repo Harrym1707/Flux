@@ -137,10 +137,11 @@ function configureClaudeCode(baseUrl: string): () => void {
 }
 
 type LedgerSummary = { events: number; savedUsd: number; verdict: string; chainOk: boolean; brokenAt?: string };
+export type LedgerRead = { records: LedgerRecord[]; chainOk: boolean; brokenAt?: string };
 
-/** Read every ledger spool, verify each chain, and recompute one honest invoice. */
-export function summariseLedger(ledgerDir: string): LedgerSummary {
-  if (!existsSync(ledgerDir)) return { events: 0, savedUsd: 0, verdict: "do_not_charge", chainOk: true };
+/** Read every ledger spool and verify each hash chain. Shared by status and the dashboard. */
+export function readLedger(ledgerDir: string): LedgerRead {
+  if (!existsSync(ledgerDir)) return { records: [], chainOk: true };
   const spools = readdirSync(ledgerDir).filter((f) => f.endsWith(".jsonl") && !f.endsWith(".features.jsonl"));
   const allRecords: LedgerRecord[] = [];
   let chainOk = true;
@@ -157,14 +158,20 @@ export function summariseLedger(ledgerDir: string): LedgerSummary {
     if (!chain.ok) { chainOk = false; brokenAt = `${spool} seq ${chain.seq}`; }
     allRecords.push(...records);
   }
-  if (allRecords.length === 0) return { events: 0, savedUsd: 0, verdict: "do_not_charge", chainOk };
-  const invoice = recomputeInvoice(allRecords.map((r) => r.event));
+  return { records: allRecords, chainOk, ...(brokenAt === undefined ? {} : { brokenAt }) };
+}
+
+/** Read every ledger spool, verify each chain, and recompute one honest invoice. */
+export function summariseLedger(ledgerDir: string): LedgerSummary {
+  const { records, chainOk, brokenAt } = readLedger(ledgerDir);
+  if (records.length === 0) return { events: 0, savedUsd: 0, verdict: "do_not_charge", chainOk, ...(brokenAt === undefined ? {} : { brokenAt }) };
+  const invoice = recomputeInvoice(records.map((r) => r.event));
   return {
-    events: allRecords.length,
+    events: records.length,
     savedUsd: invoice.netVerifiedSavingsUsd,
     verdict: invoice.verdict,
     chainOk,
-    brokenAt,
+    ...(brokenAt === undefined ? {} : { brokenAt }),
   };
 }
 
