@@ -63,7 +63,7 @@ describe("flux dashboard (subprocess, isolated HOME + ledger)", () => {
     expect(data.proxyUp).toBe(false); // --proxy-port 1 is dead
 
     const html = await (await fetch(`${base}/`)).text();
-    expect(html).toContain("FLUX");
+    expect(html.toLowerCase()).toContain("flux");
     expect(html).toContain("/data"); // the page polls this endpoint
   });
 });

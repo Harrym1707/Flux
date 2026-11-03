@@ -7,6 +7,9 @@
  * holding behind the replay-gate). It reads your own ledger at ~/.flux/ledger
  * and your Theo policy — nothing leaves the machine, and the numbers match
  * `flux verify` exactly because they are recomputed from the same ledger.
+ *
+ * The page carries the FLUX brand: paper ground with the isometric dot-paper,
+ * Manrope, the Flux-blue accent and the hand-drawn squiggle, matching the site.
  */
 import { spawn } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
@@ -128,79 +131,120 @@ function openBrowser(url: string): void {
   catch { /* headless or no browser — the URL is printed */ }
 }
 
-// Self-contained page: inline styles + a poller. No external requests.
+// Self-contained, on-brand page: FLUX paper ground + dot-paper + Manrope +
+// Flux-blue accent + the squiggle. Inline only — no external requests, so it
+// works offline and nothing leaves the machine.
+const SQUIGGLE = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 80 10'%3E%3Cpath d='M0 5 q6 -4 12 0 t12 0 t12 0 t12 0 t12 0 t12 0' fill='none' stroke='%232563EB' stroke-width='1.6' opacity='.7'/%3E%3C/svg%3E";
+const DOTS = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='34' height='59'%3E%3Cg fill='%230B0F14' fill-opacity='0.05'%3E%3Ccircle cx='0' cy='0' r='1.1'/%3E%3Ccircle cx='34' cy='0' r='1.1'/%3E%3Ccircle cx='0' cy='59' r='1.1'/%3E%3Ccircle cx='34' cy='59' r='1.1'/%3E%3Ccircle cx='17' cy='29.5' r='1.1'/%3E%3C/g%3E%3C/svg%3E";
+const DOTS_GLOW = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='34' height='59'%3E%3Cg fill='%232563EB' fill-opacity='0.55'%3E%3Ccircle cx='0' cy='0' r='1.2'/%3E%3Ccircle cx='34' cy='0' r='1.2'/%3E%3Ccircle cx='0' cy='59' r='1.2'/%3E%3Ccircle cx='34' cy='59' r='1.2'/%3E%3Ccircle cx='17' cy='29.5' r='1.2'/%3E%3C/g%3E%3C/svg%3E";
+
 const PAGE = `<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>FLUX — live</title>
+<title>flux — live</title>
 <style>
-  :root{color-scheme:light dark;--bg:#0b0f14;--panel:#121820;--line:#1f2a36;--ink:#eaf0f6;--muted:#8aa0b4;--accent:#2f6fde;--good:#2fcf8f;--warn:#e0a63a}
-  *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 -apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif;padding:28px}
-  .wrap{max-width:900px;margin:0 auto}
-  header{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin-bottom:20px}
-  h1{font-size:20px;margin:0;letter-spacing:-.01em} .sub{color:var(--muted);font-size:13px}
-  .hero{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:24px;margin-bottom:16px}
-  .saved{font-size:clamp(40px,8vw,64px);font-weight:800;letter-spacing:-.03em;line-height:1}
-  .verdict{display:inline-block;margin-top:10px;font-size:13px;font-weight:700;padding:4px 12px;border-radius:999px}
-  .verdict.charge{background:rgba(47,207,143,.15);color:var(--good)} .verdict.do_not_charge{background:rgba(138,160,180,.15);color:var(--muted)}
-  .grid{display:grid;grid-template-columns:1fr;gap:16px} @media(min-width:700px){.grid{grid-template-columns:1fr 1fr}}
-  .panel{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px}
-  .panel h2{font-size:14px;margin:0 0 12px;color:var(--muted);font-weight:700;letter-spacing:.02em;text-transform:uppercase}
-  .chip{display:inline-block;font-size:13px;padding:5px 11px;border-radius:999px;margin:0 6px 6px 0;background:#18222e;border:1px solid var(--line)}
-  .chip.on{border-color:var(--good);color:var(--good)} .chip.held{border-color:var(--warn);color:var(--warn)}
-  table{width:100%;border-collapse:collapse;font-size:14px} th,td{text-align:left;padding:7px 8px;border-bottom:1px solid var(--line)}
-  th{color:var(--muted);font-weight:600} td.num{text-align:right;font-variant-numeric:tabular-nums}
-  .muted{color:var(--muted)} .foot{margin-top:16px;font-size:12px;color:var(--muted);display:flex;gap:16px;flex-wrap:wrap}
-  .dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;vertical-align:1px}
-  .dot.ok{background:var(--good)} .dot.bad{background:#e05a5a}
-  .theo{font-weight:800} .empty{color:var(--muted);font-size:14px}
-</style></head><body><div class="wrap">
-  <header><h1>FLUX <span class="sub">— live</span></h1><span class="sub" id="build"></span></header>
+  :root{color-scheme:light;
+    --bg:#FAFAF9;--ink:#0B0F14;--muted:#5B6472;--line:#E5E7EB;--accent:#2563EB;--ocean:#1D4ED8;
+    --paper:#ffffff;--stone:#E7E5E4;--stone-line:#CFCAC3;--stone-muted:#57534E;--bad:#DC2626}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 Manrope,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;padding:40px 24px}
+  .dotpaper{position:fixed;inset:0;z-index:0;pointer-events:none}
+  .dotpaper .base,.dotpaper .glow{position:absolute;inset:0}
+  .dotpaper .base{background:url("${DOTS}")}
+  .dotpaper .glow{opacity:0;transition:opacity .4s ease;background:url("${DOTS_GLOW}");
+    -webkit-mask-image:radial-gradient(circle 150px at var(--mx) var(--my),#000 0%,rgba(0,0,0,.35) 48%,transparent 72%);
+    mask-image:radial-gradient(circle 150px at var(--mx) var(--my),#000 0%,rgba(0,0,0,.35) 48%,transparent 72%)}
+  .dotpaper.lit .glow{opacity:1}
+  @media (prefers-reduced-motion:reduce){.dotpaper .glow{display:none}}
+  .wrap{max-width:900px;margin:0 auto;position:relative;z-index:1}
+  header{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin-bottom:22px}
+  .mark{font-size:22px;font-weight:800;letter-spacing:-.02em}
+  .mark .dot{color:var(--accent)}
+  .mark .live{font-size:14px;font-weight:600;color:var(--muted);margin-left:8px;letter-spacing:0}
+  .build{font-size:13px;color:var(--muted)}
+  .hero{background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:26px 28px 24px;margin-bottom:16px}
+  .cap{font-size:14px;color:var(--muted)}
+  .saved{font-size:clamp(46px,9vw,92px);font-weight:800;letter-spacing:-.04em;line-height:.95;color:var(--ocean);margin:4px 0 10px}
+  .saved .cur{color:var(--accent)}
+  .verdict{display:inline-block;font-size:13px;font-weight:700;padding:5px 13px;border-radius:999px}
+  .verdict.charge{background:rgba(37,99,235,.12);color:var(--accent)}
+  .verdict.do_not_charge{background:var(--stone);color:var(--stone-muted)}
+  .events{font-size:14px;color:var(--muted);margin-left:12px}
+  .grid{display:grid;grid-template-columns:1fr;gap:16px}@media(min-width:720px){.grid{grid-template-columns:1fr 1fr}}
+  .panel{background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:22px}
+  .panel h2{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:700;margin:0 0 16px;position:relative;padding-bottom:11px}
+  .panel h2::after{content:"";position:absolute;left:0;bottom:0;width:72px;height:9px;background:url("${SQUIGGLE}") left/contain no-repeat}
+  .theo .hex{color:var(--accent);font-weight:800}
+  .sub{font-size:13px;color:var(--muted);margin:0 0 7px}
+  .chip{display:inline-block;font-size:13px;font-weight:600;padding:5px 12px;border-radius:999px;margin:0 6px 7px 0;background:#fff;border:1px solid var(--line)}
+  .chip.on{border-color:var(--accent);color:var(--accent);background:rgba(37,99,235,.06)}
+  .chip.on .k{color:var(--muted);font-weight:500}
+  .chip.held{border-color:var(--stone-line);color:var(--stone-muted);background:var(--stone)}
+  .ceiling{font-size:13px;color:var(--muted);margin-top:14px;line-height:1.5}
+  table{width:100%;border-collapse:collapse;font-size:14px}
+  th,td{text-align:left;padding:8px 8px;border-bottom:1px solid var(--line)}
+  th{color:var(--muted);font-weight:600;font-size:13px}
+  td.num{text-align:right;font-variant-numeric:tabular-nums}
+  td .k{color:var(--muted)}
+  .empty{color:var(--muted);font-size:14px}
+  .unbilled{font-size:13px;color:var(--muted);margin-top:12px;line-height:1.5}
+  .foot{margin-top:18px;font-size:13px;color:var(--muted);display:flex;gap:18px;flex-wrap:wrap}
+  .ind{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:7px;vertical-align:1px;background:var(--stone-line)}
+  .ind.ok{background:var(--accent)} .ind.bad{background:var(--bad)}
+</style></head><body>
+<div class="dotpaper" id="dp"><div class="base"></div><div class="glow"></div></div>
+<div class="wrap">
+  <header>
+    <div class="mark">flux<span class="dot">.</span><span class="live">live</span></div>
+    <span class="build" id="build"></span>
+  </header>
   <div class="hero">
-    <div class="sub">Verified savings on your own traffic</div>
-    <div class="saved" id="saved">$0.0000</div>
+    <div class="cap">Verified savings on your own traffic</div>
+    <div class="saved" id="saved"><span class="cur">$</span>0.0000</div>
     <span class="verdict do_not_charge" id="verdict">—</span>
-    <span class="sub" id="events" style="margin-left:12px"></span>
+    <span class="events" id="events"></span>
   </div>
   <div class="grid">
-    <div class="panel">
-      <h2><span class="theo">⬢ Theo</span> — what he's doing</h2>
-      <div class="sub" style="margin-bottom:6px">Applying now</div>
+    <div class="panel theo">
+      <h2><span class="hex">⬢ Theo</span> — what he's doing</h2>
+      <p class="sub">Applying now</p>
       <div id="active"><span class="empty">—</span></div>
-      <div class="sub" style="margin:12px 0 6px">Held behind the replay-gate</div>
+      <p class="sub" style="margin-top:14px">Held behind the replay-gate</p>
       <div id="withheld"><span class="empty">nothing held</span></div>
-      <div class="sub" id="ceiling" style="margin-top:12px"></div>
+      <div class="ceiling" id="ceiling"></div>
     </div>
     <div class="panel">
       <h2>Savings by lever</h2>
       <table><thead><tr><th>lever</th><th>kind</th><th class="num">events</th><th class="num">saved</th></tr></thead>
       <tbody id="levers"><tr><td colspan="4" class="empty">No billable savings yet.</td></tr></tbody></table>
-      <div class="sub" style="margin-top:10px" id="unbilled"></div>
+      <div class="unbilled" id="unbilled"></div>
     </div>
   </div>
   <div class="foot">
-    <span id="proxy"><span class="dot bad"></span>proxy</span>
-    <span id="chain"><span class="dot ok"></span>ledger</span>
+    <span id="proxy"><span class="ind bad"></span>proxy</span>
+    <span id="chain"><span class="ind ok"></span>ledger</span>
     <span id="updated"></span>
   </div>
 </div>
 <script>
 const $=(id)=>document.getElementById(id);
-const usd=(n)=>'$'+Number(n||0).toFixed(4);
+const usd=(n)=>Number(n||0).toFixed(4);
+const dp=$('dp');
+addEventListener('pointermove',(e)=>{dp.classList.add('lit');dp.style.setProperty('--mx',e.clientX+'px');dp.style.setProperty('--my',e.clientY+'px');});
 async function tick(){
   try{
     const d=await (await fetch('/data',{cache:'no-store'})).json();
     $('build').textContent='build '+d.build;
-    $('saved').textContent=usd(d.savings.netUsd);
+    $('saved').innerHTML='<span class="cur">$</span>'+usd(d.savings.netUsd);
     const v=$('verdict'); v.textContent=d.savings.verdict==='charge'?'billing':'do not charge'; v.className='verdict '+d.savings.verdict;
     $('events').textContent=d.savings.eventsConsidered+' requests'+(d.savings.unpricedEvents?(' · '+d.savings.unpricedEvents+' unpriced (recorded, not billed)'):'');
-    $('active').innerHTML=d.theo.active.length?d.theo.active.map(l=>'<span class="chip on">'+l.lever+'<span class="muted"> · '+l.class+'</span></span>').join(''):'<span class="empty">none</span>';
+    $('active').innerHTML=d.theo.active.length?d.theo.active.map(l=>'<span class="chip on">'+l.lever+'<span class="k"> · '+l.class+'</span></span>').join(''):'<span class="empty">none</span>';
     $('withheld').innerHTML=d.theo.withheld.length?d.theo.withheld.map(w=>'<span class="chip held" title="'+(w.reason||'')+'">'+w.lever+'</span>').join(''):'<span class="empty">nothing held</span>';
     $('ceiling').textContent='Quality ceiling: '+d.theo.qualityCeilingPercent+'% — anything that could cost more than this stays off until a replay of your traffic proves it safe.';
     const rows=d.lineItems;
-    $('levers').innerHTML=rows.length?rows.map(li=>'<tr><td>'+li.leverId+'</td><td class="muted">'+li.kind+(li.basis?' · '+li.basis:'')+'</td><td class="num">'+li.events+'</td><td class="num">'+usd(li.savedUsd)+'</td></tr>').join(''):'<tr><td colspan="4" class="empty">No billable savings yet — run Claude Code through FLUX and this fills in.</td></tr>';
+    $('levers').innerHTML=rows.length?rows.map(li=>'<tr><td>'+li.leverId+'</td><td class="k">'+li.kind+(li.basis?' · '+li.basis:'')+'</td><td class="num">'+li.events+'</td><td class="num">$'+usd(li.savedUsd)+'</td></tr>').join(''):'<tr><td colspan="4" class="empty">No billable savings yet — run Claude Code through FLUX and this fills in.</td></tr>';
     $('unbilled').textContent=d.recordedUnbilled.length?('Also recorded (applied, never billed): '+d.recordedUnbilled.map(u=>u.leverId+' ×'+u.events).join(', ')):'';
-    $('proxy').innerHTML='<span class="dot '+(d.proxyUp?'ok':'bad')+'"></span>proxy '+(d.proxyUp?'up':'down');
-    $('chain').innerHTML='<span class="dot '+(d.chainOk?'ok':'bad')+'"></span>ledger '+(d.chainOk?'verified':('BROKEN at '+d.brokenAt));
+    $('proxy').innerHTML='<span class="ind '+(d.proxyUp?'ok':'bad')+'"></span>proxy '+(d.proxyUp?'up':'down');
+    $('chain').innerHTML='<span class="ind '+(d.chainOk?'ok':'bad')+'"></span>ledger '+(d.chainOk?'verified':('BROKEN at '+d.brokenAt));
     $('updated').textContent='updated '+new Date(d.updatedAt).toLocaleTimeString();
   }catch(e){ $('updated').textContent='reconnecting…'; }
 }
