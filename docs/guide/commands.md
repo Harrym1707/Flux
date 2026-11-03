@@ -12,8 +12,16 @@ Start the proxy, point Claude Code at it, and run Theo alongside you. Reverts
 |---|---|
 | `--port <n>` | Port for the local proxy. Default `8787`. |
 | `--ledger <dir>` | Where to write the hash-chained ledger. Default `~/.flux/ledger`. |
+| `--openai-base <url>` | Send OpenAI-style traffic to this host instead of `api.openai.com` — any OpenAI-compatible provider (Grok, DeepSeek, Mistral, Llama, …). |
+| `--anthropic-base <url>` | Send Anthropic traffic to this host instead of `api.anthropic.com`. |
 | `--no-install` | Don't touch `~/.claude/settings.json`; just run the proxy. |
 | `--help` | Show usage. |
+
+FLUX is **not Claude-specific**. The proxy picks the upstream from each request
+(Anthropic's `x-api-key` vs an OpenAI-style bearer) and passes your own key
+straight through. Point any OpenAI-style client at it with
+`OPENAI_BASE_URL=http://127.0.0.1:8787/v1`, and use `--openai-base` (or the
+`FLUX_OPENAI_UPSTREAM` environment variable) to target a non-OpenAI provider.
 
 ## `flux status`
 

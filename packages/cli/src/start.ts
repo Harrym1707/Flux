@@ -42,19 +42,36 @@ export const FLUX_HOME = join(homedir(), ".flux");
 export const CLAUDE_SETTINGS = join(homedir(), ".claude", "settings.json");
 export const DEFAULT_PORT = 8787;
 
-type StartArgs = { port: number; ledgerDir: string; install: boolean };
+type StartArgs = {
+  port: number;
+  ledgerDir: string;
+  install: boolean;
+  anthropicUpstream?: string;
+  openaiUpstream?: string;
+};
 
 function parseStart(argv: string[]): StartArgs {
-  const args: StartArgs = { port: 8787, ledgerDir: join(FLUX_HOME, "ledger"), install: true };
+  const args: StartArgs = {
+    port: 8787,
+    ledgerDir: join(FLUX_HOME, "ledger"),
+    install: true,
+    // Env defaults so the background service (flux serve) can be pointed at an
+    // OpenAI-compatible provider too, not just the foreground command.
+    anthropicUpstream: process.env.FLUX_ANTHROPIC_UPSTREAM,
+    openaiUpstream: process.env.FLUX_OPENAI_UPSTREAM,
+  };
   for (let i = 0; i < argv.length; i += 1) {
     const key = argv[i]!;
     if (key === "--help" || key === "-h") {
       console.log(
         `Usage: flux start [options]\n\n` +
-          `  --port <n>       Port for the local proxy (default 8787).\n` +
-          `  --ledger <dir>   Where to write the hash-chained ledger (default ~/.flux/ledger).\n` +
-          `  --no-install     Don't touch ~/.claude/settings.json; just run the proxy.\n` +
-          `  --help           Show this message.`,
+          `  --port <n>              Port for the local proxy (default 8787).\n` +
+          `  --ledger <dir>          Where to write the hash-chained ledger (default ~/.flux/ledger).\n` +
+          `  --openai-base <url>     Send OpenAI-style traffic to this host instead of api.openai.com —\n` +
+          `                          any OpenAI-compatible provider (Grok, DeepSeek, Mistral, Llama, …).\n` +
+          `  --anthropic-base <url>  Send Anthropic traffic to this host instead of api.anthropic.com.\n` +
+          `  --no-install            Don't touch ~/.claude/settings.json; just run the proxy.\n` +
+          `  --help                  Show this message.`,
       );
       process.exit(0);
     }
@@ -64,9 +81,14 @@ function parseStart(argv: string[]): StartArgs {
     i += 1;
     if (key === "--port") args.port = Number.parseInt(value, 10);
     else if (key === "--ledger") args.ledgerDir = value;
+    else if (key === "--openai-base") args.openaiUpstream = value;
+    else if (key === "--anthropic-base") args.anthropicUpstream = value;
     else throw new Error(`Unknown option: ${key}. See flux start --help.`);
   }
   if (!Number.isInteger(args.port) || args.port < 0 || args.port > 65535) throw new Error("--port must be 0-65535.");
+  for (const url of [args.anthropicUpstream, args.openaiUpstream]) {
+    if (url !== undefined && !/^https?:\/\//.test(url)) throw new Error(`Upstream must be an http(s) URL: ${url}`);
+  }
   return args;
 }
 
@@ -148,7 +170,11 @@ export function summariseLedger(ledgerDir: string): LedgerSummary {
 const T = "⬢ theo"; // the hex mark, Theo's sign-off
 
 /** Start the proxy with Theo's current policy + blind stream. Shared by start/serve. */
-export async function startProxyWithPolicy(port: number, ledgerDir: string): Promise<{ proxy: Awaited<ReturnType<typeof startFluxProxy>>; policy: ReturnType<typeof defaultPolicy> }> {
+export async function startProxyWithPolicy(
+  port: number,
+  ledgerDir: string,
+  upstreams: { anthropicUpstream?: string; openaiUpstream?: string } = {},
+): Promise<{ proxy: Awaited<ReturnType<typeof startFluxProxy>>; policy: ReturnType<typeof defaultPolicy> }> {
   mkdirSync(FLUX_HOME, { recursive: true });
   mkdirSync(ledgerDir, { recursive: true });
   const policyPath = join(FLUX_HOME, "theo-policy.json");
@@ -161,6 +187,8 @@ export async function startProxyWithPolicy(port: number, ledgerDir: string): Pro
     ledgerDirectory: ledgerDir,
     tokenReduction: policyToReductionConfig(policy),
     blindFeaturesKey: blindKey(),
+    ...(upstreams.anthropicUpstream ? { anthropicUpstream: upstreams.anthropicUpstream } : {}),
+    ...(upstreams.openaiUpstream ? { openaiUpstream: upstreams.openaiUpstream } : {}),
   });
   return { proxy, policy };
 }
@@ -173,9 +201,11 @@ export async function startProxyWithPolicy(port: number, ledgerDir: string): Pro
  */
 export async function runServe(argv: string[]): Promise<void> {
   const args = parseStart(argv);
-  const { proxy } = await startProxyWithPolicy(args.port, args.ledgerDir);
+  const { proxy } = await startProxyWithPolicy(args.port, args.ledgerDir, args);
   const stamp = (): string => new Date().toISOString();
   console.log(`[${stamp()}] flux serve · build ${BUILD_COMMIT} · proxy ${proxy.url} · ledger ${args.ledgerDir}`);
+  if (args.openaiUpstream) console.log(`[${stamp()}] openai-style upstream → ${args.openaiUpstream}`);
+  if (args.anthropicUpstream) console.log(`[${stamp()}] anthropic upstream → ${args.anthropicUpstream}`);
   let lastEvents = -1;
   const monitor = setInterval(() => {
     const s = summariseLedger(args.ledgerDir);
@@ -192,7 +222,7 @@ export async function runServe(argv: string[]): Promise<void> {
 
 export async function runStart(argv: string[]): Promise<void> {
   const args = parseStart(argv);
-  const { proxy, policy } = await startProxyWithPolicy(args.port, args.ledgerDir);
+  const { proxy, policy } = await startProxyWithPolicy(args.port, args.ledgerDir, args);
   const restore = args.install ? configureClaudeCode(proxy.url) : () => {};
   const withheld = withheldLevers(policy);
 
@@ -203,6 +233,12 @@ export async function runStart(argv: string[]): Promise<void> {
   console.log(`  ledger   ${args.ledgerDir}  (hash-chained; recompute any time with: flux verify)`);
   if (args.install) console.log(`  claude   pointed at FLUX via ~/.claude/settings.json  (restored on exit)`);
   else console.log(`  claude   not configured (--no-install); set ANTHROPIC_BASE_URL=${proxy.url} yourself`);
+  // FLUX is not Claude-specific: any OpenAI-style client works by pointing its
+  // base URL here and keeping its own key. The proxy picks the upstream from
+  // the request (Anthropic vs OpenAI-style) and your key passes straight through.
+  console.log(`  openai   point any OpenAI-style client here: OPENAI_BASE_URL=${proxy.url}/v1  (keep your own key)`);
+  if (args.openaiUpstream) console.log(`  upstream OpenAI-style traffic → ${args.openaiUpstream}`);
+  if (args.anthropicUpstream) console.log(`  upstream Anthropic traffic → ${args.anthropicUpstream}`);
   console.log("");
   console.log(`  ${T} — I'm watching your traffic. I only ever tune FLUX, never your prompts`);
   console.log(`  ${T}   or answers. Everything I report is verified from your provider's own`);
