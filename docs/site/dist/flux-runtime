@@ -2918,7 +2918,7 @@ var init_start = __esm({
     init_savings_ledger();
     init_proxy();
     init_theo_policy();
-    BUILD_COMMIT = true ? "5d948bb" : process.env.FLUX_BUILD_COMMIT ?? "dev";
+    BUILD_COMMIT = true ? "59b981f" : process.env.FLUX_BUILD_COMMIT ?? "dev";
     FLUX_HOME = join2(homedir(), ".flux");
     CLAUDE_SETTINGS = join2(homedir(), ".claude", "settings.json");
     DEFAULT_PORT = 8787;
@@ -3374,10 +3374,9 @@ async function runDoctor(argv) {
   const port = DEFAULT_PORT;
   const nodeOk = nodeMajor() >= 22;
   checks.push({
-    ok: nodeMajor() >= 20,
-    warn: !nodeOk && nodeMajor() >= 20,
+    ok: nodeOk,
     name: "node",
-    detail: `v${process.versions.node}${nodeOk ? "" : " (Node 22 LTS recommended)"}`,
+    detail: `v${process.versions.node}${nodeOk ? "" : " (Node 22 LTS required)"}`,
     fix: nodeOk ? void 0 : "Upgrade to Node 22 LTS: https://nodejs.org"
   });
   const runtimeVersion = existsSync6(join6(FLUX_HOME, "runtime", "version")) ? readFileSync6(join6(FLUX_HOME, "runtime", "version"), "utf8").trim() : null;
