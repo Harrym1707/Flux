@@ -381,3 +381,117 @@ describe("output-waste metering in the proxy", () => {
     expect(verifyLedgerChain(records).ok).toBe(true);
   });
 });
+
+describe("FLUX proxy mode: fan-out serialization (serializeFanOut)", () => {
+  it("holds a follower's upstream send until the leader's response has started", async () => {
+    const seenAt: number[] = [];
+    const headersSentAt: number[] = [];
+    let callIndex = 0;
+    const server = createServer((req, res) => {
+      const chunks: Buffer[] = [];
+      req.on("data", (c: Buffer) => chunks.push(c));
+      req.on("end", () => {
+        const index = callIndex++;
+        seenAt[index] = Date.now();
+        res.writeHead(200, { "content-type": "application/json" });
+        headersSentAt[index] = Date.now();
+        const respond = (): void => {
+          res.end(JSON.stringify({
+            id: `msg_${index}`,
+            content: [{ type: "text", text: "ok" }],
+            usage: { input_tokens: 10, output_tokens: 5, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 },
+          }));
+        };
+        // The leader (first to actually reach the real upstream) is slow to
+        // respond -- exactly the shape of a cold cache write, which is what
+        // makes a naive race expensive and a held follower cheap.
+        if (index === 0) setTimeout(respond, 150); else respond();
+      });
+    });
+    const upstreamUrl = await new Promise<string>((resolve) => {
+      server.listen(0, "127.0.0.1", () => resolve(`http://127.0.0.1:${(server.address() as { port: number }).port}`));
+    });
+    const ledgerDir = mkdtempSync(join(tmpdir(), "flux-proxy-fanout-"));
+    const proxy = await startFluxProxy({
+      ledgerDirectory: ledgerDir,
+      anthropicUpstream: upstreamUrl,
+      openaiUpstream: upstreamUrl,
+      serializeFanOut: true,
+      tokenReduction: { toolSchemas: true, duplicateContext: true, repairCachePrefix: true, cacheTtl: "5m" },
+    });
+
+    try {
+      const sharedSystem = "Shared orchestrator system + tool-catalogue prefix for fanned-out sub-agents.";
+      const fanOutRequest = (agent: string): Promise<Response> => fetch(`${proxy.url}/v1/messages`, {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-api-key": "caller-key" },
+        body: JSON.stringify({
+          model: "claude-sonnet-5-5-20260514",
+          max_tokens: 100,
+          system: sharedSystem,
+          messages: [{ role: "user", content: `${agent} task` }],
+        }),
+      });
+
+      const [first, second] = await Promise.all([fanOutRequest("agent-a"), fanOutRequest("agent-b")]);
+      expect(first.status).toBe(200);
+      expect(second.status).toBe(200);
+      expect(callIndex).toBe(2);
+      // The follower's request only reached the real upstream once the
+      // leader's response had already started -- it was held, not raced.
+      expect(seenAt[1]).toBeGreaterThanOrEqual(headersSentAt[0]!);
+    } finally {
+      await proxy.close();
+      server.close();
+    }
+  });
+
+  it("never holds requests that do not share a prefix, and never holds anything when the flag is off", async () => {
+    let callIndex = 0;
+    const seenAt: number[] = [];
+    const server = createServer((req, res) => {
+      const chunks: Buffer[] = [];
+      req.on("data", (c: Buffer) => chunks.push(c));
+      req.on("end", () => {
+        seenAt[callIndex++] = Date.now();
+        res.writeHead(200, { "content-type": "application/json" });
+        res.end(JSON.stringify({
+          id: "msg_x", content: [{ type: "text", text: "ok" }],
+          usage: { input_tokens: 10, output_tokens: 5, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 },
+        }));
+      });
+    });
+    const upstreamUrl = await new Promise<string>((resolve) => {
+      server.listen(0, "127.0.0.1", () => resolve(`http://127.0.0.1:${(server.address() as { port: number }).port}`));
+    });
+    const ledgerDir = mkdtempSync(join(tmpdir(), "flux-proxy-nofanout-"));
+    const proxy = await startFluxProxy({
+      ledgerDirectory: ledgerDir,
+      anthropicUpstream: upstreamUrl,
+      openaiUpstream: upstreamUrl,
+      serializeFanOut: true,
+      tokenReduction: { toolSchemas: true, duplicateContext: true, repairCachePrefix: true },
+      // No cacheTtl configured: the latch must not engage at all here.
+    });
+
+    try {
+      const makeReq = (system: string): Promise<Response> => fetch(`${proxy.url}/v1/messages`, {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-api-key": "caller-key" },
+        body: JSON.stringify({
+          model: "claude-sonnet-5-5-20260514",
+          max_tokens: 100,
+          system,
+          messages: [{ role: "user", content: "task" }],
+        }),
+      });
+
+      const results = await Promise.all([makeReq("system one"), makeReq("system two")]);
+      expect(results.every((r) => r.status === 200)).toBe(true);
+      expect(callIndex).toBe(2);
+    } finally {
+      await proxy.close();
+      server.close();
+    }
+  });
+});

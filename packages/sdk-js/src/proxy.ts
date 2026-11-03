@@ -9,6 +9,7 @@ import {
 } from "../../core/dist/src/index.js";
 import { responseText } from "./replay-gate.js";
 import { CachePrefixVolatilityGuard } from "./cache-volatility-guard.js";
+import { createFanOutLatch, fanOutLatchKey } from "./fanout-latch.js";
 import { reduceRequest, type FluxTokenReductionConfig } from "./reduce-request.js";
 import { createSavingsLedger, type SavingsLedger } from "./savings-ledger.js";
 import type { FluxRequestEvent } from "./types.js";
@@ -48,6 +49,17 @@ export type FluxProxyOptions = {
   /** Override upstreams, e.g. a mock in tests or an OpenAI-compatible host. */
   anthropicUpstream?: string;
   openaiUpstream?: string;
+  /**
+   * Shared-prefix fan-out serialization (lever P5, docs/rnd/lever-backlog.md):
+   * when two or more requests sharing the same stamped Anthropic system +
+   * tool prefix arrive while an identical-prefix write is already in
+   * flight, hold the later ones until the first's response has started
+   * instead of letting them race the provider's cache and all pay the
+   * write premium. Off by default — this changes send TIMING only, never
+   * bytes, but it is new enough to want explicit opt-in before it is on
+   * anyone's hot path. See `fanout-latch.ts`.
+   */
+  serializeFanOut?: boolean;
 };
 
 export type FluxProxy = {
@@ -230,6 +242,7 @@ export function startFluxProxy(options: FluxProxyOptions): Promise<FluxProxy> {
     anthropic: (options.anthropicUpstream ?? "https://api.anthropic.com").replace(/\/$/, ""),
     openai: (options.openaiUpstream ?? "https://api.openai.com").replace(/\/$/, ""),
   };
+  const fanOutLatch = options.serializeFanOut === true ? createFanOutLatch() : undefined;
   const ledgers = new Map<string, SavingsLedger>();
   const LEDGER_CAP = 200;
   // Byte-identical request detection (metering only): real agent traces show
@@ -344,6 +357,29 @@ export function startFluxProxy(options: FluxProxyOptions): Promise<FluxProxy> {
     const headers = forwardHeaders(req, surface.provider);
     headers["content-type"] = "application/json";
 
+    // Shared-prefix fan-out serialization (see fanout-latch.ts): only for
+    // Anthropic-shaped requests the proxy is actually stamping, since an
+    // unstamped request has no cache entry for a sibling to race against
+    // in the first place. A follower that gives up waiting (the latch's
+    // own bounded timeout) sends on exactly as if there had been no latch.
+    let fanOutRelease: ((outcome: "started" | "errored") => void) | undefined;
+    if (fanOutLatch !== undefined && surface.provider === "anthropic" && reduction.cacheTtl !== undefined) {
+      const reducedAny = reducedRequest as AnyObject;
+      const key = fanOutLatchKey({
+        provider: surface.provider,
+        model: reducedAny.model,
+        system: reducedAny.system,
+        tools: reducedAny.tools,
+      });
+      const handle = fanOutLatch.acquire(key);
+      if (handle.role === "leader") {
+        fanOutRelease = handle.release;
+      } else {
+        await handle.wait;
+        if (res.destroyed) return;
+      }
+    }
+
     // The upstream call is aborted the moment the CLIENT goes away: a
     // cancelled generation must stop billing the caller's key, not stream to
     // completion against a dead socket. Timeouts are phased — one for
@@ -382,6 +418,7 @@ export function startFluxProxy(options: FluxProxyOptions): Promise<FluxProxy> {
       });
     } catch (cause) {
       clearTimeout(phaseTimer);
+      fanOutRelease?.("errored");
       if (!res.headersSent && !res.destroyed) {
         res.writeHead(502, { "content-type": "application/json" });
         res.end(JSON.stringify({ error: `Upstream unreachable: ${(cause as Error).message}` }));
@@ -389,6 +426,9 @@ export function startFluxProxy(options: FluxProxyOptions): Promise<FluxProxy> {
       return;
     }
     clearTimeout(phaseTimer);
+    // The leader's response has started: siblings held on this prefix can
+    // now expect a warm cache and are released to send in order.
+    fanOutRelease?.("started");
 
     const responseHeaders: Record<string, string> = {};
     upstreamResponse.headers.forEach((value, name) => {
