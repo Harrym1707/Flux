@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { LedgerGateVerdict } from "../../core/dist/src/index.js";
+import { CompactionPinStore } from "./compaction-pin-store.js";
 import {
   compactStaleContext,
   reduceRequestAsync,
@@ -297,5 +298,110 @@ describe("maxTokens default calibration (2026-10-27 dataset findings)", () => {
       compactor: truncatingCompactor, gateVerdict: APPROVED,
     });
     expect(oversized.change).toBeDefined();
+  });
+});
+
+describe("cross-turn stability (config.pins) — the hard blocker from the 2026-10-27 review", () => {
+  /**
+   * A model is non-deterministic in practice; this stub makes that concrete by
+   * returning a DIFFERENT summary on every call for the same input, plus a
+   * call counter so tests can prove how many times it actually ran. Any real
+   * local model is at least this unstable turn to turn, so if pinning fails to
+   * mask it, these tests will catch the resulting byte drift.
+   */
+  function unstableCompactor(): SemanticCompactor & { calls: number } {
+    let calls = 0;
+    return {
+      get calls() {
+        return calls;
+      },
+      compact: ({ kind }) => {
+        calls += 1;
+        return `[summary #${calls} of ${kind}]`;
+      },
+    };
+  }
+
+  it("without pins, re-running compaction on the same stale body yields DIFFERENT bytes each time (the failure this guards against)", async () => {
+    const compactor = unstableCompactor();
+    const request = multiTurnRequest();
+    const first = await compactStaleContext(request, { compactor, gateVerdict: APPROVED, maxTokens: 10, keepRecentTurns: 1 });
+    const second = await compactStaleContext(request, { compactor, gateVerdict: APPROVED, maxTokens: 10, keepRecentTurns: 1 });
+    const firstBody = (first.request as { messages: Array<Record<string, unknown>> }).messages[1]!.content;
+    const secondBody = (second.request as { messages: Array<Record<string, unknown>> }).messages[1]!.content;
+    expect(firstBody).not.toBe(secondBody);
+  });
+
+  it("with a shared pin store, re-running compaction on the same stale body yields IDENTICAL bytes every time", async () => {
+    const compactor = unstableCompactor();
+    const pins = new CompactionPinStore();
+    const request = multiTurnRequest();
+
+    const first = await compactStaleContext(request, { compactor, gateVerdict: APPROVED, maxTokens: 10, keepRecentTurns: 1, pins });
+    const second = await compactStaleContext(request, { compactor, gateVerdict: APPROVED, maxTokens: 10, keepRecentTurns: 1, pins });
+    const third = await compactStaleContext(request, { compactor, gateVerdict: APPROVED, maxTokens: 10, keepRecentTurns: 1, pins });
+
+    const bodyAt = (result: Awaited<ReturnType<typeof compactStaleContext>>, index: number) =>
+      (result.request as { messages: Array<Record<string, unknown>> }).messages[index]!.content;
+
+    expect(bodyAt(first, 1)).toBe(bodyAt(second, 1));
+    expect(bodyAt(second, 1)).toBe(bodyAt(third, 1));
+    expect(bodyAt(first, 4)).toBe(bodyAt(second, 4));
+
+    // The compactor ran once per unique stale body (two distinct bodies in
+    // multiTurnRequest's stale turns, both equal to LONG_TOOL_RESULT -> pinned
+    // after the very first encounter), never once per call.
+    expect(compactor.calls).toBe(1);
+  });
+
+  it("pins the 'compactor returned nothing shorter' outcome too, so a body is not re-sent to the model forever", async () => {
+    let calls = 0;
+    const noopCompactor: SemanticCompactor = {
+      compact: ({ text }) => {
+        calls += 1;
+        return text; // never actually shorter than the original
+      },
+    };
+    const pins = new CompactionPinStore();
+    const request = multiTurnRequest();
+
+    const first = await compactStaleContext(request, { compactor: noopCompactor, gateVerdict: APPROVED, maxTokens: 10, keepRecentTurns: 1, pins });
+    const second = await compactStaleContext(request, { compactor: noopCompactor, gateVerdict: APPROVED, maxTokens: 10, keepRecentTurns: 1, pins });
+
+    // Both calls fall back to "nothing shorter" (no change recorded), and the
+    // second call never re-invoked the compactor on the already-pinned body.
+    expect(first.change).toBeUndefined();
+    expect(second.change).toBeUndefined();
+    expect(calls).toBe(1);
+  });
+
+  it("a one-byte difference in the stale body is correctly treated as a new, unpinned body", async () => {
+    const compactor = unstableCompactor();
+    const pins = new CompactionPinStore();
+    const requestA = multiTurnRequest();
+    const requestB = multiTurnRequest();
+    (requestB.messages as Array<Record<string, unknown>>)[1]!.content = `${(requestB.messages as Array<Record<string, unknown>>)[1]!.content}!`;
+
+    await compactStaleContext(requestA, { compactor, gateVerdict: APPROVED, maxTokens: 10, keepRecentTurns: 1, pins });
+    await compactStaleContext(requestB, { compactor, gateVerdict: APPROVED, maxTokens: 10, keepRecentTurns: 1, pins });
+
+    // requestB's altered body is a genuinely different cache key, so the
+    // compactor legitimately ran again for it — pinning never papers over a
+    // real content change, only a repeat of the exact same bytes.
+    expect(compactor.calls).toBeGreaterThan(1);
+  });
+
+  it("reduceRequestAsync threads the pin store through, so the composed entry point is stable too", async () => {
+    const compactor = unstableCompactor();
+    const pins = new CompactionPinStore();
+    const request = multiTurnRequest();
+
+    const first = await reduceRequestAsync(request, {}, { compactor, gateVerdict: APPROVED, maxTokens: 10, keepRecentTurns: 1, pins });
+    const second = await reduceRequestAsync(request, {}, { compactor, gateVerdict: APPROVED, maxTokens: 10, keepRecentTurns: 1, pins });
+
+    const bodyAt = (result: Awaited<ReturnType<typeof reduceRequestAsync>>, index: number) =>
+      (result.request as { messages: Array<Record<string, unknown>> }).messages[index]!.content;
+    expect(bodyAt(first, 1)).toBe(bodyAt(second, 1));
+    expect(compactor.calls).toBe(1);
   });
 });

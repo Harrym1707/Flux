@@ -9,6 +9,19 @@ tested against a deterministic stub. NOT shippable — see "What's left" below.
   `feat/semantic-compaction-proto`)
 - Exports: `compactStaleContext`, `reduceRequestAsync`, `SemanticCompactor`,
   `SemanticCompactionConfig`, `SemanticCompactionResult` (via `packages/sdk-js/src/index.ts`)
+- **Update 2026-11-03 (hardening night):** item 5 below, the cross-turn-stability
+  hard blocker, is FIXED. `packages/sdk-js/src/compaction-pin-store.ts` adds
+  `CompactionPinStore`, wired in as `SemanticCompactionConfig.pins`. See that
+  module's docstring and the "Cross-turn stability — FIXED" note below item 5.
+  Measured with `node --import tsx evals/run-semantic-compaction-pin-stability.ts`:
+  on a 24-turn simulated agent conversation, unpinned compaction stacked with
+  Anthropic 5m caching is 7.0% MORE expensive than doing nothing at all (confirms
+  the blocker was real, not theoretical); pinned, it is 5.4% cheaper than doing
+  nothing and 11.6% cheaper than the unpinned arm, while cutting local-compactor
+  invocations by 91% (231 of 253) on the same traffic. Simulator-measured, stub
+  compactor — see the script for the full caveat. This does NOT make the lever
+  shippable by itself: items 1-4 below (a real adapter, a gate eval, a billed
+  number) are all still open.
 
 ## What it is
 
@@ -129,17 +142,25 @@ This is a prototype. Honest gaps, not hidden:
    mechanism and the guards, not a dollar figure. Any future number must trace to
    a gate run on real traffic at a named commit, with paraphrase-aware grading.
 
-5. **CROSS-TURN STABILITY — the hard blocker (added in review, 2026-10-27).**
+5. **CROSS-TURN STABILITY — FIXED 2026-11-03 (was the hard blocker, added in review 2026-10-27).**
    A model paraphrase is non-deterministic, but a stale tool-result body is
    RESENT every turn. If turn N compacts a body to summary A and turn N+1
    re-runs the compactor and gets summary B, the cached prefix churns on every
    turn — which is exactly the loss the cross-turn volatility guard
-   (`cache-volatility-guard.ts`) exists to prevent. As written, `compactStaleContext`
-   re-compacts all eligible bodies on every call, so it would FIGHT the cache
-   lever and can make an agent MORE expensive, not less. This lever MUST NOT be
-   enabled alongside caching until the compacted result is pinned: compact a
-   given body once, key the result by a hash of the original bytes, and re-emit
-   the identical compacted bytes on every subsequent turn (or require the
-   compactor to be deterministic for identical input). Until that pinning exists,
-   semantic compaction is only safe on the no-cache path, and the gate eval in
-   (3) must measure net cost WITH caching on, not just quality.
+   (`cache-volatility-guard.ts`) exists to prevent. As originally written,
+   `compactStaleContext` re-compacted all eligible bodies on every call, so it
+   would FIGHT the cache lever and could make an agent MORE expensive, not less.
+   **Fix:** `compaction-pin-store.ts` adds `CompactionPinStore`, a bounded,
+   hash-keyed pin (same LRU pattern as `CachePrefixVolatilityGuard`): a given
+   body's compacted bytes are decided once and re-emitted byte-identical on
+   every later call, exactly the "key the result by a hash of the original
+   bytes" fix this note called for. Wired as `SemanticCompactionConfig.pins`;
+   the caller must supply ONE instance and reuse it across calls (same
+   requirement as the volatility guard) — omitting it keeps the old per-call
+   behaviour, which is byte-correct in isolation but not cross-turn stable.
+   `evals/run-semantic-compaction-pin-stability.ts` measures the before/after:
+   unpinned compaction stacked with Anthropic 5m caching is 7.0% MORE expensive
+   than doing nothing at all over 24 simulated turns (confirms this was a real
+   loss, not a theoretical one); pinned, it is 5.4% cheaper than doing nothing
+   and cuts local-compactor invocations by 91%. Gate eval (3) can now measure
+   net cost WITH caching on using a pinned config, as this note required.
