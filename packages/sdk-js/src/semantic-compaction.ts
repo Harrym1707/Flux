@@ -6,6 +6,7 @@ import {
   type FluxTokenReductionConfig,
 } from "./reduce-request.js";
 import type { LedgerGateVerdict } from "../../core/dist/src/index.js";
+import { CompactionPinStore } from "./compaction-pin-store.js";
 
 /**
  * PROTOTYPE: local-model semantic compaction of stale input context (Q2.1).
@@ -34,6 +35,14 @@ import type { LedgerGateVerdict } from "../../core/dist/src/index.js";
  * truncation is predictable enough to inspect by eye; a model paraphrase is
  * not, so it may not run on the customer's traffic until a gate has proven, on
  * that customer's own recorded requests, that quality held.
+ *
+ * CROSS-TURN STABILITY: a stale tool-result body is resent on every later
+ * turn, so a non-deterministic compactor re-invoked on every call would
+ * paraphrase it differently each time and bust a provider's exact-prefix
+ * cache every turn — fighting the cache lever instead of complementing it.
+ * `config.pins` (compaction-pin-store.ts) closes this: pin one instance across
+ * calls and a given body's compacted bytes are identical on every subsequent
+ * turn. See that module's docstring for the full argument.
  */
 
 /* --------------------------------------------------------------------------
@@ -118,6 +127,17 @@ export type SemanticCompactionConfig = {
   keepRecentTurns?: number;
   /** FLUX's token counter; defaults to the shared approximate counter. */
   countTokens?: TokenCounter;
+  /**
+   * Cross-turn stability pin (see compaction-pin-store.ts). A stale tool-result
+   * body is resent on every later turn; without this, a non-deterministic
+   * compactor would paraphrase it differently each call, busting a provider's
+   * exact-prefix cache every turn. Supplying ONE instance, reused across every
+   * call for the life of the proxy/process, makes a given body's compacted
+   * bytes identical on every subsequent turn — required before running this
+   * lever alongside caching. Omitted => each call decides fresh (byte-correct
+   * within that call, but not stable turn-to-turn).
+   */
+  pins?: CompactionPinStore;
 };
 
 function isPlainObject(value: unknown): value is AnyObject {
@@ -303,10 +323,23 @@ export async function compactStaleContext(
   // Sequential awaits keep the prototype simple to reason about; a real adapter
   // can batch internally. The compactor only ever sees eligible stale text.
   for (const target of targets) {
-    const result = await config.compactor.compact({ text: target.text, maxTokens, kind: "tool-result" });
-    const compacted = typeof result === "string" ? result : target.text;
-    // Never let compaction grow a body: keep the shorter of the two.
-    if (compacted.length < target.text.length) {
+    // PIN FIRST: if this exact body (same text, cap, kind) was already decided
+    // by an earlier call on the shared store, reuse that decision verbatim and
+    // never call the compactor again — this is what keeps a resent stale body
+    // byte-identical turn over turn (see compaction-pin-store.ts).
+    const pinned = config.pins?.get(target.text, maxTokens, "tool-result");
+    let compacted: string | null;
+    if (pinned !== undefined) {
+      compacted = pinned.compacted;
+    } else {
+      const result = await config.compactor.compact({ text: target.text, maxTokens, kind: "tool-result" });
+      const candidate = typeof result === "string" ? result : target.text;
+      // Never let compaction grow a body: keep the shorter of the two.
+      compacted = candidate.length < target.text.length ? candidate : null;
+      config.pins?.set(target.text, maxTokens, "tool-result", compacted);
+    }
+
+    if (compacted !== null) {
       compactedMessages = applyCompaction(compactedMessages, target, compacted);
       bodiesChanged += 1;
       tokensAfterTargets += countTokens(compacted);
