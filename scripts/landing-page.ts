@@ -659,7 +659,7 @@ section h2::after{content:"";position:absolute;left:50%;transform:translateX(-50
     <span class="wlogo">${logo("mistralai")}<span>Mistral</span></span>
     <span class="wlogo">${logo("deepseek")}<span>DeepSeek</span></span>
   </div>
-  <p class="works-cap rise">Point it at whatever you already use. FLUX speaks Anthropic and OpenAI natively, plus anything with an OpenAI-style API &mdash; Grok, Llama, Mistral, DeepSeek and more. Full savings verification is live for Claude and GPT today; other models are reduced and recorded while their price tables land. <em>*Gemini via its OpenAI-compatible endpoint.</em></p>
+  <p class="works-cap rise">Point it at whatever you already use. FLUX speaks Anthropic and OpenAI natively, plus anything with an OpenAI-style API &mdash; Grok, Llama, Mistral, DeepSeek and more. Full savings verification is live for Claude, GPT and DeepSeek today; other models are reduced and recorded while their price tables land. <em>*Gemini via its OpenAI-compatible endpoint.</em></p>
 </section>
 
 <section aria-label="The reduction, performed" class="demo-sect">
