@@ -25,7 +25,7 @@ const siteDir = path.join(root, "docs/site");
 const outDir = path.join(siteDir, "dist");
 
 const ORIGIN = (process.env.MESH_SITE_ORIGIN ?? "https://www.mesh-technology.com").replace(/\/$/, "");
-const REPO_URL = (process.env.MESH_REPO_URL ?? "https://github.com/Harrym1707/Flux").replace(/\/$/, "");
+const REPO_URL = (process.env.MESH_REPO_URL ?? "https://github.com/Harrym1707/Mesh").replace(/\/$/, "");
 if (ORIGIN.includes("REPLACE-WITH-YOUR-DOMAIN")) {
   console.warn("WARNING: MESH_SITE_ORIGIN is unset; canonical URLs and the sitemap use a placeholder domain.");
 }

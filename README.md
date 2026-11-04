@@ -40,7 +40,7 @@ own recorded requests — a failed task voids its savings.
 npx -y -p @mesh-ai/sdk mesh-proxy
 ```
 
-(Prefer building from source? `git clone https://github.com/Harrym1707/Flux && cd Mesh`,
+(Prefer building from source? `git clone https://github.com/Harrym1707/Mesh && cd Mesh`,
 then `corepack enable && pnpm install && pnpm build` and `node --import tsx evals/run-proxy.ts`.)
 
 Then change one line in your app:

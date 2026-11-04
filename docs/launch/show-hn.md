@@ -12,7 +12,7 @@ Alternative:
 
 ## URL
 
-`https://github.com/Harrym1707/Flux` — the repo, NOT mesh-technology.com (HN rules
+`https://github.com/Harrym1707/Mesh` — the repo, NOT mesh-technology.com (HN rules
 treat a marketing page as a disqualifying "sign-up page"; the site link goes
 in the first comment).
 

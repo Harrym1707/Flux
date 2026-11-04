@@ -194,8 +194,8 @@ const manifest = {
   bin: { "mesh-verify": "bin/mesh-verify.mjs" },
   files: ["index.js", "index.cjs", "bin", "types", "README.md", "LICENSE"],
   engines: { node: ">=18" },
-  repository: { type: "git", url: "git+https://github.com/Harrym1707/Flux.git", directory: "packages/verify/pkg" },
-  bugs: "https://github.com/Harrym1707/Flux/issues",
+  repository: { type: "git", url: "git+https://github.com/Harrym1707/Mesh.git", directory: "packages/verify/pkg" },
+  bugs: "https://github.com/Harrym1707/Mesh/issues",
   homepage: "https://www.mesh-technology.com",
   keywords: ["llm", "cost", "ledger", "verification", "anthropic", "openai", "mesh"],
 };

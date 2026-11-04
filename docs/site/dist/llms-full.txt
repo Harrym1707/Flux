@@ -42,7 +42,7 @@ context, caps oversized tool results, and meters output re-emission waste.
 - [Honest comparison, including where MESH loses](comparison.html)
 - [FAQ built from printed caveats](faq.html)
 - [Every number traced to its command and commit](evidence.html)
-- [Pilot runbook: a quote from your own logs in five minutes](https://github.com/Harrym1707/Flux/blob/main/docs/pilot/runbook.md)
+- [Pilot runbook: a quote from your own logs in five minutes](https://github.com/Harrym1707/Mesh/blob/main/docs/pilot/runbook.md)
 
 
 ---
@@ -468,7 +468,7 @@ Most cost-saving tools publish their best number. Independent measurement keeps
 finding a gap between claimed and delivered, so this page compares *methods*,
 and includes the rows where we lose. Competitor facts below come from each
 vendor's own documentation and pricing pages, checked 2026-10-22; if we have
-something wrong, [tell us](https://github.com/Harrym1707/Flux/issues) and we
+something wrong, [tell us](https://github.com/Harrym1707/Mesh/issues) and we
 will correct it.
 
 ## The independent findings this market needs to answer

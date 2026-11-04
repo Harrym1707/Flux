@@ -30,10 +30,10 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Harrym1707/Flux.git",
+    "url": "git+https://github.com/Harrym1707/Mesh.git",
     "directory": "packages/verify/pkg"
   },
-  "bugs": "https://github.com/Harrym1707/Flux/issues",
+  "bugs": "https://github.com/Harrym1707/Mesh/issues",
   "homepage": "https://www.mesh-technology.com",
   "keywords": [
     "llm",

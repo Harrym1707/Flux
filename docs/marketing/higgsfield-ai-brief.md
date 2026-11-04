@@ -2,7 +2,7 @@
 
 **Product:** MESH — a local proxy that cuts your LLM API bill and charges a
 percentage of *verified* savings you can recompute yourself
-([github.com/Harrym1707/Flux](https://github.com/Harrym1707/Flux)).
+([github.com/Harrym1707/Mesh](https://github.com/Harrym1707/Mesh)).
 **Production tool:** Higgsfield AI (short-form video + image generation).
 **Governs:** a launch batch of short-form video (9:16, 15–30s) and still image
 ads for paid social and organic.

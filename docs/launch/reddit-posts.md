@@ -24,7 +24,7 @@ So I built mesh — a local proxy. One command, no signup:
 
     npx -y -p @mesh-ai/sdk mesh-proxy
 
-(or read the source first: github.com/Harrym1707/Flux — it's your API key
+(or read the source first: github.com/Harrym1707/Mesh — it's your API key
 going through it, you should.)
 
 Point your client's baseURL at it and it compacts tool schemas (decodes

@@ -14,7 +14,7 @@ to reach us.
   — a handful of readable files, no opaque blobs.
 - **Provenance.** Releases published from `release.yml` carry an npm
   provenance attestation linking the tarball to a tagged commit of
-  [Harrym1707/Flux](https://github.com/Harrym1707/Flux) built on GitHub
+  [Harrym1707/Mesh](https://github.com/Harrym1707/Mesh) built on GitHub
   Actions: `npm audit signatures` verifies it. (Versions up to 0.1.1 were
   founder-published before the pipeline existed; the next release onward is
   attested.)

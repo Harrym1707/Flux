@@ -88,7 +88,7 @@ writeFileSync(path.join(outDir, "package.json"), `${JSON.stringify({
   keywords: ["llm", "anthropic", "claude", "claude-code", "proxy", "cost", "tokens", "mesh"],
   license: "BUSL-1.1",
   homepage: "https://www.mesh-technology.com",
-  repository: { type: "git", url: "git+https://github.com/Harrym1707/Flux.git" },
+  repository: { type: "git", url: "git+https://github.com/Harrym1707/Mesh.git" },
 }, null, 2)}\n`);
 
 writeFileSync(path.join(outDir, "README.md"), `# mesh

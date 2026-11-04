@@ -4,7 +4,7 @@ Most cost-saving tools publish their best number. Independent measurement keeps
 finding a gap between claimed and delivered, so this page compares *methods*,
 and includes the rows where we lose. Competitor facts below come from each
 vendor's own documentation and pricing pages, checked 2026-10-22; if we have
-something wrong, [tell us](https://github.com/Harrym1707/Flux/issues) and we
+something wrong, [tell us](https://github.com/Harrym1707/Mesh/issues) and we
 will correct it.
 
 ## The independent findings this market needs to answer

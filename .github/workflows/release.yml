@@ -7,7 +7,7 @@
 #
 # One-time founder setup on npmjs.com, for EACH package (@mesh-ai/sdk and
 # @mesh-ai/mesh): package -> Settings -> Trusted Publisher -> GitHub Actions,
-# repository Harrym1707/Flux, workflow release.yml. Then publishing is: bump the
+# repository Harrym1707/Mesh, workflow release.yml. Then publishing is: bump the
 # version, tag v<version>, push the tag.
 name: release
 on:

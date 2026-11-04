@@ -73,7 +73,7 @@ footer{border-top:2px solid var(--signal);margin-top:3rem;padding-top:1rem;font-
 <nav><a class="brand" href="index.html">mesh</a><span class="tagline">Less in. More out.</span><a href="index.html">Home</a><a href="start.html">Get started</a><a href="overview.html">Overview</a><a href="segments.html">Savings by segment</a><a href="methodology.html">Methodology</a><a href="evidence.html">Evidence</a><a href="comparison.html" class="active">Honest comparison</a><a href="faq.html">FAQ</a></nav>
 <main>
 <h1>An honest comparison — including where MESH loses</h1>
-<p>Most cost-saving tools publish their best number. Independent measurement keeps finding a gap between claimed and delivered, so this page compares *methods*, and includes the rows where we lose. Competitor facts below come from each vendor's own documentation and pricing pages, checked 2026-10-22; if we have something wrong, <a href="https://github.com/Harrym1707/Flux/issues">tell us</a> and we will correct it.</p>
+<p>Most cost-saving tools publish their best number. Independent measurement keeps finding a gap between claimed and delivered, so this page compares *methods*, and includes the rows where we lose. Competitor facts below come from each vendor's own documentation and pricing pages, checked 2026-10-22; if we have something wrong, <a href="https://github.com/Harrym1707/Mesh/issues">tell us</a> and we will correct it.</p>
 <h2>The independent findings this market needs to answer</h2>
 <ul>
 <li>Three popular open-source token trimmers (rtk, headroom, caveman), claiming 60–90%, were independently replayed over a 614M-token corpus of real coding sessions: <strong>3.7% combined actual saving</strong> (codepointer.dev deep dive).</li>
@@ -127,7 +127,7 @@ footer{border-top:2px solid var(--signal);margin-top:3rem;padding-top:1rem;font-
 </tbody></table></div>
 <p>We publish the right-hand column for ourselves because we demand it of everyone else. Your pilot replaces every MESH number with your own traffic's numbers before any fee exists.</p>
 <h2>LiteLLM, Helicone, Langfuse — what each actually does about cost</h2>
-<p>These three are excellent tools we are often mentioned alongside. They solve different problems, they are each genuinely better than MESH at those problems, and MESH reads all three of their export formats directly — if you run any of them, you are one file export away from a quote. <a href="https://github.com/Harrym1707/Flux/blob/main/docs/pilot/runbook.md">Runbook →</a></p>
+<p>These three are excellent tools we are often mentioned alongside. They solve different problems, they are each genuinely better than MESH at those problems, and MESH reads all three of their export formats directly — if you run any of them, you are one file export away from a quote. <a href="https://github.com/Harrym1707/Mesh/blob/main/docs/pilot/runbook.md">Runbook →</a></p>
 <h3>LiteLLM (MIT gateway + SDK)</h3>
 <p>Better than MESH at: breadth (100+ providers behind one OpenAI-format API), production routing (six load-balancing strategies, fallbacks, cooldowns, budgets, virtual keys), community and maturity — and the core is free.</p>
 <p>On cost specifically, as of 2026-10-22 it <strong>does</strong> have reduction levers: one-flag automatic Anthropic <code>cache_control</code> placement (5-minute default, 1-hour option), MCP tool-schema deferral (collapsing tool catalogues to two virtual tools), exact-match and semantic <strong>response</strong> caching, and prompt compression via a third-party sidecar (Headroom). Spend tracking prices usage against a community-maintained price map, with per-deployment overrides.</p>
@@ -140,7 +140,7 @@ footer{border-top:2px solid var(--signal);margin-top:3rem;padding-top:1rem;font-
 <p>On cost reduction: none, by design — Langfuse is async observability and is never in the request path, so it cannot compact, dedupe, place cache breakpoints, or cache responses, and it does not claim to. It tells you where the money went; MESH changes what the next request costs and proves the difference.</p>
 <footer><strong>mesh</strong> — spend tokens where they matter. Every number on this site traces to a
 command and a commit — <a href="evidence.html">evidence</a>. Savings are measured per completed task;
-estimates are always labelled. <a href="https://github.com/Harrym1707/Flux">Source</a> · <a href="llms.txt">llms.txt</a><br>
+estimates are always labelled. <a href="https://github.com/Harrym1707/Mesh">Source</a> · <a href="llms.txt">llms.txt</a><br>
 Mesh AI Technologies Limited · registered in England and Wales · company no. 17543982</footer>
 </main>
 </body>
