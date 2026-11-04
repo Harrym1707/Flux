@@ -1,16 +1,16 @@
-export { serviceTierOf, withFlux } from "./openai.js";
+export { serviceTierOf, withMesh } from "./openai.js";
 export * from "./types.js";
 export { chooseRoute } from "./routing.js";
 export { ExactResponseCache } from "./exact-cache.js";
 export { createLocalJsonlCapture } from "./evaluation-capture.js";
 export { billableEventFromRequest, createSavingsLedger } from "./savings-ledger.js";
 export type { SavingsLedger } from "./savings-ledger.js";
-export { startFluxProxy, usageFromSse } from "./proxy.js";
-export type { FluxProxy, FluxProxyOptions } from "./proxy.js";
+export { startMeshProxy, usageFromSse } from "./proxy.js";
+export type { MeshProxy, MeshProxyOptions } from "./proxy.js";
 // The customer-side audit surface: everything needed to verify a ledger spool
-// and recompute the invoice locally, without the FLUX workspace.
-// The pre-contract quote pipeline, so the packaged flux-quote CLI (and any
-// design partner) can triage a gateway export without the FLUX workspace.
+// and recompute the invoice locally, without the MESH workspace.
+// The pre-contract quote pipeline, so the packaged mesh-quote CLI (and any
+// design partner) can triage a gateway export without the MESH workspace.
 export { buildQuoteReport, parseGatewayExport, renderQuoteReport } from "../../core/dist/src/index.js";
 export type { QuoteExportFormat, QuoteReport, QuoteStreamReport } from "../../core/dist/src/index.js";
 export {
@@ -45,10 +45,10 @@ export type {
 } from "../../core/dist/src/index.js";
 export { capToolResultBody, digestStaleBody, reduceRequest } from "./reduce-request.js";
 export {
-  wrapFlux,
-  type WrapFluxOptions,
-  type FluxSavingsSummary,
-  type FluxHandle,
+  wrapMesh,
+  type WrapMeshOptions,
+  type MeshSavingsSummary,
+  type MeshHandle,
 } from "./wrap.js";
 export { extractBlindFeatures, type BlindFeatures } from "./blind-features.js";
 export {
@@ -72,10 +72,10 @@ export type {
 export { CachePrefixVolatilityGuard, type CacheStampDecision } from "./cache-volatility-guard.js";
 export { renderLedgerReport, type LedgerReportOptions, type LedgerReportSpool } from "./report.js";
 export type {
-  FluxHistoryCompactionConfig,
-  FluxReductionChange,
-  FluxReductionSummary,
-  FluxTokenReductionConfig,
+  MeshHistoryCompactionConfig,
+  MeshReductionChange,
+  MeshReductionSummary,
+  MeshTokenReductionConfig,
 } from "./reduce-request.js";
 export {
   exactTextGrader,

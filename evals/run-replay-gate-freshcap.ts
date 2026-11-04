@@ -244,7 +244,7 @@ export async function runFreshCapGate(requests: AnyObject[], candidates: ReplayC
     // Turns of one task share a prompt and a fate: group them so the bootstrap
     // does not treat five correlated comparisons as five independent ones.
     groupOf: (request) => `task-${((request as AnyObject).metadata as AnyObject).taskIndex}`,
-    seed: "flux-replay-gate-v1",
+    seed: "mesh-replay-gate-v1",
     price: GPT5_PRICE,
   });
 }
@@ -257,7 +257,7 @@ async function main(): Promise<void> {
   const requests = buildFixtureRequests();
   console.log(
     `replay gate over ${requests.length} fixture requests ` +
-    `(${TASKS} tasks x ${TURNS_PER_TASK} turns), seed flux-replay-gate-v1, default 2% quality budget`,
+    `(${TASKS} tasks x ${TURNS_PER_TASK} turns), seed mesh-replay-gate-v1, default 2% quality budget`,
   );
 
   // The change record for the lever under gate, from the reducer itself, so

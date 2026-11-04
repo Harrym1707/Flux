@@ -1,4 +1,4 @@
-import { reduceRequest, serviceTierOf, type FluxTokenReductionConfig } from "../packages/sdk-js/src/index.js";
+import { reduceRequest, serviceTierOf, type MeshTokenReductionConfig } from "../packages/sdk-js/src/index.js";
 import {
   ANTHROPIC_CACHE_1H,
   ANTHROPIC_CACHE_5M,
@@ -32,7 +32,7 @@ import {
  * A/B test of the whole product on a simulated multi-turn agent.
  *
  * Identical task set, identical simulated model, identical arrival times. The
- * only difference between arms is whether the request passed through FLUX.
+ * only difference between arms is whether the request passed through MESH.
  * Caching is priced by the provider-rule simulator rather than assumed, so a
  * saving has to survive the minimum prefix length, exact-prefix matching, hit
  * granularity and TTL expiry.
@@ -46,13 +46,13 @@ import {
 
 // The task set, tools, simulated model and quality bar live in
 // evals/agent-fixture.ts, shared verbatim with the replay-gate script so the
-// gate approves exactly the behaviour this harness measures. FLUX_AB_TASKS and
-// FLUX_AB_SEED are read there; with both unset the fixture is byte-identical
+// gate approves exactly the behaviour this harness measures. MESH_AB_TASKS and
+// MESH_AB_SEED are read there; with both unset the fixture is byte-identical
 // to the original inline version.
 
 type Arm = {
   label: string;
-  config?: FluxTokenReductionConfig;
+  config?: MeshTokenReductionConfig;
 };
 
 type ArmResult = {
@@ -132,7 +132,7 @@ function runArm(arm: Arm, policy: CachePolicy, price: Parameters<typeof simulate
 }
 
 const ARMS: Arm[] = [
-  { label: "A. no FLUX" },
+  { label: "A. no MESH" },
   { label: "B. lossless only", config: { toolSchemas: true, duplicateContext: true } },
   {
     label: "C. + prefix repair",
@@ -486,7 +486,7 @@ function reportAsyncServedTier(): void {
   console.log(
     `\n=== ASYNC-ELIGIBLE segment, SERVED-tier pricing: ${OPENAI_CACHE.name}, tasks ${spacing}s apart ===`,
   );
-  // The baseline is what the customer pays today: standard tier, no FLUX.
+  // The baseline is what the customer pays today: standard tier, no MESH.
   const baseline = runArm(ARMS[0]!, OPENAI_CACHE, price.price, spacing);
   const ceiling = runAsyncFlexArm(ARM_J_FLEX, 0, 0, spacing);
   const net = runAsyncFlexArm(ARM_J_FLEX, FLEX_DEFAULT_FALLBACK_RATE, FLEX_RESOURCE_UNAVAILABLE_RATE, spacing);
@@ -502,7 +502,7 @@ function reportAsyncServedTier(): void {
   );
   const versus = (cost: number) => `${(((baseline.costUsd - cost) / baseline.costUsd) * 100).toFixed(1)}%`;
   console.log(
-    `baseline  A standard tier, no FLUX             $${baseline.costUsd.toFixed(3)}   ` +
+    `baseline  A standard tier, no MESH             $${baseline.costUsd.toFixed(3)}   ` +
     `clean ${baseline.fullyGoodTasks}/${TASKS}`,
   );
   console.log(
@@ -533,12 +533,12 @@ function reportAsyncServedTier(): void {
 reportAsyncServedTier();
 
 /**
- * How much the provider's cache is worth at all, separately from how much FLUX
+ * How much the provider's cache is worth at all, separately from how much MESH
  * adds to it. These are different questions and conflating them is how the
  * earlier 29% claim happened.
  */
 function reportCacheValue(): void {
-  console.log("\n=== what the cache itself is worth, before FLUX touches anything ===");
+  console.log("\n=== what the cache itself is worth, before MESH touches anything ===");
   for (const spacing of [30, 600]) {
     const row = runArm(ARMS[0]!, OPENAI_CACHE, price.price, spacing);
     const share = ((row.uncachedCostUsd - row.costUsd) / row.uncachedCostUsd) * 100;
@@ -607,20 +607,20 @@ console.log(
 // ---------------------------------------------------------------------------
 
 // The sparse block on Anthropic pricing, both TTLs. 5m at 600s spacing is the
-// COLD CONTROL: every task outlives the TTL, so caching barely pays and FLUX's
+// COLD CONTROL: every task outlives the TTL, so caching barely pays and MESH's
 // history levers have nothing cached to nibble. 1h at the same spacing is the
 // LEVER: the cache survives between tasks at the cost of a 2x write premium
 // (vs 1.25x for 5m). Both tables keep the same-policy arm-A baseline, so each
-// "vs A" column is FLUX's contribution under that policy, not the TTL's.
+// "vs A" column is MESH's contribution under that policy, not the TTL's.
 report(ANTHROPIC_CACHE_5M, 600);
 report(ANTHROPIC_CACHE_1H, 600);
 
 /**
- * TTL as a FLUX lever, measured.
+ * TTL as a MESH lever, measured.
  *
- * The claim this block prices: a customer running the no-FLUX agent on the
+ * The claim this block prices: a customer running the no-MESH agent on the
  * default 5m cache at 600s task spacing (arm A @5m, what they pay today)
- * switches on FLUX, which both applies arm J's reduction stack AND stamps the
+ * switches on MESH, which both applies arm J's reduction stack AND stamps the
  * 1h cache TTL on their requests. The comparison is J@1h vs A@5m, with the
  * decomposition printed so the TTL's share and the reduction stack's share are
  * visible separately, and the 2x write premium shown explicitly rather than
@@ -642,7 +642,7 @@ function reportTtlLever(): void {
   const j1h = runArm(armJ, ANTHROPIC_CACHE_1H, price.price, spacing);
   const versus = (row: ArmResult) => `${(((a5m.costUsd - row.costUsd) / a5m.costUsd) * 100).toFixed(1)}%`;
 
-  console.log(`\n=== TTL as a FLUX lever: J@1h vs A@5m, tasks ${spacing}s apart, Anthropic write premiums ===`);
+  console.log(`\n=== TTL as a MESH lever: J@1h vs A@5m, tasks ${spacing}s apart, Anthropic write premiums ===`);
   console.log(`baseline  A @5m TTL (customer today)   $${a5m.costUsd.toFixed(3)}   vs A@5m ${versus(a5m).padStart(6)}   clean ${a5m.fullyGoodTasks}/${TASKS}`);
   console.log(`decompose A @1h TTL (TTL alone)        $${a1h.costUsd.toFixed(3)}   vs A@5m ${versus(a1h).padStart(6)}   clean ${a1h.fullyGoodTasks}/${TASKS}`);
   console.log(`decompose J @5m TTL (stack alone)      $${j5m.costUsd.toFixed(3)}   vs A@5m ${versus(j5m).padStart(6)}   clean ${j5m.fullyGoodTasks}/${TASKS}`);
@@ -675,7 +675,7 @@ reportTtlLever();
 
 if (SEED_OFFSET !== 0 || TASKS !== 40) {
   console.log(
-    `\nvariant run: FLUX_AB_TASKS=${TASKS} FLUX_AB_SEED=${SEED_OFFSET} ` +
+    `\nvariant run: MESH_AB_TASKS=${TASKS} MESH_AB_SEED=${SEED_OFFSET} ` +
     "(domain assignment rotated by the seed; natural-output-length formula immutable).",
   );
 }
@@ -804,7 +804,7 @@ function runAnthropicShapedArm(
   const taskQuality: Array<{ successful: boolean; clean: boolean }> = [];
 
   // The same config minus the TTL, for the suffix-only byte control below.
-  let configWithoutTtl: FluxTokenReductionConfig | undefined;
+  let configWithoutTtl: MeshTokenReductionConfig | undefined;
   if (arm.config !== undefined) {
     const { cacheTtl: _ignored, ...rest } = arm.config;
     configWithoutTtl = rest;
@@ -970,7 +970,7 @@ function reportStampedTtlArm(): void {
  * cache at all — Anthropic's cache is opt-in, and the first live export
  * measured an unstamped five-turn agent with zero cache reads and zero
  * writes, so an unstamped customer's history re-bills at full rate every
- * turn. FLUX's 5m stamp (writes 1.25x, reads 0.1x) is what switches the cache
+ * turn. MESH's 5m stamp (writes 1.25x, reads 0.1x) is what switches the cache
  * on, and the stamp defers whenever the caller placed any cache_control of
  * their own — so this saving is never claimed from a customer who already had
  * caching.

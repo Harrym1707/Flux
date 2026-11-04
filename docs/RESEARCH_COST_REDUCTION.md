@@ -1,10 +1,10 @@
-# Cost reduction research: findings and FLUX priorities
+# Cost reduction research: findings and MESH priorities
 
-This note consolidates the research-agent review of routing, prompt/context reduction, caching, execution controls and serving optimisations. The papers show promising techniques, but savings and quality depend on the workload and must be measured on FLUX's target jobs.
+This note consolidates the research-agent review of routing, prompt/context reduction, caching, execution controls and serving optimisations. The papers show promising techniques, but savings and quality depend on the workload and must be measured on MESH's target jobs.
 
 ## Does workflow context help?
 
-Yes, when the context is both cheap to obtain and predictive of which model or prompt shape a task needs. A workflow label such as `support.classification`, `invoice.extraction`, or `code.review`, plus a trusted difficulty/risk value, can choose a different replay-validated policy without asking another model to classify the request. A contextual bandit is a later option once FLUX has a reliable, delayed quality signal and enough traffic; it should not be the first routing mechanism.
+Yes, when the context is both cheap to obtain and predictive of which model or prompt shape a task needs. A workflow label such as `support.classification`, `invoice.extraction`, or `code.review`, plus a trusted difficulty/risk value, can choose a different replay-validated policy without asking another model to classify the request. A contextual bandit is a later option once MESH has a reliable, delayed quality signal and enough traffic; it should not be the first routing mechanism.
 
 Workflow context can also select a deterministic context profile. For example, a support reply may need the current issue and a compact summary of older turns, while a classification step may need only the latest message and a fixed label schema. The profile must preserve task-critical evidence and be evaluated against the full-context baseline. Net savings must include any compressor cost, the changed prompt-token cost, and changed cache reuse. If a separate LLM call is needed to discover the workflow or summarize context, that cost may erase the savings.
 
@@ -20,12 +20,12 @@ Workflow context can also select a deterministic context profile. For example, a
 ## Research anchors
 
 - [FrugalGPT](https://arxiv.org/abs/2305.05176) studies model cascades as a way to trade model quality against inference cost.
-- [RouteLLM](https://arxiv.org/abs/2406.18665) learns strong-versus-weak model decisions from preference data; it motivates a learned-router experiment after FLUX has workload-specific evaluations.
+- [RouteLLM](https://arxiv.org/abs/2406.18665) learns strong-versus-weak model decisions from preference data; it motivates a learned-router experiment after MESH has workload-specific evaluations.
 - [Adaptive LLM Routing under Budget Constraints](https://aclanthology.org/2025.findings-emnlp.1301/) frames online routing as a contextual bandit. This is relevant to workflow-conditioned adaptation, but requires trustworthy feedback and careful budget/quality guardrails.
 - [RECOMP](https://arxiv.org/abs/2310.04408) explores compressing retrieved context and selectively omitting irrelevant augmentation.
 - [LLMLingua-2](https://arxiv.org/abs/2403.12968) treats prompt compression as a learned token-selection task. Learned compression should be compared with simpler application-specific pruning, including the compressor's own inference cost.
 - The [OpenAI prompt caching guide](https://developers.openai.com/api/docs/guides/prompt-caching) documents stable-prefix reuse, usage fields such as `cached_tokens` and `cache_write_tokens`, and model-specific prices/behavior.
 
-## FLUX implementation status
+## MESH implementation status
 
 The current slice has contextual policy matching (`workflow`, `difficulty`, `riskLevel`), an application-provided context callback, versioned deterministic context transforms, and replay support requiring a candidate input for every case using a context profile. It also prices provider cache reads/writes separately and reports their usage in the local dashboard. The next useful product step is a small per-workflow report comparing ordinary input, cached reads/writes, output, fallback spend, quality and latency before and after each approved policy/profile.

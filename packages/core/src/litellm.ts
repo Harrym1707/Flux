@@ -12,7 +12,7 @@ import type { IngestIssue, TrafficRecord } from "./traffic.js";
  * LiteLLM is the most widely deployed open-source LLM gateway, and it is a
  * complement rather than a competitor: it tracks spend, enforces budgets and
  * caches responses, but performs no token reduction and gives no view of what a
- * reduction would be worth. Its spend logs are exactly the input FLUX's
+ * reduction would be worth. Its spend logs are exactly the input MESH's
  * analyser eats, so any LiteLLM deployment can be triaged without new plumbing.
  *
  * Two honesty rules are enforced at the boundary:

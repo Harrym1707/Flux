@@ -5,19 +5,19 @@ import {
   verifyLedgerChain,
   type LedgerRecord,
 } from "../../core/dist/src/index.js";
-import { withFlux } from "./openai.js";
-import type { FluxTokenReductionConfig } from "./reduce-request.js";
+import { withMesh } from "./openai.js";
+import type { MeshTokenReductionConfig } from "./reduce-request.js";
 
 /**
- * wrapFlux — the one-line drop-in for an existing provider client.
+ * wrapMesh — the one-line drop-in for an existing provider client.
  *
  *   import OpenAI from "openai";
- *   import { wrapFlux } from "@flux-ai/sdk";
- *   const openai = wrapFlux(new OpenAI());   // <- the only change
+ *   import { wrapMesh } from "@mesh-ai/sdk";
+ *   const openai = wrapMesh(new OpenAI());   // <- the only change
  *   // ...use `openai` exactly as before...
- *   console.log(openai.flux.savings());      // { requests, savedUsd, ... }
+ *   console.log(openai.mesh.savings());      // { requests, savedUsd, ... }
  *
- * This is `withFlux` with sane, zero-config defaults for someone who just wants
+ * This is `withMesh` with sane, zero-config defaults for someone who just wants
  * their AI app to spend less without learning the proxy, the ledger, or any
  * options object. The client's response shapes are preserved, its own key is
  * used, prompts never leave the machine, and reduction is LOSSLESS-ONLY by
@@ -25,42 +25,42 @@ import type { FluxTokenReductionConfig } from "./reduce-request.js";
  *
  * The savings number is the real measured one: every request appends a
  * hash-chained ledger event priced from provider-reported usage, and
- * `flux.savings()` recomputes the invoice from that spool — the same audit a
- * customer runs. It is never FLUX's own token estimate.
+ * `mesh.savings()` recomputes the invoice from that spool — the same audit a
+ * customer runs. It is never MESH's own token estimate.
  */
 
-export type WrapFluxOptions = {
+export type WrapMeshOptions = {
   /** Names this app on the ledger + invoice. Default "app". */
   app?: string;
-  /** Where the hash-chained savings ledger is written. Default ./.flux/<app>.jsonl */
+  /** Where the hash-chained savings ledger is written. Default ./.mesh/<app>.jsonl */
   ledgerPath?: string;
   /** Catalogue provider key for pricing. Auto-detected from the client; override if needed. */
   provider?: string;
   /** Override reduction. Default: lossless-only (safe, no quality gate needed). */
-  tokenReduction?: FluxTokenReductionConfig;
+  tokenReduction?: MeshTokenReductionConfig;
   /** Opt into the Anthropic prompt-cache stamp on multi-turn traffic ("5m" | "1h"). */
   cacheTtl?: "5m" | "1h";
 };
 
-export type FluxSavingsSummary = {
-  /** Requests metered through FLUX for this app. */
+export type MeshSavingsSummary = {
+  /** Requests metered through MESH for this app. */
   requests: number;
-  /** Net verified savings in USD (never FLUX's token estimate; from provider usage). */
+  /** Net verified savings in USD (never MESH's token estimate; from provider usage). */
   savedUsd: number;
-  /** FLUX's fee at 1% of verified savings. */
+  /** MESH's fee at 1% of verified savings. */
   feeUsd: number;
   verdict: "charge" | "do_not_charge";
   ledgerPath: string;
 };
 
-export type FluxHandle = {
+export type MeshHandle = {
   /** Recompute the measured savings from the ledger spool. */
-  savings(): FluxSavingsSummary;
-  /** The ledger spool path, for `recomputeInvoice` / `flux-report`. */
+  savings(): MeshSavingsSummary;
+  /** The ledger spool path, for `recomputeInvoice` / `mesh-report`. */
   ledgerPath: string;
 };
 
-const LOSSLESS_DEFAULT: FluxTokenReductionConfig = {
+const LOSSLESS_DEFAULT: MeshTokenReductionConfig = {
   toolSchemas: true,
   duplicateContext: true,
   repairCachePrefix: true,
@@ -74,25 +74,25 @@ function looksAnthropic(client: unknown): boolean {
   return hasMessages && !hasChat && !hasResponses;
 }
 
-export function wrapFlux<T extends object>(client: T, options: WrapFluxOptions = {}): T & { flux: FluxHandle } {
+export function wrapMesh<T extends object>(client: T, options: WrapMeshOptions = {}): T & { mesh: MeshHandle } {
   const app = options.app ?? "app";
-  const ledgerPath = options.ledgerPath ?? join(process.cwd(), ".flux", `${app}.jsonl`);
+  const ledgerPath = options.ledgerPath ?? join(process.cwd(), ".mesh", `${app}.jsonl`);
   const provider = options.provider ?? (looksAnthropic(client) ? "anthropic" : "openai");
-  const tokenReduction: FluxTokenReductionConfig = {
+  const tokenReduction: MeshTokenReductionConfig = {
     ...(options.tokenReduction ?? LOSSLESS_DEFAULT),
     ...(options.cacheTtl ? { cacheTtl: options.cacheTtl } : {}),
   };
 
-  const wrapped = withFlux(client as never, {
+  const wrapped = withMesh(client as never, {
     applicationId: app,
     tokenReduction,
     ledger: { path: ledgerPath, provider },
   }) as T;
 
-  const flux: FluxHandle = {
+  const mesh: MeshHandle = {
     ledgerPath,
-    savings(): FluxSavingsSummary {
-      const empty: FluxSavingsSummary = {
+    savings(): MeshSavingsSummary {
+      const empty: MeshSavingsSummary = {
         requests: 0, savedUsd: 0, feeUsd: 0, verdict: "do_not_charge", ledgerPath,
       };
       let records: LedgerRecord[];
@@ -117,11 +117,11 @@ export function wrapFlux<T extends object>(client: T, options: WrapFluxOptions =
     },
   };
 
-  // One more proxy layer over withFlux's: everything passes through to the
-  // wrapped client, and the synthetic `flux` handle surfaces the savings.
-  return new Proxy(wrapped as T & { flux: FluxHandle }, {
+  // One more proxy layer over withMesh's: everything passes through to the
+  // wrapped client, and the synthetic `mesh` handle surfaces the savings.
+  return new Proxy(wrapped as T & { mesh: MeshHandle }, {
     get(target, property, receiver) {
-      if (property === "flux") return flux;
+      if (property === "mesh") return mesh;
       return Reflect.get(target, property, receiver);
     },
   });

@@ -7,13 +7,13 @@
  * and keep only the hard requests on the cloud. Inference on a model you host is
  * free at the margin, so the saving is the whole cloud cost that request would
  * have incurred — valued here against the same price catalogue that prices every
- * other FLUX saving.
+ * other MESH saving.
  *
  * This is a LOSSY lever: it changes which model answers, so it CAN change the
  * answer. It is therefore off by default and, in production, must be gated by
  * the replay-gate (a replay of the customer's own traffic proving the local
  * model's answers held) before it is ever switched on for real traffic — exactly
- * how FLUX treats every other answer-affecting move. Billing uses the cloud cost
+ * how MESH treats every other answer-affecting move. Billing uses the cloud cost
  * avoided NET of the customer's own compute, never as if the local model were
  * free of consequence.
  *
@@ -96,7 +96,7 @@ export function decideRoute(req: LocalTierRequest, policy: LocalTierPolicy): Rou
 /**
  * The cloud cost a locally-run request avoided: the full catalogue-priced cost
  * of that request at its baseline cloud model. Returns null when the baseline is
- * unpriced (then the saving is recorded, never billed — as everywhere in FLUX).
+ * unpriced (then the saving is recorded, never billed — as everywhere in MESH).
  * This is the GROSS cloud spend avoided; the customer's own compute is netted off
  * before any fee.
  */

@@ -1,4 +1,4 @@
-# Communities — where FLUX launches, in what order, in whose language
+# Communities — where MESH launches, in what order, in whose language
 
 The one-page view. Research: research/hackernews.md, research/reddit.md,
 research/channels.md. Posts: show-hn.md, reddit-posts.md, other-channels.md.

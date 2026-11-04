@@ -1,4 +1,4 @@
-# FLUX Benchmark — [TITLE]
+# MESH Benchmark — [TITLE]
 
 **Date:** [DATE]
 

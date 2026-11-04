@@ -1,9 +1,9 @@
-import type { FluxRequestEvent, FluxTelemetryConfig } from "./types.js";
+import type { MeshRequestEvent, MeshTelemetryConfig } from "./types.js";
 
 export class TelemetryClient {
-  constructor(private readonly config: FluxTelemetryConfig = {}) {}
+  constructor(private readonly config: MeshTelemetryConfig = {}) {}
 
-  async emit(event: FluxRequestEvent): Promise<void> {
+  async emit(event: MeshRequestEvent): Promise<void> {
     if (!this.config.endpoint) return;
 
     const metadataEvent = {

@@ -50,7 +50,7 @@ const ANTHROPIC_BATCH = {
 // DeepSeek publishes TIME-OF-DAY pricing: off-peak rates are half the peak
 // rates, with peak hours 01:00-04:00 and 06:00-10:00 UTC Mon-Fri (excluding
 // Chinese public holidays), everything else off-peak. The catalogue has no
-// time-of-day dimension, so these entries use the OFF-PEAK (lower) rate: FLUX
+// time-of-day dimension, so these entries use the OFF-PEAK (lower) rate: MESH
 // then never OVER-values a DeepSeek saving, and conservatively under-counts it
 // during the peak windows until a time-of-day rate dimension lands. Current API
 // models are deepseek-flash and deepseek-v4-pro (deepseek-v4-flash is a legacy
@@ -153,7 +153,7 @@ const openai: ModelPriceEntry[] = [
   entry("openai", "gpt-5", OPENAI, [{ input: 0.625, output: 5, cachedInput: 0.0625 }], "flex"),
 ];
 
-// DeepSeek — OpenAI-compatible provider, reachable through `flux start --openai-base
+// DeepSeek — OpenAI-compatible provider, reachable through `mesh start --openai-base
 // https://api.deepseek.com`. Off-peak rates per the DEEPSEEK provenance note above.
 const deepseek: ModelPriceEntry[] = [
   entry("deepseek", "deepseek-flash", DEEPSEEK, [{ input: 0.15, output: 0.6, cachedInput: 0.003 }], "standard", "2026-11-03"),
@@ -205,7 +205,7 @@ export const publishedModelPrices: PriceCatalogue = validatePriceCatalogue({
  * prompt-caching, captured 2026-10-08, same capture date as `ANTHROPIC`
  * above). Below this minimum the provider processes the request without
  * caching at all — not an error, a silent no-op — so a breakpoint placed on
- * a shorter prefix can never be read back and would make FLUX claim a
+ * a shorter prefix can never be read back and would make MESH claim a
  * saving that cannot happen.
  *
  * Matched on the raw model id by substring rather than through

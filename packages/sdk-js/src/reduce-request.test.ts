@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { approximateTokenCount } from "../../core/dist/src/index.js";
-import { withFlux } from "./openai.js";
+import { withMesh } from "./openai.js";
 import {
   capToolResultBody,
   digestStaleBody,
   reduceRequest,
-  type FluxReductionSummary,
+  type MeshReductionSummary,
 } from "./reduce-request.js";
 
 const LONG_DESCRIPTION =
@@ -157,7 +157,7 @@ describe("reduceRequest", () => {
   });
 
   it("hands the summary to onReduction", () => {
-    const seen: FluxReductionSummary[] = [];
+    const seen: MeshReductionSummary[] = [];
     reduceRequest(request(), { toolSchemas: true, onReduction: (summary) => seen.push(summary) });
     expect(seen).toHaveLength(1);
     expect(seen[0]!.estimatedTokensSaved).toBeGreaterThan(0);
@@ -288,7 +288,7 @@ describe("fresh tool-result capping", () => {
     return lines.join(" ");
   }
 
-  const MARKER = /\[flux: \d+ chars of fresh tool-result detail capped\]/;
+  const MARKER = /\[mesh: \d+ chars of fresh tool-result detail capped\]/;
 
   it("keeps the headline with its latest reference, errors and file paths verbatim", () => {
     const capped = capToolResultBody(oversizedResult(), 600, approximateTokenCount);
@@ -430,7 +430,7 @@ describe("fresh tool-result capping", () => {
   });
 });
 
-describe("withFlux reduction", () => {
+describe("withMesh reduction", () => {
   function stub(): { client: { responses: { create: (r: Record<string, unknown>) => Promise<unknown> } }; sent: Record<string, unknown>[] } {
     const sent: Record<string, unknown>[] = [];
     return {
@@ -450,7 +450,7 @@ describe("withFlux reduction", () => {
     // The point of the change: reduction used to fire only when a model swap
     // was selected, which made it unreachable for anyone not routing.
     const { client, sent } = stub();
-    const wrapped = withFlux(client as never, {
+    const wrapped = withMesh(client as never, {
       applicationId: "test",
       tokenReduction: { toolSchemas: true, repairCachePrefix: true },
     }) as unknown as { responses: { create: (r: unknown) => Promise<unknown> } };
@@ -466,7 +466,7 @@ describe("withFlux reduction", () => {
 
   it("sends the request untouched when reduction is not configured", async () => {
     const { client, sent } = stub();
-    const wrapped = withFlux(client as never, { applicationId: "test" }) as unknown as
+    const wrapped = withMesh(client as never, { applicationId: "test" }) as unknown as
       { responses: { create: (r: unknown) => Promise<unknown> } };
     await wrapped.responses.create(request());
     expect(JSON.stringify(sent[0])).toContain("$schema");
@@ -474,11 +474,11 @@ describe("withFlux reduction", () => {
 
   it("reports what it removed on the request event", async () => {
     const { client } = stub();
-    const events: Array<{ reduction?: FluxReductionSummary }> = [];
-    const wrapped = withFlux(client as never, {
+    const events: Array<{ reduction?: MeshReductionSummary }> = [];
+    const wrapped = withMesh(client as never, {
       applicationId: "test",
       tokenReduction: { toolSchemas: true },
-      onEvent: (event) => events.push(event as { reduction?: FluxReductionSummary }),
+      onEvent: (event) => events.push(event as { reduction?: MeshReductionSummary }),
     }) as unknown as { responses: { create: (r: unknown) => Promise<unknown> } };
 
     await wrapped.responses.create(request());
@@ -488,7 +488,7 @@ describe("withFlux reduction", () => {
 
   it("still returns the provider's response unchanged", async () => {
     const { client } = stub();
-    const wrapped = withFlux(client as never, {
+    const wrapped = withMesh(client as never, {
       applicationId: "test",
       tokenReduction: { toolSchemas: true },
     }) as unknown as { responses: { create: (r: unknown) => Promise<{ id: string }> } };

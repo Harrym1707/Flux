@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
 """
-FLUX fundamentals sandbox — axis: rag-context-rightsizing.
+MESH fundamentals sandbox — axis: rag-context-rightsizing.
 
-Measures the two BLACK-BOX, NO-MODEL levers that survive FLUX's constraints
+Measures the two BLACK-BOX, NO-MODEL levers that survive MESH's constraints
 (see docs/rnd/fundamentals/rag-context-rightsizing.md):
 
   T1  retrieved-chunk overlap / duplicate de-duplication   (A3, near-lossless)
   T2  top-k tail truncation past retrieval saturation       (A4, lossy, needs gate)
 
 Both operate purely by rewriting the request body (the list of retrieved chunks),
-with no model, no logits, no second LLM — exactly what FLUX can do at request time.
+with no model, no logits, no second LLM — exactly what MESH can do at request time.
 
 This script is self-contained and runs with no network (synthetic fixture that
 reproduces real indexer behaviour: fixed chunk size with stride overlap, plus
@@ -84,7 +84,7 @@ def _sentences(text: str) -> list[str]:
 def dedup_block(chunks: list[Chunk]) -> tuple[list[Chunk], dict]:
     """Remove sentence-level spans already seen earlier in the block.
 
-    This models the FLUX byte-rewrite: emit each unique span once, preserving
+    This models the MESH byte-rewrite: emit each unique span once, preserving
     first-seen order. Exact-duplicate spans => lossless; this is the near-lossless
     cousin that also catches stride-overlap repeats.
     """
@@ -111,7 +111,7 @@ def dedup_block(chunks: list[Chunk]) -> tuple[list[Chunk], dict]:
 # T2 — top-k tail truncation  (A4, lossy, black-box, gate-required)
 # ---------------------------------------------------------------------------
 def truncate_topk(chunks: list[Chunk], keep: int) -> list[Chunk]:
-    """Keep the top `keep` chunks by the client's own rank. No scoring by FLUX."""
+    """Keep the top `keep` chunks by the client's own rank. No scoring by MESH."""
     ordered = sorted(chunks, key=lambda c: c.rank)
     return ordered[: max(0, keep)]
 
@@ -150,7 +150,7 @@ def build_fixture(chunk_words=120, stride_words=60, n_chunks=12) -> tuple[list[C
     Gold answer lives in the chunk at rank 7 (past NQ's ~13-chunk saturation if the
     client ships 12+)."""
     base_words = [f"w{i:03d}" for i in range(600)]
-    gold = "the capital of flux is proxytown established in 2026"
+    gold = "the capital of mesh is proxytown established in 2026"
     base_text = " ".join(base_words)
     # insert gold span near the middle of the source
     base_words[300:300] = gold.split()
@@ -220,7 +220,7 @@ def main():
 
     base_tok = block_tokens(chunks)
     print("=" * 72)
-    print("FLUX sandbox — rag-context-rightsizing")
+    print("MESH sandbox — rag-context-rightsizing")
     print(f"token counter : {COUNTER_LABEL}")
     print(f"input block   : {src}")
     print(f"chunks={len(chunks)}  tokens={base_tok}")
@@ -256,7 +256,7 @@ def main():
             sat_k = row["top_k"]
         print(f"     {row['top_k']:>5}  {row['tokens']:>10}  {flag}")
     print(f"     -> gold first present at top_k={sat_k}: truncating below this k is UNSAFE (would")
-    print(f"        drop the answer). This is exactly what the FLUX replay gate must catch.")
+    print(f"        drop the answer). This is exactly what the MESH replay gate must catch.")
     print("\nTakeaway: T1 saves unconditionally on overlapped/dup blocks; T2 saving is real")
     print("but the gate is load-bearing — the saturation k is workload-specific (Databricks:")
     print("NQ ~13 chunks / 8k tok). Measure it per client before enabling T2.")

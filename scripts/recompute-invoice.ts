@@ -1,7 +1,7 @@
 /**
- * Recompute a FLUX invoice from a raw savings-ledger spool. This is the
+ * Recompute a MESH invoice from a raw savings-ledger spool. This is the
  * customer-facing audit recipe: run it on your own JSONL file and the result
- * must reproduce FLUX's invoice to the cent, or FLUX does not get paid.
+ * must reproduce MESH's invoice to the cent, or MESH does not get paid.
  *
  *   node --import tsx scripts/recompute-invoice.ts <ledger.jsonl> \
  *     [--period YYYY-MM] [--fee <percent>] [--fail-task <taskId>]... \

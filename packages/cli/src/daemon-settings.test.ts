@@ -1,14 +1,14 @@
 /**
  * The ~/.claude/settings.json contract, without installing a launchd service.
  *
- * `flux start` points Claude Code at the local proxy by writing
+ * `mesh start` points Claude Code at the local proxy by writing
  * ANTHROPIC_BASE_URL into ~/.claude/settings.json, and reverts that write on
  * exit — leaving any pre-existing, unrelated settings untouched. We drive the
- * real `flux start` against an isolated HOME on an OS-assigned port (no real
+ * real `mesh start` against an isolated HOME on an OS-assigned port (no real
  * API traffic flows; we only inspect the settings file it mutates), then send
  * SIGINT and assert the revert.
  *
- * Run as a subprocess because start.ts fixes ~/.flux and ~/.claude paths from
+ * Run as a subprocess because start.ts fixes ~/.mesh and ~/.claude paths from
  * `homedir()` at import time.
  */
 import { spawn, type ChildProcess } from "node:child_process";
@@ -48,12 +48,12 @@ async function waitFor(predicate: () => boolean, timeoutMs = 15_000, intervalMs 
   return false;
 }
 
-describe("flux start — ~/.claude/settings.json merge + revert", () => {
+describe("mesh start — ~/.claude/settings.json merge + revert", () => {
   let home: string;
   let child: ChildProcess | undefined;
 
   beforeEach(() => {
-    home = mkdtempSync(join(tmpdir(), "flux-"));
+    home = mkdtempSync(join(tmpdir(), "mesh-"));
   });
 
   afterEach(async () => {
@@ -102,9 +102,9 @@ describe("flux start — ~/.claude/settings.json merge + revert", () => {
       stdio: "ignore",
     });
 
-    // Give the proxy time to come up; the ledger dir appears under ~/.flux,
+    // Give the proxy time to come up; the ledger dir appears under ~/.mesh,
     // which is our signal that start actually got going.
-    const up = await waitFor(() => existsSync(join(home, ".flux", "ledger")));
+    const up = await waitFor(() => existsSync(join(home, ".mesh", "ledger")));
     expect(up).toBe(true);
 
     // No Claude Code wiring was written.

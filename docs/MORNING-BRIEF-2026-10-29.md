@@ -7,7 +7,7 @@ Overnight work on branch `levers-shim-blind-gateway` (pushed). Nothing deployed,
 
 You answered before sleeping, so I kept building:
 - **Built: the per-user policy module** (`packages/sdk-js/src/theo-policy.ts` + 7 tests) — the concrete
-  Theo→FLUX control mechanism. `policyToReductionConfig` enforces the safety rule *in code*: a lossy
+  Theo→MESH control mechanism. `policyToReductionConfig` enforces the safety rule *in code*: a lossy
   lever applies only if it carries a gate proof within the route's quality ceiling, else it's silently
   withheld. Default policy is strict + lossless-only. It's `node:`-free, so it loads in RN/edge too.
 - **Decisions you made (now the roadmap):** coding lever = **routing primary + context secondary**;
@@ -30,8 +30,8 @@ You answered before sleeping, so I kept building:
 |---|---|---|
 | **Theo loop prototype** | `evals/theo-loop.ts` (+ test) | observe (blind features) → hypothesise (rank priors) → measure real lossless → queue lossy for the gate → policy → report. Runs end-to-end, no API spend. |
 | **Theo design** | `docs/rnd/theo-token-engineer-agent.md` | the whole per-user agent design from tonight. |
-| **Coding reachability** | `docs/strategy/coding-tool-reachability.md` | sourced matrix of which coding tools FLUX can intercept. |
-| **wrapFlux real-SDK proof** | `evals/fundamentals/value/wrapflux-real-sdk.test.ts` | verified the shim works on the REAL `@anthropic-ai/sdk` (the earlier Proxy bug does not exist). |
+| **Coding reachability** | `docs/strategy/coding-tool-reachability.md` | sourced matrix of which coding tools MESH can intercept. |
+| **wrapMesh real-SDK proof** | `evals/fundamentals/value/wrapmesh-real-sdk.test.ts` | verified the shim works on the REAL `@anthropic-ai/sdk` (the earlier Proxy bug does not exist). |
 
 ## Theo loop — what it shows, and the catch I fixed
 
@@ -51,7 +51,7 @@ prototype.
 
 ## Reachability — the matrix, and the ONE thing to settle
 
-- **Reachable (FLUX can intercept 100% of model traffic):** Claude Code, Cline, Aider, Continue.dev, Zed.
+- **Reachable (MESH can intercept 100% of model traffic):** Claude Code, Cline, Aider, Continue.dev, Zed.
 - **Partial:** Cursor (base-URL override only on Chat/Composer, still transits their backend; Tab locked);
   GitHub Copilot (only the CLI/SDK, not the IDE extension).
 - **Not reachable:** Windsurf (endpoint hard-coded + signed; "BYOK" still routes through their proxy).
@@ -75,7 +75,7 @@ for coding. If yes, the licenses play is real; if no, coding is API-key users on
 1. **The Claude Code OAuth reachability test** — settle the licenses question (I can run it with you).
 2. **The coding angle** — confirm: lead with *model routing* (cheaper model per step, gated on tests)
    on the reachable set, Claude Code first.
-3. **Subscription pricing** — how FLUX charges when the "saving" is a stretched flat fee, not £ off a bill.
+3. **Subscription pricing** — how MESH charges when the "saving" is a stretched flat fee, not £ off a bill.
 4. **Theo next step** — the grader stack (behavioural-drift) is the deepest real build; want that next?
 
 ## What I deliberately did NOT do

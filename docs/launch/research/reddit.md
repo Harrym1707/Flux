@@ -55,7 +55,7 @@ router skepticism, verification anxiety ("prove quality didn't drop"), budget
 guardrails ("a leaked key can't cost me more than $50").
 
 The disclosure formula is load-bearing: answer the question FULLY first, then
-one line — "Full disclosure, I built a local proxy (flux-proxy) that does
+one line — "Full disclosure, I built a local proxy (mesh-proxy) that does
 this automatically and logs the before/after per request so you can recompute
 the savings yourself — but you can do it by hand with the above." The
 do-it-by-hand escape hatch separates helpful from spam. Mentioning a
@@ -78,7 +78,7 @@ competitor or DIY alternative alongside increases survival.
 - Sequel etiquette: nothing about the same tool within ~30 days; the
   acceptable follow-up is a new MEASUREMENT.
 
-## FLUX-specific pitfalls
+## MESH-specific pitfalls
 
 1. LiteLLM compromise memory → security framing: nothing leaves the machine
    except the normal provider call; ledger is local; audit path for the npm

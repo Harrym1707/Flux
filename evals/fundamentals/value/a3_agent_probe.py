@@ -3,7 +3,7 @@
 OpenHands+GPT-5). Focus: tool_result redundancy across turns and the CLEAN,
 cache-safe A3 ceiling.
 
-Model of the agent loop (what FLUX actually sees):
+Model of the agent loop (what MESH actually sees):
   Request k = [system][task][asst1][tool_res1]...[asstK-1][tool_resK-1].
   The prefix up to tool_res(K-2) is byte-identical to request K-1 -> served from
   the provider prefix cache (A1, already shipped). The only UNCACHED new input in
@@ -11,7 +11,7 @@ Model of the agent loop (what FLUX actually sees):
 
 Therefore the ONLY redundancy A3 can remove as a real NET saving without busting
 the cache is: a NEWEST tool_result that duplicates (exactly or near) an EARLIER
-tool_result already sitting in the cached prefix. FLUX replaces the fresh copy
+tool_result already sitting in the cached prefix. MESH replaces the fresh copy
 with a reference marker; the cached prefix is untouched. We measure that mass.
 
 We also report the NAIVE cross-turn dup (ignoring cache) to show the gap, and

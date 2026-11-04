@@ -1,11 +1,11 @@
 /**
- * `flux update` — force a runtime refresh now (instead of waiting for the
+ * `mesh update` — force a runtime refresh now (instead of waiting for the
  * bootstrap's daily check), with a one-step rollback.
  *
- *   flux update              fetch the manifest, and if newer, download +
+ *   mesh update              fetch the manifest, and if newer, download +
  *                            checksum-verify the runtime, keeping the current
  *                            one as a backup, then swap it in
- *   flux update --rollback   restore the previous runtime
+ *   mesh update --rollback   restore the previous runtime
  *
  * It verifies the sha256 against the manifest before swapping (release-signature
  * verification is added in the signing track). It never overwrites a working
@@ -16,12 +16,12 @@ import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from
 import { homedir } from "node:os";
 import { join } from "node:path";
 
-const BASE = (process.env.FLUX_BASE_URL ?? "https://www.fluxtoken.dev").replace(/\/$/, "");
-const DIR = join(homedir(), ".flux", "runtime");
-const RUNTIME = join(DIR, "flux-runtime.mjs");
+const BASE = (process.env.MESH_BASE_URL ?? "https://www.fluxtoken.dev").replace(/\/$/, "");
+const DIR = join(homedir(), ".mesh", "runtime");
+const RUNTIME = join(DIR, "mesh-runtime.mjs");
 const VERSION_FILE = join(DIR, "version");
 const SHA_FILE = join(DIR, "sha256");
-const BACKUP = join(DIR, "flux-runtime.previous.mjs");
+const BACKUP = join(DIR, "mesh-runtime.previous.mjs");
 const BACKUP_VERSION = join(DIR, "version.previous");
 const BACKUP_SHA = join(DIR, "sha256.previous");
 
@@ -34,7 +34,7 @@ function read(path: string): string | null {
 /**
  * For the always-on daemon: fetch the manifest and, if a newer runtime is
  * published, download + checksum-verify it and swap it in (keeping a rollback
- * copy), exactly as `flux update` does — but with no printing and no exit.
+ * copy), exactly as `mesh update` does — but with no printing and no exit.
  * Returns the new version when it swapped the runtime, else null (already
  * current, unreachable, or a failed checksum — never a partial/unsafe write).
  * The daemon then restarts so launchd relaunches it on the new runtime.
@@ -44,7 +44,7 @@ export async function pullNewerRuntime(): Promise<string | null> {
   const have = existsSync(VERSION_FILE) ? read(VERSION_FILE) : null;
   let manifest: Manifest;
   try {
-    const res = await fetch(`${BASE}/flux-version.json`);
+    const res = await fetch(`${BASE}/mesh-version.json`);
     if (!res.ok) return null;
     manifest = (await res.json()) as Manifest;
   } catch { return null; }
@@ -52,7 +52,7 @@ export async function pullNewerRuntime(): Promise<string | null> {
 
   let bytes: Buffer;
   try {
-    const res = await fetch(`${BASE}/${manifest.runtime ?? "flux-runtime"}`);
+    const res = await fetch(`${BASE}/${manifest.runtime ?? "mesh-runtime"}`);
     if (!res.ok) return null;
     bytes = Buffer.from(await res.arrayBuffer());
   } catch { return null; }
@@ -90,7 +90,7 @@ export async function runUpdate(argv: string[]): Promise<void> {
 
   let manifest: Manifest;
   try {
-    const res = await fetch(`${BASE}/flux-version.json`);
+    const res = await fetch(`${BASE}/mesh-version.json`);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     manifest = (await res.json()) as Manifest;
   } catch (error) {
@@ -103,7 +103,7 @@ export async function runUpdate(argv: string[]): Promise<void> {
   process.stdout.write(`Updating ${have ?? "(none)"} → ${manifest.version}… `);
   let bytes: Buffer;
   try {
-    const res = await fetch(`${BASE}/${manifest.runtime ?? "flux-runtime"}`);
+    const res = await fetch(`${BASE}/${manifest.runtime ?? "mesh-runtime"}`);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     bytes = Buffer.from(await res.arrayBuffer());
   } catch (error) {
@@ -125,7 +125,7 @@ export async function runUpdate(argv: string[]): Promise<void> {
   }
   writeFileSync(RUNTIME, bytes);
   writeFileSync(VERSION_FILE, manifest.version);
-  writeFileSync(SHA_FILE, manifest.sha256); // so `flux verify` can re-check the cached runtime
+  writeFileSync(SHA_FILE, manifest.sha256); // so `mesh verify` can re-check the cached runtime
   console.log("done.");
-  console.log(`Now on ${manifest.version}. Roll back with: flux update --rollback`);
+  console.log(`Now on ${manifest.version}. Roll back with: mesh update --rollback`);
 }

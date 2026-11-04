@@ -7,7 +7,7 @@ schemas and REAL structured tool_result payloads:
 
   (a) the LOSSLESS slice beyond what the shipped minifier already takes, and
   (b) the FORMAT-SWAP slice (JSON -> compact tabular / TOON-like), which is
-      LOSSY for FLUX billing (model reads a different token sequence).
+      LOSSY for MESH billing (model reads a different token sequence).
 
 It also audits the shipped minifier's own baseline: the minifier measures its
 "lossless savings" against a PRETTY-PRINTED (indent=2) baseline, but real HTTP
@@ -29,8 +29,8 @@ def tk(s):
     if not isinstance(s, str): s = json.dumps(s, ensure_ascii=False)
     return len(ENC.encode(s))
 
-SCRATCH = "/private/tmp/claude-501/-Users-harrymanley-Documents-Codex-flux/81b3fa90-1f60-4c80-90fb-3710d8e372bd/scratchpad"
-FLUX = "/Users/harrymanley/Documents/Codex/flux"
+SCRATCH = "/private/tmp/claude-501/-Users-harrymanley-Documents-Codex-mesh/81b3fa90-1f60-4c80-90fb-3710d8e372bd/scratchpad"
+MESH = "/Users/harrymanley/Documents/Codex/mesh"
 
 # ---- serializers ----
 def j_pretty(x): return json.dumps(x, indent=2, ensure_ascii=False)          # what the minifier uses as BEFORE
@@ -81,7 +81,7 @@ def load_payloads():
 def load_framework_catalogues():
     cats=[]
     try:
-        for line in open(f"{FLUX}/evals/wire-captures/frameworks-2026-10-25.jsonl"):
+        for line in open(f"{MESH}/evals/wire-captures/frameworks-2026-10-25.jsonl"):
             d=json.loads(line); t=d["body"].get("tools")
             if t: cats.append((d["headers"].get("user-agent","?"), t))
     except: pass
@@ -94,14 +94,14 @@ print("PART 1 — tool schemas: lossless slice & minifier baseline artefact")
 print("="*70)
 
 hermes_cats = load_hermes_catalogues()
-# Treat each catalogue as a request-body `tools` array (what FLUX rewrites).
+# Treat each catalogue as a request-body `tools` array (what MESH rewrites).
 rows=[]
 for cat in hermes_cats:
     pretty = tk(j_pretty(cat))
     std    = tk(j_std(cat))
     compact= tk(j_compact(cat))
     lossless_struct = minify_lossless(cat)
-    # lossless savings available to a FLUX rewrite, over the realistic compact baseline:
+    # lossless savings available to a MESH rewrite, over the realistic compact baseline:
     lossless_compact = tk(j_compact(lossless_struct))
     rows.append(dict(pretty=pretty, std=std, compact=compact,
                      lossless_compact=lossless_compact))
@@ -147,7 +147,7 @@ payloads = load_payloads()
 def to_toon(o, indent=0):
     """Minimal TOON-like encoder. Uniform object-arrays -> tabular header+rows.
     This is a *lower bound* proxy for TOON token efficiency and is LOSSY for
-    FLUX billing (format change)."""
+    MESH billing (format change)."""
     pad="  "*indent
     def is_uniform(a):
         return isinstance(a,list) and len(a)>=1 and all(isinstance(x,dict) for x in a) \

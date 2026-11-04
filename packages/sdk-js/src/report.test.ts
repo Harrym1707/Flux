@@ -65,7 +65,7 @@ describe("renderLedgerReport", () => {
     expect(html).toContain("no approved replay gate verdict");
     expect(html).toContain("1 unpriced (never guessed)");
     expect(html).toContain("hash chain VERIFIED");
-    expect(html).toContain("flux-verify");
+    expect(html).toContain("mesh-verify");
     // Spend = 0.05 + 0.04 + 0.03 priced events.
     expect(html).toContain("$0.1200");
   });

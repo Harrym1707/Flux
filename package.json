@@ -1,5 +1,5 @@
 {
-  "name": "flux",
+  "name": "mesh",
   "private": true,
   "type": "module",
   "version": "0.1.0",
@@ -41,7 +41,7 @@
     "build:cli": "node --import tsx scripts/build-cli-package.ts"
   },
   "dependencies": {
-    "@flux-ai/sdk": "workspace:*",
+    "@mesh-ai/sdk": "workspace:*",
     "openai": "^5.12.0"
   },
   "devDependencies": {

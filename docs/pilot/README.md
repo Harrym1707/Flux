@@ -1,4 +1,4 @@
-# FLUX pilot kit
+# MESH pilot kit
 
 Everything a design-partner conversation needs, in one directory. **All of it is
 draft material: nothing here has been posted or sent, and sending is the
@@ -6,7 +6,7 @@ founder's act, not an agent's.**
 
 | File | What it is |
 |---|---|
-| [runbook.md](./runbook.md) | The one-page pilot runbook: what a partner does, day 0 to day 14, and what FLUX never does. |
+| [runbook.md](./runbook.md) | The one-page pilot runbook: what a partner does, day 0 to day 14, and what MESH never does. |
 | [data-handling.md](./data-handling.md) | The data-handling answer, verbatim-usable, sourced to the code paths it describes. |
 | [outreach-litellm.md](./outreach-litellm.md) | Draft letter 1: LiteLLM proxy operator (spend logs ready to triage). |
 | [outreach-helicone.md](./outreach-helicone.md) | Draft letter 2: Helicone user re-evaluating their stack. |
@@ -25,7 +25,7 @@ Every figure in this directory carries one of three labels and a segment caveat:
 - **projected** — an estimate with a stated basis; never used in a quote or an
   invoice.
 
-The standing caveat on *every* number: **FLUX has processed zero real customer
+The standing caveat on *every* number: **MESH has processed zero real customer
 traffic.** The harness is synthetic. The first real gateway export retires the
 biggest caveat on every band — which is exactly what the pilot is for.
 

@@ -1,28 +1,28 @@
 /**
- * The FLUX client runtime — the commands a downloaded user actually runs.
+ * The MESH client runtime — the commands a downloaded user actually runs.
  *
  * Deliberately NOT `analyse`: that local-analysis dev tool pulls in the traffic
  * ingest, router, triage and observability-adapter code a client never needs,
  * and has no business shipping in a download. Keeping this entry lean keeps the
  * runtime bundle to the client surface: proxy + reducer + ledger + Theo.
  *
- * This is what scripts/build-cli-package.ts bundles into /flux-runtime; the
- * small /flux bootstrap fetches, caches, verifies and execs it.
+ * This is what scripts/build-cli-package.ts bundles into /mesh-runtime; the
+ * small /mesh bootstrap fetches, caches, verifies and execs it.
  */
-const TOP_USAGE = `flux — cut your LLM bill, verified on your own usage.
+const TOP_USAGE = `mesh — cut your LLM bill, verified on your own usage.
 
-Usage: flux <command> [options]
+Usage: mesh <command> [options]
 
-  start      Start the FLUX proxy, point Claude Code at it, and run Theo
+  start      Start the MESH proxy, point Claude Code at it, and run Theo
              alongside you. One command; reverts cleanly on exit.
-  install    Always-on: run FLUX as a background service so every Claude Code
+  install    Always-on: run MESH as a background service so every Claude Code
              session is optimised, with nothing to start by hand.
   stop       Stop the background service (kept, resume with install); restore Claude Code.
   uninstall  Stop and remove the background service; restore Claude Code.
   status     Is the service up, and what has Theo saved so far?
   dashboard  Open a live local web view of your savings and what Theo is doing.
   update     Update the runtime now (--rollback to revert to the previous one).
-  verify     Re-prove FLUX's claims on this machine: the build's provenance,
+  verify     Re-prove MESH's claims on this machine: the build's provenance,
              your ledger's hash-chain, and a deterministic invoice recompute.
   doctor     Diagnose this machine: Node, the proxy, Claude Code wiring, the
              service, and the ledger — each with a one-line fix.
@@ -30,7 +30,7 @@ Usage: flux <command> [options]
   compaction Estimate, per task in your ledger, what context compaction would
              save — and where it would cost more than it saves (advisory).
 
-Run "flux <command> --help" for command options.`;
+Run "mesh <command> --help" for command options.`;
 
 async function main(): Promise<void> {
   const sub = process.argv[2];

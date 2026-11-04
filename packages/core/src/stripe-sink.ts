@@ -55,7 +55,7 @@ export type StripeMeterProjectionOptions = Pick<
   InvoiceOptions,
   "period" | "gateVerdictOverrides" | "failedTaskIds"
 > & {
-  /** Meter event name. Default "flux_net_verified_savings_usd". */
+  /** Meter event name. Default "mesh_net_verified_savings_usd". */
   eventName?: string;
   /** Map an applicationId to the Stripe customer id. Default: identity. */
   customerIdOf?: (applicationId: string) => string;
@@ -97,7 +97,7 @@ export function projectLedgerEventsToStripeMeterRows(
   events: readonly BillableEvent[],
   options: StripeMeterProjectionOptions = {},
 ): StripeMeterProjection {
-  const eventName = options.eventName ?? "flux_net_verified_savings_usd";
+  const eventName = options.eventName ?? "mesh_net_verified_savings_usd";
   if (eventName.trim() === "") throw new Error("The Stripe meter event name must be non-empty.");
   const customerIdOf = options.customerIdOf ?? ((applicationId: string) => applicationId);
 
@@ -146,7 +146,7 @@ export function projectLedgerEventsToStripeMeterRows(
         // Decimal string; negative windows stay NEGATIVE here. Stripe meters
         // do not accept negative usage, so a transmitting integration must
         // reconcile at the invoice (where negatives net) - this local file
-        // never hides a window that counts against FLUX.
+        // never hides a window that counts against MESH.
         value: window.savedUsd.toFixed(6),
       },
     }));

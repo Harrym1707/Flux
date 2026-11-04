@@ -15,7 +15,7 @@ import { approximateTokenCount, type TokenCounter } from "./token-reduction.js";
  *   quality gate. Whitespace / JSON formatting is NOT in this tier: the provider
  *   tokenises the PARSED structure, not the byte formatting (verified against
  *   Anthropic count_tokens — pretty vs compact tools return an identical count),
- *   so FLUX compacts it as hygiene but never claims it as a saving.
+ *   so MESH compacts it as hygiene but never claims it as a saving.
  *
  *   Lossy: descriptions, examples, and dropping tools. Descriptions are how the
  *   model decides which tool to call, so trimming them is a behaviour change,

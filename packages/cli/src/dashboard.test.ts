@@ -1,6 +1,6 @@
 /**
- * `flux dashboard` — exercised as a real subprocess with an isolated HOME and
- * ledger, because the module fixes ~/.flux paths from homedir() at import time.
+ * `mesh dashboard` — exercised as a real subprocess with an isolated HOME and
+ * ledger, because the module fixes ~/.mesh paths from homedir() at import time.
  * We start the server, read the port it prints, hit /data and /, then stop it.
  */
 import { spawn, type ChildProcess } from "node:child_process";
@@ -30,14 +30,14 @@ function startDashboard(home: string, ledger: string): Promise<{ child: ChildPro
   });
 }
 
-describe("flux dashboard (subprocess, isolated HOME + ledger)", () => {
+describe("mesh dashboard (subprocess, isolated HOME + ledger)", () => {
   let home: string;
   let ledger: string;
   let child: ChildProcess | undefined;
 
   beforeEach(() => {
-    home = mkdtempSync(join(tmpdir(), "flux-dash-"));
-    ledger = join(home, ".flux", "ledger");
+    home = mkdtempSync(join(tmpdir(), "mesh-dash-"));
+    ledger = join(home, ".mesh", "ledger");
   });
   afterEach(() => {
     if (child) child.kill("SIGKILL");
@@ -63,7 +63,7 @@ describe("flux dashboard (subprocess, isolated HOME + ledger)", () => {
     expect(data.proxyUp).toBe(false); // --proxy-port 1 is dead
 
     const html = await (await fetch(`${base}/`)).text();
-    expect(html.toLowerCase()).toContain("flux");
+    expect(html.toLowerCase()).toContain("mesh");
     expect(html).toContain("/data"); // the page polls this endpoint
   });
 });

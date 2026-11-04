@@ -1,5 +1,5 @@
 /**
- * Build the deployable FLUX website from docs/site/*.md — zero dependencies.
+ * Build the deployable MESH website from docs/site/*.md — zero dependencies.
  *
  *   node --import tsx scripts/build-site.ts
  *
@@ -8,9 +8,9 @@
  * answer engines can cite the pages directly. Deploying is one founder
  * action: enable GitHub Pages on the folder, or drag it into any static host.
  *
- *   FLUX_SITE_ORIGIN  canonical origin (e.g. https://flux.dev); a placeholder
+ *   MESH_SITE_ORIGIN  canonical origin (e.g. https://flux.dev); a placeholder
  *                     is used (and loudly warned about) when unset.
- *   FLUX_REPO_URL     where ../pilot/* links resolve (the public repo).
+ *   MESH_REPO_URL     where ../pilot/* links resolve (the public repo).
  *
  * The generator verifies its own output and exits non-zero on anything
  * malformed, so a broken page can never ship silently.
@@ -24,10 +24,10 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const siteDir = path.join(root, "docs/site");
 const outDir = path.join(siteDir, "dist");
 
-const ORIGIN = (process.env.FLUX_SITE_ORIGIN ?? "https://REPLACE-WITH-YOUR-DOMAIN.example").replace(/\/$/, "");
-const REPO_URL = (process.env.FLUX_REPO_URL ?? "https://github.com/Harrym1707/Flux").replace(/\/$/, "");
+const ORIGIN = (process.env.MESH_SITE_ORIGIN ?? "https://REPLACE-WITH-YOUR-DOMAIN.example").replace(/\/$/, "");
+const REPO_URL = (process.env.MESH_REPO_URL ?? "https://github.com/Harrym1707/Flux").replace(/\/$/, "");
 if (ORIGIN.includes("REPLACE-WITH-YOUR-DOMAIN")) {
-  console.warn("WARNING: FLUX_SITE_ORIGIN is unset; canonical URLs and the sitemap use a placeholder domain.");
+  console.warn("WARNING: MESH_SITE_ORIGIN is unset; canonical URLs and the sitemap use a placeholder domain.");
 }
 
 /** Page order defines the nav. */
@@ -138,7 +138,7 @@ function renderBody(markdown: string): { html: string; title: string; descriptio
 
 const CSS = `
 :root{
-  /* FLUX brand: Off White ground, Deep Graphite ink, Flux Blue accent, Frost tone-step */
+  /* MESH brand: Off White ground, Deep Graphite ink, Mesh Blue accent, Frost tone-step */
   --bg:#FAFAF9;
   --surface:#ffffff;
   --fg:#0B0F14;
@@ -203,7 +203,7 @@ function layout(page: { file: string; nav: string }, body: string, title: string
 <meta name="description" content="${escapeHtml(description)}">
 <link rel="canonical" href="${ORIGIN}/${htmlName === "index.html" ? "" : htmlName}">
 <meta property="og:type" content="website">
-<meta property="og:site_name" content="flux">
+<meta property="og:site_name" content="mesh">
 <meta property="og:title" content="${escapeHtml(title)}">
 <meta property="og:description" content="${escapeHtml(description)}">
 <meta property="og:url" content="${ORIGIN}/${htmlName}">
@@ -219,13 +219,13 @@ function layout(page: { file: string; nav: string }, body: string, title: string
 <style>${CSS}</style>
 ${extraHead}</head>
 <body>
-<nav><a class="brand" href="index.html">flux</a><span class="tagline">Less in. More out.</span>${nav}</nav>
+<nav><a class="brand" href="index.html">mesh</a><span class="tagline">Less in. More out.</span>${nav}</nav>
 <main>
 ${body}
-<footer><strong>flux</strong> — spend tokens where they matter. Every number on this site traces to a
+<footer><strong>mesh</strong> — spend tokens where they matter. Every number on this site traces to a
 command and a commit — <a href="evidence.html">evidence</a>. Savings are measured per completed task;
 estimates are always labelled. <a href="${REPO_URL}">Source</a> · <a href="llms.txt">llms.txt</a><br>
-Flux AI Technologies Limited · registered in England and Wales · company no. 17543982</footer>
+Mesh AI Technologies Limited · registered in England and Wales · company no. 17543982</footer>
 </main>
 </body>
 </html>
@@ -258,15 +258,15 @@ function startJsonLd(): string {
   const data = {
     "@context": "https://schema.org",
     "@type": "HowTo",
-    name: "Cut your LLM API bill with FLUX in five minutes",
-    description: "Run the FLUX proxy with one npx command, point your app's baseURL at it, and recompute the verified-savings invoice yourself from the hash-chained ledger you hold.",
+    name: "Cut your LLM API bill with MESH in five minutes",
+    description: "Run the MESH proxy with one npx command, point your app's baseURL at it, and recompute the verified-savings invoice yourself from the hash-chained ledger you hold.",
     totalTime: "PT5M",
-    tool: [{ "@type": "HowToTool", name: "@flux-ai/sdk (npm)" }],
+    tool: [{ "@type": "HowToTool", name: "@mesh-ai/sdk (npm)" }],
     step: [
-      { "@type": "HowToStep", name: "Run the proxy", text: "npx -y -p @flux-ai/sdk flux-proxy — starts a local proxy on http://127.0.0.1:8787 with a hash-chained ledger in ./flux-ledger. No signup; your API key passes through and is never stored." },
+      { "@type": "HowToStep", name: "Run the proxy", text: "npx -y -p @mesh-ai/sdk mesh-proxy — starts a local proxy on http://127.0.0.1:8787 with a hash-chained ledger in ./mesh-ledger. No signup; your API key passes through and is never stored." },
       { "@type": "HowToStep", name: "Point your app at it", text: "Change one line: new Anthropic({ baseURL: \"http://127.0.0.1:8787\" }) or new OpenAI({ baseURL: \"http://127.0.0.1:8787/v1\" }). Any language and any OpenAI-compatible endpoint work." },
       { "@type": "HowToStep", name: "Run traffic as normal", text: "Responses return byte-identical, streaming included. Reduction is lossless-only by default; each request appends one hash-chained event recording usage numbers and lever names, never prompt content." },
-      { "@type": "HowToStep", name: "Recompute the invoice yourself", text: "Use verifyLedgerChain and recomputeInvoice from @flux-ai/sdk on your own ledger file. If FLUX saved nothing the verdict reads do_not_charge. The fee is 1% of verified savings, monthly, nothing else." },
+      { "@type": "HowToStep", name: "Recompute the invoice yourself", text: "Use verifyLedgerChain and recomputeInvoice from @mesh-ai/sdk on your own ledger file. If MESH saved nothing the verdict reads do_not_charge. The fee is 1% of verified savings, monthly, nothing else." },
     ],
   };
   return `<script type="application/ld+json">${JSON.stringify(data)}</script>\n`;
@@ -289,7 +289,7 @@ for (const page of PAGES) {
 
 writeFileSync(path.join(outDir, "llms.txt"), readFileSync(path.join(siteDir, "llms.txt"), "utf8"), "utf8");
 writeFileSync(path.join(outDir, "og.png"), readFileSync(path.join(siteDir, "og.png")));
-// The brand mark as favicon: the isometric three-cube logo in white on a Flux
+// The brand mark as favicon: the isometric three-cube logo in white on a Mesh
 // Blue ground. Drawn bold (silhouette only) so it survives at 16px.
 writeFileSync(path.join(outDir, "favicon.svg"), `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
 <rect width="64" height="64" rx="14" fill="#2563EB"/>
@@ -341,7 +341,7 @@ for (const [marker, why] of [
   ["A smaller AI bill", "hero promise missing"],
   ['id="install"', "install section missing"],
   ["install.sh | sh", "install command missing"],
-  ["npx -y -p @flux-ai/sdk flux-proxy", "the install command missing"],
+  ["npx -y -p @mesh-ai/sdk mesh-proxy", "the install command missing"],
   ["do not pay us", "the do-not-pay-us admission missing"],
   ["evidence.html", "evidence link missing"],
   ["SoftwareApplication", "structured data missing"],
@@ -369,7 +369,7 @@ if (slipValues.length < 8 || printedTotal === null) {
   if (spend <= 0) failures.push("index.html: receipt spend rows missing");
 }
 if (!landing.includes('rel="icon"')) failures.push("index.html: favicon link missing");
-if (!readFileSync(path.join(outDir, "favicon.svg"), "utf8").includes("#2563EB")) failures.push("favicon.svg: missing the Flux Blue brand ground");
+if (!readFileSync(path.join(outDir, "favicon.svg"), "utf8").includes("#2563EB")) failures.push("favicon.svg: missing the Mesh Blue brand ground");
 const robots = readFileSync(path.join(outDir, "robots.txt"), "utf8");
 for (const bot of ["GPTBot", "ClaudeBot", "PerplexityBot", "Google-Extended"]) {
   if (!robots.includes(bot)) failures.push(`robots.txt: missing explicit allow for ${bot}`);
@@ -378,7 +378,7 @@ const llmsFull = readFileSync(path.join(outDir, "llms-full.txt"), "utf8");
 if (llmsFull.length < 5000 || !llmsFull.includes("37.9%")) failures.push("llms-full.txt: missing or missing the numbers");
 if (!landing.includes('property="og:title"')) failures.push("index.html: missing OpenGraph metadata");
 const startHtml = readFileSync(path.join(outDir, "start.html"), "utf8");
-if (!startHtml.includes("npx -y -p @flux-ai/sdk flux-proxy")) failures.push("start.html: install command missing");
+if (!startHtml.includes("npx -y -p @mesh-ai/sdk mesh-proxy")) failures.push("start.html: install command missing");
 if (!startHtml.includes('"@type":"HowTo"')) failures.push("start.html: HowTo structured data missing");
 if (!startHtml.includes("do_not_charge")) failures.push("start.html: the honest verdict missing");
 const faqHtml = readFileSync(path.join(outDir, "faq.html"), "utf8");
@@ -387,22 +387,22 @@ if (failures.length > 0) {
   for (const failure of failures) console.error(`SITE BUILD FAILED: ${failure}`);
   process.exit(1);
 }
-// Host the downloadable CLI at /flux when it has been built, so the install
-// one-liner `curl -fsSL https://www.fluxtoken.dev/flux` resolves. Optional:
+// Host the downloadable CLI at /mesh when it has been built, so the install
+// one-liner `curl -fsSL https://www.fluxtoken.dev/mesh` resolves. Optional:
 // a site build without the CLI artifact just omits it (and says so).
-// Host the CLI: /flux is the tiny bootstrap users download; it fetches and
-// verifies /flux-runtime against /flux-version.json and caches it. Build the
+// Host the CLI: /mesh is the tiny bootstrap users download; it fetches and
+// verifies /mesh-runtime against /mesh-version.json and caches it. Build the
 // artifacts first with `npm run build:cli`.
 const cliPkg = path.join(root, "packages/cli/pkg");
-const cliFiles = ["flux", "flux-runtime", "flux-version.json"];
-if (existsSync(path.join(cliPkg, "flux"))) {
+const cliFiles = ["mesh", "mesh-runtime", "mesh-version.json"];
+if (existsSync(path.join(cliPkg, "mesh"))) {
   for (const file of cliFiles) copyFileSync(path.join(cliPkg, file), path.join(outDir, file));
-  console.log(`CLI hosted: /flux (${(statSync(path.join(cliPkg, "flux")).size / 1024).toFixed(0)}KB bootstrap), /flux-runtime, /flux-version.json`);
+  console.log(`CLI hosted: /mesh (${(statSync(path.join(cliPkg, "mesh")).size / 1024).toFixed(0)}KB bootstrap), /mesh-runtime, /mesh-version.json`);
 } else {
-  console.log(`note: packages/cli/pkg not built — /flux download will 404. Run: npm run build:cli`);
+  console.log(`note: packages/cli/pkg not built — /mesh download will 404. Run: npm run build:cli`);
 }
 // The install one-liner's target: curl -fsSL https://.../install.sh | sh
 copyFileSync(path.join(siteDir, "install.sh"), path.join(outDir, "install.sh"));
 
 console.log(`site built: ${built.length} pages + llms.txt + robots.txt + sitemap.xml -> ${path.relative(root, outDir)}`);
-console.log(`canonical origin: ${ORIGIN}${ORIGIN.includes("REPLACE") ? "  <- set FLUX_SITE_ORIGIN before deploying" : ""}`);
+console.log(`canonical origin: ${ORIGIN}${ORIGIN.includes("REPLACE") ? "  <- set MESH_SITE_ORIGIN before deploying" : ""}`);

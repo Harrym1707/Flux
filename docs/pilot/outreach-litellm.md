@@ -43,7 +43,7 @@ I'll share the full methodology either way.
 
 [sign-off]
 
-P.S. The business model, for transparency: if a pilot goes ahead, FLUX bills
+P.S. The business model, for transparency: if a pilot goes ahead, MESH bills
 1% of *verified* savings — measured per completed task from provider-reported
 usage, recorded in a hash-chained ledger you can recompute yourself, with a
 built-in "do_not_charge" verdict when the net is zero or negative. The quote

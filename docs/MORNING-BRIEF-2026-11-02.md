@@ -1,4 +1,4 @@
-# FLUX distribution — overnight build brief (2026-11-02)
+# MESH distribution — overnight build brief (2026-11-02)
 
 Phase-0 of the distribution/production-readiness program, built on branch
 `levers-shim-blind-gateway`. **Full suite: 483/483.** Nothing was deployed,
@@ -8,8 +8,8 @@ published, or merged — everything is committed on the branch for your review.
 | Commit | What |
 |---|---|
 | `security(proxy)` | CSRF-to-localhost defense (Sec-Fetch-Site), spool files 0600/dir 0700, `maxConnections` bound, + test |
-| `feat(cli) version/doctor` | `flux version` (+--json), `flux doctor` (Node/proxy/Claude/service/ledger diagnostics); first CLI tests |
-| `feat(cli) stop/update` | `flux stop` (non-destructive), `flux update` + `--rollback` (checksum-verified, backup-before-swap) |
+| `feat(cli) version/doctor` | `mesh version` (+--json), `mesh doctor` (Node/proxy/Claude/service/ledger diagnostics); first CLI tests |
+| `feat(cli) stop/update` | `mesh stop` (non-destructive), `mesh update` + `--rollback` (checksum-verified, backup-before-swap) |
 | `chore(runtime)` | Node 22 LTS floor; `install.sh` now parses the Node version; `.nvmrc` |
 | `docs` | internal `docs/distribution/` (architecture, security model, data map, release-signing plan, runtime policy, platform matrix) + customer `docs/guide/` |
 | `test(cli)` | distribution-layer coverage: update/rollback/checksum-reject, settings merge+revert, clean-machine smoke |

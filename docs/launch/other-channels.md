@@ -6,15 +6,15 @@ proof. One community per day, never a blast.
 
 ---
 
-## 1. console.dev pitch (email — their published criteria fit FLUX exactly)
+## 1. console.dev pitch (email — their published criteria fit MESH exactly)
 
-Subject: Flux — local LLM cost proxy with a customer-recomputable savings ledger
+Subject: Mesh — local LLM cost proxy with a customer-recomputable savings ledger
 
-> Hi — Flux might fit Console's selection criteria: it's dev-first,
+> Hi — Mesh might fit Console's selection criteria: it's dev-first,
 > entirely self-service (one command, no signup, no sales call), and the docs
 > lead with runnable commands.
 >
-> `npx -y -p @flux-ai/sdk flux-proxy` starts a local proxy; point your
+> `npx -y -p @mesh-ai/sdk mesh-proxy` starts a local proxy; point your
 > Anthropic/OpenAI client's baseURL at it and it reduces each request before
 > the provider sees it (lossless-only by default), then writes a hash-chained
 > ledger of provider-verbatim usage to your disk. The differentiator is
@@ -42,7 +42,7 @@ five-turn coding agent re-paying full input rate for its ENTIRE history every
 turn — zero cache traffic. That's the default state of most agent loops
 running right now.
 
-2/ So we built Flux: a local proxy. `npx -y -p @flux-ai/sdk flux-proxy`,
+2/ So we built Mesh: a local proxy. `npx -y -p @mesh-ai/sdk mesh-proxy`,
 point baseURL at it, keep your own key. Requests get reduced losslessly
 before the provider sees them; responses come back byte-identical.
 
@@ -77,7 +77,7 @@ nothing. fluxtoken.dev
 1. AlternativeTo — create account NOW (must age 7 days before listing); list
    as alternative to Helicone / LiteLLM / OpenRouter, category LLM cost.
 2. tensorchord/Awesome-LLMOps PR — "Cost Management" section, one line:
-   "FLUX — local proxy that reduces Claude/OpenAI request cost and meters
+   "MESH — local proxy that reduces Claude/OpenAI request cost and meters
    verified savings into a customer-recomputable hash-chained ledger."
 3. The smaller awesome lists (awesome-llm, awesome-llmops, awesome-claude
    variants) — same line, one PR each, spread over days not minutes.

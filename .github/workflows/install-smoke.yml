@@ -1,5 +1,5 @@
 # Cross-platform install smoke test. Proves both delivery routes actually run
-# a working `flux` on each supported OS/Node, so "it should work on Linux" and
+# a working `mesh` on each supported OS/Node, so "it should work on Linux" and
 # "npx works on Windows" become green checks rather than claims. Serves the
 # freshly built artifacts from a local server, so it never depends on the live
 # site or the deploy.
@@ -26,7 +26,7 @@ on:
 
 jobs:
   # Route 1 — the one-liner: curl the installer, let it fetch + checksum-verify
-  # the runtime, then prove `flux verify` passes. macOS and Linux, Node 22 + 24.
+  # the runtime, then prove `mesh verify` passes. macOS and Linux, Node 22 + 24.
   curl-installer:
     strategy:
       fail-fast: false
@@ -46,25 +46,25 @@ jobs:
       - run: pnpm install --frozen-lockfile=false
       - run: pnpm build
       - run: pnpm build:cli
-      - name: Build the site (hosts /flux, /flux-runtime, /install.sh)
+      - name: Build the site (hosts /mesh, /mesh-runtime, /install.sh)
         run: node --import tsx scripts/build-site.ts
       - name: Install via "curl | sh" against a local server, then verify
         env:
-          FLUX_BASE_URL: http://127.0.0.1:8099
+          MESH_BASE_URL: http://127.0.0.1:8099
         run: |
-          python3 -m http.server 8099 --directory docs/site/dist >/tmp/flux-httpd.log 2>&1 &
+          python3 -m http.server 8099 --directory docs/site/dist >/tmp/mesh-httpd.log 2>&1 &
           SRV=$!
           trap 'kill $SRV 2>/dev/null || true' EXIT
           for i in $(seq 1 40); do
-            curl -fsS "$FLUX_BASE_URL/flux-version.json" >/dev/null 2>&1 && break
+            curl -fsS "$MESH_BASE_URL/mesh-version.json" >/dev/null 2>&1 && break
             sleep 0.25
           done
-          curl -fsSL "$FLUX_BASE_URL/install.sh" | sh
+          curl -fsSL "$MESH_BASE_URL/install.sh" | sh
           echo "--- the installer fetches the runtime on first run ---"
-          ~/.flux/bin/flux version
-          ~/.flux/bin/flux verify
+          ~/.mesh/bin/mesh version
+          ~/.mesh/bin/mesh verify
 
-  # Route 2 — the agent / CI route: `npx @flux-ai/flux`. The npm package ships
+  # Route 2 — the agent / CI route: `npx @mesh-ai/mesh`. The npm package ships
   # the self-contained runtime, so this runs fully offline and covers Windows,
   # where the shell installer does not apply.
   npx-package:
@@ -92,7 +92,7 @@ jobs:
       - name: Pack the npm package and run it through npx
         run: |
           npm pack ./packages/cli/pkg
-          TARBALL=$(ls flux-ai-flux-*.tgz)
+          TARBALL=$(ls mesh-ai-mesh-*.tgz)
           echo "packed: $TARBALL"
           npx -y "./$TARBALL" version
           npx -y "./$TARBALL" verify

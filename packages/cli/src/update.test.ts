@@ -1,6 +1,6 @@
 /**
- * `flux update` — exercised as a real subprocess, because the module fixes
- * ~/.flux paths from `homedir()` at import time and reads `FLUX_BASE_URL`. We
+ * `mesh update` — exercised as a real subprocess, because the module fixes
+ * ~/.mesh paths from `homedir()` at import time and reads `MESH_BASE_URL`. We
  * run the CLI with an isolated HOME and a local stub release server, so nothing
  * touches the real home directory or the network.
  */
@@ -22,7 +22,7 @@ function sha256(bytes: Buffer): string {
 /**
  * A stub release server. Its `state` is mutable so a single test can advance
  * from "version 1" to "version 2" between update runs. Serves:
- *   GET /flux-version.json  → the manifest
+ *   GET /mesh-version.json  → the manifest
  *   GET /<runtimeName>      → the runtime body
  */
 type StubState = { version: string; sha256: string; body: Buffer; runtimeName: string };
@@ -30,7 +30,7 @@ type StubState = { version: string; sha256: string; body: Buffer; runtimeName: s
 function startStub(initial: StubState): Promise<{ server: Server; url: string; state: StubState }> {
   const state = { ...initial };
   const server = createServer((req, res) => {
-    if (req.url === "/flux-version.json") {
+    if (req.url === "/mesh-version.json") {
       res.writeHead(200, { "content-type": "application/json" });
       res.end(JSON.stringify({ version: state.version, sha256: state.sha256, runtime: state.runtimeName }));
       return;
@@ -57,7 +57,7 @@ function startStub(initial: StubState): Promise<{ server: Server; url: string; s
 function runUpdate(home: string, baseUrl: string, args: string[] = []): Promise<{ status: number; stdout: string; stderr: string }> {
   return new Promise((resolve, reject) => {
     const child = spawn(process.execPath, ["--import", "tsx", MAIN, "update", ...args], {
-      env: { ...process.env, HOME: home, FLUX_BASE_URL: baseUrl },
+      env: { ...process.env, HOME: home, MESH_BASE_URL: baseUrl },
     });
     let stdout = "";
     let stderr = "";
@@ -68,18 +68,18 @@ function runUpdate(home: string, baseUrl: string, args: string[] = []): Promise<
   });
 }
 
-describe("flux update (subprocess, isolated HOME + stub release server)", () => {
+describe("mesh update (subprocess, isolated HOME + stub release server)", () => {
   let home: string;
   let stub: { server: Server; url: string; state: StubState };
-  const RUNTIME_V1 = Buffer.from("export const flux = 'runtime-v1';\n");
-  const RUNTIME_V2 = Buffer.from("export const flux = 'runtime-v2 is newer';\n");
+  const RUNTIME_V1 = Buffer.from("export const mesh = 'runtime-v1';\n");
+  const RUNTIME_V2 = Buffer.from("export const mesh = 'runtime-v2 is newer';\n");
 
-  const runtimePath = (): string => join(home, ".flux", "runtime", "flux-runtime.mjs");
-  const versionPath = (): string => join(home, ".flux", "runtime", "version");
+  const runtimePath = (): string => join(home, ".mesh", "runtime", "mesh-runtime.mjs");
+  const versionPath = (): string => join(home, ".mesh", "runtime", "version");
 
   beforeEach(async () => {
-    home = mkdtempSync(join(tmpdir(), "flux-"));
-    stub = await startStub({ version: "1.0.0", sha256: sha256(RUNTIME_V1), body: RUNTIME_V1, runtimeName: "flux-runtime" });
+    home = mkdtempSync(join(tmpdir(), "mesh-"));
+    stub = await startStub({ version: "1.0.0", sha256: sha256(RUNTIME_V1), body: RUNTIME_V1, runtimeName: "mesh-runtime" });
   });
 
   afterEach(() => {
@@ -126,10 +126,10 @@ describe("flux update (subprocess, isolated HOME + stub release server)", () => 
 
   it("rejects a runtime whose sha256 does not match the manifest, keeping the good runtime", { timeout: 30_000 }, async () => {
     // Seed an existing, good runtime so we can prove it is NOT overwritten.
-    const dir = join(home, ".flux", "runtime");
+    const dir = join(home, ".mesh", "runtime");
     mkdirSync(dir, { recursive: true });
-    const good = Buffer.from("export const flux = 'the known-good runtime';\n");
-    writeFileSync(join(dir, "flux-runtime.mjs"), good);
+    const good = Buffer.from("export const mesh = 'the known-good runtime';\n");
+    writeFileSync(join(dir, "mesh-runtime.mjs"), good);
     writeFileSync(join(dir, "version"), "good-1.0.0");
 
     // Serve a NEWER version whose advertised sha256 lies about the body.
@@ -148,7 +148,7 @@ describe("flux update (subprocess, isolated HOME + stub release server)", () => 
 });
 
 // pullNewerRuntime is what the always-on daemon calls on a timer so it never
-// serves an old runtime forever. Same download + checksum + swap as `flux
+// serves an old runtime forever. Same download + checksum + swap as `mesh
 // update`, but it returns the new version (or null) instead of printing/exiting.
 const UPDATE_MOD = fileURLToPath(new URL("./update.ts", import.meta.url));
 function runPull(home: string, baseUrl: string): Promise<{ out: string; err: string }> {
@@ -156,7 +156,7 @@ function runPull(home: string, baseUrl: string): Promise<{ out: string; err: str
     `import(${JSON.stringify(UPDATE_MOD)}).then(async (m) => { const v = await m.pullNewerRuntime(); process.stdout.write("PULL:" + JSON.stringify(v ?? null)); });`;
   return new Promise((resolve, reject) => {
     const child = spawn(process.execPath, ["--import", "tsx", "-e", script], {
-      env: { ...process.env, HOME: home, FLUX_BASE_URL: baseUrl },
+      env: { ...process.env, HOME: home, MESH_BASE_URL: baseUrl },
     });
     let out = "";
     let err = "";
@@ -170,14 +170,14 @@ function runPull(home: string, baseUrl: string): Promise<{ out: string; err: str
 describe("pullNewerRuntime (daemon self-update)", () => {
   let home: string;
   let stub: { server: Server; url: string; state: StubState };
-  const R1 = Buffer.from("export const flux = 'v1';\n");
-  const R2 = Buffer.from("export const flux = 'v2 newer';\n");
-  const rt = (): string => join(home, ".flux", "runtime", "flux-runtime.mjs");
-  const ver = (): string => join(home, ".flux", "runtime", "version");
+  const R1 = Buffer.from("export const mesh = 'v1';\n");
+  const R2 = Buffer.from("export const mesh = 'v2 newer';\n");
+  const rt = (): string => join(home, ".mesh", "runtime", "mesh-runtime.mjs");
+  const ver = (): string => join(home, ".mesh", "runtime", "version");
 
   beforeEach(async () => {
-    home = mkdtempSync(join(tmpdir(), "flux-pull-"));
-    stub = await startStub({ version: "1.0.0", sha256: sha256(R1), body: R1, runtimeName: "flux-runtime" });
+    home = mkdtempSync(join(tmpdir(), "mesh-pull-"));
+    stub = await startStub({ version: "1.0.0", sha256: sha256(R1), body: R1, runtimeName: "mesh-runtime" });
   });
   afterEach(() => { stub.server.close(); rmSync(home, { recursive: true, force: true }); });
 

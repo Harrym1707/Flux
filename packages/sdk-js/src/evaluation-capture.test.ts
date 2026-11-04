@@ -3,11 +3,11 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { createLocalJsonlCapture } from "./evaluation-capture.js";
-import { withFlux } from "./openai.js";
+import { withMesh } from "./openai.js";
 
 describe("local evaluation capture", () => {
   it("writes only the explicit redacted record and preserves scored usage", async () => {
-    const directory = await mkdtemp(join(tmpdir(), "flux-capture-test-"));
+    const directory = await mkdtemp(join(tmpdir(), "mesh-capture-test-"));
     const path = join(directory, "capture.jsonl");
     const capture = createLocalJsonlCapture(path, (record) => ({
       ...record,
@@ -24,7 +24,7 @@ describe("local evaluation capture", () => {
       getExpected: () => "approved",
       score: (_expected, response) => (response as { output_text?: string }).output_text === "approved" ? 1 : 0,
     });
-    const client = withFlux({
+    const client = withMesh({
       responses: {
         async create(_request: Record<string, unknown>) {
           return { output_text: "approved", usage: { input_tokens: 10, output_tokens: 2 } };

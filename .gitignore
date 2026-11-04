@@ -8,7 +8,7 @@ packages/sdk-js/pkg/
 .env
 .env.*
 !.env.example
-.flux-captures/
+.mesh-captures/
 coverage
 .DS_Store
 

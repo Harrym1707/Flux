@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { readdir, readFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { chooseRoute } from "../packages/sdk-js/src/routing.js";
-import type { FluxRoutingPolicy } from "../packages/sdk-js/src/types.js";
+import type { MeshRoutingPolicy } from "../packages/sdk-js/src/types.js";
 
 export type BenchmarkPrediction = {
   score: number;
@@ -85,11 +85,11 @@ export type BenchmarkComparison = {
     bestSingleModel: string;
     cheapestStaticChoice: string;
     cheapestStaticModel: string;
-    fluxChoiceByWorkflow: Record<string, string>;
-    fluxModelByWorkflow: Record<string, string>;
+    meshChoiceByWorkflow: Record<string, string>;
+    meshModelByWorkflow: Record<string, string>;
     targetByChoice: Record<string, { model: string; contextProfileId?: string; maxOutputTokens?: number }>;
     trainingQualityDeltaLower95ByWorkflow: Record<string, number>;
-    policies: FluxRoutingPolicy[];
+    policies: MeshRoutingPolicy[];
   };
   results: BenchmarkStrategyResult[];
   notice: string;
@@ -291,8 +291,8 @@ export async function loadLLMRouterBenchPartition(
   return rows;
 }
 
-/** Pair opt-in FLUX SDK capture rows by stable case ID and model attempt. */
-export function normalizeFluxCaptures(
+/** Pair opt-in MESH SDK capture rows by stable case ID and model attempt. */
+export function normalizeMeshCaptures(
   records: unknown[],
   dataset: string,
   split: string,
@@ -621,7 +621,7 @@ export function compareBenchmark(
     maximumQualityDrop: options.maximumQualityDrop ?? 0.02,
     minimumWorkflowSamples: options.minimumWorkflowSamples ?? 20,
     bootstrapSamples: options.bootstrapSamples ?? 2_000,
-    seed: options.seed ?? "flux-benchmark-v1",
+    seed: options.seed ?? "mesh-benchmark-v1",
   };
   if (!Number.isFinite(resolved.maximumQualityDrop) || resolved.maximumQualityDrop < 0 || resolved.maximumQualityDrop > 1) {
     throw new Error("maximumQualityDrop must be between 0 and 1.");
@@ -715,8 +715,8 @@ export function compareBenchmark(
     : baselineInputTokens + baselineOutputTokens;
   const baselineScores = testRows.map((row) => row.predictions[bestSingleChoice]!.score);
   const workflows = [...new Set([...trainRows, ...testRows].map(workflowFor))].sort();
-  const policies: FluxRoutingPolicy[] = [];
-  const fluxChoiceByWorkflow: Record<string, string> = {};
+  const policies: MeshRoutingPolicy[] = [];
+  const meshChoiceByWorkflow: Record<string, string> = {};
   const trainingQualityDeltaLower95ByWorkflow: Record<string, number> = {};
 
   for (const workflow of workflows) {
@@ -740,7 +740,7 @@ export function compareBenchmark(
         }
       }
     }
-    fluxChoiceByWorkflow[workflow] = selected;
+    meshChoiceByWorkflow[workflow] = selected;
     trainingQualityDeltaLower95ByWorkflow[workflow] = selected === bestSingleChoice
       ? 0
       : selectedDeltaLower;
@@ -749,7 +749,7 @@ export function compareBenchmark(
     const candidateTarget = targetByChoice[selected]!;
     const candidateMeanDelta = mean(cases.map((row) => row.predictions[bestSingleChoice]!.score - row.predictions[selected]!.score));
     policies.push({
-      id: `flux-benchmark-${createHash("sha1").update(`${workflow}:${bestSingleChoice}:${selected}`).digest("hex").slice(0, 12)}`,
+      id: `mesh-benchmark-${createHash("sha1").update(`${workflow}:${bestSingleChoice}:${selected}`).digest("hex").slice(0, 12)}`,
       taskClass: workflow,
       workflow,
       baselineModel: baselineTarget,
@@ -786,9 +786,9 @@ export function compareBenchmark(
     baselineTotalTokens,
     Object.fromEntries(workflows.map((workflow) => [workflow, cheapestStaticChoice])), {}, resolved.bootstrapSamples, resolved.seed,
   );
-  const fluxChoices: string[] = [];
-  const fluxReasons: Record<string, number> = {};
-  const fluxRoutes = Object.fromEntries(workflows.map((workflow) => [workflow, fluxChoiceByWorkflow[workflow]!]));
+  const meshChoices: string[] = [];
+  const meshReasons: Record<string, number> = {};
+  const meshRoutes = Object.fromEntries(workflows.map((workflow) => [workflow, meshChoiceByWorkflow[workflow]!]));
   for (const row of testRows) {
     const workflow = workflowFor(row);
     const routePolicy = policies.find((policy) => policy.workflow === workflow);
@@ -797,12 +797,12 @@ export function compareBenchmark(
       getRequestKey: () => row.id,
     } : undefined, { model: bestSingleModel }, workflow, { taskClass: workflow, workflow });
     const selectedChoice = route.reason === "candidate_quality_and_cost_gates_passed"
-      ? fluxChoiceByWorkflow[workflow]!
+      ? meshChoiceByWorkflow[workflow]!
       : bestSingleChoice;
-    fluxChoices.push(selectedChoice);
-    fluxReasons[route.reason] = (fluxReasons[route.reason] ?? 0) + 1;
+    meshChoices.push(selectedChoice);
+    meshReasons[route.reason] = (meshReasons[route.reason] ?? 0) + 1;
   }
-  const flux = summarize("flux_quality_gated", testRows, fluxChoices, baselineScores, baselineCost, baselineTotalTokens, fluxRoutes, fluxReasons, resolved.bootstrapSamples, resolved.seed);
+  const mesh = summarize("mesh_quality_gated", testRows, meshChoices, baselineScores, baselineCost, baselineTotalTokens, meshRoutes, meshReasons, resolved.bootstrapSamples, resolved.seed);
   const externalRouters = [...new Set(testRows.flatMap((row) => Object.keys(row.routerChoices ?? {})))].sort();
   const externalResults = externalRouters.map((routerName) => {
     const decisions = testRows.map((row) => row.routerChoices?.[routerName]);
@@ -854,14 +854,14 @@ export function compareBenchmark(
       bestSingleModel,
       cheapestStaticChoice,
       cheapestStaticModel,
-      fluxChoiceByWorkflow,
-      fluxModelByWorkflow: Object.fromEntries(workflows.map((workflow) => [workflow, targetByChoice[fluxChoiceByWorkflow[workflow]!]!.model])),
+      meshChoiceByWorkflow,
+      meshModelByWorkflow: Object.fromEntries(workflows.map((workflow) => [workflow, targetByChoice[meshChoiceByWorkflow[workflow]!]!.model])),
       targetByChoice,
       trainingQualityDeltaLower95ByWorkflow,
       policies: reviewPolicies,
     },
-    results: [bestSingle, cheapest, flux, ...externalResults],
-    notice: "Offline comparison of already-computed model outputs. FLUX choices are learned on train records and measured only on test records. Imported external-router decisions are evaluated as provided; their training provenance is not verified by FLUX. Results are workload- and scorer-specific and do not establish production savings or future quality.",
+    results: [bestSingle, cheapest, mesh, ...externalResults],
+    notice: "Offline comparison of already-computed model outputs. MESH choices are learned on train records and measured only on test records. Imported external-router decisions are evaluated as provided; their training provenance is not verified by MESH. Results are workload- and scorer-specific and do not establish production savings or future quality.",
   };
 }
 
@@ -869,7 +869,7 @@ export function compareBenchmark(
 export function partitionBenchmarkRows(
   rows: BenchmarkCase[],
   trainFraction = 0.7,
-  seed = "flux-benchmark-v1",
+  seed = "mesh-benchmark-v1",
 ): { train: BenchmarkCase[]; test: BenchmarkCase[] } {
   if (!Number.isFinite(trainFraction) || trainFraction <= 0 || trainFraction >= 1) {
     throw new Error("trainFraction must be between 0 and 1.");
@@ -893,7 +893,7 @@ export function partitionBenchmarkRowsThreeWay(
   rows: BenchmarkCase[],
   trainFraction = 0.6,
   validationFraction = 0.2,
-  seed = "flux-benchmark-v1",
+  seed = "mesh-benchmark-v1",
 ): { train: BenchmarkCase[]; validation: BenchmarkCase[]; test: BenchmarkCase[] } {
   if (!Number.isFinite(trainFraction) || !Number.isFinite(validationFraction) ||
       trainFraction <= 0 || validationFraction <= 0 || trainFraction + validationFraction >= 1) {

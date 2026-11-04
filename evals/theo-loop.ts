@@ -163,7 +163,7 @@ function main(): void {
 
   // MEASURE the real LOSSLESS lever on the user's own sample. This is the honest
   // "active now" number — the actual reducer (post the A2 whitespace de-claim), not a
-  // projection factor. Labelled an estimate: FLUX's own counter is ~15%, so provider
+  // projection factor. Labelled an estimate: MESH's own counter is ~15%, so provider
   // count_tokens confirms it before a penny is billed.
   const losslessConfig = { toolSchemas: true as const, duplicateContext: true as const, repairCachePrefix: true as const };
   let tokensBefore = 0;
@@ -185,7 +185,7 @@ function main(): void {
     .sort((a, b) => b.sharePercent - a.sharePercent);
 
   console.log(`\nMEASURE (real lossless lever on your own sample):`);
-  console.log(`  ~${losslessPct.toFixed(1)}% tokens removed, lossless — ACTIVE NOW (FLUX estimate; provider ` +
+  console.log(`  ~${losslessPct.toFixed(1)}% tokens removed, lossless — ACTIVE NOW (MESH estimate; provider ` +
     `count_tokens confirms before billing). Levers: ${[...activeLevers].join(", ") || "(none applied)"}`);
 
   console.log(`\nHYPOTHESISE (free, offline) — lossy CANDIDATES ranked to decide TEST ORDER.`);
@@ -215,7 +215,7 @@ function main(): void {
   console.log(`  "I watched your coding traffic, never your code. I turned on lossless savings worth about`);
   console.log(`   ${losslessPct.toFixed(1)}% right now — zero quality risk. I have ${candidates.length} more ideas I think could help,`);
   console.log(`   but I won't quote you a number on any of them until I've proven it on your own traffic and`);
-  console.log(`   shown you the quality cost. Monthly: 'Flux saved you £X, Theo found £Y for £Z.'"`);
+  console.log(`   shown you the quality cost. Monthly: 'Mesh saved you £X, Theo found £Y for £Z.'"`);
 
   if (outPath) {
     writeFileSync(outPath, `${JSON.stringify(policy, null, 2)}\n`, "utf8");

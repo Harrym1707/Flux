@@ -182,6 +182,6 @@
     "downloads": 55,
     "start": "2026-10-26",
     "end": "2026-11-01",
-    "package": "@flux-ai/sdk"
+    "package": "@mesh-ai/sdk"
   }
 }

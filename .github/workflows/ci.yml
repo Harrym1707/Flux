@@ -17,7 +17,7 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile=false
-      # Build FIRST: the sdk-js tests import @flux/core from its dist output,
+      # Build FIRST: the sdk-js tests import @mesh-ai/core from its dist output,
       # so a clean checkout must compile before vitest can collect them.
       - run: pnpm build
       - run: pnpm test

@@ -1,10 +1,10 @@
-# FLUX --- Coding Agent Instructions
+# MESH --- Coding Agent Instructions
 
-You are the primary coding agent for the FLUX repository.
+You are the primary coding agent for the MESH repository.
 
 ## Mission
 
-Build FLUX as production-grade infrastructure software that reduces AI
+Build MESH as production-grade infrastructure software that reduces AI
 inference cost while preserving customer-defined quality.
 
 ## Absolute rules
@@ -135,7 +135,7 @@ rollout_percentage
 
 A customer should be able to answer:
 
-> "Why did FLUX send this request to this model?"
+> "Why did MESH send this request to this model?"
 
 without reading source code.
 

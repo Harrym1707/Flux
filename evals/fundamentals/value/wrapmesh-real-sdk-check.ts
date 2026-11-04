@@ -1,9 +1,9 @@
 import { createServer } from "node:http";
 import Anthropic from "@anthropic-ai/sdk";
-import { wrapFlux } from "../../../packages/sdk-js/src/wrap.js";
+import { wrapMesh } from "../../../packages/sdk-js/src/wrap.js";
 
 /**
- * Does wrapFlux actually work against the REAL @anthropic-ai/sdk — not a mock?
+ * Does wrapMesh actually work against the REAL @anthropic-ai/sdk — not a mock?
  *
  * The earlier wrap.test.ts used plain-object mocks with no #private fields, so
  * it could never catch a Proxy/private-field break. This wraps a real Anthropic
@@ -13,7 +13,7 @@ import { wrapFlux } from "../../../packages/sdk-js/src/wrap.js";
  * runner). Run it:
  *
  *   corepack pnpm add -D -w @anthropic-ai/sdk   # if not installed
- *   node --import tsx evals/fundamentals/value/wrapflux-real-sdk-check.ts
+ *   node --import tsx evals/fundamentals/value/wrapmesh-real-sdk-check.ts
  *
  * Result on @anthropic-ai/sdk 1.3.0 (2026-10-29): WORKS — no Proxy/private-field
  * break. The bug previously claimed here does not reproduce on the real SDK.
@@ -43,10 +43,10 @@ async function main() {
 
   let wrapped: any;
   try {
-    wrapped = wrapFlux(real, { app: "repro", ledgerPath: "/tmp/flux-repro-ledger.jsonl" });
-    console.log("STEP 1 wrapFlux(real)                  OK (no throw at wrap time)");
+    wrapped = wrapMesh(real, { app: "repro", ledgerPath: "/tmp/mesh-repro-ledger.jsonl" });
+    console.log("STEP 1 wrapMesh(real)                  OK (no throw at wrap time)");
   } catch (e) {
-    console.log(`STEP 1 wrapFlux(real)                  THREW: ${(e as Error).message}`);
+    console.log(`STEP 1 wrapMesh(real)                  THREW: ${(e as Error).message}`);
     stub.close();
     return;
   }
@@ -59,11 +59,11 @@ async function main() {
     console.log(`STEP 2 wrapped.messages.create(...)     OK, response: ${JSON.stringify(res.content?.[0]?.text)}`);
     const dupCount = JSON.stringify(seen.at(-1)).split("Knowledge base article 4471").length - 1;
     console.log(`STEP 3 reduction on the wire           duplicate block appears ${dupCount}x (1 = reduced)`);
-    console.log(`STEP 4 savings()                       ${JSON.stringify(wrapped.flux.savings())}`);
-    console.log(`\nVERDICT: wrapFlux WORKS against the real @anthropic-ai/sdk — no Proxy/private-field break.`);
+    console.log(`STEP 4 savings()                       ${JSON.stringify(wrapped.mesh.savings())}`);
+    console.log(`\nVERDICT: wrapMesh WORKS against the real @anthropic-ai/sdk — no Proxy/private-field break.`);
   } catch (e) {
     console.log(`STEP 2 wrapped.messages.create(...)     THREW: ${(e as Error).message}`);
-    console.log(`\nVERDICT: BUG REPRODUCES — wrapFlux breaks on the real SDK. Fix needed.`);
+    console.log(`\nVERDICT: BUG REPRODUCES — wrapMesh breaks on the real SDK. Fix needed.`);
   } finally {
     stub.close();
   }

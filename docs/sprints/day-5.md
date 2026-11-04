@@ -1,4 +1,4 @@
-# FLUX Sprint — Day 5 EOD (2026-10-13)
+# MESH Sprint — Day 5 EOD (2026-10-13)
 
 **Theme:** The shop window, built from measured numbers only — GEO-ready website content as repo files, the finished pilot kit, and the carried engineering fixes that keep every published number honest.
 
@@ -17,7 +17,7 @@
 
 ## What got better for the end user today
 
-Nothing did — the served-tier-per-event pricing fix is real (it closes the hole that would have let FLUX overstate savings on a real customer's flex fallbacks or 429s), but FLUX still has zero real end-user traffic, and the one deliverable actually meant to reach a prospective customer today — the GEO-ready site that was day 5's named theme — did not ship, so no one outside the chain saw or received anything different.
+Nothing did — the served-tier-per-event pricing fix is real (it closes the hole that would have let MESH overstate savings on a real customer's flex fallbacks or 429s), but MESH still has zero real end-user traffic, and the one deliverable actually meant to reach a prospective customer today — the GEO-ready site that was day 5's named theme — did not ship, so no one outside the chain saw or received anything different.
 
 ## Research (grade: B)
 

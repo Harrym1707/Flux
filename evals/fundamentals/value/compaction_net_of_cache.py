@@ -1,6 +1,6 @@
 """A4-irrelevance: NET-OF-CACHE value of tool-result compaction.
 
-The crux. FLUX's A1 prefix cache is DONE/shipped. Prefix caching already makes
+The crux. MESH's A1 prefix cache is DONE/shipped. Prefix caching already makes
 re-sent old tokens cheap. Compaction removes stale observations from the MIDDLE
 of the prefix -> invalidates the cache from that point -> the whole downstream
 suffix must be re-written (cache WRITE) on the compaction turn. We simulate the

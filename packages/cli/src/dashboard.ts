@@ -1,15 +1,15 @@
 /**
- * `flux dashboard` — a live, local web view of what FLUX is doing for you.
+ * `mesh dashboard` — a live, local web view of what MESH is doing for you.
  *
  * Serves a self-contained page on 127.0.0.1 that polls a tiny JSON endpoint
  * every few seconds and shows your verified savings, the per-lever breakdown,
  * and what Theo is doing right now (which levers he's applying, and what he's
- * holding behind the replay-gate). It reads your own ledger at ~/.flux/ledger
+ * holding behind the replay-gate). It reads your own ledger at ~/.mesh/ledger
  * and your Theo policy — nothing leaves the machine, and the numbers match
- * `flux verify` exactly because they are recomputed from the same ledger.
+ * `mesh verify` exactly because they are recomputed from the same ledger.
  *
- * The page carries the FLUX brand: paper ground with the isometric dot-paper,
- * Manrope, the Flux-blue accent and the hand-drawn squiggle, matching the site.
+ * The page carries the MESH brand: paper ground with the isometric dot-paper,
+ * Manrope, the Mesh-blue accent and the hand-drawn squiggle, matching the site.
  */
 import { spawn } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
@@ -19,20 +19,20 @@ import { platform } from "node:os";
 import { join } from "node:path";
 import { recomputeInvoice } from "../../core/src/savings-ledger.js";
 import { defaultPolicy, withheldLevers, type TheoPolicy } from "../../sdk-js/src/theo-policy.js";
-import { BUILD_COMMIT, DEFAULT_PORT, FLUX_HOME, readLedger } from "./start.js";
+import { BUILD_COMMIT, DEFAULT_PORT, MESH_HOME, readLedger } from "./start.js";
 
 type DashArgs = { port: number; proxyPort: number; ledgerDir: string; open: boolean };
 
 function parseArgs(argv: string[]): DashArgs {
-  const args: DashArgs = { port: 8799, proxyPort: DEFAULT_PORT, ledgerDir: join(FLUX_HOME, "ledger"), open: true };
+  const args: DashArgs = { port: 8799, proxyPort: DEFAULT_PORT, ledgerDir: join(MESH_HOME, "ledger"), open: true };
   for (let i = 0; i < argv.length; i += 1) {
     const key = argv[i]!;
     if (key === "--help" || key === "-h") {
       console.log(
-        `Usage: flux dashboard [options]\n\n` +
+        `Usage: mesh dashboard [options]\n\n` +
           `  --port <n>        Port for the dashboard (default 8799).\n` +
           `  --proxy-port <n>  Proxy port to show as up/down (default ${DEFAULT_PORT}).\n` +
-          `  --ledger <dir>    Ledger to read (default ~/.flux/ledger).\n` +
+          `  --ledger <dir>    Ledger to read (default ~/.mesh/ledger).\n` +
           `  --no-open         Don't open a browser; just print the URL.\n` +
           `  --help            Show this message.`,
       );
@@ -45,13 +45,13 @@ function parseArgs(argv: string[]): DashArgs {
     if (key === "--port") args.port = Number.parseInt(value, 10);
     else if (key === "--proxy-port") args.proxyPort = Number.parseInt(value, 10);
     else if (key === "--ledger") args.ledgerDir = value;
-    else throw new Error(`Unknown option: ${key}. See flux dashboard --help.`);
+    else throw new Error(`Unknown option: ${key}. See mesh dashboard --help.`);
   }
   return args;
 }
 
 function readPolicy(): TheoPolicy {
-  const path = join(FLUX_HOME, "theo-policy.json");
+  const path = join(MESH_HOME, "theo-policy.json");
   if (!existsSync(path)) return defaultPolicy("local", new Date().toISOString());
   try { return JSON.parse(readFileSync(path, "utf8")) as TheoPolicy; }
   catch { return defaultPolicy("local", new Date().toISOString()); }
@@ -116,7 +116,7 @@ export async function runDashboard(argv: string[]): Promise<void> {
   });
   await new Promise<void>((resolve) => server.listen(args.port, "127.0.0.1", resolve));
   const url = `http://127.0.0.1:${(server.address() as { port: number }).port}`;
-  console.log(`\n  FLUX dashboard  ·  ${url}`);
+  console.log(`\n  MESH dashboard  ·  ${url}`);
   console.log(`  Live view of your verified savings and what Theo is doing. Ctrl+C to stop.\n`);
   if (args.open) openBrowser(url);
   const shutdown = (): void => { server.close(); process.exit(0); };
@@ -131,8 +131,8 @@ function openBrowser(url: string): void {
   catch { /* headless or no browser — the URL is printed */ }
 }
 
-// Self-contained, on-brand page: FLUX paper ground + dot-paper + Manrope +
-// Flux-blue accent + the squiggle. Inline only — no external requests, so it
+// Self-contained, on-brand page: MESH paper ground + dot-paper + Manrope +
+// Mesh-blue accent + the squiggle. Inline only — no external requests, so it
 // works offline and nothing leaves the machine.
 const SQUIGGLE = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 80 10'%3E%3Cpath d='M0 5 q6 -4 12 0 t12 0 t12 0 t12 0 t12 0 t12 0' fill='none' stroke='%232563EB' stroke-width='1.6' opacity='.7'/%3E%3C/svg%3E";
 const DOTS = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='34' height='59'%3E%3Cg fill='%230B0F14' fill-opacity='0.05'%3E%3Ccircle cx='0' cy='0' r='1.1'/%3E%3Ccircle cx='34' cy='0' r='1.1'/%3E%3Ccircle cx='0' cy='59' r='1.1'/%3E%3Ccircle cx='34' cy='59' r='1.1'/%3E%3Ccircle cx='17' cy='29.5' r='1.1'/%3E%3C/g%3E%3C/svg%3E";
@@ -140,7 +140,7 @@ const DOTS_GLOW = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' 
 
 const PAGE = `<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>flux — live</title>
+<title>mesh — live</title>
 <style>
   :root{color-scheme:light;
     --bg:#FAFAF9;--ink:#0B0F14;--muted:#5B6472;--line:#E5E7EB;--accent:#2563EB;--ocean:#1D4ED8;
@@ -194,7 +194,7 @@ const PAGE = `<!doctype html><html lang="en"><head><meta charset="utf-8">
 <div class="dotpaper" id="dp"><div class="base"></div><div class="glow"></div></div>
 <div class="wrap">
   <header>
-    <div class="mark">flux<span class="dot">.</span><span class="live">live</span></div>
+    <div class="mark">mesh<span class="dot">.</span><span class="live">live</span></div>
     <span class="build" id="build"></span>
   </header>
   <div class="hero">
@@ -241,7 +241,7 @@ async function tick(){
     $('withheld').innerHTML=d.theo.withheld.length?d.theo.withheld.map(w=>'<span class="chip held" title="'+(w.reason||'')+'">'+w.lever+'</span>').join(''):'<span class="empty">nothing held</span>';
     $('ceiling').textContent='Quality ceiling: '+d.theo.qualityCeilingPercent+'% — anything that could cost more than this stays off until a replay of your traffic proves it safe.';
     const rows=d.lineItems;
-    $('levers').innerHTML=rows.length?rows.map(li=>'<tr><td>'+li.leverId+'</td><td class="k">'+li.kind+(li.basis?' · '+li.basis:'')+'</td><td class="num">'+li.events+'</td><td class="num">$'+usd(li.savedUsd)+'</td></tr>').join(''):'<tr><td colspan="4" class="empty">No billable savings yet — run Claude Code through FLUX and this fills in.</td></tr>';
+    $('levers').innerHTML=rows.length?rows.map(li=>'<tr><td>'+li.leverId+'</td><td class="k">'+li.kind+(li.basis?' · '+li.basis:'')+'</td><td class="num">'+li.events+'</td><td class="num">$'+usd(li.savedUsd)+'</td></tr>').join(''):'<tr><td colspan="4" class="empty">No billable savings yet — run Claude Code through MESH and this fills in.</td></tr>';
     $('unbilled').textContent=d.recordedUnbilled.length?('Also recorded (applied, never billed): '+d.recordedUnbilled.map(u=>u.leverId+' ×'+u.events).join(', ')):'';
     $('proxy').innerHTML='<span class="ind '+(d.proxyUp?'ok':'bad')+'"></span>proxy '+(d.proxyUp?'up':'down');
     $('chain').innerHTML='<span class="ind '+(d.chainOk?'ok':'bad')+'"></span>ledger '+(d.chainOk?'verified':('BROKEN at '+d.brokenAt));

@@ -20,7 +20,7 @@ counterfactual: it bounds what verbose chat output LOOKS like, it does not prove
 how much a lower effort setting would trim (that needs the live gate).
 
 Usage:
-  set -a && source ~/.config/flux/hf.env && set +a
+  set -a && source ~/.config/mesh/hf.env && set +a
   python3 evals/fundamentals/value/wildchat_output_headroom.py --n 2500
 """
 import argparse, json, os, sys, time, urllib.request, urllib.parse, statistics, re, ssl
@@ -138,7 +138,7 @@ def main():
 
     token = os.environ.get("HF_TOKEN")
     if not token:
-        print("HF_TOKEN not set; source ~/.config/flux/hf.env", file=sys.stderr)
+        print("HF_TOKEN not set; source ~/.config/mesh/hf.env", file=sys.stderr)
         sys.exit(2)
 
     convos = 0

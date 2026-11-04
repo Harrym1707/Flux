@@ -3,7 +3,7 @@
  * ------------------------------------------------------------------
  * Measures the size of the SAME information rendered in different
  * serialization formats, to quantify the LOSSLESS (information-
- * preserving) token headroom FLUX could capture by re-serializing a
+ * preserving) token headroom MESH could capture by re-serializing a
  * request body before forwarding it.
  *
  * What is MEASURED here (deterministic, reproducible):
@@ -22,7 +22,7 @@
  * number tagged `[tok]`.
  *
  * This sandbox does NOT prove comprehension parity. Format conversion
- * is LOSSY for FLUX billing (the model reads a different token
+ * is LOSSY for MESH billing (the model reads a different token
  * sequence and the Notation-Matters / TOON benchmarks show accuracy
  * moves with format) and must pass a replay gate. The one number this
  * harness treats as lossless-eligible is whitespace/indentation
@@ -207,7 +207,7 @@ async function main() {
 
   console.log(`## Reading this`);
   console.log(`- json-pretty -> json-min is the LOSSLESS lever (same keys/structure, only whitespace removed).`);
-  console.log(`- yaml / csv / toon-table are LOSSY for FLUX billing: the model reads a different token`);
+  console.log(`- yaml / csv / toon-table are LOSSY for MESH billing: the model reads a different token`);
   console.log(`  sequence, and published benchmarks show accuracy moves with format. They require a replay gate.`);
   console.log(`- csv/toon win big on Shape 1 (uniform) and LOSE or barely help on Shape 2 (nested) - exactly`);
   console.log(`  the eligibility pattern the TOON README and the Notation-Matters paper report.`);

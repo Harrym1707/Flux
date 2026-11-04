@@ -1,6 +1,6 @@
 # Security model — proxy + distribution
 
-The threat model for the FLUX client: a local proxy that carries a user's real
+The threat model for the MESH client: a local proxy that carries a user's real
 provider key, plus the distribution channels that put it there. Synthesised from
 the pre-launch security review (the hardening tests live in
 `packages/sdk-js/src/proxy.test.ts:200-329`).
@@ -35,7 +35,7 @@ because the caller holds the key regardless.
   exactly when an `x-api-key` is present — so a client configured with both keys
   never leaks the off-provider credential, while Anthropic OAuth (bearer, no
   `x-api-key`) keeps working (`proxy.ts:80-101`; tests at
-  `proxy.test.ts:220-260`). FLUX's own `x-flux-application` routing header is
+  `proxy.test.ts:220-260`). MESH's own `x-mesh-application` routing header is
   stripped and never leaves the machine (`proxy.ts:96`).
 - **No SSRF.** Upstreams are fixed at startup to `api.anthropic.com` /
   `api.openai.com` (or explicit per-deployment overrides); the request path and
@@ -70,7 +70,7 @@ it is tricked into relaying carries only whatever key the caller already had.
   `http://127.0.0.1:8787/v1/messages` (a simple request, no preflight). The
   proxy will relay it upstream and write a spool event. Impact ceiling is **DoS /
   noise** — forced upstream relays and spool writes — **not key or quota theft**:
-  the browser cannot read a response it isn't allowed to see, and FLUX adds no
+  the browser cannot read a response it isn't allowed to see, and MESH adds no
   credential, so a relay only spends the key the caller's own environment already
   supplies. Fix: an `Origin`/`Sec-Fetch-Site` check rejecting cross-site browser
   requests.
@@ -88,7 +88,7 @@ it is tricked into relaying carries only whatever key the caller already had.
   request with no `Host` through the rebinding defense. Fix: tighten to require
   an explicitly-loopback Host.
 - **502 / debug may reflect upstream internals.** The 502 body echoes the
-  upstream error message (`proxy.ts:313-315,405-407`) and `FLUX_PROXY_DEBUG=1`
+  upstream error message (`proxy.ts:313-315,405-407`) and `MESH_PROXY_DEBUG=1`
   logs status, model, beta header and a 500-char snippet of the error body
   (`proxy.ts:481-487`). Neither logs credentials, but both can surface upstream
   internals. Fix: a generic 502 body and a tighter debug log.

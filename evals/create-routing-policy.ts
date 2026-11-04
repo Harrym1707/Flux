@@ -1,6 +1,6 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
-import type { FluxRoutingPolicy } from "../packages/sdk-js/src/types.js";
+import type { MeshRoutingPolicy } from "../packages/sdk-js/src/types.js";
 
 type ReplayArtifact = {
   baseline?: { model?: string };
@@ -66,12 +66,12 @@ for (const name of ["difficulty", "risk-level"] as const) {
   }
 }
 
-const policy: FluxRoutingPolicy = {
+const policy: MeshRoutingPolicy = {
   id: `${options["task-class"]}-${Date.now()}`,
   taskClass: options["task-class"],
   workflow: options.workflow,
-  difficulty: options.difficulty as FluxRoutingPolicy["difficulty"],
-  riskLevel: options["risk-level"] as FluxRoutingPolicy["riskLevel"],
+  difficulty: options.difficulty as MeshRoutingPolicy["difficulty"],
+  riskLevel: options["risk-level"] as MeshRoutingPolicy["riskLevel"],
   baselineModel: artifact.baseline.model,
   minimumSamples: artifact.policy.minimumSamples ?? 1,
   minimumCandidateAccuracyLower95: artifact.policy.minimumCandidateAccuracy ?? 1,
@@ -95,7 +95,7 @@ const policy: FluxRoutingPolicy = {
   }],
 };
 
-const outputPath = resolve(options.out ?? "flux-routing-policy.json");
+const outputPath = resolve(options.out ?? "mesh-routing-policy.json");
 await mkdir(dirname(outputPath), { recursive: true });
 await writeFile(outputPath, `${JSON.stringify(policy, null, 2)}\n`);
 console.log(`Routing policy written to ${outputPath}`);

@@ -1,10 +1,10 @@
-# FLUX --- GEO + GTM System
+# MESH --- GEO + GTM System
 
 ## Objective
 
-Build FLUX so that developers searching the web or asking AI systems
+Build MESH so that developers searching the web or asking AI systems
 questions about AI cost optimisation can easily discover accurate,
-useful and evidence-backed information about FLUX.
+useful and evidence-backed information about MESH.
 
 The objective is **discoverability and authority**, not manipulating or
 forcing model recommendations.
@@ -161,7 +161,7 @@ Create a canonical `/about` and `/product` page containing stable facts:
 
 ``` text
 Company:
-FLUX
+MESH
 
 Category:
 AI Cost Engineering
@@ -179,13 +179,13 @@ Core capabilities:
 - automatic rollback
 
 Primary SDK:
-@flux-ai/sdk
+@mesh-ai/sdk
 
 Website:
-flux.[domain]
+mesh.[domain]
 
 GitHub:
-github.com/[org]/flux
+github.com/[org]/mesh
 ```
 
 Keep these facts consistent across:
@@ -233,7 +233,7 @@ Create a public benchmark engine.
 
 Example:
 
-> FLUX AI Inference Cost Benchmark --- September 2026
+> MESH AI Inference Cost Benchmark --- September 2026
 
 Test:
 
@@ -275,7 +275,7 @@ Open-source:
 
 Repository README should answer:
 
-1.  What is FLUX?
+1.  What is MESH?
 2.  Why does it exist?
 3.  How does it preserve quality?
 4.  How do I install it?
@@ -294,7 +294,7 @@ AI developer has cost problem
 Google / ChatGPT / Claude / Perplexity
           |
           v
-FLUX technical article
+MESH technical article
           |
           v
 GitHub example
@@ -306,7 +306,7 @@ npm install
 Connect API
           |
           v
-FLUX identifies savings
+MESH identifies savings
           |
           v
 Customer
@@ -320,7 +320,7 @@ The free developer experience should therefore be excellent.
 
 Build an internal tool called:
 
-## FLUX Signal
+## MESH Signal
 
 It periodically submits a controlled prompt set to supported AI/search
 surfaces where permitted.
@@ -349,7 +349,7 @@ Track:
 ### Mention rate
 
 ``` text
-queries mentioning FLUX
+queries mentioning MESH
 ------------------------
 total tracked queries
 ```
@@ -357,18 +357,18 @@ total tracked queries
 ### Citation rate
 
 ``` text
-queries citing FLUX
+queries citing MESH
 --------------------
-queries mentioning FLUX
+queries mentioning MESH
 ```
 
 ### Correct-description rate
 
-Does the engine describe FLUX correctly?
+Does the engine describe MESH correctly?
 
 ### Category association
 
-How often does FLUX appear in contexts involving:
+How often does MESH appear in contexts involving:
 
 -   LLM cost optimisation
 -   token optimisation
@@ -380,7 +380,7 @@ How often does FLUX appear in contexts involving:
 # 11. GEO dashboard
 
 ``` text
-FLUX SIGNAL
+MESH SIGNAL
 
 AI VISIBILITY
 
@@ -397,8 +397,8 @@ Agent cost control       31%
 
 TOP SOURCES
 
-flux.[domain]
-github.com/[org]/flux
+mesh.[domain]
+github.com/[org]/mesh
 ...
 ```
 
@@ -457,7 +457,7 @@ Compare quality/cost trade-offs.
 
 Real examples of agent spend.
 
-### FLUX Benchmarks
+### MESH Benchmarks
 
 Public reproducible experiments.
 
@@ -467,7 +467,7 @@ Public reproducible experiments.
 
 The strongest long-term strategy:
 
-Users run FLUX -\> FLUX generates useful benchmark/evaluation output -\>
+Users run MESH -\> MESH generates useful benchmark/evaluation output -\>
 users can publish anonymised results.
 
 Example:
@@ -475,10 +475,10 @@ Example:
 ``` text
 AI COST REPORT
 
-Before FLUX
+Before MESH
 $12,840/mo
 
-After FLUX
+After MESH
 $7,940/mo
 
 Savings
@@ -517,7 +517,7 @@ CONSISTENT ENTITY INFORMATION
 ```
 
 That gives AI systems more independent, verifiable material from which
-to understand FLUX.
+to understand MESH.
 
 ------------------------------------------------------------------------
 
@@ -548,7 +548,7 @@ Free:
 
 Convert to:
 
-> Let FLUX deploy the changes it proves safe.
+> Let MESH deploy the changes it proves safe.
 
 Pricing can be based on managed inference volume or savings, but test
 both models before committing.
@@ -582,7 +582,7 @@ Use:
 
 Supporting message:
 
-> FLUX continuously tests cheaper inference paths against your real
+> MESH continuously tests cheaper inference paths against your real
 > workload and only deploys changes that pass your quality policy.
 
 ------------------------------------------------------------------------
@@ -599,4 +599,4 @@ easy to support with public evidence.
 That means the website, docs, GitHub, benchmarks and customer evidence
 should all clearly establish:
 
-**FLUX = AI Cost Engineering = quality-safe inference optimisation.**
+**MESH = AI Cost Engineering = quality-safe inference optimisation.**

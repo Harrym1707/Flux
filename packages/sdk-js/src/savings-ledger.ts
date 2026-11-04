@@ -11,10 +11,10 @@ import {
   type LedgerRecord,
   type LedgerUsage,
 } from "../../core/dist/src/savings-ledger.js";
-import type { FluxRequestEvent, FluxSavingsLedgerConfig } from "./types.js";
+import type { MeshRequestEvent, MeshSavingsLedgerConfig } from "./types.js";
 
 /**
- * The opt-in savings meter: turns each FluxRequestEvent into one append-only
+ * The opt-in savings meter: turns each MeshRequestEvent into one append-only
  * BillableEvent and writes it as a hash-chained JSONL record.
  *
  * Honesty properties, enforced here rather than promised:
@@ -25,11 +25,11 @@ import type { FluxRequestEvent, FluxSavingsLedgerConfig } from "./types.js";
  *   lever and on the invoice line item, never passed off as a measurement.
  * - executionMode comes from the RESPONSE service_tier, never the requested
  *   one, so a flex request that fell back to standard earns zero tier savings.
- * - Provider-cache economics bill only on cache_control FLUX itself placed
+ * - Provider-cache economics bill only on cache_control MESH itself placed
  *   (the cache-ttl lever applies only when the caller had none); a customer's
  *   own cache discounts land in `excluded`, visible and never billed. The
  *   attributed figure MAY be negative: a 1h write surcharge with no reads to
- *   earn it counts against FLUX on the invoice.
+ *   earn it counts against MESH on the invoice.
  * - Token-reduction levers bill from the estimated baseline above when no
  *   measured counterfactual (`getBaselineUsd`) is supplied — lossless levers
  *   unconditionally, lossy levers only with an approved replay-gate verdict.
@@ -50,7 +50,7 @@ function executionModeOf(responseServiceTier: string | undefined): LedgerExecuti
   return "standard";
 }
 
-function usageOf(event: FluxRequestEvent): LedgerUsage | undefined {
+function usageOf(event: MeshRequestEvent): LedgerUsage | undefined {
   const { inputTokens, outputTokens, cachedInputTokens, cacheWriteInputTokens } = event;
   if ([inputTokens, outputTokens, cachedInputTokens, cacheWriteInputTokens]
     .some((count) => typeof count !== "number" || !Number.isFinite(count) || count < 0)) {
@@ -58,7 +58,7 @@ function usageOf(event: FluxRequestEvent): LedgerUsage | undefined {
   }
   // The TTL split is recorded verbatim when the provider reported one; pricing
   // sum-checks it (a mismatched event is unpriced) and an ABSENT split on a
-  // FLUX-placed cache_control prices every write at the stamped TTL's premium
+  // MESH-placed cache_control prices every write at the stamped TTL's premium
   // (1h stamp: 2x on every write, dispute-safe; 5m stamp: the 5m rate).
   const validCount = (count: unknown): count is number =>
     typeof count === "number" && Number.isFinite(count) && count >= 0;
@@ -82,16 +82,16 @@ function usageOf(event: FluxRequestEvent): LedgerUsage | undefined {
 
 /** Build the append-only billable record for one completed request. Pure. */
 export function billableEventFromRequest(
-  event: FluxRequestEvent,
-  config: FluxSavingsLedgerConfig,
+  event: MeshRequestEvent,
+  config: MeshSavingsLedgerConfig,
   catalogue: PriceCatalogue,
   pinnedCatalogueVersion: string,
 ): BillableEvent {
   const provider = config.provider ?? "openai";
   const changes = event.reduction && !event.reduction.skipped ? event.reduction.changes : [];
   const ttlChange = changes.find((change) => CACHE_TTL_LEVERS.has(change.lever));
-  const fluxPlacedCacheControl = ttlChange !== undefined;
-  const fluxPlacedTtl = ttlChange === undefined ? undefined : CACHE_TTL_LEVERS.get(ttlChange.lever);
+  const meshPlacedCacheControl = ttlChange !== undefined;
+  const meshPlacedTtl = ttlChange === undefined ? undefined : CACHE_TTL_LEVERS.get(ttlChange.lever);
   const executionMode = executionModeOf(event.responseServiceTier);
   const usage = usageOf(event);
 
@@ -103,15 +103,15 @@ export function billableEventFromRequest(
         at: event.timestamp.slice(0, 10),
         executionMode,
         usage,
-        fluxPlacedCacheControl,
-        ...(fluxPlacedTtl === undefined ? {} : { fluxPlacedTtl }),
+        meshPlacedCacheControl,
+        ...(meshPlacedTtl === undefined ? {} : { meshPlacedTtl }),
       });
   const priced = pricing.pricingStatus === "priced" ? pricing : undefined;
 
   const levers: LedgerLever[] = [];
   const excluded: NonNullable<BillableEvent["excluded"]> = {};
 
-  // FLUX's own exact response cache: the measured cost of the request never sent.
+  // MESH's own exact response cache: the measured cost of the request never sent.
   if (event.cacheHit) {
     levers.push({
       leverId: EXACT_CACHE_LEVER,
@@ -129,7 +129,7 @@ export function billableEventFromRequest(
     });
   }
 
-  // Provider-cache economics on cache_control FLUX itself placed; may be negative.
+  // Provider-cache economics on cache_control MESH itself placed; may be negative.
   if (priced?.cacheAttributedUsd !== undefined && ttlChange !== undefined) {
     levers.push({
       leverId: ttlChange.lever,
@@ -154,7 +154,7 @@ export function billableEventFromRequest(
   }
 
   // Token-reduction changes bill from an ESTIMATED baseline anchored to
-  // provider-verbatim usage: FLUX's own counter gives the fraction of the
+  // provider-verbatim usage: MESH's own counter gives the fraction of the
   // request it removed before send; the provider's input total is what
   // actually remained, so baseline input = actual / (1 - fraction). Saved
   // tokens are valued at this event's realized blended input rate (actual
@@ -266,7 +266,7 @@ export function billableEventFromRequest(
 
 export type SavingsLedger = {
   /** Synchronously appends one chained record. Never throws. */
-  emit: (event: FluxRequestEvent) => void;
+  emit: (event: MeshRequestEvent) => void;
   readonly path: string;
 };
 
@@ -286,7 +286,7 @@ function resumeChainTail(path: string): { previous?: LedgerRecord; disabled: boo
 }
 
 /** Create the opt-in JSONL savings meter. Construction never throws on I/O. */
-export function createSavingsLedger(config: FluxSavingsLedgerConfig): SavingsLedger {
+export function createSavingsLedger(config: MeshSavingsLedgerConfig): SavingsLedger {
   if (typeof config.path !== "string" || config.path.trim() === "") {
     throw new Error("The savings ledger needs a file path for its append-only JSONL spool.");
   }
@@ -298,7 +298,7 @@ export function createSavingsLedger(config: FluxSavingsLedgerConfig): SavingsLed
 
   return {
     path: config.path,
-    emit(event: FluxRequestEvent): void {
+    emit(event: MeshRequestEvent): void {
       if (disabled) return;
       try {
         const billable = billableEventFromRequest(event, config, catalogue, pinnedCatalogueVersion);

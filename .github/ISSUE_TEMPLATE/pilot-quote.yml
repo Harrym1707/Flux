@@ -6,7 +6,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        The five-minute version, no issue needed: `npx -p @flux-ai/sdk flux-quote your-export.jsonl --format litellm`
+        The five-minute version, no issue needed: `npx -p @mesh-ai/sdk mesh-quote your-export.jsonl --format litellm`
         runs entirely on your machine — prompts never leave it. Open this issue if you'd like us to walk through the result with you.
   - type: dropdown
     id: stack

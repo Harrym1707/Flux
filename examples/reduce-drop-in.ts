@@ -1,14 +1,14 @@
-import { withFlux } from "../packages/sdk-js/src/index.js";
+import { withMesh } from "../packages/sdk-js/src/index.js";
 import { approximateTokenCount, lookupPrice, publishedModelPrices } from "../packages/core/src/index.js";
 
 /**
  * Before and after on a real request shape, through the real SDK wrapper.
  *
- * No network: a stub client records exactly what FLUX would have sent and
+ * No network: a stub client records exactly what MESH would have sent and
  * returns a plausible usage block, so the comparison is of request payloads
  * rather than of two different model runs.
  *
- * This is the first point at which FLUX reduces tokens rather than measuring
+ * This is the first point at which MESH reduces tokens rather than measuring
  * how much it could reduce them.
  */
 
@@ -85,7 +85,7 @@ const measure = (request: Record<string, unknown>): number =>
 const original = buildRequest();
 const before = measure(original);
 
-const client = withFlux(stubClient as never, {
+const client = withMesh(stubClient as never, {
   applicationId: "reduce-demo",
   tokenReduction: {
     // Lossless only: descriptions are kept, duplicates must be exact, and

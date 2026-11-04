@@ -1,22 +1,22 @@
 import { approximateTokenCount, type TokenCounter } from "../../core/dist/src/index.js";
 import {
   reduceRequest,
-  type FluxReductionChange,
-  type FluxReductionSummary,
-  type FluxTokenReductionConfig,
+  type MeshReductionChange,
+  type MeshReductionSummary,
+  type MeshTokenReductionConfig,
 } from "./reduce-request.js";
 import type { LedgerGateVerdict } from "../../core/dist/src/index.js";
 
 /**
  * PROTOTYPE: local-model semantic compaction of stale input context (Q2.1).
  *
- * This is the one FLUX lever that calls a MODEL rather than a deterministic
+ * This is the one MESH lever that calls a MODEL rather than a deterministic
  * string transform. It compresses stale tool-result bodies in old turns by
- * handing their text to a compactor the CUSTOMER supplies. FLUX bundles no
+ * handing their text to a compactor the CUSTOMER supplies. MESH bundles no
  * model, downloads nothing, and opens no socket: the inviolable honesty rule is
- * that prompts never leave the customer's machine, so the only compactor FLUX
+ * that prompts never leave the customer's machine, so the only compactor MESH
  * will ever call is a LOCAL / on-machine one the customer wired in themselves.
- * FLUX's own code here adds zero network egress — it awaits whatever function
+ * MESH's own code here adds zero network egress — it awaits whatever function
  * the customer passed and does nothing else.
  *
  * What it will and will NOT touch:
@@ -40,7 +40,7 @@ import type { LedgerGateVerdict } from "../../core/dist/src/index.js";
  * SYNC vs ASYNC — the design decision this prototype had to resolve.
  *
  * reduceRequest (reduce-request.ts) is a PURE, SYNCHRONOUS, hot-path function.
- * The proxy, withFlux, the savings ledger, and — most importantly — the replay
+ * The proxy, withMesh, the savings ledger, and — most importantly — the replay
  * gate's tight per-request loop all call it synchronously, and its purity
  * (same request in, same bytes out) is what lets consecutive requests re-emit
  * byte-identical history so a provider's exact-prefix cache keeps matching.
@@ -73,16 +73,16 @@ type AnyObject = Record<string, unknown>;
 
 /**
  * The pluggable adapter. The customer supplies a LOCAL model behind this
- * interface; FLUX bundles none. `compact` may be sync or async — a pre-pass can
+ * interface; MESH bundles none. `compact` may be sync or async — a pre-pass can
  * await either. It is called ONLY to compress stale context, never model output
  * and never the live user turn (this module enforces that; the compactor itself
- * only ever sees the text FLUX decided was eligible).
+ * only ever sees the text MESH decided was eligible).
  */
 export type SemanticCompactor = {
   compact(input: {
     /** The stale body text to compress. */
     text: string;
-    /** Target ceiling for the compressed result, in FLUX's approximate tokens. */
+    /** Target ceiling for the compressed result, in MESH's approximate tokens. */
     maxTokens: number;
     /** What kind of body this is, so a compactor can prompt itself accordingly. */
     kind: "tool-result";
@@ -116,7 +116,7 @@ export type SemanticCompactionConfig = {
   minimumTurns?: number;
   /** The most recent user turns whose content is always left verbatim. Default 2. */
   keepRecentTurns?: number;
-  /** FLUX's token counter; defaults to the shared approximate counter. */
+  /** MESH's token counter; defaults to the shared approximate counter. */
   countTokens?: TokenCounter;
 };
 
@@ -230,8 +230,8 @@ function applyCompaction(messages: unknown[], target: Target, compacted: string)
 export type SemanticCompactionResult = {
   request: unknown;
   /** The lossy change record when compaction ran; absent when nothing changed. */
-  change?: FluxReductionChange;
-  /** FLUX's approximate input-token count of the targeted fields, before and after. */
+  change?: MeshReductionChange;
+  /** MESH's approximate input-token count of the targeted fields, before and after. */
   tokensBefore: number;
   tokensAfter: number;
   /** Set when the pre-pass was a no-op, saying why (off, no verdict, nothing stale). */
@@ -321,7 +321,7 @@ export async function compactStaleContext(
 
   const nextRequest: AnyObject = { ...(request as AnyObject), [field]: compactedMessages };
   const estimatedTokensSaved = Math.max(0, tokensBefore - tokensAfterTargets);
-  const change: FluxReductionChange = {
+  const change: MeshReductionChange = {
     lever: "semantic-compaction",
     lossless: false,
     estimatedTokensSaved,
@@ -347,9 +347,9 @@ export async function compactStaleContext(
  */
 export async function reduceRequestAsync(
   request: unknown,
-  config: FluxTokenReductionConfig = {},
+  config: MeshTokenReductionConfig = {},
   semantic: SemanticCompactionConfig = {},
-): Promise<{ request: unknown; summary: FluxReductionSummary }> {
+): Promise<{ request: unknown; summary: MeshReductionSummary }> {
   const countTokens = config.countTokens ?? semantic.countTokens ?? approximateTokenCount;
   const measure = (value: unknown): number => {
     try {
@@ -379,7 +379,7 @@ export async function reduceRequestAsync(
       measure((reduced.request as AnyObject).tools)
     : originalBefore;
   const changes = [pre.change, ...reduced.summary.changes];
-  const summary: FluxReductionSummary = {
+  const summary: MeshReductionSummary = {
     estimatedTokensBefore: originalBefore,
     estimatedTokensAfter: afterAll,
     estimatedTokensSaved: Math.max(0, originalBefore - afterAll),

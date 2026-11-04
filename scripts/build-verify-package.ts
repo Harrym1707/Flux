@@ -1,15 +1,15 @@
 /**
- * Build the publishable @flux-ai/verify artifact into packages/verify/pkg:
- *   - index.js / index.cjs  (bundles; the needed @flux/core sources inlined)
+ * Build the publishable @mesh-ai/verify artifact into packages/verify/pkg:
+ *   - index.js / index.cjs  (bundles; the needed @mesh-ai/core sources inlined)
  *   - types/                (hand-rolled entry + copied core declarations)
- *   - bin/flux-verify.mjs   (chain-verify + recompute an invoice from a spool)
+ *   - bin/mesh-verify.mjs   (chain-verify + recompute an invoice from a spool)
  *   - LICENSE               (MIT — deliberately, see below)
  *   - package.json, README.md
  *
- * WHY THIS PACKAGE EXISTS: FLUX's product is BUSL-1.1, but an honesty claim
- * you cannot independently check is worthless. The tools that CHECK FLUX —
+ * WHY THIS PACKAGE EXISTS: MESH's product is BUSL-1.1, but an honesty claim
+ * you cannot independently check is worthless. The tools that CHECK MESH —
  * hash-chain verification and invoice recomputation — are published
- * separately under MIT so a customer (or a sceptic) can audit any FLUX
+ * separately under MIT so a customer (or a sceptic) can audit any MESH
  * number with no commercial terms attached. Zero dependencies, no network
  * access, no telemetry.
  *
@@ -96,16 +96,16 @@ writeFileSync(path.join(outDir, "types/index.d.ts"), `export {
 export { canonicalJson } from "./core/price-catalogue.js";
 `, "utf8");
 
-writeFileSync(path.join(outDir, "bin/flux-verify.mjs"), `#!/usr/bin/env node
-// Verify a FLUX ledger spool and recompute its invoice — independently.
-// Usage: flux-verify <spool.jsonl>
+writeFileSync(path.join(outDir, "bin/mesh-verify.mjs"), `#!/usr/bin/env node
+// Verify a MESH ledger spool and recompute its invoice — independently.
+// Usage: mesh-verify <spool.jsonl>
 // Exit 0: chain intact, invoice printed. Exit 1: broken chain or unreadable spool.
 import { readFileSync } from "node:fs";
 import { recomputeInvoice, verifyLedgerChain } from "../index.js";
 
 const spoolPath = process.argv[2];
 if (!spoolPath) {
-  console.error("Usage: flux-verify <spool.jsonl>   (a FLUX ledger file, e.g. flux-ledger/proxy-anthropic.jsonl)");
+  console.error("Usage: mesh-verify <spool.jsonl>   (a MESH ledger file, e.g. mesh-ledger/proxy-anthropic.jsonl)");
   process.exit(1);
 }
 let records;
@@ -125,7 +125,7 @@ console.log(\`chain verified: \${chain.length} record(s), every hash links\`);
 const invoice = recomputeInvoice(records.map((record) => record.event));
 console.log(JSON.stringify(invoice, null, 2));
 console.log(\`\\nverdict: \${invoice.verdict} — net verified savings $\${invoice.netVerifiedSavingsUsd.toFixed(4)}\`);
-console.log("If FLUX quoted you a different number from this same file, FLUX is wrong: this recomputation is the contract.");
+console.log("If MESH quoted you a different number from this same file, MESH is wrong: this recomputation is the contract.");
 `, "utf8");
 
 writeFileSync(path.join(outDir, "LICENSE"), `MIT License
@@ -151,38 +151,38 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 `, "utf8");
 
-writeFileSync(path.join(outDir, "README.md"), `# @flux-ai/verify
+writeFileSync(path.join(outDir, "README.md"), `# @mesh-ai/verify
 
-The verification half of [FLUX](https://www.fluxtoken.dev), under MIT.
+The verification half of [MESH](https://www.fluxtoken.dev), under MIT.
 
-FLUX bills 1% of verified LLM API savings from an append-only, hash-chained
+MESH bills 1% of verified LLM API savings from an append-only, hash-chained
 ledger that lives on the customer's own disk. An honesty claim you cannot
-independently check is worthless — so the tools that CHECK FLUX's numbers are
+independently check is worthless — so the tools that CHECK MESH's numbers are
 published here, separately, under MIT, with zero dependencies and no network
-access. The FLUX product itself is source-available under BUSL-1.1; this
+access. The MESH product itself is source-available under BUSL-1.1; this
 package is not, on purpose.
 
 \`\`\`bash
-npx -y -p @flux-ai/verify flux-verify flux-ledger/proxy-anthropic.jsonl
+npx -y -p @mesh-ai/verify mesh-verify mesh-ledger/proxy-anthropic.jsonl
 \`\`\`
 
 verifies every hash link in the spool and recomputes the invoice from its
-events. If your recomputation disagrees with a number FLUX quoted you, yours
+events. If your recomputation disagrees with a number MESH quoted you, yours
 wins — that is the contract.
 
 Library use:
 
 \`\`\`js
-import { verifyLedgerChain, recomputeInvoice } from "@flux-ai/verify";
+import { verifyLedgerChain, recomputeInvoice } from "@mesh-ai/verify";
 \`\`\`
 
 Ledger format and methodology: https://www.fluxtoken.dev/methodology.html
 `, "utf8");
 
 const manifest = {
-  name: "@flux-ai/verify",
+  name: "@mesh-ai/verify",
   version: "0.1.0",
-  description: "Independently verify a FLUX savings ledger: hash-chain verification and invoice recomputation, MIT-licensed, zero dependencies.",
+  description: "Independently verify a MESH savings ledger: hash-chain verification and invoice recomputation, MIT-licensed, zero dependencies.",
   license: "MIT",
   type: "module",
   main: "./index.cjs",
@@ -191,13 +191,13 @@ const manifest = {
   exports: {
     ".": { types: "./types/index.d.ts", import: "./index.js", require: "./index.cjs" },
   },
-  bin: { "flux-verify": "bin/flux-verify.mjs" },
+  bin: { "mesh-verify": "bin/mesh-verify.mjs" },
   files: ["index.js", "index.cjs", "bin", "types", "README.md", "LICENSE"],
   engines: { node: ">=18" },
   repository: { type: "git", url: "git+https://github.com/Harrym1707/Flux.git", directory: "packages/verify/pkg" },
   bugs: "https://github.com/Harrym1707/Flux/issues",
   homepage: "https://www.fluxtoken.dev",
-  keywords: ["llm", "cost", "ledger", "verification", "anthropic", "openai", "flux"],
+  keywords: ["llm", "cost", "ledger", "verification", "anthropic", "openai", "mesh"],
 };
 writeFileSync(path.join(outDir, "package.json"), JSON.stringify(manifest, null, 2) + "\n", "utf8");
 

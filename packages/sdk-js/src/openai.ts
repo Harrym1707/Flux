@@ -11,19 +11,19 @@ import { CachePrefixVolatilityGuard } from "./cache-volatility-guard.js";
 import { reduceRequest } from "./reduce-request.js";
 import { createSavingsLedger, type SavingsLedger } from "./savings-ledger.js";
 import type {
-  FluxContextProfile,
-  FluxEvaluationCaptureAttempt,
-  FluxEvaluationCaptureRecord,
-  FluxOptions,
-  FluxRequestContext,
-  FluxRequestEvent,
+  MeshContextProfile,
+  MeshEvaluationCaptureAttempt,
+  MeshEvaluationCaptureRecord,
+  MeshOptions,
+  MeshRequestContext,
+  MeshRequestEvent,
 } from "./types.js";
 
 type AnyObject = Record<PropertyKey, any>;
-type Pricing = NonNullable<FluxOptions["pricing"]>;
+type Pricing = NonNullable<MeshOptions["pricing"]>;
 
 /**
- * The provider surfaces one FLUX wrapper can route. All three are thin
+ * The provider surfaces one MESH wrapper can route. All three are thin
  * adapters over the SAME handler: one context pipeline, one reduction pass,
  * one exact cache, one ledger and event path. The only per-surface facts are
  * which field carries a routing policy's output cap and which provider label
@@ -31,10 +31,10 @@ type Pricing = NonNullable<FluxOptions["pricing"]>;
  * through core's normalizeProviderUsage - is shared, so the surfaces cannot
  * drift apart.
  */
-type FluxSurface = "responses" | "chat_completions" | "anthropic_messages";
+type MeshSurface = "responses" | "chat_completions" | "anthropic_messages";
 
 /** The output-cap field each surface actually honours, for routing candidates. */
-function routeCapField(surface: FluxSurface): string {
+function routeCapField(surface: MeshSurface): string {
   if (surface === "chat_completions") return "max_completion_tokens";
   if (surface === "anthropic_messages") return "max_tokens";
   return "max_output_tokens";
@@ -88,9 +88,9 @@ function usageCost(usage: TokenUsage | undefined, pricing: Pricing | undefined):
     (usage.outputTokens / 1_000_000) * pricing.outputPerMillion;
 }
 
-function matchesContextProfile(profile: FluxContextProfile, context: FluxRequestContext): boolean {
+function matchesContextProfile(profile: MeshContextProfile, context: MeshRequestContext): boolean {
   return Object.entries(profile.match ?? {}).every(([key, value]) =>
-    context[key as keyof FluxRequestContext] === value
+    context[key as keyof MeshRequestContext] === value
   );
 }
 
@@ -104,11 +104,11 @@ function matchesContextProfile(profile: FluxContextProfile, context: FluxRequest
  * the same code on every surface - the adapters differ only in which output-cap
  * field a routing candidate uses and which provider label the event records.
  */
-export function withFlux<T extends AnyObject>(client: T, options: FluxOptions): T {
+export function withMesh<T extends AnyObject>(client: T, options: MeshOptions): T {
   const profileIds = new Set<string>();
   for (const profile of options.contextProfiles ?? []) {
     if (!profile.id || !profile.version || typeof profile.transform !== "function" || profileIds.has(profile.id)) {
-      throw new Error("FLUX context profiles need unique IDs, versions, and transform functions.");
+      throw new Error("MESH context profiles need unique IDs, versions, and transform functions.");
     }
     profileIds.add(profile.id);
   }
@@ -117,14 +117,14 @@ export function withFlux<T extends AnyObject>(client: T, options: FluxOptions): 
       !Number.isFinite(options.pricing.outputPerMillion) || options.pricing.outputPerMillion < 0 ||
       !validRate(options.pricing.cachedInputPerMillion) || !validRate(options.pricing.cacheWriteInputPerMillion) ||
       !validRate(options.pricing.cacheWrite1hInputPerMillion))) {
-    throw new Error("FLUX pricing rates must be finite, non-negative USD per million tokens.");
+    throw new Error("MESH pricing rates must be finite, non-negative USD per million tokens.");
   }
   for (const [model, pricing] of Object.entries(options.pricingByModel ?? {})) {
     if (!model || !Number.isFinite(pricing.inputPerMillion) || pricing.inputPerMillion < 0 ||
         !Number.isFinite(pricing.outputPerMillion) || pricing.outputPerMillion < 0 ||
         !validRate(pricing.cachedInputPerMillion) || !validRate(pricing.cacheWriteInputPerMillion) ||
         !validRate(pricing.cacheWrite1hInputPerMillion)) {
-      throw new Error("FLUX per-model pricing rates must be finite, non-negative USD per million tokens.");
+      throw new Error("MESH per-model pricing rates must be finite, non-negative USD per million tokens.");
     }
   }
 
@@ -138,7 +138,7 @@ export function withFlux<T extends AnyObject>(client: T, options: FluxOptions): 
   const hasMessages = typeof (originalMessages as AnyObject | undefined)?.create === "function";
   if (!hasResponses && !hasChat && !hasMessages) {
     throw new Error(
-      "FLUX supports OpenAI-compatible clients with responses.create() or chat.completions.create(), " +
+      "MESH supports OpenAI-compatible clients with responses.create() or chat.completions.create(), " +
       "and Anthropic-SDK-shaped clients with messages.create().",
     );
   }
@@ -159,11 +159,11 @@ export function withFlux<T extends AnyObject>(client: T, options: FluxOptions): 
     ? { ...options.tokenReduction, cacheVolatilityGuard: new CachePrefixVolatilityGuard() }
     : options.tokenReduction;
 
-  const surfaceCreate = (surface: FluxSurface, target: AnyObject) =>
+  const surfaceCreate = (surface: MeshSurface, target: AnyObject) =>
     async (request: AnyObject, ...rest: unknown[]) => {
         const requestId = randomUUID();
         const started = performance.now();
-        let context: FluxRequestContext = {};
+        let context: MeshRequestContext = {};
         try {
           context = options.getContext?.(request) ?? {};
         } catch {
@@ -191,7 +191,7 @@ export function withFlux<T extends AnyObject>(client: T, options: FluxOptions): 
 
         const route = chooseRoute(options.routing, effectiveRequest, taskClass, context);
         const candidateSelected = route.reason === "candidate_quality_and_cost_gates_passed";
-        let fallbackReason: FluxRequestEvent["fallbackReason"];
+        let fallbackReason: MeshRequestEvent["fallbackReason"];
         let routedRequest: AnyObject = candidateSelected
           ? { ...effectiveRequest, model: route.model }
           : effectiveRequest;
@@ -239,7 +239,7 @@ export function withFlux<T extends AnyObject>(client: T, options: FluxOptions): 
         }
         const cached = cacheKey ? exactCache?.get(cacheKey) : undefined;
         const cacheHit = cached !== undefined;
-        let status: FluxRequestEvent["status"] = "succeeded";
+        let status: MeshRequestEvent["status"] = "succeeded";
         let error: string | undefined;
         let response: unknown;
         let finalModel = cached?.model ?? route.model;
@@ -368,7 +368,7 @@ export function withFlux<T extends AnyObject>(client: T, options: FluxOptions): 
           const responseServiceTier = attempts.length > 0
             ? serviceTierOf(attempts[attempts.length - 1].response)
             : undefined;
-          const event: FluxRequestEvent = {
+          const event: MeshRequestEvent = {
             requestId,
             applicationId: options.applicationId,
             ...(reduction === undefined ? {} : { reduction: reduction.summary }),
@@ -456,13 +456,13 @@ export function withFlux<T extends AnyObject>(client: T, options: FluxOptions): 
                 } catch {
                   expected = undefined;
                 }
-                const captureAttempts: FluxEvaluationCaptureAttempt[] = (attempts.length > 0 ? attempts : cacheHit
+                const captureAttempts: MeshEvaluationCaptureAttempt[] = (attempts.length > 0 ? attempts : cacheHit
                   ? [{ model: finalModel, request: routedRequest, response: response as AnyObject, contextProfileId: candidateSelected ? route.contextProfileId : undefined, maxOutputTokens: candidateSelected ? route.maxOutputTokens : undefined }]
                   : []).map((attempt) => {
                   const usage = tokenUsage(attempt.response);
                   const pricing = options.pricingByModel?.[attempt.model] ??
                     (attempt.model === model ? options.pricing : undefined);
-                  const attemptCapture: FluxEvaluationCaptureAttempt = {
+                  const attemptCapture: MeshEvaluationCaptureAttempt = {
                     model: attempt.model,
                     contextProfileId: attempt.contextProfileId,
                     maxOutputTokens: attempt.maxOutputTokens,
@@ -487,7 +487,7 @@ export function withFlux<T extends AnyObject>(client: T, options: FluxOptions): 
                   }
                   return attemptCapture;
                 });
-                const rawRecord: FluxEvaluationCaptureRecord = {
+                const rawRecord: MeshEvaluationCaptureRecord = {
                   schemaVersion: 1,
                   id: requestId,
                   caseId,
@@ -519,7 +519,7 @@ export function withFlux<T extends AnyObject>(client: T, options: FluxOptions): 
 
   // Each surface is a thin proxy handing "create" to the SHARED handler above;
   // every other property passes through to the provider's own object.
-  const wrapCreate = (surface: FluxSurface, surfaceTarget: AnyObject): AnyObject =>
+  const wrapCreate = (surface: MeshSurface, surfaceTarget: AnyObject): AnyObject =>
     new Proxy(surfaceTarget, {
       get(target, property, receiver) {
         if (property !== "create") return Reflect.get(target, property, receiver);

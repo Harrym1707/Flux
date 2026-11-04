@@ -35,11 +35,11 @@ jobs:
       - name: Proxy overhead (regression watch, generous CI bound)
         run: node --import tsx evals/run-proxy-overhead.ts
         env:
-          FLUX_OVERHEAD_REQUESTS: "150"
+          MESH_OVERHEAD_REQUESTS: "150"
       - name: GEO audit against the live site
         run: node --import tsx evals/run-geo-audit.ts
         env:
-          FLUX_SITE_ORIGIN: https://www.fluxtoken.dev
+          MESH_SITE_ORIGIN: https://www.fluxtoken.dev
       - name: Open or update the tracking issue on failure
         if: failure()
         uses: actions/github-script@v7

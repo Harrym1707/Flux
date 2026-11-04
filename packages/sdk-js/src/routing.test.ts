@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { withFlux } from "./openai.js";
-import type { FluxRoutingPolicy } from "./types.js";
+import { withMesh } from "./openai.js";
+import type { MeshRoutingPolicy } from "./types.js";
 
 describe("same-model context routes", () => {
   it("applies a reviewed context profile even when the provider model is unchanged", async () => {
@@ -13,7 +13,7 @@ describe("same-model context routes", () => {
         },
       },
     };
-    const policy: FluxRoutingPolicy = {
+    const policy: MeshRoutingPolicy = {
       id: "context-only-test",
       taskClass: "support",
       workflow: "reply",
@@ -38,7 +38,7 @@ describe("same-model context routes", () => {
         },
       }],
     };
-    const wrapped = withFlux(client, {
+    const wrapped = withMesh(client, {
       applicationId: "test-app",
       getContext: () => ({ taskClass: "support", workflow: "reply" }),
       routing: { policies: [policy], getRequestKey: () => "stable-ticket-id" },

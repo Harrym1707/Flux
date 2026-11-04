@@ -9,21 +9,21 @@ import {
 } from "./contextual-router.js";
 
 /**
- * Published reference routers and oracle bounds, so FLUX's own router is measured
+ * Published reference routers and oracle bounds, so MESH's own router is measured
  * against the state of the art rather than only against single models.
  *
  * CARROT is reimplemented from its paper (arXiv:2502.03261), not vendored. Its
  * claim is that a router predicting per-query cost and performance and selecting
  * on a convex combination of the two is minimax rate-optimal; the estimator is an
  * implementation choice. This implementation uses k-nearest-neighbour regression
- * over the same hashed TF-IDF prompt features FLUX's own router uses, so a
+ * over the same hashed TF-IDF prompt features MESH's own router uses, so a
  * head-to-head difference reflects the selection rule and not the features.
  *
  * Divergences from the paper, stated so results are not mistaken for the
  * authors' own: the paper evaluates several estimators (including fine-tuned
  * transformer regressors) and introduces the SPROUT dataset; this implementation
  * uses only the kNN estimator, runs on LLMRouterBench records, and selects the
- * cost/performance trade-off on a held-out validation split under FLUX's quality
+ * cost/performance trade-off on a held-out validation split under MESH's quality
  * guardrail rather than reporting a trade-off curve.
  *
  * GraphRouter (arXiv:2410.03834) is deliberately NOT implemented here. It
@@ -127,7 +127,7 @@ function totalCost(rows: BenchmarkCase[], selected: string[]): number {
  * Fit CARROT on train records, choose (k, lambda) on validation under the quality
  * guardrail, and emit held-out test decisions. Falls back to the best single model
  * when validation is too thin to support a per-request policy, matching the
- * discipline applied to FLUX's own router.
+ * discipline applied to MESH's own router.
  */
 export function learnCarrotRouter(
   trainRows: BenchmarkCase[],
@@ -141,7 +141,7 @@ export function learnCarrotRouter(
   const qualityDrop = options.maximumQualityDrop ?? 0.02;
   const minimumValidationGroups = options.minimumValidationGroups ?? 100;
   const bootstrapSamples = options.bootstrapSamples ?? 2_000;
-  const seed = options.seed ?? "flux-carrot-v1";
+  const seed = options.seed ?? "mesh-carrot-v1";
 
   const allChoices = choicesFor(trainRows);
   const choices = allChoices.filter((choice) =>
@@ -221,7 +221,7 @@ export function learnCarrotRouter(
     }
   }
   // One simultaneous band across the whole (k, lambda) search, matching the
-  // correction applied to FLUX's own router so the comparison stays like for like.
+  // correction applied to MESH's own router so the comparison stays like for like.
   const bounds = simultaneousGroupBootstrapLowerBounds(
     evaluated.map((point) => point.deltas),
     groups,

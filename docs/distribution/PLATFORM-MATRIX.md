@@ -1,10 +1,10 @@
 # Platform support matrix
 
-An honest statement of what FLUX runs on. The rule governs the rest:
+An honest statement of what MESH runs on. The rule governs the rest:
 
 > **Never advertise a platform on the website until it is tested.**
 
-The website is where users decide to pipe real API traffic through FLUX. A
+The website is where users decide to pipe real API traffic through MESH. A
 platform claim there is a promise. We list a platform only once the install path
 and the always-on service have actually been exercised on it.
 
@@ -18,10 +18,10 @@ and the always-on service have actually been exercised on it.
 
 ## macOS — supported / tested
 
-The only platform the always-on path is wired for today. `flux install` writes a
-launchd agent at `~/Library/LaunchAgents/dev.fluxtoken.flux.plist` that runs
-`flux serve`, and explicitly refuses on any other platform
-(`packages/cli/src/daemon.ts:26-32,87-109`). `flux start` (the foreground path)
+The only platform the always-on path is wired for today. `mesh install` writes a
+launchd agent at `~/Library/LaunchAgents/dev.meshtoken.mesh.plist` that runs
+`mesh serve`, and explicitly refuses on any other platform
+(`packages/cli/src/daemon.ts:26-32,87-109`). `mesh start` (the foreground path)
 is platform-agnostic and works anywhere Node runs, but the advertised,
 service-backed experience is macOS-only right now. Both arm64 and x64 are
 covered.
@@ -29,15 +29,15 @@ covered.
 ## Linux — planned
 
 The script installer (`docs/site/install.sh`) already works on Linux — it only
-needs Node and `curl`, and puts `~/.flux/bin` on `PATH` via the user's shell
-profile. What is missing is the always-on service: `flux install` has no systemd
+needs Node and `curl`, and puts `~/.mesh/bin` on `PATH` via the user's shell
+profile. What is missing is the always-on service: `mesh install` has no systemd
 unit and will refuse (`daemon.ts:26-32`). Until a systemd equivalent of the
-launchd agent is written and tested, Linux users get `flux start` only, and Linux
+launchd agent is written and tested, Linux users get `mesh start` only, and Linux
 is not advertised as supported on the website.
 
 Work to promote Linux to supported:
 - a systemd user service equivalent to `writePlist` (`daemon.ts:87-109`),
-- the `flux install` / `uninstall` / `status` paths taught to drive systemd,
+- the `mesh install` / `uninstall` / `status` paths taught to drive systemd,
 - an actual test run on x64 and arm64.
 
 ## Windows — not yet
@@ -49,7 +49,7 @@ Nothing is wired. Promoting Windows needs, at minimum:
   SmartScreen / antivirus — an unsigned binary asking to carry an API key is a
   non-starter.
 
-Windows is not advertised and `flux install` refuses there, same as Linux.
+Windows is not advertised and `mesh install` refuses there, same as Linux.
 
 ## Relationship to signing and runtime policy
 

@@ -55,7 +55,7 @@ function parse(argv: string[]): Args {
     models: values.models?.split(",").map((model) => model.trim()).filter(Boolean),
     routes: values.routes ? resolve(values.routes) : undefined,
     trainFraction: numberOption("train-fraction", 0.7),
-    seed: values.seed ?? "flux-benchmark-v1",
+    seed: values.seed ?? "mesh-benchmark-v1",
     maximumQualityDrop: numberOption("maximum-quality-drop", 0.02),
     minimumWorkflowSamples: numberOption("minimum-workflow-samples", 20),
     bootstrapSamples: numberOption("bootstrap-samples", 2_000),
@@ -90,14 +90,14 @@ function renderMarkdown(report: ReturnType<typeof compareBenchmark>, source: str
   const strategyRows = report.results.map((result) =>
     `| ${result.name} | ${result.meanQuality.toFixed(4)} | ${usd(result.meanCostUsd)} | ${usd(result.routingCostUsd)} | ${usd(result.totalCostUsd)} | ${percent(result.costSavingsVsBestSinglePercent)} | ${result.totalTokens ?? "n/a"} | ${qualityDelta(result.qualityDeltaLower95)} | ${Object.entries(result.selectedModels).map(([choice, count]) => `\`${choice}\`: ${count}`).join(", ")} |`,
   );
-  const routeLines = Object.entries(report.learned.fluxChoiceByWorkflow).map(([workflow, choice]) => {
+  const routeLines = Object.entries(report.learned.meshChoiceByWorkflow).map(([workflow, choice]) => {
     const target = report.learned.targetByChoice[choice]!;
     const transform = target.contextProfileId ? `, context profile ${target.contextProfileId}` : "";
     const cap = target.maxOutputTokens === undefined ? "" : `, max output ${target.maxOutputTokens}`;
     return `- \`${workflow}\` → choice \`${choice}\` (model \`${target.model}\`${transform}${cap}; train paired quality-delta lower 95% bound: ${report.learned.trainingQualityDeltaLower95ByWorkflow[workflow]!.toFixed(4)})`;
   });
   return [
-    `# FLUX routing benchmark: ${report.dataset}`,
+    `# MESH routing benchmark: ${report.dataset}`,
     "",
     `Source: ${source}. Method: ${report.method}. Train: ${report.trainSamples} records (${report.trainSplit}); test: ${report.testSamples} records (${report.testSplit}).`,
     "",

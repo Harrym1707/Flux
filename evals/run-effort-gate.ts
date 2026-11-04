@@ -24,7 +24,7 @@ import { AT } from "./agent-fixture.js";
  * — does a lower effort setting actually spend fewer OUTPUT tokens while still
  * completing the task? A stub that encodes "effort=low -> 40% fewer tokens,
  * same answer" would be asserting the conclusion, the fixture-juicing the
- * honesty rules forbid (flux-honesty-rules: simulated behaviour may not be made
+ * honesty rules forbid (mesh-honesty-rules: simulated behaviour may not be made
  * forgiving to flatter a lever). So with no API key this script PROVES NOTHING
  * and says so; the number only exists against the live model.
  *
@@ -92,7 +92,7 @@ function supportsLowAndMedium(model: string): boolean {
 /** Pick a served, effort-capable, catalogued model. Guessing an id costs a
  *  whole failed run, so list what the workspace actually serves. */
 async function pickModel(): Promise<string> {
-  const explicit = process.env.FLUX_LIVE_MODEL;
+  const explicit = process.env.MESH_LIVE_MODEL;
   if (explicit !== undefined) return explicit;
   try {
     const res = await fetch(`${ANTHROPIC_BASE_URL}/v1/models?limit=100`, {
@@ -216,7 +216,7 @@ export async function runEffortGate(model: string): Promise<ReplayGateResult> {
     candidates: [EFFORT_LOW, EFFORT_MEDIUM],
     grade: effortTaskGrader(tasksByPrompt),
     groupOf: (request) => userPromptOf(request),
-    seed: "flux-effort-gate-v1",
+    seed: "mesh-effort-gate-v1",
     ...(priced.status === "priced" ? { price: priced.price } : {}),
   });
 }
@@ -232,7 +232,7 @@ async function main(): Promise<void> {
       "This lever's value is a REAL model behaviour (does lower effort spend fewer output tokens while\n" +
       "still completing the task?). A simulated provider cannot answer that without assuming the answer,\n" +
       "which the honesty rules forbid. Run it for real:\n\n" +
-      "  set -a && source ~/.config/flux/anthropic.env && set +a\n" +
+      "  set -a && source ~/.config/mesh/anthropic.env && set +a\n" +
       "  node --import tsx evals/run-effort-gate.ts\n",
     );
     return;
@@ -241,7 +241,7 @@ async function main(): Promise<void> {
   const model = await pickModel();
   if (!supportsLowAndMedium(model)) {
     console.log(`Model ${model} is not in the effort-capable allow-list; the lever would suppress and prove nothing.`);
-    console.log("Set FLUX_LIVE_MODEL to an effort-capable Claude id (e.g. claude-sonnet-5).");
+    console.log("Set MESH_LIVE_MODEL to an effort-capable Claude id (e.g. claude-sonnet-5).");
     return;
   }
 

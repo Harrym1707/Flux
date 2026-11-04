@@ -2,18 +2,18 @@
 """
 A3/A4 prompt-compression probe — sandbox for the prompt-compression axis.
 
-Purpose: quantify, on FLUX's own terms, the three facts that decide whether
-any prompt-compression method is viable as a FLUX lever:
+Purpose: quantify, on MESH's own terms, the three facts that decide whether
+any prompt-compression method is viable as a MESH lever:
 
   1. COMPRESSION RATIO   — tokens removed (the advertised win).
-  2. COMPRESSOR LATENCY  — wall-clock to run the compressor (FLUX budget is
+  2. COMPRESSOR LATENCY  — wall-clock to run the compressor (MESH budget is
                            ~tens of ms; a second model blows that).
   3. CACHING BUST        — how much of a STABLE prefix the rewrite mutates
                            (any mutation busts the provider prompt cache,
-                           FLUX's already-shipped A1 win).
+                           MESH's already-shipped A1 win).
 
 Design notes / honesty:
-  * FLUX cannot run a second LLM today. This probe therefore treats LLMLingua-2
+  * MESH cannot run a second LLM today. This probe therefore treats LLMLingua-2
     as an OPTIONAL dependency: if `llmlingua` is installed it measures the real
     thing; if not, it still reports token counts and prints exactly why the
     method is REJECT-today for a byte-only proxy. Nothing here is on the
@@ -82,7 +82,7 @@ def try_llmlingua(text: str, rate: float = 0.33):
     """Run LLMLingua-2-small if available. Returns (compressed_text, ms) or None.
 
     LLMLingua-2 is the only family member whose pure-inference profile is even
-    arguably in FLUX's latency class, so it is the one we probe. It is STILL a
+    arguably in MESH's latency class, so it is the one we probe. It is STILL a
     bundled neural encoder — not a byte-only rewrite — hence REJECT-today.
     """
     try:
@@ -188,7 +188,7 @@ def main() -> None:
     if lat:
         lat_sorted = sorted(lat)
         p50 = lat_sorted[len(lat_sorted) // 2]
-        print(f"  compressor latency p50: {p50:.1f} ms  (FLUX budget ~tens of ms)")
+        print(f"  compressor latency p50: {p50:.1f} ms  (MESH budget ~tens of ms)")
         print(f"  prompts that busted the stable prefix (A1 cache): {busts}/{len(texts)}")
     else:
         print("  compressor NOT run (llmlingua not installed).")
@@ -196,7 +196,7 @@ def main() -> None:
     print(
         "\n# Reminder: token pruning is LOSSY. These numbers are cost/latency/"
         "cache-cost only. A quality replay gate is REQUIRED before billing.\n"
-        "# Any compressor run is a SECOND MODEL, which FLUX does not bundle today."
+        "# Any compressor run is a SECOND MODEL, which MESH does not bundle today."
     )
 
 

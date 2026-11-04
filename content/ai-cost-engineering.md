@@ -12,6 +12,6 @@ The main optimisation surfaces are:
 
 A safe optimisation system should not assume that the cheapest model is the best choice. It should measure the candidate against the real workload and define explicit rollback conditions.
 
-## FLUX project status
+## MESH project status
 
-FLUX is an early-stage project. The current prototype can route a stable canary share to replay-approved models, apply versioned context transforms, retry rejected candidates on the baseline, and account for provider prompt-cache usage and an opt-in exact response cache. Replay evidence is required before candidates can be approved. Online learning, durable policy state and automated circuit breaking are not implemented.
+MESH is an early-stage project. The current prototype can route a stable canary share to replay-approved models, apply versioned context transforms, retry rejected candidates on the baseline, and account for provider prompt-cache usage and an opt-in exact response cache. Replay evidence is required before candidates can be approved. Online learning, durable policy state and automated circuit breaking are not implemented.

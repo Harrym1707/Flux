@@ -333,7 +333,7 @@ export function learnContextualRouter(
   const qualityDrop = options.maximumQualityDrop ?? 0.02;
   const minimumValidationGroups = options.minimumValidationGroups ?? 100;
   const bootstrapSamples = options.bootstrapSamples ?? 2_000;
-  const seed = options.seed ?? "flux-context-knn-v1";
+  const seed = options.seed ?? "mesh-context-knn-v1";
   if (!Number.isFinite(qualityDrop) || qualityDrop < 0 || qualityDrop > 1) {
     throw new Error("maximumQualityDrop must be between 0 and 1.");
   }
@@ -404,7 +404,7 @@ export function learnContextualRouter(
 
   const fallbackChoices = testRows.map(() => baselineChoice);
   const noSelection: Omit<ContextualRouterSelection, "choiceByCaseId"> = {
-    router: `flux_context_knn_${objective}`,
+    router: `mesh_context_knn_${objective}`,
     objective,
     selectedK: null,
     selectedLocalWeight: null,
@@ -433,7 +433,7 @@ export function learnContextualRouter(
   const selectedScores = selected.choices.map((choice, index) => validationRows[index]!.predictions[choice]!.score);
   const baselineScores = validationRows.map((row) => row.predictions[baselineChoice]!.score);
   return {
-    router: `flux_context_knn_${objective}`,
+    router: `mesh_context_knn_${objective}`,
     objective,
     choiceByCaseId: Object.fromEntries(testRows.map((row, index) => [row.id, testChoices[index]!])),
     selectedK: selected.k,

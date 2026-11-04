@@ -1,10 +1,10 @@
 /**
  * Output-token-reduction net-savings sandbox (fundamentals axis, 2026-10-28)
  *
- * Purpose: make the output-reduction literature numbers concrete in FLUX's OWN
+ * Purpose: make the output-reduction literature numbers concrete in MESH's OWN
  * economics, so the backlog conversation is about NET-of-cache, gate-passed,
  * billable savings — not the 80%/84% benchmark headlines that are measured on
- * math data FLUX never sees.
+ * math data MESH never sees.
  *
  * It is a transparent arithmetic model, NOT a measurement. Every input is
  * labelled with its honesty tag. Run:
@@ -21,7 +21,7 @@
  *   minus a cache-bust penalty if the rewrite invalidates the cached prefix:
  *     bust     = cacheReadShare * bustFraction
  *   then scaled by the fraction of routes that clear the quality gate.
- *   FLUX bills 1% of the verified net.
+ *   MESH bills 1% of the verified net.
  */
 
 // ---- Measured anchors (docs/rnd/knowledge/2026-10-26-output-token-ground-truth.md)
@@ -98,8 +98,8 @@ function evaluate(s: Scenario) {
   const bust = BILL.cacheReadShare * s.bustFraction;
   const netPreGate = gross - bust;
   const netVerified = netPreGate * s.gatePass;
-  const fluxBill = netVerified * 0.01; // FLUX bills 1% of verified savings
-  return { direct, echo, gross, bust, netPreGate, netVerified, fluxBill };
+  const meshBill = netVerified * 0.01; // MESH bills 1% of verified savings
+  return { direct, echo, gross, bust, netPreGate, netVerified, meshBill };
 }
 
 function pct(x: number): string {
@@ -108,7 +108,7 @@ function pct(x: number): string {
 
 console.log("Output-token-reduction NET model — share of a well-cached agent's bill");
 console.log("Anchors: output 29.3%, cache-read 51.6% (measured); echo +0.5x (derived);");
-console.log("reachable turn share 40% (estimate); FLUX bills 1% of verified net.\n");
+console.log("reachable turn share 40% (estimate); MESH bills 1% of verified net.\n");
 
 for (const s of SCENARIOS) {
   const r = evaluate(s);
@@ -122,7 +122,7 @@ for (const s of SCENARIOS) {
   console.log(`  - cache bust     = ${pct(r.bust)} of bill`);
   console.log(`  = net pre-gate   = ${pct(r.netPreGate)} of bill`);
   console.log(`  = net VERIFIED   = ${pct(r.netVerified)} of bill   <- after quality gate`);
-  console.log(`  -> FLUX bills    = ${pct(r.fluxBill)} of the customer's total spend`);
+  console.log(`  -> MESH bills    = ${pct(r.meshBill)} of the customer's total spend`);
 }
 
 console.log("─".repeat(78));

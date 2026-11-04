@@ -4,7 +4,7 @@ export const dashboardHtml = `<!doctype html>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="light">
-  <title>FLUX · Local inference activity</title>
+  <title>MESH · Local inference activity</title>
   <style>
     :root { font: 15px/1.5 Inter, ui-sans-serif, system-ui, -apple-system, sans-serif; color: #17191e; background: #f7f7f5; }
     * { box-sizing: border-box; }
@@ -38,10 +38,10 @@ export const dashboardHtml = `<!doctype html>
   </style>
 </head>
 <body>
-  <header><div class="brand">FLUX</div><div class="local">LOCAL DEVELOPMENT · METADATA ONLY</div></header>
+  <header><div class="brand">MESH</div><div class="local">LOCAL DEVELOPMENT · METADATA ONLY</div></header>
   <main>
     <h1>Inference activity</h1>
-    <p class="sub">Recent provider requests observed by the FLUX SDK.</p>
+    <p class="sub">Recent provider requests observed by the MESH SDK.</p>
     <section class="cards" aria-label="Request summary">
       <div class="card"><div class="label">Requests</div><div class="value" id="requests">0</div></div>
       <div class="card"><div class="label">Successful</div><div class="value" id="successful">0</div></div>
@@ -93,7 +93,7 @@ export const dashboardHtml = `<!doctype html>
         document.getElementById("empty").style.display = events.length ? "none" : "block";
         text("updated", "Updated " + new Date().toLocaleTimeString());
       } catch {
-        text("updated", "Waiting for local FLUX API…");
+        text("updated", "Waiting for local MESH API…");
       }
     }
     refresh();

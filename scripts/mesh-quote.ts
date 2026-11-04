@@ -2,7 +2,7 @@
  * The five-minute design-partner experience: a pre-contract savings quote from
  * their OWN gateway export, including the honest "do not pay us" verdict.
  *
- *   node --import tsx scripts/flux-quote.ts <export-file> \
+ *   node --import tsx scripts/mesh-quote.ts <export-file> \
  *     [--format litellm|helicone|langfuse] [--at YYYY-MM-DD] [--out quote.json]
  *
  * The export file is JSONL or a JSON array (LiteLLM spend logs, Helicone
@@ -26,7 +26,7 @@ function fail(message: string): never {
 
 const args = process.argv.slice(2);
 if (args.length === 0 || args[0]!.startsWith("--")) {
-  fail("Usage: node --import tsx scripts/flux-quote.ts <export-file> [--format litellm|helicone|langfuse] [--at YYYY-MM-DD] [--out quote.json]");
+  fail("Usage: node --import tsx scripts/mesh-quote.ts <export-file> [--format litellm|helicone|langfuse] [--at YYYY-MM-DD] [--out quote.json]");
 }
 const file = args[0]!;
 let format: QuoteExportFormat = "litellm";

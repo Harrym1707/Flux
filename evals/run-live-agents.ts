@@ -1,7 +1,7 @@
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { withFlux, type FluxTokenReductionConfig } from "../packages/sdk-js/src/index.js";
+import { withMesh, type MeshTokenReductionConfig } from "../packages/sdk-js/src/index.js";
 import {
   publishedModelPrices,
   recomputeInvoice,
@@ -11,11 +11,11 @@ import {
 } from "../packages/core/src/index.js";
 
 /**
- * Five simple agents, each wrapped in FLUX with the savings ledger on, run to
- * produce a REAL export: a hash-chained ledger spool and the invoice FLUX would
+ * Five simple agents, each wrapped in MESH with the savings ledger on, run to
+ * produce a REAL export: a hash-chained ledger spool and the invoice MESH would
  * bill for each one.
  *
- * FLUX is provider-agnostic and so is this harness. The agents are written
+ * MESH is provider-agnostic and so is this harness. The agents are written
  * once, provider-neutrally, and shaped per provider at send time:
  *
  *   ANTHROPIC_API_KEY set  -> LIVE against the Anthropic Messages API (the
@@ -26,7 +26,7 @@ import {
  *   neither                -> deterministic LOCAL-STUB run of BOTH provider
  *                             shapes: a pipeline check, never a savings claim.
  *
- * FLUX_LIVE_PROVIDER=anthropic|openai forces the choice; FLUX_LIVE_MODEL
+ * MESH_LIVE_PROVIDER=anthropic|openai forces the choice; MESH_LIVE_MODEL
  * overrides the model for the selected live provider.
  *
  * The honesty line this harness holds: real savings need real API calls. With
@@ -59,9 +59,9 @@ function cleanCredential(name: string, value: string | undefined): string | unde
 const ANTHROPIC_KEY = cleanCredential("ANTHROPIC_API_KEY", process.env.ANTHROPIC_API_KEY);
 const OPENAI_KEY = cleanCredential("OPENAI_API_KEY", process.env.OPENAI_API_KEY);
 const ANTHROPIC_WORKSPACE_ID = cleanCredential("ANTHROPIC_WORKSPACE_ID", process.env.ANTHROPIC_WORKSPACE_ID);
-const FORCED = process.env.FLUX_LIVE_PROVIDER as Provider | undefined;
+const FORCED = process.env.MESH_LIVE_PROVIDER as Provider | undefined;
 if (FORCED !== undefined && FORCED !== "anthropic" && FORCED !== "openai") {
-  throw new Error(`FLUX_LIVE_PROVIDER must be "anthropic" or "openai", got ${JSON.stringify(FORCED)}.`);
+  throw new Error(`MESH_LIVE_PROVIDER must be "anthropic" or "openai", got ${JSON.stringify(FORCED)}.`);
 }
 
 const liveProvider: Provider | undefined = FORCED !== undefined
@@ -70,7 +70,7 @@ const liveProvider: Provider | undefined = FORCED !== undefined
 const LIVE = liveProvider !== undefined &&
   (liveProvider === "anthropic" ? !!ANTHROPIC_KEY : !!OPENAI_KEY);
 if (FORCED !== undefined && !LIVE) {
-  throw new Error(`FLUX_LIVE_PROVIDER=${FORCED} but the matching API key is not set.`);
+  throw new Error(`MESH_LIVE_PROVIDER=${FORCED} but the matching API key is not set.`);
 }
 
 const DEFAULT_MODEL: Record<Provider, string> = {
@@ -78,14 +78,14 @@ const DEFAULT_MODEL: Record<Provider, string> = {
   openai: "gpt-5",
 };
 const OPENAI_BASE_URL = (process.env.OPENAI_BASE_URL ?? "https://api.openai.com/v1").replace(/\/$/, "");
-// Set to the FLUX proxy's url to run the whole harness THROUGH proxy mode.
+// Set to the MESH proxy's url to run the whole harness THROUGH proxy mode.
 const ANTHROPIC_BASE_URL = (process.env.ANTHROPIC_BASE_URL ?? "https://api.anthropic.com").replace(/\/$/, "");
 
 /** A LOCAL-STUB run exercises both provider shapes; a LIVE run uses the keyed one. */
 const providers: Provider[] = LIVE ? [liveProvider!] : ["anthropic", "openai"];
 
 function modelFor(provider: Provider): string {
-  if (LIVE && provider === liveProvider && process.env.FLUX_LIVE_MODEL) return process.env.FLUX_LIVE_MODEL;
+  if (LIVE && provider === liveProvider && process.env.MESH_LIVE_MODEL) return process.env.MESH_LIVE_MODEL;
   return DEFAULT_MODEL[provider];
 }
 
@@ -107,7 +107,7 @@ function anthropicHeaders(): Record<string, string> {
  * events, which would be a pipeline demo dressed up as a measurement.
  */
 async function pickAnthropicModel(): Promise<string> {
-  const explicit = process.env.FLUX_LIVE_MODEL;
+  const explicit = process.env.MESH_LIVE_MODEL;
   let ids: string[] = [];
   try {
     const res = await fetch(`${ANTHROPIC_BASE_URL}/v1/models?limit=100`, {
@@ -125,7 +125,7 @@ async function pickAnthropicModel(): Promise<string> {
   }
   if (explicit !== undefined) {
     if (ids.length > 0 && !ids.includes(explicit)) {
-      console.log(`warning: FLUX_LIVE_MODEL=${explicit} is not in this workspace's model list; trying it anyway.`);
+      console.log(`warning: MESH_LIVE_MODEL=${explicit} is not in this workspace's model list; trying it anyway.`);
     }
     return explicit;
   }
@@ -142,7 +142,7 @@ async function pickAnthropicModel(): Promise<string> {
   throw new Error(
     "None of this workspace's models has a catalogued rate, so every event would be unpriced. " +
     `Available ids: ${ids.join(", ")}. Catalogue a dated, sourced rate for one of them ` +
-    "(packages/core/src/model-prices.ts), or pass FLUX_LIVE_MODEL=<id> to force one.",
+    "(packages/core/src/model-prices.ts), or pass MESH_LIVE_MODEL=<id> to force one.",
   );
 }
 
@@ -177,7 +177,7 @@ const BIG_TOOL_RESULT = Array.from({ length: 20 }, (_, i) =>
 type Agent = {
   name: string;
   segment: string;
-  reduction: FluxTokenReductionConfig;
+  reduction: MeshTokenReductionConfig;
   /**
    * Anthropic-side cache stamp for this workload. Anthropic's cache is opt-in,
    * so an unstamped Claude agent re-pays full rate for its whole history every
@@ -196,7 +196,7 @@ const agents: Agent[] = [
     name: "coding-agent",
     segment: "interactive (busy)",
     reduction: { toolSchemas: true, duplicateContext: true, repairCachePrefix: true, historyCompaction: true,
-      freshToolResultCap: { maximumTokens: 600 } } as FluxTokenReductionConfig,
+      freshToolResultCap: { maximumTokens: 600 } } as MeshTokenReductionConfig,
     anthropicCacheTtl: "5m",
     gateVerdicts: { "fresh-tool-result-cap": { ref: "replay-gate/freshcap@ab5b4c7", verdict: "approved" } },
     requests: () => Array.from({ length: 5 }, (_, turn) => ({
@@ -229,7 +229,7 @@ const agents: Agent[] = [
     name: "batch-classifier",
     segment: "async-eligible",
     // The discount lever is per-provider: OpenAI's flex tier, or the 1h cache
-    // TTL on Anthropic (its Batch API rate is not catalogued yet, so FLUX
+    // TTL on Anthropic (its Batch API rate is not catalogued yet, so MESH
     // would leave real Anthropic batch events unpriced rather than guess).
     reduction: { toolSchemas: true, duplicateContext: true, repairCachePrefix: true, executionTier: "flex" },
     requests: () => Array.from({ length: 8 }, (_, i) => ({
@@ -260,10 +260,10 @@ const agents: Agent[] = [
 ];
 
 /** The same agent, with its discount levers swapped to the provider's own. */
-function reductionFor(provider: Provider, agent: Agent): FluxTokenReductionConfig {
+function reductionFor(provider: Provider, agent: Agent): MeshTokenReductionConfig {
   const base = agent.reduction;
   if (provider === "anthropic") {
-    const { executionTier: _tier, ...rest } = base as FluxTokenReductionConfig & { executionTier?: "flex" };
+    const { executionTier: _tier, ...rest } = base as MeshTokenReductionConfig & { executionTier?: "flex" };
     if (_tier === "flex") return { ...rest, cacheTtl: "1h" };
     if (agent.anthropicCacheTtl !== undefined) return { ...rest, cacheTtl: agent.anthropicCacheTtl };
     return rest;
@@ -363,7 +363,7 @@ async function liveCompletion(provider: Provider, req: AnyObject): Promise<AnyOb
 }
 
 /**
- * A client in the shape withFlux wraps for this provider: messages.create for
+ * A client in the shape withMesh wraps for this provider: messages.create for
  * Anthropic-SDK-shaped clients, responses.create for OpenAI-shaped ones.
  */
 function makeClient(provider: Provider): AnyObject {
@@ -376,7 +376,7 @@ function makeClient(provider: Provider): AnyObject {
 // Run
 // ---------------------------------------------------------------------------
 
-const ROOT = mkdtempSync(join(tmpdir(), "flux-live-"));
+const ROOT = mkdtempSync(join(tmpdir(), "mesh-live-"));
 
 function readLedger(path: string): LedgerRecord[] {
   try {
@@ -387,9 +387,9 @@ function readLedger(path: string): LedgerRecord[] {
   }
 }
 
-console.log(`=== FLUX live-agent run — mode: ${LIVE
+console.log(`=== MESH live-agent run — mode: ${LIVE
   ? liveProvider === "anthropic"
-    ? `LIVE (anthropic, model ${process.env.FLUX_LIVE_MODEL ?? "picked at preflight from the workspace's own list"})`
+    ? `LIVE (anthropic, model ${process.env.MESH_LIVE_MODEL ?? "picked at preflight from the workspace's own list"})`
     : `LIVE (openai ${modelFor("openai")}${OPENAI_BASE_URL !== "https://api.openai.com/v1" ? ` via ${OPENAI_BASE_URL}` : ""})`
   : "LOCAL-STUB (no API key; both provider shapes)"} ===`);
 if (!LIVE) {
@@ -403,7 +403,7 @@ for (const provider of providers) {
   const model = LIVE && provider === "anthropic" ? await pickAnthropicModel() : modelFor(provider);
   for (const agent of agents) {
     const ledgerPath = join(ROOT, `${provider}-${agent.name}.jsonl`);
-    const client = withFlux(makeClient(provider) as never, {
+    const client = withMesh(makeClient(provider) as never, {
       applicationId: agent.name,
       tokenReduction: reductionFor(provider, agent),
       ledger: { path: ledgerPath, provider, ...(agent.gateVerdicts === undefined ? {} : { gateVerdicts: agent.gateVerdicts }) },
@@ -461,4 +461,4 @@ console.log(!LIVE
     ? `LIVE run: the net-saved figures above are measured on real ${liveProvider} traffic — this is a real export.`
     : "LIVE run FAILED: no request succeeded, so nothing above is a measurement. Check the API key and retry.");
 
-if (process.env.FLUX_LIVE_KEEP !== "1") rmSync(ROOT, { recursive: true, force: true });
+if (process.env.MESH_LIVE_KEEP !== "1") rmSync(ROOT, { recursive: true, force: true });

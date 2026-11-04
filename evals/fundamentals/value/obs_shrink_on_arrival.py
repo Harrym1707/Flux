@@ -35,7 +35,7 @@ def l2(s, cap):
     if len(toks) <= cap: return s
     head = ENC.decode(toks[: cap * 2 // 3])
     tail = ENC.decode(toks[-cap // 3:])
-    return head + f"\n...[{len(toks)-cap} tokens elided by FLUX]...\n" + tail
+    return head + f"\n...[{len(toks)-cap} tokens elided by MESH]...\n" + tail
 
 PARQUET = sys.argv[1] if len(sys.argv) > 1 else "/tmp/nebius_SWE-agent-trajectories.parquet"
 SAMPLE = int(sys.argv[2]) if len(sys.argv) > 2 else 300

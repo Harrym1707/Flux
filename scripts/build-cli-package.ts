@@ -1,21 +1,21 @@
 /**
- * Build the shippable FLUX CLI as THREE artifacts:
+ * Build the shippable MESH CLI as THREE artifacts:
  *
- *   pkg/flux               the tiny bootstrap users download. Contains no
+ *   pkg/mesh               the tiny bootstrap users download. Contains no
  *                          product code — it fetches, checksum-verifies, caches
  *                          and runs the runtime, and self-updates.
- *   pkg/flux-runtime       the client runtime (proxy + reducer + ledger + Theo),
+ *   pkg/mesh-runtime       the client runtime (proxy + reducer + ledger + Theo),
  *                          scoped: no `analyse`, so billing/router/observability
  *                          code never ships. Stamped with the git commit.
- *   pkg/flux-version.json  { version, sha256, runtime } — the update manifest
+ *   pkg/mesh-version.json  { version, sha256, runtime } — the update manifest
  *                          the bootstrap checks and verifies against.
  *
- * Hosting: /flux = bootstrap, /flux-runtime = runtime, /flux-version.json.
- * npm: @flux-ai/flux ships the self-contained runtime as its `flux` bin (npm
+ * Hosting: /mesh = bootstrap, /mesh-runtime = runtime, /mesh-version.json.
+ * npm: @mesh-ai/mesh ships the self-contained runtime as its `mesh` bin (npm
  * handles versioning there, so no bootstrap/CDN dependency on that path).
  *
  * Nothing here contacts a registry; it smoke-tests the runtime by running
- * `flux-runtime verify`.
+ * `mesh-runtime verify`.
  */
 import { execSync } from "node:child_process";
 import { chmodSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -60,38 +60,38 @@ rmSync(outDir, { recursive: true, force: true });
 mkdirSync(outDir, { recursive: true });
 
 // 1. The runtime (scoped client entry), stamped with the commit.
-const runtimeFile = path.join(outDir, "flux-runtime");
-bundle("flux-runtime.ts", runtimeFile, { __FLUX_BUILD_COMMIT__: JSON.stringify(commit), __FLUX_VERSION__: JSON.stringify(version) });
+const runtimeFile = path.join(outDir, "mesh-runtime");
+bundle("mesh-runtime.ts", runtimeFile, { __MESH_BUILD_COMMIT__: JSON.stringify(commit), __MESH_VERSION__: JSON.stringify(version) });
 const runtimeBytes = readFileSync(runtimeFile);
 const runtimeSha = createHash("sha256").update(runtimeBytes).digest("hex");
 
 // 2. The bootstrap (the tiny download).
-const bootstrapFile = path.join(outDir, "flux");
+const bootstrapFile = path.join(outDir, "mesh");
 bundle("bootstrap.ts", bootstrapFile);
 
 // 3. The update manifest the bootstrap verifies against.
 writeFileSync(
-  path.join(outDir, "flux-version.json"),
-  `${JSON.stringify({ version: commit, sha256: runtimeSha, runtime: "flux-runtime" }, null, 2)}\n`,
+  path.join(outDir, "mesh-version.json"),
+  `${JSON.stringify({ version: commit, sha256: runtimeSha, runtime: "mesh-runtime" }, null, 2)}\n`,
 );
 
-// npm manifest: ship the SELF-CONTAINED runtime as the `flux` bin (npm versions
+// npm manifest: ship the SELF-CONTAINED runtime as the `mesh` bin (npm versions
 // it, so no CDN/bootstrap there). The website download is the bootstrap.
 writeFileSync(path.join(outDir, "package.json"), `${JSON.stringify({
-  name: "@flux-ai/flux",
+  name: "@mesh-ai/mesh",
   version,
-  description: "Cut your LLM bill, verified on your own usage. One command points Claude Code at FLUX and runs Theo alongside you.",
+  description: "Cut your LLM bill, verified on your own usage. One command points Claude Code at MESH and runs Theo alongside you.",
   type: "module",
-  bin: { flux: "./flux-runtime" },
-  files: ["flux-runtime", "README.md"],
+  bin: { mesh: "./mesh-runtime" },
+  files: ["mesh-runtime", "README.md"],
   engines: { node: ">=22" },
-  keywords: ["llm", "anthropic", "claude", "claude-code", "proxy", "cost", "tokens", "flux"],
+  keywords: ["llm", "anthropic", "claude", "claude-code", "proxy", "cost", "tokens", "mesh"],
   license: "BUSL-1.1",
   homepage: "https://www.fluxtoken.dev",
   repository: { type: "git", url: "git+https://github.com/Harrym1707/Flux.git" },
 }, null, 2)}\n`);
 
-writeFileSync(path.join(outDir, "README.md"), `# flux
+writeFileSync(path.join(outDir, "README.md"), `# mesh
 
 Cut your LLM bill — verified on your own usage, never an estimate.
 
@@ -101,22 +101,22 @@ Download one small file (needs Node 22+); it fetches and verifies the runtime,
 then keeps it up to date:
 
 \`\`\`sh
-curl -fsSL https://www.fluxtoken.dev/flux -o flux && chmod +x flux && ./flux start
+curl -fsSL https://www.fluxtoken.dev/mesh -o mesh && chmod +x mesh && ./mesh start
 \`\`\`
 
 …or with npm:
 
 \`\`\`sh
-npx @flux-ai/flux start
+npx @mesh-ai/mesh start
 \`\`\`
 
 ## Commands
 
 \`\`\`sh
-./flux start      # proxy + point Claude Code at it + Theo; reverts on exit
-./flux install    # always-on background service (macOS)
-./flux status     # is it up, and what has Theo saved
-./flux verify     # re-prove the build, ledger chain, and invoice
+./mesh start      # proxy + point Claude Code at it + Theo; reverts on exit
+./mesh install    # always-on background service (macOS)
+./mesh status     # is it up, and what has Theo saved
+./mesh verify     # re-prove the build, ledger chain, and invoice
 \`\`\`
 
 Your API key never leaves Claude Code. Build: ${commit}.
@@ -131,8 +131,8 @@ if (!smoke.includes("All checks passed")) {
 
 const kb = (n: number): string => `${(n / 1024).toFixed(0)}KB`;
 console.log(`built CLI artifacts  (build ${commit}, v${version})`);
-console.log(`  flux (bootstrap)   ${kb(readFileSync(bootstrapFile).length)}  → the download`);
-console.log(`  flux-runtime       ${kb(runtimeBytes.length)}  sha256 ${runtimeSha.slice(0, 12)}…`);
-console.log(`  flux-version.json  update manifest`);
-console.log(`  smoke test: flux-runtime verify — All checks passed`);
+console.log(`  mesh (bootstrap)   ${kb(readFileSync(bootstrapFile).length)}  → the download`);
+console.log(`  mesh-runtime       ${kb(runtimeBytes.length)}  sha256 ${runtimeSha.slice(0, 12)}…`);
+console.log(`  mesh-version.json  update manifest`);
+console.log(`  smoke test: mesh-runtime verify — All checks passed`);
 console.log(`  publish npm with:  (cd ${path.relative(root, outDir)} && npm publish --access public)`);

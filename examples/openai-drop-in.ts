@@ -1,8 +1,8 @@
 import OpenAI from "openai";
-import { withFlux } from "@flux-ai/sdk";
+import { withMesh } from "@mesh-ai/sdk";
 
-const inputPrice = process.env.FLUX_INPUT_PRICE_PER_MILLION;
-const outputPrice = process.env.FLUX_OUTPUT_PRICE_PER_MILLION;
+const inputPrice = process.env.MESH_INPUT_PRICE_PER_MILLION;
+const outputPrice = process.env.MESH_OUTPUT_PRICE_PER_MILLION;
 const pricing = inputPrice?.trim() && outputPrice?.trim()
   ? {
       inputPerMillion: Number(inputPrice),
@@ -19,15 +19,15 @@ const raw = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
-const openai = withFlux(raw, {
+const openai = withMesh(raw, {
   applicationId: "example-app",
   pricing,
   telemetry: {
-    endpoint: process.env.FLUX_TELEMETRY_URL,
+    endpoint: process.env.MESH_TELEMETRY_URL,
     mode: "metadata_only",
   },
   classify: () => "classification",
-  onEvent: (event) => console.info("FLUX request", event),
+  onEvent: (event) => console.info("MESH request", event),
 });
 
 const response = await openai.responses.create({

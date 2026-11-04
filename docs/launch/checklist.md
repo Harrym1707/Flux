@@ -5,10 +5,10 @@ lasts hours; a broken first impression lasts.
 
 ## Product readiness (verify the morning of)
 
-- [ ] `npx -y -p @flux-ai/sdk flux-proxy` works from a clean machine (no repo,
+- [ ] `npx -y -p @mesh-ai/sdk mesh-proxy` works from a clean machine (no repo,
       no login) — this is the first thing every visitor will run
 - [ ] www.fluxtoken.dev loads fast; /start.html renders; GEO audit green
-      (`FLUX_SITE_ORIGIN=https://www.fluxtoken.dev node --import tsx evals/run-geo-audit.ts`)
+      (`MESH_SITE_ORIGIN=https://www.fluxtoken.dev node --import tsx evals/run-geo-audit.ts`)
 - [ ] CI green on main; nightly-evals has a passing run
 - [ ] README front section reads correctly on the GitHub mobile app (most HN
       readers open the repo on a phone first)
@@ -32,7 +32,7 @@ lasts hours; a broken first impression lasts.
    yours wins.
 2. **"Why not just set cache_control myself?"** Answer: you absolutely can,
    and if your stack is already optimised our quote literally says "do not
-   pay us." FLUX is for the teams that haven't — our live export measured a
+   pay us." MESH is for the teams that haven't — our live export measured a
    five-turn agent paying full rate for its entire history every turn — plus
    the verification layer that proves what changed.
 3. **"BUSL isn't open source."** Answer: correct, and we don't claim it is.

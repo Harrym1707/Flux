@@ -1,7 +1,7 @@
 {
-  "name": "FLUX",
+  "name": "MESH",
   "category": "AI Cost Engineering",
-  "description": "FLUX is an early-stage AI Cost Engineering project for observing inference requests and evaluating saved baseline and candidate outputs against explicit quality policies.",
+  "description": "MESH is an early-stage AI Cost Engineering project for observing inference requests and evaluating saved baseline and candidate outputs against explicit quality policies.",
   "implementedCapabilities": [
     "OpenAI-compatible Responses API pass-through instrumentation",
     "metadata-only request telemetry",

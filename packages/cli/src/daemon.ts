@@ -1,13 +1,13 @@
 /**
- * Always-on mode: run FLUX as a background service so Claude Code is optimised
+ * Always-on mode: run MESH as a background service so Claude Code is optimised
  * every time, with nothing to start by hand.
  *
- *   flux install     copy the binary somewhere stable, write a launchd agent
- *                    that runs `flux serve`, point Claude Code at it (persistent)
- *   flux uninstall   stop + remove the agent, restore Claude Code
- *   flux status      is the service up? what has Theo saved so far?
+ *   mesh install     copy the binary somewhere stable, write a launchd agent
+ *                    that runs `mesh serve`, point Claude Code at it (persistent)
+ *   mesh uninstall   stop + remove the agent, restore Claude Code
+ *   mesh status      is the service up? what has Theo saved so far?
  *
- * macOS (launchd) for now; on other platforms it tells you to use `flux start`.
+ * macOS (launchd) for now; on other platforms it tells you to use `mesh start`.
  */
 import { connect } from "node:net";
 import { execFileSync } from "node:child_process";
@@ -15,18 +15,18 @@ import { chmodSync, copyFileSync, existsSync, mkdirSync, readFileSync, rmSync, w
 import { homedir, platform } from "node:os";
 import { dirname, join, resolve } from "node:path";
 
-import { BUILD_COMMIT, CLAUDE_SETTINGS, DEFAULT_PORT, FLUX_HOME, summariseLedger } from "./start.js";
+import { BUILD_COMMIT, CLAUDE_SETTINGS, DEFAULT_PORT, MESH_HOME, summariseLedger } from "./start.js";
 
-const LABEL = "dev.fluxtoken.flux";
+const LABEL = "dev.meshtoken.mesh";
 const PLIST = join(homedir(), "Library", "LaunchAgents", `${LABEL}.plist`);
-const DAEMON_LOG = join(FLUX_HOME, "daemon.log");
-const STABLE_BIN = join(FLUX_HOME, "bin", "flux");
-const DEFAULT_LEDGER = join(FLUX_HOME, "ledger");
+const DAEMON_LOG = join(MESH_HOME, "daemon.log");
+const STABLE_BIN = join(MESH_HOME, "bin", "mesh");
+const DEFAULT_LEDGER = join(MESH_HOME, "ledger");
 
 function requireMac(action: string): void {
   if (platform() !== "darwin") {
-    console.error(`\`flux ${action}\` uses macOS launchd and isn't wired for this platform yet.`);
-    console.error(`Use \`flux start\` instead — it does the same thing while it's running.`);
+    console.error(`\`mesh ${action}\` uses macOS launchd and isn't wired for this platform yet.`);
+    console.error(`Use \`mesh start\` instead — it does the same thing while it's running.`);
     process.exit(1);
   }
 }
@@ -66,7 +66,7 @@ function setClaudeBaseUrl(url: string): void {
   let settings: Record<string, unknown> = {};
   if (existsSync(CLAUDE_SETTINGS)) {
     try { settings = JSON.parse(readFileSync(CLAUDE_SETTINGS, "utf8")) as Record<string, unknown>; }
-    catch { throw new Error("~/.claude/settings.json isn't valid JSON — fix it first; FLUX won't overwrite it."); }
+    catch { throw new Error("~/.claude/settings.json isn't valid JSON — fix it first; MESH won't overwrite it."); }
   }
   const env = { ...((settings.env as Record<string, string>) ?? {}), ANTHROPIC_BASE_URL: url };
   writeFileSync(CLAUDE_SETTINGS, `${JSON.stringify({ ...settings, env }, null, 2)}\n`);
@@ -111,13 +111,13 @@ ${argXml}
 export async function runInstall(argv: string[]): Promise<void> {
   requireMac("install");
   const port = parsePort(argv);
-  mkdirSync(join(FLUX_HOME, "bin"), { recursive: true });
+  mkdirSync(join(MESH_HOME, "bin"), { recursive: true });
   mkdirSync(DEFAULT_LEDGER, { recursive: true });
 
   // Register the self-updating bootstrap (not the runtime) with launchd, copied
   // to a stable home so moving the download can't break the service. The
-  // bootstrap sets FLUX_BOOTSTRAP_PATH before running us; fall back to argv[1].
-  const self = resolve(process.env.FLUX_BOOTSTRAP_PATH ?? process.argv[1] ?? "");
+  // bootstrap sets MESH_BOOTSTRAP_PATH before running us; fall back to argv[1].
+  const self = resolve(process.env.MESH_BOOTSTRAP_PATH ?? process.argv[1] ?? "");
   if (self !== STABLE_BIN) copyFileSync(self, STABLE_BIN);
   chmodSync(STABLE_BIN, 0o755);
 
@@ -132,17 +132,17 @@ export async function runInstall(argv: string[]): Promise<void> {
 
   console.log("");
   if (up) {
-    console.log(`  ⬢ theo — FLUX is now always on.  build ${BUILD_COMMIT}`);
+    console.log(`  ⬢ theo — MESH is now always on.  build ${BUILD_COMMIT}`);
     console.log(`  service  launchd ${LABEL} (starts at login, restarts if it stops)`);
     console.log(`  proxy    http://127.0.0.1:${port}  ·  ledger ${DEFAULT_LEDGER}`);
-    console.log(`  claude   pointed at FLUX permanently via ~/.claude/settings.json`);
+    console.log(`  claude   pointed at MESH permanently via ~/.claude/settings.json`);
     console.log(`  log      ${DAEMON_LOG}`);
     console.log("");
-    console.log(`  Just use Claude Code — every session is optimised. Check savings with: flux status`);
-    console.log(`  Turn it off any time with: flux uninstall`);
+    console.log(`  Just use Claude Code — every session is optimised. Check savings with: mesh status`);
+    console.log(`  Turn it off any time with: mesh uninstall`);
   } else {
     console.log(`  ⚠ The service was installed but the proxy didn't answer on port ${port}.`);
-    console.log(`  Check ${DAEMON_LOG}, then re-run \`flux install\`, or use \`flux start\` instead.`);
+    console.log(`  Check ${DAEMON_LOG}, then re-run \`mesh install\`, or use \`mesh start\` instead.`);
     process.exitCode = 1;
   }
   console.log("");
@@ -155,26 +155,26 @@ export function runUninstall(_argv: string[]): void {
   clearClaudeBaseUrl();
   console.log("");
   console.log(`  ⬢ theo — always-on removed. The service is stopped and Claude Code is back to normal.`);
-  console.log(`  Your ledger is kept at ${DEFAULT_LEDGER} — recompute any time with: flux verify`);
+  console.log(`  Your ledger is kept at ${DEFAULT_LEDGER} — recompute any time with: mesh verify`);
   console.log("");
 }
 
 /** Stop the background service without removing it. Claude Code reverts to
- *  normal; the service definition stays so `flux install` resumes it. */
+ *  normal; the service definition stays so `mesh install` resumes it. */
 export function runStop(_argv: string[]): void {
   requireMac("stop");
   if (!isLoaded()) {
     console.log("");
-    console.log(`  No FLUX background service is running.`);
-    console.log(`  (A foreground \`flux start\` is stopped with Ctrl+C.)`);
+    console.log(`  No MESH background service is running.`);
+    console.log(`  (A foreground \`mesh start\` is stopped with Ctrl+C.)`);
     console.log("");
     return;
   }
   launchctl("unload", "-w", PLIST);
   clearClaudeBaseUrl();
   console.log("");
-  console.log(`  ⬢ theo — FLUX service stopped. Claude Code is back to normal.`);
-  console.log(`  The service is kept — resume always-on any time with: flux install`);
+  console.log(`  ⬢ theo — MESH service stopped. Claude Code is back to normal.`);
+  console.log(`  The service is kept — resume always-on any time with: mesh install`);
   console.log(`  Your ledger is untouched.`);
   console.log("");
 }
@@ -185,7 +185,7 @@ export async function runStatus(_argv: string[]): Promise<void> {
   const up = await portUp(port);
   const s = summariseLedger(DEFAULT_LEDGER);
   console.log("");
-  console.log(`  flux status — build ${BUILD_COMMIT}`);
+  console.log(`  mesh status — build ${BUILD_COMMIT}`);
   console.log(`  service   ${loaded ? "installed (launchd)" : "not installed"}`);
   console.log(`  proxy     ${up ? `up on http://127.0.0.1:${port}` : "not responding"}`);
   if (s.events > 0) {

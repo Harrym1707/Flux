@@ -8,10 +8,10 @@ import {
 } from "./price-catalogue.js";
 
 /**
- * The savings ledger: the append-only record FLUX bills from, and the pure
+ * The savings ledger: the append-only record MESH bills from, and the pure
  * functions that turn it back into an invoice.
  *
- * FLUX charges a percentage of VERIFIED savings, so the ledger is designed to
+ * MESH charges a percentage of VERIFIED savings, so the ledger is designed to
  * be recomputed by the customer, not trusted:
  *
  * - Every event carries the provider-verbatim token usage and the content hash
@@ -21,9 +21,9 @@ import {
  *   removed event is detectable, and the exact position is named.
  * - `recomputeInvoice` is deterministic and idempotent by requestId: replaying
  *   the same spool twice, late, or shuffled yields a byte-identical invoice.
- * - Only verified components bill: price-mode deltas on actual tokens, FLUX's
+ * - Only verified components bill: price-mode deltas on actual tokens, MESH's
  *   own exact-cache avoidance at the originally measured cost, provider-cache
- *   economics on prefixes FLUX itself placed, and lossy levers whose replay
+ *   economics on prefixes MESH itself placed, and lossy levers whose replay
  *   gate verdict is "approved". Savings the customer already had (provider
  *   cache on appended history they placed or got by default, gateway caches)
  *   are recorded for transparency and never billed. Token-reduction levers may
@@ -31,7 +31,7 @@ import {
  *   every such figure is labelled "estimated-baseline" on the lever and the
  *   invoice line item — an estimate is never passed off as a measurement.
  * - Negative components are netted, never clamped: a 1h cache-write surcharge
- *   that never earned its reads shows up AGAINST FLUX on the invoice, and a
+ *   that never earned its reads shows up AGAINST MESH on the invoice, and a
  *   net-non-positive period produces the "do_not_charge" verdict.
  */
 
@@ -44,9 +44,9 @@ export type LedgerLeverKind =
   | "lossy"
   /** Execution-tier price delta (flex/batch) on actual tokens. */
   | "tier"
-  /** FLUX's own exact response cache: a request never sent. */
+  /** MESH's own exact response cache: a request never sent. */
   | "exact_cache"
-  /** Provider prompt-cache economics on cache_control FLUX itself placed. */
+  /** Provider prompt-cache economics on cache_control MESH itself placed. */
   | "provider_cache";
 
 /** Reference to the replay-gate run that approved or rejected a lossy lever. */
@@ -67,7 +67,7 @@ export type LedgerLever = {
   /**
    * How savedUsd was derived. "measured" (the default when absent) means it
    * came entirely from provider-verbatim deltas. "estimated-baseline" means
-   * the tokens this lever removed were counted BEFORE send by FLUX's own
+   * the tokens this lever removed were counted BEFORE send by MESH's own
    * counter, anchored to the provider-verbatim input total by ratio, and
    * valued at this event's realized blended input rate — a conservative
    * under-claim on cache-heavy traffic, labelled as an estimate everywhere
@@ -88,9 +88,9 @@ export type LedgerUsage = {
    * Provider-reported TTL split of the cache writes, present as a PAIR only
    * when the provider reported one (Anthropic usage.cache_creation). The two
    * buckets must sum exactly to cacheWriteInputTokens or the event is unpriced.
-   * Absent means the split is UNKNOWN: writes on a FLUX-placed cache_control
-   * use the TTL stamped by FLUX when it is recorded (otherwise the 1h premium,
-   * dispute-safe and counted against FLUX), never assumed to be 5m writes.
+   * Absent means the split is UNKNOWN: writes on a MESH-placed cache_control
+   * use the TTL stamped by MESH when it is recorded (otherwise the 1h premium,
+   * dispute-safe and counted against MESH), never assumed to be 5m writes.
    */
   cacheWrite5mInputTokens?: number;
   cacheWrite1hInputTokens?: number;
@@ -126,7 +126,7 @@ export type BillableEvent = {
   reportedCostUsd?: number;
   levers: LedgerLever[];
   /**
-   * Evidence behind any estimated-baseline lever on this event: FLUX's own
+   * Evidence behind any estimated-baseline lever on this event: MESH's own
    * pre-send token counts. Informational — the invoice never reads it; it
    * exists so an auditor can re-derive every estimated savedUsd from the
    * event alone (removedFraction = removed / before, baseline input =
@@ -223,19 +223,19 @@ export type LedgerPricingInput = {
   executionMode: LedgerExecutionMode;
   usage: LedgerUsage;
   /**
-   * True when FLUX itself placed the cache_control (the cache-ttl lever applies
+   * True when MESH itself placed the cache_control (the cache-ttl lever applies
    * only when the caller had none), so the request's cache economics -- reads
-   * at the cached rate MINUS the write surcharge -- attribute to FLUX. False
+   * at the cached rate MINUS the write surcharge -- attribute to MESH. False
    * means the customer already owned those economics; they are then excluded.
    */
-  fluxPlacedCacheControl: boolean;
+  meshPlacedCacheControl: boolean;
   /**
-   * The TTL FLUX stamped, when fluxPlacedCacheControl is true. Decides how an
+   * The TTL MESH stamped, when meshPlacedCacheControl is true. Decides how an
    * ABSENT provider TTL split prices the writes: a "5m" stamp can only have
    * produced 5m writes (1.25x), while "1h" or unspecified prices every write
    * at the 1h premium (2x) — the dispute-safe reading for an hour-long stamp.
    */
-  fluxPlacedTtl?: "5m" | "1h";
+  meshPlacedTtl?: "5m" | "1h";
 };
 
 export type LedgerPricing =
@@ -246,7 +246,7 @@ export type LedgerPricing =
       inputUsd: number;
       /** Standard-mode minus actual-mode cost on the same tokens; set only when the mode differs. */
       tierSavedUsd?: number;
-      /** Cache economics attributable to FLUX; MAY be negative (write surcharge unearned by reads). */
+      /** Cache economics attributable to MESH; MAY be negative (write surcharge unearned by reads). */
       cacheAttributedUsd?: number;
       /** Cache economics the customer already had; informational, never billed. */
       providerCacheAlreadyOwnedUsd?: number;
@@ -271,10 +271,10 @@ export function priceLedgerUsage(catalogue: PriceCatalogue, input: LedgerPricing
 
   // The cache-write TTL split decides which write rate bills. The cases:
   // a reported split must sum exactly (a mismatched event is unpriced, never
-  // repaired); an absent split on a FLUX-placed 1h stamp prices EVERY write
-  // at the 1h premium, because FLUX stamped the 1h TTL and the benefit of the
+  // repaired); an absent split on a MESH-placed 1h stamp prices EVERY write
+  // at the 1h premium, because MESH stamped the 1h TTL and the benefit of the
   // doubt belongs to the customer (dispute-safe); an absent split on a
-  // FLUX-placed 5m stamp prices writes at the default 5m rate, because a 5m
+  // MESH-placed 5m stamp prices writes at the default 5m rate, because a 5m
   // stamp can only have produced 5m writes; an absent split on
   // customer-placed caching keeps the default write rate, exactly as before.
   const split5m = input.usage.cacheWrite5mInputTokens;
@@ -289,7 +289,7 @@ export function priceLedgerUsage(catalogue: PriceCatalogue, input: LedgerPricing
   }
   const write1hForPricing = splitReported
     ? (split1h ?? 0)
-    : input.fluxPlacedCacheControl && input.fluxPlacedTtl !== "5m"
+    : input.meshPlacedCacheControl && input.meshPlacedTtl !== "5m"
       ? input.usage.cacheWriteInputTokens
       : 0;
   const pricingUsage = {
@@ -336,7 +336,7 @@ export function priceLedgerUsage(catalogue: PriceCatalogue, input: LedgerPricing
       ? {}
       : { tierSavedUsd: standardWithCache.costUsd - actual.costUsd }),
     ...(hasCacheTraffic
-      ? input.fluxPlacedCacheControl
+      ? input.meshPlacedCacheControl
         ? { cacheAttributedUsd: cacheDeltaUsd }
         : { providerCacheAlreadyOwnedUsd: cacheDeltaUsd }
       : {}),
@@ -366,8 +366,8 @@ export function auditEventPricing(event: BillableEvent, catalogue: PriceCatalogu
       : { status: "mismatch", field: "actualUsd", storedUsd: event.actualUsd, recomputedUsd: Number.NaN };
   }
   const cacheLever = event.levers.find((lever) => lever.kind === "provider_cache");
-  const fluxPlacedCacheControl = cacheLever !== undefined;
-  const fluxPlacedTtl = cacheLever?.leverId === "cache-ttl-5m"
+  const meshPlacedCacheControl = cacheLever !== undefined;
+  const meshPlacedTtl = cacheLever?.leverId === "cache-ttl-5m"
     ? "5m"
     : cacheLever?.leverId === "cache-ttl-1h"
       ? "1h"
@@ -378,8 +378,8 @@ export function auditEventPricing(event: BillableEvent, catalogue: PriceCatalogu
     at: event.timestamp.slice(0, 10),
     executionMode: event.executionMode,
     usage: event.usage,
-    fluxPlacedCacheControl,
-    ...(fluxPlacedTtl === undefined ? {} : { fluxPlacedTtl }),
+    meshPlacedCacheControl,
+    ...(meshPlacedTtl === undefined ? {} : { meshPlacedTtl }),
   });
   if (priced.pricingStatus === "unpriced") {
     return event.pricingStatus === "unpriced"
@@ -406,7 +406,7 @@ export type InvoiceOptions = {
   gateVerdictOverrides?: Record<string, "approved" | "rejected">;
   /** Tasks known to have failed quality out-of-band; all their turns' savings are excluded. */
   failedTaskIds?: readonly string[];
-  /** FLUX's contracted share of net verified savings, 0-100. Omitted: no fee line. */
+  /** MESH's contracted share of net verified savings, 0-100. Omitted: no fee line. */
   feePercent?: number;
   /**
    * Verified-savings deficit carried in from prior periods (the ESPC G.5

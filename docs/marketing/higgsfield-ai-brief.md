@@ -1,6 +1,6 @@
-# FLUX × Higgsfield AI — short-form & image marketing brief
+# MESH × Higgsfield AI — short-form & image marketing brief
 
-**Product:** FLUX — a local proxy that cuts your LLM API bill and charges a
+**Product:** MESH — a local proxy that cuts your LLM API bill and charges a
 percentage of *verified* savings you can recompute yourself
 ([github.com/Harrym1707/Flux](https://github.com/Harrym1707/Flux)).
 **Production tool:** Higgsfield AI (short-form video + image generation).
@@ -19,7 +19,7 @@ ads for paid social and organic.
 
 ## 1. Positioning context (the `product-marketing` foundation)
 
-**One-liner.** FLUX cuts your LLM API bill and only charges a cut of the savings
+**One-liner.** MESH cuts your LLM API bill and only charges a cut of the savings
 it can prove — on a ledger you recompute yourself.
 
 **Category.** LLM cost optimisation / FinOps for AI, in a market where tools
@@ -54,7 +54,7 @@ not a tone here, it is the product.
 ## 2. Objective & KPIs
 
 Primary objective: get qualified developers and founders to run the one-command
-pilot (`npx -y -p @flux-ai/sdk flux-proxy`) and quote themselves from their own
+pilot (`npx -y -p @mesh-ai/sdk mesh-proxy`) and quote themselves from their own
 logs.
 
 North-star metric: **pilot starts** (proxy run or export submitted), tracked per
@@ -87,7 +87,7 @@ recompute angles are the product-aware closers, not the cold hook.
 
 ## 4. Message spine & angles
 
-Spine: **you are paying your LLM bill twice, and FLUX only charges you for the
+Spine: **you are paying your LLM bill twice, and MESH only charges you for the
 half it gives back.**
 
 Angles (from the `ad-creative` angle taxonomy), ranked by how well they travel:
@@ -97,7 +97,7 @@ Angles (from the `ad-creative` angle taxonomy), ranked by how well they travel:
 | Pain point | "Your agent re-buys its whole memory every turn." |
 | Contrarian | "They claim 90%. Independently measured: 3.7%." |
 | Identity | "An AI cost tool that tells you not to pay it." |
-| Comparison | "Trimmers count tokens. FLUX counts finished tasks." |
+| Comparison | "Trimmers count tokens. MESH counts finished tasks." |
 | Outcome | "18.2% off live spend, on a ledger you recheck yourself." |
 
 Hard rule: every number on screen traces to `docs/site/evidence.md`, with the
@@ -126,7 +126,7 @@ role, not by gloss.
 - **Hook (0–3s):** "I built an AI cost tool, and the first thing it does is tell
   some people not to pay me."
 - **Body:** 20s, plain, one proof point: most agents never turn on the provider
-  cache, so they re-pay for their whole history every turn; FLUX fixes that and
+  cache, so they re-pay for their whole history every turn; MESH fixes that and
   only bills the saving. End on "run it on your own logs."
 - **Higgsfield role:** light B-roll / stylised cutaways only. The founder is
   real footage (or a HeyGen digital twin of Harry if volume is needed), not a
@@ -144,7 +144,7 @@ role, not by gloss.
   crash-zoom.
 - **Turn (2–6s):** record-scratch, the shot glitches and shatters to black.
 - **Payoff (6–20s):** real terminal/motion-graphic overlay types
-  `independently measured: 3.7%` → `FLUX, live traffic, verified: 18.2%` →
+  `independently measured: 3.7%` → `MESH, live traffic, verified: 18.2%` →
   `invoice: recompute it yourself`.
 - **Higgsfield role:** Soul + a camera-motion preset for the billboard hero. The
   terminal is a real screen recording or precise overlay, never AI-generated
@@ -161,7 +161,7 @@ role, not by gloss.
 - **Stage:** problem-aware. A consistent character wakes in the same room,
   confused, on a loop — the agent re-reading its whole history every turn.
   Caption: "every turn it forgets, re-reads everything, and re-pays for all of
-  it." Payoff: FLUX keeps that history on the cached rate and refuses placements
+  it." Payoff: MESH keeps that history on the cached rate and refuses placements
   that would cost more.
 - **Higgsfield role:** image-to-video with character consistency (its strength).
 
@@ -226,10 +226,10 @@ credibility leaks).
 
 ## 10. Organic content pillars (for the always-on feed)
 
-| Pillar | Share | For FLUX |
+| Pillar | Share | For MESH |
 |---|---|---|
 | Industry insight | 30% | honest LLM-cost benchmarks, the claim-vs-measured gap |
-| Behind-the-scenes | 25% | building FLUX, including a lever that lost money and how the ledger caught it |
+| Behind-the-scenes | 25% | building MESH, including a lever that lost money and how the ledger caught it |
 | Educational | 25% | how LLM billing and prompt caching actually work |
 | Contrarian / hot take | 15% | "most AI cost tools are measuring the wrong unit" |
 | Promotional | 5% | pilot, product updates |

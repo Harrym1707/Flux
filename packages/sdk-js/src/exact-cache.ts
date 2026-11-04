@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import type { FluxExactCacheConfig } from "./types.js";
+import type { MeshExactCacheConfig } from "./types.js";
 
 export type ExactCacheEntry = {
   response: unknown;
@@ -40,12 +40,12 @@ function canonicalJson(value: unknown, seen = new Set<object>()): string | undef
 export class ExactResponseCache {
   private readonly entries = new Map<string, ExactCacheEntry>();
 
-  constructor(private readonly config: FluxExactCacheConfig) {
+  constructor(private readonly config: MeshExactCacheConfig) {
     if (!Number.isInteger(config.maxEntries) || config.maxEntries < 1) {
-      throw new Error("FLUX exact cache maxEntries must be a positive integer.");
+      throw new Error("MESH exact cache maxEntries must be a positive integer.");
     }
     if (!Number.isFinite(config.ttlMs) || config.ttlMs < 1) {
-      throw new Error("FLUX exact cache ttlMs must be a positive number.");
+      throw new Error("MESH exact cache ttlMs must be a positive number.");
     }
   }
 

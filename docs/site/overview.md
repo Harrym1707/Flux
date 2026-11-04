@@ -1,10 +1,10 @@
-# FLUX — verified LLM cost reduction, billed only on savings you can recompute
+# MESH — verified LLM cost reduction, billed only on savings you can recompute
 
-FLUX is a drop-in wrapper for your OpenAI or Anthropic client that reduces what
+MESH is a drop-in wrapper for your OpenAI or Anthropic client that reduces what
 you spend per completed task — and proves it. You pay a percentage of verified
-savings. If your traffic is already optimised, FLUX tells you not to pay us.
+savings. If your traffic is already optimised, MESH tells you not to pay us.
 
-## What FLUX saves, by traffic type
+## What MESH saves, by traffic type
 
 Every figure below is measured per completed task with quality held (at least
 36 of 40 tasks fully correct and complete), on a simulated harness using each
@@ -24,13 +24,13 @@ your own pilot replaces every band with your number before any fee exists.
 | Already-optimised stacks | **0–5% — do not pay us** | measured on fixtures |
 
 The spread is the honest part: savings are a property of your workload's shape,
-not of FLUX. The first thing FLUX does is tell you which row you are — from
+not of MESH. The first thing MESH does is tell you which row you are — from
 your own logs, in about five minutes, before any contract exists.
 [Get a quote from your own export →](../pilot/runbook.md)
 
 ## How it works, in one paragraph
 
-Your bill is `tokens × price-per-token × execution tier`. FLUX attacks all
+Your bill is `tokens × price-per-token × execution tier`. MESH attacks all
 three at once: it removes tokens that carry no information (oversized tool
 results capped at injection, exact duplicates, schema bloat) without ever
 breaking your provider's prefix cache; it repairs prompts so cached pricing

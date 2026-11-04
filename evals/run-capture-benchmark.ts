@@ -1,6 +1,6 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
-import { compareBenchmark, normalizeFluxCaptures, partitionBenchmarkRows } from "./benchmark.js";
+import { compareBenchmark, normalizeMeshCaptures, partitionBenchmarkRows } from "./benchmark.js";
 
 function parse(argv: string[]): Record<string, string> {
   const values: Record<string, string> = {};
@@ -54,17 +54,17 @@ const single = options.capture !== undefined;
 let train;
 let test;
 let source: string;
-const seed = options.seed ?? "flux-capture-v1";
+const seed = options.seed ?? "mesh-capture-v1";
 if (single) {
-  const captures = normalizeFluxCaptures(await readJsonl(options.capture!), options.dataset, "captured");
+  const captures = normalizeMeshCaptures(await readJsonl(options.capture!), options.dataset, "captured");
   const partition = partitionBenchmarkRows(captures, numberOption(options, "train-fraction", 0.7), seed);
   train = partition.train;
   test = partition.test;
-  source = "opt-in local FLUX SDK capture, deterministically partitioned by prompt group";
+  source = "opt-in local MESH SDK capture, deterministically partitioned by prompt group";
 } else {
-  train = normalizeFluxCaptures(await readJsonl(options["train-capture"]!), options.dataset, "train");
-  test = normalizeFluxCaptures(await readJsonl(options["test-capture"]!), options.dataset, "test");
-  source = "opt-in local FLUX SDK captures in separate train and test files";
+  train = normalizeMeshCaptures(await readJsonl(options["train-capture"]!), options.dataset, "train");
+  test = normalizeMeshCaptures(await readJsonl(options["test-capture"]!), options.dataset, "test");
+  source = "opt-in local MESH SDK captures in separate train and test files";
 }
 const report = compareBenchmark(train, test, {
   maximumQualityDrop: numberOption(options, "maximum-quality-drop", 0.02),
@@ -81,7 +81,7 @@ const table = report.results.map((result) =>
   `| ${result.name} | ${result.meanQuality.toFixed(4)} | ${result.totalCostUsd === null ? "n/a" : `$${result.totalCostUsd.toFixed(6)}`} | ${result.costSavingsVsBestSinglePercent === null ? "n/a" : `${result.costSavingsVsBestSinglePercent.toFixed(2)}%`} | ${result.totalTokens ?? "n/a"} | ${result.qualityDeltaLower95.toFixed(4)} |`,
 );
 const markdown = [
-  `# FLUX workload benchmark: ${report.dataset}`,
+  `# MESH workload benchmark: ${report.dataset}`,
   "",
   `${source}. ${report.trainSamples} train / ${report.testSamples} test cases. The route was learned on train cases and scored on the holdout only.`,
   "",
@@ -93,9 +93,9 @@ const markdown = [
   "",
   `Best single model: \`${report.learned.bestSingleModel}\`; cheapest static model: \`${report.learned.cheapestStaticModel}\`.`,
   "",
-  "## FLUX model by workflow",
+  "## MESH model by workflow",
   "",
-  ...Object.entries(report.learned.fluxChoiceByWorkflow).map(([workflow, choice]) => {
+  ...Object.entries(report.learned.meshChoiceByWorkflow).map(([workflow, choice]) => {
     const target = report.learned.targetByChoice[choice]!;
     const transform = target.contextProfileId ? ` with context profile \`${target.contextProfileId}\`` : "";
     const cap = target.maxOutputTokens === undefined ? "" : ` with output cap ${target.maxOutputTokens}`;

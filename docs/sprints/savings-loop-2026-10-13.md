@@ -31,7 +31,7 @@ Three rounds, all graded A/A/B, all builds accepted after verification. Final co
 - All figures are harness-measured per completed task vs arm A, from command output this session; nothing projected except where labelled.
 - 34.1% (arm L) is the **sparse regime only** (tasks >5min apart, <1h gaps), Anthropic-shaped, **simulator-measured** — real-Anthropic-traffic validation of the `cacheTtl` stamp is still open. Never quote 34.x for the 30s or one-shot blocks.
 - 64.3% async includes the 0.5x flex/batch multiplier — legitimate only on caller-flagged latency-tolerant traffic.
-- The provider cache's own savings (printed 39.7%/35.4%) are excluded and credited to the customer, never claimed as FLUX savings.
+- The provider cache's own savings (printed 39.7%/35.4%) are excluded and credited to the customer, never claimed as MESH savings.
 - Fixture tool-result bodies are ~96% compressible; real-world fresh-cap yield scales with the share of oversized tool results in actual traffic.
 - The fresh cap is lossy and recorded as `lossless: false`.
 

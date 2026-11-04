@@ -2,8 +2,8 @@
 // redundancy-decomposition.mjs
 //
 // Axis: info-theory-redundancy. Purpose: operationalise the central honest
-// claim of the info-theory literature for FLUX — "Shannon redundancy of a
-// prompt is NOT the same as FLUX-billable redundancy." It decomposes the
+// claim of the info-theory literature for MESH — "Shannon redundancy of a
+// prompt is NOT the same as MESH-billable redundancy." It decomposes the
 // redundancy of real request bodies into three buckets with different
 // billing/quality properties, using only black-box request-byte operations
 // (no model, no logits, no second LLM). Zero external deps (Node >=18 zlib).
@@ -11,16 +11,16 @@
 // Buckets (map onto the waste taxonomy):
 //   A2 (encoding, LOSSLESS): bytes removable by canonicalising structure —
 //       JSON whitespace / pretty-printing. Model reads an identical token
-//       stream after re-serialising. FLUX bills unconditionally.
+//       stream after re-serialising. MESH bills unconditionally.
 //   A3 (literal-duplicate spans, NEAR-LOSSLESS): byte-identical repeated
 //       substrings (e.g. a system line pasted N times). Deduping changes the
 //       token stream, so it is a quality-gated lever, but the information is
 //       verifiably identical.
-//   RESIDUAL (Shannon redundancy, NOT losslessly FLUX-addressable): the
+//   RESIDUAL (Shannon redundancy, NOT losslessly MESH-addressable): the
 //       statistical predictability of natural language/code that gzip can see
 //       but which the model's BPE tokenizer has *already* largely captured.
 //       Recovering it needs lossy semantic rewrite (A3-verbose / A4), gated by
-//       replay. gzip ratio OVERSTATES what FLUX can take; this script shows the
+//       replay. gzip ratio OVERSTATES what MESH can take; this script shows the
 //       gap so we never quote the gzip number as a saving.
 //
 // Honesty: every printed ratio is MEASURED on the input file. The "token"
@@ -179,7 +179,7 @@ function main() {
   console.log(
     `A2 lossless (minify JSON)     : -${
       agg.rawBytes - agg.minBytes
-    } bytes = ${pct(agg.rawBytes - agg.minBytes, agg.rawBytes)}  [LOSSLESS, FLUX bills unconditionally]`,
+    } bytes = ${pct(agg.rawBytes - agg.minBytes, agg.rawBytes)}  [LOSSLESS, MESH bills unconditionally]`,
   );
   console.log(
     `A3 literal-dup spans (floor)  : -${agg.a3} bytes = ${pct(
@@ -191,7 +191,7 @@ function main() {
     `gzip redundancy of minified   : ${pct(
       agg.minBytes - agg.gzBytes,
       agg.minBytes,
-    )}  [SHANNON PROXY — NOT FLUX-billable: BPE already captures most of it]`,
+    )}  [SHANNON PROXY — NOT MESH-billable: BPE already captures most of it]`,
   );
   console.log(
     `approx tokens raw -> minified : ${agg.rawTokens} -> ${agg.minTokens}  (DERIVED, ceil(len/4) — not a true tokenizer)`,
@@ -199,11 +199,11 @@ function main() {
   console.log(`
 INTERPRETATION (the honest gap):
   * The gzip number is the Shannon-style redundancy of the BYTES. It is large
-    because English/code/JSON are predictable. FLUX CANNOT bill it: the model
+    because English/code/JSON are predictable. MESH CANNOT bill it: the model
     never sees the bytes, it sees BPE tokens, and BPE has already folded most
     of that statistical redundancy into its merges. Quoting the gzip % as a
     saving would be fraud.
-  * What FLUX CAN bill losslessly is the A2 slice (structural/whitespace), and
+  * What MESH CAN bill losslessly is the A2 slice (structural/whitespace), and
     only when the provider re-tokenises decoded JSON rather than the raw bytes
     — verify per provider before pricing it.
   * The A3 literal-duplicate slice is provable (byte-identical) but changes the

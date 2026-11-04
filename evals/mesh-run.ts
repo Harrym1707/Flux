@@ -1,7 +1,7 @@
 import { spawn } from "node:child_process";
 import { mkdirSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { startFluxProxy } from "../packages/sdk-js/src/proxy.js";
+import { startMeshProxy } from "../packages/sdk-js/src/proxy.js";
 import {
   recomputeInvoice,
   verifyLedgerChain,
@@ -9,32 +9,32 @@ import {
 } from "../packages/core/src/index.js";
 
 /**
- * `flux run` — the whole FLUX experience in one command, zero code changes.
+ * `mesh run` — the whole MESH experience in one command, zero code changes.
  *
- *   node --import tsx evals/flux-run.ts [--ledger DIR] [--cache-ttl 5m|1h] -- <your start command>
- *   e.g.  node --import tsx evals/flux-run.ts -- npm run dev
+ *   node --import tsx evals/mesh-run.ts [--ledger DIR] [--cache-ttl 5m|1h] -- <your start command>
+ *   e.g.  node --import tsx evals/mesh-run.ts -- npm run dev
  *
  * What it does, so the app owner does nothing else:
- *   1. boots the FLUX proxy on a free local port (lossless reduction by default),
+ *   1. boots the MESH proxy on a free local port (lossless reduction by default),
  *   2. runs <your start command> with ANTHROPIC_BASE_URL / OPENAI_BASE_URL set to
  *      the proxy — the official Anthropic and OpenAI SDKs honour those env vars,
- *      so the app routes through FLUX with NO edit to its code, keeping its own key,
+ *      so the app routes through MESH with NO edit to its code, keeping its own key,
  *   3. on exit (Ctrl-C), prints the measured savings from the recomputed ledger.
  *
- * The app's prompts and keys never leave the machine; FLUX holds no credentials.
+ * The app's prompts and keys never leave the machine; MESH holds no credentials.
  */
 
 const argv = process.argv.slice(2);
 const splitAt = argv.indexOf("--");
 if (splitAt === -1 || splitAt === argv.length - 1) {
-  console.error("Usage: node --import tsx evals/flux-run.ts [--ledger DIR] [--cache-ttl 5m|1h] -- <command> [args...]");
-  console.error("Example: node --import tsx evals/flux-run.ts -- npm run dev");
+  console.error("Usage: node --import tsx evals/mesh-run.ts [--ledger DIR] [--cache-ttl 5m|1h] -- <command> [args...]");
+  console.error("Example: node --import tsx evals/mesh-run.ts -- npm run dev");
   process.exit(1);
 }
 const flags = argv.slice(0, splitAt);
 const command = argv.slice(splitAt + 1);
 
-let ledgerDirectory = join(process.cwd(), "flux-ledger");
+let ledgerDirectory = join(process.cwd(), "mesh-ledger");
 let cacheTtl: "5m" | "1h" | undefined;
 for (let i = 0; i < flags.length; i += 2) {
   const flag = flags[i];
@@ -69,10 +69,10 @@ function summarise(): void {
   }
 
   console.log("\n────────────────────────────────────────────────────");
-  console.log("  FLUX — savings this run");
+  console.log("  MESH — savings this run");
   console.log("────────────────────────────────────────────────────");
   if (records.length === 0) {
-    console.log("  0 requests were metered through FLUX.");
+    console.log("  0 requests were metered through MESH.");
     console.log("  If the app made model calls, its SDK may not read ANTHROPIC_BASE_URL /");
     console.log("  OPENAI_BASE_URL. Point its client baseURL at the proxy url printed above.");
     console.log("────────────────────────────────────────────────────\n");
@@ -83,7 +83,7 @@ function summarise(): void {
   console.log(`  requests metered : ${invoice.eventsConsidered} (${spoolCount} spool${spoolCount === 1 ? "" : "s"})`);
   console.log(`  verified savings : $${saved.toFixed(4)}  [verdict: ${invoice.verdict}]`);
   if (invoice.amountDueUsd !== undefined) {
-    console.log(`  FLUX fee (1%)    : $${invoice.amountDueUsd.toFixed(4)}`);
+    console.log(`  MESH fee (1%)    : $${invoice.amountDueUsd.toFixed(4)}`);
   }
   if (invoice.unpricedEvents > 0) console.log(`  (${invoice.unpricedEvents} request(s) excluded: no catalogued price)`);
   if (broken) console.log("  WARNING: a ledger chain failed verification — do not rely on the number above.");
@@ -93,7 +93,7 @@ function summarise(): void {
 }
 
 async function main(): Promise<void> {
-  const proxy = await startFluxProxy({
+  const proxy = await startMeshProxy({
     port: 0,
     ledgerDirectory,
     tokenReduction: {
@@ -104,7 +104,7 @@ async function main(): Promise<void> {
     },
   });
 
-  console.log(`\n  FLUX proxy up on ${proxy.url} — reduction is lossless-only, your key passes through.`);
+  console.log(`\n  MESH proxy up on ${proxy.url} — reduction is lossless-only, your key passes through.`);
   console.log(`  Running: ${command.join(" ")}`);
   console.log(`  Ledger:  ${ledgerDirectory}`);
   console.log(`  (Ctrl-C to stop and see your savings.)\n`);

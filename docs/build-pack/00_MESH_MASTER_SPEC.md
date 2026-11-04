@@ -1,6 +1,6 @@
-# FLUX --- Master Product & Engineering Specification
+# MESH --- Master Product & Engineering Specification
 
-**Product:** FLUX\
+**Product:** MESH\
 **Positioning:** AI Cost Engineering\
 **Tagline:** Make every token count.\
 **Core promise:** Reduce AI inference cost without compromising
@@ -10,7 +10,7 @@ application-defined output quality.
 
 ## 1. Product thesis
 
-FLUX is an inference optimisation control plane for AI-native software.
+MESH is an inference optimisation control plane for AI-native software.
 
 It sits between an application and its model providers and continuously:
 
@@ -23,7 +23,7 @@ It sits between an application and its model providers and continuously:
 7.  automatically rolls back when quality or reliability moves outside
     policy.
 
-FLUX is **not** primarily a token dashboard and should not be positioned
+MESH is **not** primarily a token dashboard and should not be positioned
 as one.
 
 The gateway/SDK is the enforcement mechanism. The product is the
@@ -33,7 +33,7 @@ optimisation system.
 
 ## 2. Non-negotiable product invariant
 
-> FLUX must never optimise for cost at the expense of a customer's
+> MESH must never optimise for cost at the expense of a customer's
 > defined quality contract.
 
 Every optimisation must have one of three states:
@@ -46,13 +46,13 @@ An optimisation can move from SHADOW to ACTIVE only when its evaluation
 policy passes.
 
 If a deployed policy breaches its quality, reliability, latency or
-safety thresholds, FLUX automatically rolls it back.
+safety thresholds, MESH automatically rolls it back.
 
 ------------------------------------------------------------------------
 
 ## 3. Optimisation surface
 
-FLUX should eventually optimise four dimensions:
+MESH should eventually optimise four dimensions:
 
 ### Model
 
@@ -96,8 +96,8 @@ CUSTOMER APPLICATION
         |
         v
 +-------------------+
-|     FLUX SDK      |
-|   or FLUX Proxy   |
+|     MESH SDK      |
+|   or MESH Proxy   |
 +---------+---------+
           |
           v
@@ -132,7 +132,7 @@ CUSTOMER APPLICATION
           |
           v
 +-------------------+
-| FLUX CONTROL UI   |
+| MESH CONTROL UI   |
 +-------------------+
 ```
 
@@ -167,7 +167,7 @@ and optimisation work belongs in the asynchronous control plane.
 -   Next.js
 -   TypeScript
 -   Tailwind
--   component system with FLUX design tokens
+-   component system with MESH design tokens
 
 ### Infrastructure
 
@@ -267,7 +267,7 @@ type RoutingPolicy = {
 
 Never rely on one generic LLM-as-judge score.
 
-FLUX should create task-specific evaluators.
+MESH should create task-specific evaluators.
 
 Examples:
 
@@ -401,7 +401,7 @@ candidate -> escalate -> primary
 
 ## 11. Token/context optimisation
 
-FLUX should detect:
+MESH should detect:
 
 -   repeated system instructions
 -   duplicated retrieved documents
@@ -448,7 +448,7 @@ business-critical.
 Provide:
 
 ``` ts
-flux.agent({
+mesh.agent({
   budget: {
     maxCostUsd: 0.10,
     maxTokens: 50000,
@@ -484,7 +484,7 @@ Default principles:
 The SDK should expose:
 
 ``` ts
-flux.configure({
+mesh.configure({
   telemetry: {
     mode: "metadata_only"
   }
@@ -499,9 +499,9 @@ Ideal integration:
 
 ``` ts
 import OpenAI from "openai";
-import { withFlux } from "@flux-ai/sdk";
+import { withMesh } from "@mesh-ai/sdk";
 
-const openai = withFlux(new OpenAI());
+const openai = withMesh(new OpenAI());
 
 const response = await openai.chat.completions.create({
   model: "gpt-5.5",
@@ -509,7 +509,7 @@ const response = await openai.chat.completions.create({
 });
 ```
 
-The customer's application should not need to understand FLUX's
+The customer's application should not need to understand MESH's
 optimisation machinery.
 
 ------------------------------------------------------------------------
@@ -517,7 +517,7 @@ optimisation machinery.
 ## 16. Repository
 
 ``` text
-flux/
+mesh/
 ├── apps/
 │   ├── dashboard/
 │   ├── api/
@@ -577,14 +577,14 @@ Do not build initially:
 
 The first magical result should be:
 
-> "FLUX found a cheaper inference path on your real traffic, proved
+> "MESH found a cheaper inference path on your real traffic, proved
 > quality stayed within your policy, and safely deployed it."
 
 ------------------------------------------------------------------------
 
 ## 18. GEO/GTM is part of the product architecture
 
-FLUX must be easy for AI systems to discover, understand and cite.
+MESH must be easy for AI systems to discover, understand and cite.
 
 Build the public knowledge layer into the repository:
 
@@ -641,9 +641,9 @@ type GeoObservation = {
   query: string;
   date: string;
 
-  fluxMentioned: boolean;
-  fluxCited: boolean;
-  fluxLinked: boolean;
+  meshMentioned: boolean;
+  meshCited: boolean;
+  meshLinked: boolean;
 
   citedSources: string[];
 
@@ -661,7 +661,7 @@ This is a measurement system, not a guarantee of recommendation.
 
 The goal is not to manipulate models.
 
-The goal is to make FLUX:
+The goal is to make MESH:
 
 -   crawlable
 -   factually clear
@@ -682,8 +682,8 @@ clear canonical product facts. See the official OpenAI crawler guidance.
 
 ### Colours
 
--   FLUX Black: `#0A0A0A`
--   FLUX Blue: `#2563FF`
+-   MESH Black: `#0A0A0A`
+-   MESH Blue: `#2563FF`
 -   Cool Grey: `#8B8F98`
 -   Off White: `#F7F7F5`
 -   Light Grey: `#E7E8EB`
@@ -713,7 +713,7 @@ Never:
 
 Prefer:
 
-> "FLUX reduced inference spend 31% while maintaining the customer's
+> "MESH reduced inference spend 31% while maintaining the customer's
 > quality threshold."
 
 Every public performance claim must link to methodology.
@@ -722,12 +722,12 @@ Every public performance claim must link to methodology.
 
 ## 22. Core positioning
 
-# FLUX
+# MESH
 
 ## AI Cost Engineering
 
 **Make every token count.**
 
-FLUX continuously optimises AI inference --- routing requests, reducing
+MESH continuously optimises AI inference --- routing requests, reducing
 context and controlling agent spend without compromising
 application-defined quality.

@@ -1,5 +1,5 @@
 /**
- * `flux version` and `flux doctor` — the "is this installed and healthy?"
+ * `mesh version` and `mesh doctor` — the "is this installed and healthy?"
  * commands every professional CLI has.
  *
  *   version  build + runtime identity, machine-readable with --json
@@ -13,11 +13,11 @@ import { connect } from "node:net";
 import { homedir, platform } from "node:os";
 import { join } from "node:path";
 
-import { BUILD_COMMIT, CLAUDE_SETTINGS, DEFAULT_PORT, FLUX_HOME, summariseLedger } from "./start.js";
+import { BUILD_COMMIT, CLAUDE_SETTINGS, DEFAULT_PORT, MESH_HOME, summariseLedger } from "./start.js";
 
-declare const __FLUX_VERSION__: string | undefined;
-const VERSION = typeof __FLUX_VERSION__ !== "undefined" ? __FLUX_VERSION__ : (process.env.FLUX_VERSION ?? "0.0.0");
-const LAUNCHD_LABEL = "dev.fluxtoken.flux";
+declare const __MESH_VERSION__: string | undefined;
+const VERSION = typeof __MESH_VERSION__ !== "undefined" ? __MESH_VERSION__ : (process.env.MESH_VERSION ?? "0.0.0");
+const LAUNCHD_LABEL = "dev.meshtoken.mesh";
 
 const nodeMajor = (): number => Number.parseInt(process.versions.node.split(".")[0] ?? "0", 10);
 
@@ -40,7 +40,7 @@ function serviceLoaded(): boolean {
 export function runVersion(argv: string[]): void {
   const info = { version: VERSION, build: BUILD_COMMIT, node: process.versions.node, platform: `${platform()}-${process.arch}` };
   if (argv.includes("--json")) { console.log(JSON.stringify(info)); return; }
-  console.log(`flux ${info.version} (build ${info.build}) · node ${info.node} · ${info.platform}`);
+  console.log(`mesh ${info.version} (build ${info.build}) · node ${info.node} · ${info.platform}`);
 }
 
 type Check = { ok: boolean; warn?: boolean; name: string; detail: string; fix?: string };
@@ -59,18 +59,18 @@ export async function runDoctor(argv: string[]): Promise<void> {
   });
 
   // 2. Installed runtime cache
-  const runtimeVersion = existsSync(join(FLUX_HOME, "runtime", "version"))
-    ? readFileSync(join(FLUX_HOME, "runtime", "version"), "utf8").trim() : null;
+  const runtimeVersion = existsSync(join(MESH_HOME, "runtime", "version"))
+    ? readFileSync(join(MESH_HOME, "runtime", "version"), "utf8").trim() : null;
   checks.push({
     ok: true, name: "runtime", detail: runtimeVersion ? `cached ${runtimeVersion}` : "running in place (no fetched runtime cached yet)",
   });
 
   // 3. Proxy reachable
   const up = await portUp(port);
-  checks.push({ ok: true, warn: !up, name: "proxy", detail: up ? `up on 127.0.0.1:${port}` : `not running on :${port}`, fix: up ? undefined : "Start it with: flux start" });
+  checks.push({ ok: true, warn: !up, name: "proxy", detail: up ? `up on 127.0.0.1:${port}` : `not running on :${port}`, fix: up ? undefined : "Start it with: mesh start" });
 
   // 4. Claude Code wiring
-  let settingsDetail = "no ~/.claude/settings.json (Claude Code not configured for FLUX)";
+  let settingsDetail = "no ~/.claude/settings.json (Claude Code not configured for MESH)";
   let settingsOk = true;
   if (existsSync(CLAUDE_SETTINGS)) {
     try {
@@ -79,7 +79,7 @@ export async function runDoctor(argv: string[]): Promise<void> {
       settingsDetail = base ? `ANTHROPIC_BASE_URL → ${base}` : "valid, but ANTHROPIC_BASE_URL not set";
     } catch { settingsOk = false; settingsDetail = "~/.claude/settings.json is not valid JSON"; }
   }
-  checks.push({ ok: settingsOk, name: "claude", detail: settingsDetail, fix: settingsOk ? undefined : "Fix or remove ~/.claude/settings.json; FLUX won't overwrite invalid JSON." });
+  checks.push({ ok: settingsOk, name: "claude", detail: settingsDetail, fix: settingsOk ? undefined : "Fix or remove ~/.claude/settings.json; MESH won't overwrite invalid JSON." });
 
   // 5. Background service (macOS)
   if (platform() === "darwin") {
@@ -88,16 +88,16 @@ export async function runDoctor(argv: string[]): Promise<void> {
   }
 
   // 6. Ledger health
-  const s = summariseLedger(join(FLUX_HOME, "ledger"));
+  const s = summariseLedger(join(MESH_HOME, "ledger"));
   checks.push({
     ok: s.chainOk, name: "ledger",
     detail: s.events === 0 ? "no ledger yet" : `${s.events} records${s.chainOk ? ", chain verified" : `, CHAIN BROKEN at ${s.brokenAt}`}`,
-    fix: s.chainOk ? undefined : "Run `flux verify` and report this — the ledger should never break.",
+    fix: s.chainOk ? undefined : "Run `mesh verify` and report this — the ledger should never break.",
   });
 
   if (argv.includes("--json")) { console.log(JSON.stringify({ checks })); return; }
   console.log("");
-  console.log(`  flux doctor — build ${BUILD_COMMIT}`);
+  console.log(`  mesh doctor — build ${BUILD_COMMIT}`);
   console.log("");
   let hardFail = false;
   for (const c of checks) {

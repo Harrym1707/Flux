@@ -18,7 +18,7 @@ import {
  *
  * One spend-log export in, one quote per traffic stream out: which customer
  * shape each stream is (consumer app, application layer, in-house agent,
- * already optimised), what FLUX is honestly worth on it, and what the
+ * already optimised), what MESH is honestly worth on it, and what the
  * customer's own gateway already saves them.
  *
  * The gates assert the horizontal claims specifically: each of the three

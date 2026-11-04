@@ -1,7 +1,7 @@
 import { writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 // Import from specific core modules, not the index barrel, so the lean client
-// runtime bundle (see flux-runtime.ts) does not pull in analyse-only code.
+// runtime bundle (see mesh-runtime.ts) does not pull in analyse-only code.
 import {
   estimateCompactionFromLedger,
   ledgerTurnsByTask,
@@ -10,10 +10,10 @@ import {
 import { lookupPrice, resolveModelId } from "../../core/src/price-catalogue.js";
 import { publishedModelPrices } from "../../core/src/model-prices.js";
 import type { BillableEvent } from "../../core/src/savings-ledger.js";
-import { FLUX_HOME, readLedger } from "./start.js";
+import { MESH_HOME, readLedger } from "./start.js";
 
 /**
- * flux compaction: read the recorded ledger and show, per task, what context
+ * mesh compaction: read the recorded ledger and show, per task, what context
  * compaction would save — and where it would cost more than it saves.
  *
  * It runs entirely on token counts the ledger already holds; no prompt text is
@@ -28,12 +28,12 @@ import { FLUX_HOME, readLedger } from "./start.js";
  * re-sent the whole transcript at full price.
  */
 
-const USAGE = `Usage: flux compaction [options]
+const USAGE = `Usage: mesh compaction [options]
 
 Read your recorded ledger and estimate what context compaction would save,
 per multi-turn task. Advisory only — counterfactual, never billed.
 
-  --ledger <dir>         Ledger directory to read. Default ~/.flux/ledger.
+  --ledger <dir>         Ledger directory to read. Default ~/.mesh/ledger.
   --at-tokens <n>        Compact at the first turn whose input reaches n tokens.
                          Default 60000 (a typical harness trigger).
   --summary-tokens <n>   Size of the summary that replaces the history. Default 2000.
@@ -56,7 +56,7 @@ type Args = {
 
 function parse(argv: string[]): Args {
   const args: Args = {
-    ledgerDir: join(FLUX_HOME, "ledger"),
+    ledgerDir: join(MESH_HOME, "ledger"),
     atTokens: 60_000,
     summaryTokens: 2_000,
     minTurns: 3,
@@ -122,7 +122,7 @@ export function estimateLedger(events: readonly BillableEvent[], args: Args): {
     if (atTurn < 2) { skipped.noTrigger += 1; continue; }
 
     const meta = models.get(key);
-    // Resolve the recorded model id to a catalogue key (as `flux analyse` does),
+    // Resolve the recorded model id to a catalogue key (as `mesh analyse` does),
     // then price against it; an unresolved or uncatalogued model is skipped.
     const resolved = meta
       ? resolveModelId(publishedModelPrices, meta.provider, meta.model)
@@ -159,11 +159,11 @@ export async function runCompaction(argv: string[]): Promise<void> {
 
   if (records.length === 0) {
     console.log(`No ledger events found in ${args.ledgerDir}.`);
-    console.log(`Run some traffic through "flux start" first, then try again.`);
+    console.log(`Run some traffic through "mesh start" first, then try again.`);
     return;
   }
   if (!chainOk) {
-    console.log(`⚠ Ledger hash-chain check failed at ${brokenAt}. Run "flux verify" before trusting these numbers.`);
+    console.log(`⚠ Ledger hash-chain check failed at ${brokenAt}. Run "mesh verify" before trusting these numbers.`);
   }
 
   const { estimates, skipped } = estimateLedger(records.map((record) => record.event), args);
@@ -182,7 +182,7 @@ export async function runCompaction(argv: string[]): Promise<void> {
   const totalNet = estimates.reduce((sum, e) => sum + e.netSavingUsd, 0);
   const wins = estimates.filter((e) => e.worthwhile).length;
 
-  console.log(`flux compaction — advisory estimate on ${estimates.length} task(s), ${records.length} recorded events.`);
+  console.log(`mesh compaction — advisory estimate on ${estimates.length} task(s), ${records.length} recorded events.`);
   console.log(`Trigger: compact at the first turn ≥ ${args.atTokens.toLocaleString()} tokens; summary ${args.summaryTokens.toLocaleString()} tokens.\n`);
   console.log(`  ${"task".padEnd(20)} ${"turns".padStart(5)} ${"at".padStart(3)} ${"recorded".padStart(10)} ${"net".padStart(10)}  verdict`);
   for (const e of estimates) {

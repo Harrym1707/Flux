@@ -6,7 +6,7 @@ import { createHash } from "node:crypto";
  * The second live export measured the failure this prevents: an agent whose
  * system prompt carried a per-turn clock was stamped every turn, so every
  * turn paid the cache-write premium and no turn ever read — a real loss,
- * honestly ledgered against FLUX, but better never made. Prompt caching is a
+ * honestly ledgered against MESH, but better never made. Prompt caching is a
  * prefix match: content that changes between the turns of one conversation
  * can never be read back, so stamping it only buys write premiums.
  *
@@ -31,7 +31,7 @@ import { createHash } from "node:crypto";
  * observations and stays suppressed.
  *
  * The guard observes the RAW incoming request (the client's own bytes),
- * never FLUX's reduced copy, so FLUX's own deterministic levers cannot be
+ * never MESH's reduced copy, so MESH's own deterministic levers cannot be
  * mistaken for client-side churn.
  */
 

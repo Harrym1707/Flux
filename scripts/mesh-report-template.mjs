@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-// Render a FLUX statement (self-contained HTML) from ledger spools.
-// Usage: flux-report <spool.jsonl...> [--period YYYY-MM] [--fee 1] [--carry-forward 0] [--out flux-statement.html]
+// Render a MESH statement (self-contained HTML) from ledger spools.
+// Usage: mesh-report <spool.jsonl...> [--period YYYY-MM] [--fee 1] [--carry-forward 0] [--out mesh-statement.html]
 import { readFileSync, writeFileSync } from "node:fs";
 import { basename } from "node:path";
 import { renderLedgerReport } from "../index.js";
@@ -10,7 +10,7 @@ const files = [];
 let period;
 let feePercent = 1;
 let carryForwardDeficitUsd = 0;
-let out = "flux-statement.html";
+let out = "mesh-statement.html";
 for (let index = 0; index < args.length; index += 1) {
   const arg = args[index];
   if (arg === "--period") period = args[++index];
@@ -20,7 +20,7 @@ for (let index = 0; index < args.length; index += 1) {
   else files.push(arg);
 }
 if (files.length === 0) {
-  console.error("Usage: flux-report <spool.jsonl...> [--period YYYY-MM] [--fee 1] [--carry-forward 0] [--out flux-statement.html]");
+  console.error("Usage: mesh-report <spool.jsonl...> [--period YYYY-MM] [--fee 1] [--carry-forward 0] [--out mesh-statement.html]");
   process.exit(1);
 }
 if (!Number.isFinite(feePercent) || feePercent < 0 || feePercent > 100) {
@@ -44,4 +44,4 @@ writeFileSync(out, html, "utf8");
 const verdict = html.includes("DO NOT PAY") ? "DO NOT PAY (chain broken)"
   : html.includes("do_not_charge") ? "do_not_charge" : "charge";
 console.log(`statement written: ${out} (${spools.length} spool(s), verdict: ${verdict})`);
-console.log("Verify independently: npx -y -p @flux-ai/verify flux-verify <spool.jsonl>");
+console.log("Verify independently: npx -y -p @mesh-ai/verify mesh-verify <spool.jsonl>");

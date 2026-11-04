@@ -2440,30 +2440,30 @@
   {
    "viewport": "desktop",
    "width": 1440,
-   "fold": "/Users/harrymanley/Documents/Codex/flux/.taste-skill/inspect8/desktop-fold.jpg",
+   "fold": "/Users/harrymanley/Documents/Codex/mesh/.taste-skill/inspect8/desktop-fold.jpg",
    "pages": [
-    "/Users/harrymanley/Documents/Codex/flux/.taste-skill/inspect8/desktop-page-01.jpg",
-    "/Users/harrymanley/Documents/Codex/flux/.taste-skill/inspect8/desktop-page-02.jpg"
+    "/Users/harrymanley/Documents/Codex/mesh/.taste-skill/inspect8/desktop-page-01.jpg",
+    "/Users/harrymanley/Documents/Codex/mesh/.taste-skill/inspect8/desktop-page-02.jpg"
    ],
    "film": []
   },
   {
    "viewport": "tablet",
    "width": 768,
-   "fold": "/Users/harrymanley/Documents/Codex/flux/.taste-skill/inspect8/tablet-fold.jpg",
+   "fold": "/Users/harrymanley/Documents/Codex/mesh/.taste-skill/inspect8/tablet-fold.jpg",
    "pages": [
-    "/Users/harrymanley/Documents/Codex/flux/.taste-skill/inspect8/tablet-page-01.jpg",
-    "/Users/harrymanley/Documents/Codex/flux/.taste-skill/inspect8/tablet-page-02.jpg"
+    "/Users/harrymanley/Documents/Codex/mesh/.taste-skill/inspect8/tablet-page-01.jpg",
+    "/Users/harrymanley/Documents/Codex/mesh/.taste-skill/inspect8/tablet-page-02.jpg"
    ],
    "film": []
   },
   {
    "viewport": "mobile",
    "width": 390,
-   "fold": "/Users/harrymanley/Documents/Codex/flux/.taste-skill/inspect8/mobile-fold.jpg",
+   "fold": "/Users/harrymanley/Documents/Codex/mesh/.taste-skill/inspect8/mobile-fold.jpg",
    "pages": [
-    "/Users/harrymanley/Documents/Codex/flux/.taste-skill/inspect8/mobile-page-01.jpg",
-    "/Users/harrymanley/Documents/Codex/flux/.taste-skill/inspect8/mobile-page-02.jpg"
+    "/Users/harrymanley/Documents/Codex/mesh/.taste-skill/inspect8/mobile-page-01.jpg",
+    "/Users/harrymanley/Documents/Codex/mesh/.taste-skill/inspect8/mobile-page-02.jpg"
    ],
    "film": []
   }

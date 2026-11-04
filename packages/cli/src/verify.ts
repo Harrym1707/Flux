@@ -1,5 +1,5 @@
 /**
- * `flux verify` — prove, on this machine, that what you installed IS the FLUX
+ * `mesh verify` — prove, on this machine, that what you installed IS the MESH
  * we built, and that its claims hold. Four checks, each mapping to a claim:
  *
  *   1. PROVENANCE   — the exact build commit this binary was cut from.
@@ -20,7 +20,7 @@ import { recomputeInvoice, verifyLedgerChain, type LedgerRecord } from "../../co
 import { reduceRequest } from "../../sdk-js/src/reduce-request.js";
 import { BUILD_COMMIT } from "./start.js";
 
-const LEDGER_DIR = join(homedir(), ".flux", "ledger");
+const LEDGER_DIR = join(homedir(), ".mesh", "ledger");
 
 /** A deliberately wasteful Anthropic Messages request: duplicated history + verbose tool schema. */
 function sampleRequest(): unknown {
@@ -50,8 +50,8 @@ export async function runVerify(_argv: string[]): Promise<void> {
   // 1. PROVENANCE — the cached runtime is byte-identical to what passed its
   // checksum when the bootstrap downloaded it (local integrity of the cached
   // artifact; authenticity of a release comes from its CI signature/attestation).
-  const runtimeDir = join(homedir(), ".flux", "runtime");
-  const runtimeFile = join(runtimeDir, "flux-runtime.mjs");
+  const runtimeDir = join(homedir(), ".mesh", "runtime");
+  const runtimeFile = join(runtimeDir, "mesh-runtime.mjs");
   const recordedSha = existsSync(join(runtimeDir, "sha256")) ? readFileSync(join(runtimeDir, "sha256"), "utf8").trim() : null;
   if (recordedSha !== null && existsSync(runtimeFile)) {
     const actual = createHash("sha256").update(readFileSync(runtimeFile)).digest("hex");
@@ -79,7 +79,7 @@ export async function runVerify(_argv: string[]): Promise<void> {
 
   // 3 + 4. LEDGER chain + invoice DETERMINISM, on the user's own spools.
   if (!existsSync(LEDGER_DIR) || readdirSync(LEDGER_DIR).filter((f) => f.endsWith(".jsonl") && !f.endsWith(".features.jsonl")).length === 0) {
-    checks.push({ name: "ledger", ok: true, detail: "no ledger yet — run `flux start` and use Claude Code, then verify again" });
+    checks.push({ name: "ledger", ok: true, detail: "no ledger yet — run `mesh start` and use Claude Code, then verify again" });
     checks.push({ name: "determinism", ok: true, detail: "nothing to recompute yet" });
   } else {
     const spools = readdirSync(LEDGER_DIR).filter((f) => f.endsWith(".jsonl") && !f.endsWith(".features.jsonl"));
@@ -119,7 +119,7 @@ export async function runVerify(_argv: string[]): Promise<void> {
 
   // ---- report ----
   console.log("");
-  console.log(`  flux verify — build ${BUILD_COMMIT}`);
+  console.log(`  mesh verify — build ${BUILD_COMMIT}`);
   console.log("");
   let allOk = true;
   for (const c of checks) {
@@ -127,7 +127,7 @@ export async function runVerify(_argv: string[]): Promise<void> {
     console.log(`  ${c.ok ? "✓" : "✗"} ${c.name.padEnd(12)} ${c.detail}`);
   }
   console.log("");
-  console.log(`  Savings are measured from your provider's own reported usage, never FLUX's estimate.`);
+  console.log(`  Savings are measured from your provider's own reported usage, never MESH's estimate.`);
   console.log(`  The ledger is yours; this command recomputes the invoice from it with no network calls.`);
   console.log("");
   console.log(allOk ? `  All checks passed.` : `  SOME CHECKS FAILED — see above.`);

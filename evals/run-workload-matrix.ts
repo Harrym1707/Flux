@@ -7,11 +7,11 @@ import {
   simulateCache,
   type SimulatedRequest,
 } from "../packages/core/src/index.js";
-import { reduceRequest, type FluxTokenReductionConfig } from "../packages/sdk-js/src/index.js";
+import { reduceRequest, type MeshTokenReductionConfig } from "../packages/sdk-js/src/index.js";
 
 
 /**
- * The workload matrix: does FLUX reduce token spend on each of the
+ * The workload matrix: does MESH reduce token spend on each of the
  * interaction shapes people actually run against foundation models?
  *
  *   node --import tsx evals/run-workload-matrix.ts
@@ -45,7 +45,7 @@ import { reduceRequest, type FluxTokenReductionConfig } from "../packages/sdk-js
 
 type AnyObject = Record<string, unknown>;
 
-const LOSSLESS: FluxTokenReductionConfig = {
+const LOSSLESS: MeshTokenReductionConfig = {
   toolSchemas: true,
   duplicateContext: true,
   repairCachePrefix: true,
@@ -282,7 +282,7 @@ function priceStamped(stream: Array<{ atSeconds: number; full: string; spans: st
  * on every token, NO prompt-cache stacking (batch cache rates are unpublished, so
  * we never assume the read/write multipliers apply under batch). This is the
  * honest "route this async-eligible shape to the Batch API instead of caching it"
- * alternative; FLUX picks whichever lever is cheaper per workload.
+ * alternative; MESH picks whichever lever is cheaper per workload.
  */
 function priceBatchFlat(stream: Array<{ full: string; outputTokens: number }>): number {
   let cost = 0;
@@ -313,7 +313,7 @@ function measure(name: string, build: () => Shaped[], opts: { batchEligible?: bo
   });
   const stamped = priceStamped(reducedStream);
 
-  // On a latency-tolerant shape, FLUX picks the cheaper of {cache the prefix} and
+  // On a latency-tolerant shape, MESH picks the cheaper of {cache the prefix} and
   // {route to the Batch API at 50% off}. The batch route is a lever independent of
   // caching — so it helps exactly the already-well-cached accounts caching cannot.
   const batchFlat = opts.batchEligible ? priceBatchFlat(reducedStream) : Infinity;
@@ -326,7 +326,7 @@ function measure(name: string, build: () => Shaped[], opts: { batchEligible?: bo
 
   console.log(`${name.padEnd(22)} ${String(shaped.length).padStart(3)} req  tokens ${tokenPct >= 0 ? "-" : "+"}${Math.abs(tokenPct).toFixed(1).padStart(5)}%  cost ${costPct >= 0 ? "-" : "+"}${Math.abs(costPct).toFixed(1).padStart(5)}%  (raw $${raw.totalCostUsd.toFixed(4)} -> $${chosenCost.toFixed(4)}${opts.batchEligible ? `, lever ${chosenLever}` : `, hits ${(stamped.hitRate * 100).toFixed(0)}%`})`);
   if (opts.batchEligible) {
-    console.log(`${"".padEnd(22)} async-eligible: cache-stamp $${stamped.costUsd.toFixed(4)} vs batch-route $${batchFlat.toFixed(4)} -> FLUX picks ${chosenLever}`);
+    console.log(`${"".padEnd(22)} async-eligible: cache-stamp $${stamped.costUsd.toFixed(4)} vs batch-route $${batchFlat.toFixed(4)} -> MESH picks ${chosenLever}`);
   }
   console.log(`${"".padEnd(22)} levers: ${leverList}`);
   if (chosenCost >= raw.totalCostUsd) {
@@ -335,7 +335,7 @@ function measure(name: string, build: () => Shaped[], opts: { batchEligible?: bo
   }
 }
 
-console.log("FLUX workload matrix - lossless levers + 5m cache stamp vs unreduced/unstamped baseline");
+console.log("MESH workload matrix - lossless levers + 5m cache stamp vs unreduced/unstamped baseline");
 console.log(`raw arm: cache simulator, caching unavailable (Anthropic's opt-in default); stamped arm: breakpoint-exact provider rules`);
 console.log(`catalogued claude-sonnet-5-5 prices (${AT}); no lossy levers; quality unchanged by construction\n`);
 measure("multi-agent team", multiAgentTeam);
@@ -343,4 +343,4 @@ measure("autonomous agent", autonomousAgent);
 measure("memory agent", memoryAgent);
 measure("rag pipeline", ragPipeline);
 measure("batch classification", batchClassification, { batchEligible: true });
-console.log("\nEvery row must save or the run exits non-zero: a shape FLUX cannot reduce is a finding to fix, not to hide.");
+console.log("\nEvery row must save or the run exits non-zero: a shape MESH cannot reduce is a finding to fix, not to hide.");

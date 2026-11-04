@@ -15,7 +15,7 @@ import {
 } from "../../core/src/index.js";
 
 /**
- * flux analyse: measure a traffic sample and report what a reduction is worth.
+ * mesh analyse: measure a traffic sample and report what a reduction is worth.
  *
  * Runs entirely locally. Prompt text is read to count tokens and find shared
  * prefixes, and never written to the report: breaker examples are redacted
@@ -27,7 +27,7 @@ import {
  * segments, and are a hypothesis to verify by replay, not a realised saving.
  */
 
-const USAGE = `Usage: flux analyse --input <file.jsonl> [options]
+const USAGE = `Usage: mesh analyse --input <file.jsonl> [options]
 
   --input <path>      Traffic log to read. Repeatable. JSONL, or a JSON array.
   --date <YYYY-MM-DD> Billing date for rows that carry none. Default: today.
@@ -264,7 +264,7 @@ function buildReport(
   const baseline = measurement.totalBaselineCostUsd;
 
   return [
-    "# FLUX cost analysis",
+    "# MESH cost analysis",
     "",
     `Sample: ${measurement.requests.toLocaleString()} requests, fingerprint \`${fingerprint}\`.`,
     `Parsed by: ${Object.entries(adapterCounts).map(([name, count]) => `${name} (${count})`).join(", ") || "none"}.`,
@@ -394,23 +394,23 @@ if (args.markdown) {
 }
 
 // ---------------------------------------------------------------------------
-// Entry dispatch: `flux <command>`. `start` runs the proxy + Theo; `verify`
+// Entry dispatch: `mesh <command>`. `start` runs the proxy + Theo; `verify`
 // re-proves the claims on this machine; `analyse` is the original report.
 // ---------------------------------------------------------------------------
-const TOP_USAGE = `flux — cut your LLM bill, verified on your own usage.
+const TOP_USAGE = `mesh — cut your LLM bill, verified on your own usage.
 
-Usage: flux <command> [options]
+Usage: mesh <command> [options]
 
-  start      Start the FLUX proxy, point Claude Code at it, and run Theo
+  start      Start the MESH proxy, point Claude Code at it, and run Theo
              alongside you. One command; reverts cleanly on exit.
-  install    Always-on: run FLUX as a background service (launchd) so every
+  install    Always-on: run MESH as a background service (launchd) so every
              Claude Code session is optimised, with nothing to start by hand.
   stop       Stop the background service (kept; resume with install).
   uninstall  Stop and remove the background service; restore Claude Code.
   status     Is the service up, and what has Theo saved so far?
   dashboard  Open a live local web view of your savings and what Theo is doing.
   update     Update the runtime now (--rollback to revert).
-  verify     Re-prove FLUX's claims on this machine: the build's provenance,
+  verify     Re-prove MESH's claims on this machine: the build's provenance,
              your ledger's hash-chain, and a deterministic invoice recompute.
   doctor     Diagnose this machine (Node, proxy, Claude Code, service, ledger).
   version    Print the installed version and build.
@@ -418,7 +418,7 @@ Usage: flux <command> [options]
   compaction Estimate, per task in your ledger, what context compaction would
              save — and where it would cost more than it saves (advisory).
 
-Run "flux <command> --help" for command options.`;
+Run "mesh <command> --help" for command options.`;
 
 async function main(): Promise<void> {
   const sub = process.argv[2];
@@ -451,7 +451,7 @@ async function main(): Promise<void> {
   } else if (sub === undefined || sub === "--help" || sub === "-h") {
     console.log(TOP_USAGE);
   } else {
-    // Back-compat: bare flags (e.g. `flux --input x.jsonl`) still analyse.
+    // Back-compat: bare flags (e.g. `mesh --input x.jsonl`) still analyse.
     await runAnalyse(process.argv.slice(2));
   }
 }

@@ -1,7 +1,7 @@
-import type { FluxTokenReductionConfig, FluxOutputEffort } from "./reduce-request.js";
+import type { MeshTokenReductionConfig, MeshOutputEffort } from "./reduce-request.js";
 
 /**
- * Theo's per-user policy — the control mechanism between Theo and FLUX.
+ * Theo's per-user policy — the control mechanism between Theo and MESH.
  *
  * Theo never sits in the request path. His ONLY action is to publish a new version
  * of this document; the proxy reads it and enforces it synchronously. A policy is
@@ -67,7 +67,7 @@ function proofClearsCeiling(lever: TheoLever, ceilingPercent: number): boolean {
 }
 
 /** Map one lever id (+ params) onto the reducer config. Unknown ids are ignored. */
-function applyLever(config: FluxTokenReductionConfig, lever: TheoLever): void {
+function applyLever(config: MeshTokenReductionConfig, lever: TheoLever): void {
   const p = lever.params ?? {};
   switch (lever.lever) {
     case "tool-schema-compaction":
@@ -112,7 +112,7 @@ function applyLever(config: FluxTokenReductionConfig, lever: TheoLever): void {
     case "output-effort-high":
     case "output-effort-xhigh":
     case "output-effort-max":
-      config.outputEffort = lever.lever.replace("output-effort-", "") as FluxOutputEffort;
+      config.outputEffort = lever.lever.replace("output-effort-", "") as MeshOutputEffort;
       return;
     default:
       return; // unknown lever id: ignore, never guess.
@@ -127,8 +127,8 @@ function applyLever(config: FluxTokenReductionConfig, lever: TheoLever): void {
  * within the route's ceiling; otherwise it is silently withheld. This is the
  * enforcement point of "never enable a saving we have not proven within budget."
  */
-export function policyToReductionConfig(policy: TheoPolicy): FluxTokenReductionConfig {
-  const config: FluxTokenReductionConfig = {};
+export function policyToReductionConfig(policy: TheoPolicy): MeshTokenReductionConfig {
+  const config: MeshTokenReductionConfig = {};
   for (const lever of policy.levers) {
     if (lever.class === "lossy" && !proofClearsCeiling(lever, policy.qualityCeilingPercent)) continue;
     applyLever(config, lever);

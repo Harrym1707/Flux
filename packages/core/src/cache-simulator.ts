@@ -5,7 +5,7 @@ import { approximateTokenCount, type TokenCounter } from "./token-reduction.js";
 /**
  * Provider prompt-cache simulator.
  *
- * Prefix caching is the largest lever FLUX has, and on a fixture it was worth 29
+ * Prefix caching is the largest lever MESH has, and on a fixture it was worth 29
  * of 32 points. A claim that large cannot rest on a stub that simply says "the
  * prefix was cached". This models the published rules, including the ones that
  * make caching fail:
@@ -71,7 +71,7 @@ export const ANTHROPIC_CACHE_5M: CachePolicy = {
  * caches and every token bills at the full input rate. This is the measured
  * reality of unstamped Claude traffic (the first live export recorded a
  * five-turn agent with zero cache reads and zero writes), and therefore the
- * honest baseline for valuing a FLUX-placed stamp.
+ * honest baseline for valuing a MESH-placed stamp.
  */
 export const ANTHROPIC_NO_CACHE: CachePolicy = {
   name: "anthropic-uncached",

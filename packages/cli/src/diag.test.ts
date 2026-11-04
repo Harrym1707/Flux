@@ -8,7 +8,7 @@ function captureLog(fn: () => void | Promise<void>): Promise<string[]> {
   return Promise.resolve(fn()).finally(() => spy.mockRestore()).then(() => logs);
 }
 
-describe("flux version", () => {
+describe("mesh version", () => {
   it("emits machine-readable identity with --json", async () => {
     const logs = await captureLog(() => runVersion(["--json"]));
     const info = JSON.parse(logs[0]!) as Record<string, string>;
@@ -20,11 +20,11 @@ describe("flux version", () => {
 
   it("prints a human-readable line by default", async () => {
     const logs = await captureLog(() => runVersion([]));
-    expect(logs[0]).toMatch(/^flux /);
+    expect(logs[0]).toMatch(/^mesh /);
   });
 });
 
-describe("flux doctor", () => {
+describe("mesh doctor", () => {
   it("runs environment checks and emits a checks array with --json", async () => {
     const logs = await captureLog(() => runDoctor(["--json"]));
     const out = JSON.parse(logs[0]!) as { checks: Array<{ name: string; ok: boolean }> };

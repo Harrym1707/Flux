@@ -75,7 +75,7 @@ describe("runCompaction (reads a real chained spool)", () => {
   let spy: ReturnType<typeof vi.spyOn>;
 
   beforeEach(() => {
-    dir = mkdtempSync(join(tmpdir(), "flux-compaction-"));
+    dir = mkdtempSync(join(tmpdir(), "mesh-compaction-"));
     ledger = join(dir, "ledger");
     mkdirSync(ledger, { recursive: true });
     logs.length = 0;
@@ -101,7 +101,7 @@ describe("runCompaction (reads a real chained spool)", () => {
     writeSpool("warm-anthropic.jsonl", task("warm", true));
     await runCompaction(["--ledger", ledger, "--at-tokens", "20000", "--summary-tokens", "2000", "--date", "2026-11-03"]);
     const out = logs.join("\n");
-    expect(out).toMatch(/flux compaction/);
+    expect(out).toMatch(/mesh compaction/);
     expect(out).toContain("cold");
     expect(out).toMatch(/net loss|leave uncompacted/); // the warm task
     expect(out).toMatch(/Advisory only/);

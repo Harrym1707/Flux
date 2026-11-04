@@ -3,7 +3,7 @@
  * gates. Run it locally (`node --import tsx evals/run-geo-audit.ts`) or let
  * the Pages workflow run it after every deploy; any failure exits non-zero.
  *
- *   FLUX_SITE_ORIGIN  the deployed origin (default https://www.fluxtoken.dev)
+ *   MESH_SITE_ORIGIN  the deployed origin (default https://www.fluxtoken.dev)
  *
  * What answer engines need, checked against what is actually served:
  * machine-readable entry points (llms.txt, llms-full.txt), explicit crawler
@@ -12,7 +12,7 @@
  * present in the machine-readable surfaces.
  */
 
-const ORIGIN = (process.env.FLUX_SITE_ORIGIN ?? "https://www.fluxtoken.dev").replace(/\/$/, "");
+const ORIGIN = (process.env.MESH_SITE_ORIGIN ?? "https://www.fluxtoken.dev").replace(/\/$/, "");
 
 type Check = { name: string; ok: boolean; detail?: string };
 const checks: Check[] = [];
@@ -81,18 +81,18 @@ check("Organization schema present", ldTypes.includes("Organization"));
 
 const start = await fetchText("/start.html");
 check("start page served", start.status === 200);
-check("start page carries the one-line install", start.text.includes("npx -y -p @flux-ai/sdk flux-proxy"));
+check("start page carries the one-line install", start.text.includes("npx -y -p @mesh-ai/sdk mesh-proxy"));
 check("start page has HowTo structured data", start.text.includes('"@type":"HowTo"'));
 check("start page states the honest verdict", start.text.includes("do_not_charge"));
-check("llms.txt carries the one-line install", llms.text.includes("npx -y -p @flux-ai/sdk flux-proxy"));
+check("llms.txt carries the one-line install", llms.text.includes("npx -y -p @mesh-ai/sdk mesh-proxy"));
 
 // --- The npm package answer engines will recommend must actually exist -----
 try {
-  const npmRes = await fetch("https://registry.npmjs.org/@flux-ai/sdk", { signal: AbortSignal.timeout(20_000) });
+  const npmRes = await fetch("https://registry.npmjs.org/@mesh-ai/sdk", { signal: AbortSignal.timeout(20_000) });
   const npmJson = (await npmRes.json()) as { "dist-tags"?: { latest?: string } };
-  check("@flux-ai/sdk resolves on the npm registry", npmRes.status === 200 && typeof npmJson["dist-tags"]?.latest === "string", npmJson["dist-tags"]?.latest);
+  check("@mesh-ai/sdk resolves on the npm registry", npmRes.status === 200 && typeof npmJson["dist-tags"]?.latest === "string", npmJson["dist-tags"]?.latest);
 } catch {
-  check("@flux-ai/sdk resolves on the npm registry", false, "registry unreachable");
+  check("@mesh-ai/sdk resolves on the npm registry", false, "registry unreachable");
 }
 
 const comparison = await fetchText("/comparison.html");
@@ -105,7 +105,7 @@ check("FAQ structured data present", faq.text.includes("FAQPage"));
 
 // --- Honesty invariants in the public layer ----------------------------------
 check("landing quotes the clean cache figure", landing.text.includes("37.9%"));
-check("landing admits where FLUX loses", landing.text.includes("do not pay us"));
+check("landing admits where MESH loses", landing.text.includes("do not pay us"));
 check("evidence page linked from landing", landing.text.includes("evidence.html"));
 
 // --- Report -------------------------------------------------------------------

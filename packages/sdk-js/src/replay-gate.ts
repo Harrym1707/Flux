@@ -1,7 +1,7 @@
 import { estimateTokenCost, type TokenPrice } from "../../core/dist/src/cost.js";
 import { normalizeProviderUsage } from "../../core/dist/src/provider-usage.js";
 import { simultaneousGroupBootstrapLowerBounds } from "../../core/dist/src/confidence.js";
-import { reduceRequest, type FluxTokenReductionConfig } from "./reduce-request.js";
+import { reduceRequest, type MeshTokenReductionConfig } from "./reduce-request.js";
 
 /**
  * Decide whether a lossy reduction may be switched on, by replaying real
@@ -18,7 +18,7 @@ import { reduceRequest, type FluxTokenReductionConfig } from "./reduce-request.j
  * Two properties make the verdict billable rather than decorative:
  *
  *   Token savings come from the provider's reported usage on both runs, not from
- *   FLUX's own estimate. That makes the saving measured, not projected.
+ *   MESH's own estimate. That makes the saving measured, not projected.
  *
  *   Candidates are bounded simultaneously. Trying six settings and keeping the
  *   best biases that winner upward, and a per-candidate bound would not cover
@@ -42,7 +42,7 @@ export type ReplayGrader = (comparison: ReplayComparison) => number | Promise<nu
 
 export type ReplayCandidate = {
   label: string;
-  config: FluxTokenReductionConfig;
+  config: MeshTokenReductionConfig;
 };
 
 export type ReplayGateOptions = {
@@ -89,7 +89,7 @@ export type ReplayUsage = {
 
 export type ReplayCandidateResult = {
   label: string;
-  config: FluxTokenReductionConfig;
+  config: MeshTokenReductionConfig;
   graded: number;
   /** Requests where either side failed, excluded from the verdict. */
   failed: number;
@@ -272,7 +272,7 @@ export async function replayGate(options: ReplayGateOptions): Promise<ReplayGate
     grade,
     maximumQualityDrop = 0.02,
     bootstrapSamples = 2_000,
-    seed = "flux-replay-gate-v1",
+    seed = "mesh-replay-gate-v1",
     price,
   } = options;
 

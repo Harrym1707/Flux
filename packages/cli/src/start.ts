@@ -1,9 +1,9 @@
 /**
- * `flux start` — the one-command, frictionless deploy for Claude Code.
+ * `mesh start` — the one-command, frictionless deploy for Claude Code.
  *
  * What it does, in order:
- *   1. Starts the REAL FLUX proxy (the same `startFluxProxy` the test suite
- *      covers) on a local port, writing a hash-chained ledger under ~/.flux.
+ *   1. Starts the REAL MESH proxy (the same `startMeshProxy` the test suite
+ *      covers) on a local port, writing a hash-chained ledger under ~/.mesh.
  *   2. Points Claude Code at it by writing ANTHROPIC_BASE_URL into
  *      ~/.claude/settings.json — and REVERTS that on exit, so Claude Code is
  *      never left pointing at a stopped proxy.
@@ -12,7 +12,7 @@
  *      usage — never an estimate, never a number he can't prove.
  *
  * It never reads, stores or forwards your API key: your own credential stays in
- * Claude Code and is passed straight through to Anthropic. FLUX only sets the
+ * Claude Code and is passed straight through to Anthropic. MESH only sets the
  * base URL.
  */
 import { randomBytes } from "node:crypto";
@@ -31,15 +31,15 @@ import { join } from "node:path";
 // would all bundle into the client runtime. Direct imports keep it to the
 // client surface: proxy + reducer + ledger + Theo policy.
 import { recomputeInvoice, verifyLedgerChain, type LedgerRecord } from "../../core/src/savings-ledger.js";
-import { startFluxProxy } from "../../sdk-js/src/proxy.js";
+import { startMeshProxy } from "../../sdk-js/src/proxy.js";
 import { defaultPolicy, policyToReductionConfig, withheldLevers } from "../../sdk-js/src/theo-policy.js";
 import { pullNewerRuntime } from "./update.js";
 
-declare const __FLUX_BUILD_COMMIT__: string | undefined;
+declare const __MESH_BUILD_COMMIT__: string | undefined;
 export const BUILD_COMMIT =
-  typeof __FLUX_BUILD_COMMIT__ !== "undefined" ? __FLUX_BUILD_COMMIT__ : (process.env.FLUX_BUILD_COMMIT ?? "dev");
+  typeof __MESH_BUILD_COMMIT__ !== "undefined" ? __MESH_BUILD_COMMIT__ : (process.env.MESH_BUILD_COMMIT ?? "dev");
 
-export const FLUX_HOME = join(homedir(), ".flux");
+export const MESH_HOME = join(homedir(), ".mesh");
 export const CLAUDE_SETTINGS = join(homedir(), ".claude", "settings.json");
 export const DEFAULT_PORT = 8787;
 
@@ -54,20 +54,20 @@ type StartArgs = {
 function parseStart(argv: string[]): StartArgs {
   const args: StartArgs = {
     port: 8787,
-    ledgerDir: join(FLUX_HOME, "ledger"),
+    ledgerDir: join(MESH_HOME, "ledger"),
     install: true,
-    // Env defaults so the background service (flux serve) can be pointed at an
+    // Env defaults so the background service (mesh serve) can be pointed at an
     // OpenAI-compatible provider too, not just the foreground command.
-    anthropicUpstream: process.env.FLUX_ANTHROPIC_UPSTREAM,
-    openaiUpstream: process.env.FLUX_OPENAI_UPSTREAM,
+    anthropicUpstream: process.env.MESH_ANTHROPIC_UPSTREAM,
+    openaiUpstream: process.env.MESH_OPENAI_UPSTREAM,
   };
   for (let i = 0; i < argv.length; i += 1) {
     const key = argv[i]!;
     if (key === "--help" || key === "-h") {
       console.log(
-        `Usage: flux start [options]\n\n` +
+        `Usage: mesh start [options]\n\n` +
           `  --port <n>              Port for the local proxy (default 8787).\n` +
-          `  --ledger <dir>          Where to write the hash-chained ledger (default ~/.flux/ledger).\n` +
+          `  --ledger <dir>          Where to write the hash-chained ledger (default ~/.mesh/ledger).\n` +
           `  --openai-base <url>     Send OpenAI-style traffic to this host instead of api.openai.com —\n` +
           `                          any OpenAI-compatible provider (Grok, DeepSeek, Mistral, Llama, …).\n` +
           `  --anthropic-base <url>  Send Anthropic traffic to this host instead of api.anthropic.com.\n` +
@@ -84,7 +84,7 @@ function parseStart(argv: string[]): StartArgs {
     else if (key === "--ledger") args.ledgerDir = value;
     else if (key === "--openai-base") args.openaiUpstream = value;
     else if (key === "--anthropic-base") args.anthropicUpstream = value;
-    else throw new Error(`Unknown option: ${key}. See flux start --help.`);
+    else throw new Error(`Unknown option: ${key}. See mesh start --help.`);
   }
   if (!Number.isInteger(args.port) || args.port < 0 || args.port > 65535) throw new Error("--port must be 0-65535.");
   for (const url of [args.anthropicUpstream, args.openaiUpstream]) {
@@ -95,7 +95,7 @@ function parseStart(argv: string[]): StartArgs {
 
 /** A per-user HMAC key for Theo's blind feature stream. Local, 0600, never leaves. */
 function blindKey(): string {
-  const path = join(FLUX_HOME, "blind.key");
+  const path = join(MESH_HOME, "blind.key");
   if (existsSync(path)) return readFileSync(path, "utf8").trim();
   const key = randomBytes(32).toString("hex");
   writeFileSync(path, key, { mode: 0o600 });
@@ -112,7 +112,7 @@ function configureClaudeCode(baseUrl: string): () => void {
     try {
       settings = JSON.parse(readFileSync(CLAUDE_SETTINGS, "utf8")) as Record<string, unknown>;
     } catch {
-      throw new Error(`~/.claude/settings.json isn't valid JSON — fix or move it, then re-run. FLUX won't overwrite it.`);
+      throw new Error(`~/.claude/settings.json isn't valid JSON — fix or move it, then re-run. MESH won't overwrite it.`);
     }
   }
   const env = { ...((settings.env as Record<string, string>) ?? {}) };
@@ -182,15 +182,15 @@ export async function startProxyWithPolicy(
   port: number,
   ledgerDir: string,
   upstreams: { anthropicUpstream?: string; openaiUpstream?: string } = {},
-): Promise<{ proxy: Awaited<ReturnType<typeof startFluxProxy>>; policy: ReturnType<typeof defaultPolicy> }> {
-  mkdirSync(FLUX_HOME, { recursive: true });
+): Promise<{ proxy: Awaited<ReturnType<typeof startMeshProxy>>; policy: ReturnType<typeof defaultPolicy> }> {
+  mkdirSync(MESH_HOME, { recursive: true });
   mkdirSync(ledgerDir, { recursive: true });
-  const policyPath = join(FLUX_HOME, "theo-policy.json");
+  const policyPath = join(MESH_HOME, "theo-policy.json");
   const policy = existsSync(policyPath)
     ? (JSON.parse(readFileSync(policyPath, "utf8")) as ReturnType<typeof defaultPolicy>)
     : defaultPolicy("local", new Date().toISOString());
   if (!existsSync(policyPath)) writeFileSync(policyPath, `${JSON.stringify(policy, null, 2)}\n`);
-  const proxy = await startFluxProxy({
+  const proxy = await startMeshProxy({
     port,
     ledgerDirectory: ledgerDir,
     tokenReduction: policyToReductionConfig(policy),
@@ -202,16 +202,16 @@ export async function startProxyWithPolicy(
 }
 
 /**
- * `flux serve` — the always-on daemon body: proxy + Theo, logging to stdout so
- * launchd captures it to ~/.flux/daemon.log. No config writes and no revert;
- * `flux install` owns the persistent Claude Code wiring, `flux uninstall`
+ * `mesh serve` — the always-on daemon body: proxy + Theo, logging to stdout so
+ * launchd captures it to ~/.mesh/daemon.log. No config writes and no revert;
+ * `mesh install` owns the persistent Claude Code wiring, `mesh uninstall`
  * removes it. Started by the LaunchAgent, not run by hand.
  */
 export async function runServe(argv: string[]): Promise<void> {
   const args = parseStart(argv);
   const { proxy } = await startProxyWithPolicy(args.port, args.ledgerDir, args);
   const stamp = (): string => new Date().toISOString();
-  console.log(`[${stamp()}] flux serve · build ${BUILD_COMMIT} · proxy ${proxy.url} · ledger ${args.ledgerDir}`);
+  console.log(`[${stamp()}] mesh serve · build ${BUILD_COMMIT} · proxy ${proxy.url} · ledger ${args.ledgerDir}`);
   if (args.openaiUpstream) console.log(`[${stamp()}] openai-style upstream → ${args.openaiUpstream}`);
   if (args.anthropicUpstream) console.log(`[${stamp()}] anthropic upstream → ${args.anthropicUpstream}`);
   let lastEvents = -1;
@@ -226,11 +226,11 @@ export async function runServe(argv: string[]): Promise<void> {
   // Keep the always-on service current. The bootstrap only checks for a newer
   // runtime at launch, but the daemon launches once and runs for weeks — so
   // without this it would serve the version it started with until the machine
-  // restarts (customers stuck on old FLUX). A few times a day, pull a newer
+  // restarts (customers stuck on old MESH). A few times a day, pull a newer
   // published runtime (checksum-verified, with a rollback copy) and, when one
-  // lands, exit so launchd relaunches us on it. Disable with FLUX_NO_AUTO_UPDATE.
+  // lands, exit so launchd relaunches us on it. Disable with MESH_NO_AUTO_UPDATE.
   const UPDATE_CHECK_MS = 6 * 60 * 60 * 1000;
-  const autoUpdate = process.env.FLUX_NO_AUTO_UPDATE === undefined && BUILD_COMMIT !== "dev";
+  const autoUpdate = process.env.MESH_NO_AUTO_UPDATE === undefined && BUILD_COMMIT !== "dev";
   const updateTimer = autoUpdate ? setInterval(() => { void (async () => {
     try {
       const next = await pullNewerRuntime();
@@ -263,19 +263,19 @@ export async function runStart(argv: string[]): Promise<void> {
 
   // ---- banner ----
   console.log("");
-  console.log(`  FLUX is running  ·  build ${BUILD_COMMIT}`);
+  console.log(`  MESH is running  ·  build ${BUILD_COMMIT}`);
   console.log(`  proxy    ${proxy.url}`);
-  console.log(`  ledger   ${args.ledgerDir}  (hash-chained; recompute any time with: flux verify)`);
-  if (args.install) console.log(`  claude   pointed at FLUX via ~/.claude/settings.json  (restored on exit)`);
+  console.log(`  ledger   ${args.ledgerDir}  (hash-chained; recompute any time with: mesh verify)`);
+  if (args.install) console.log(`  claude   pointed at MESH via ~/.claude/settings.json  (restored on exit)`);
   else console.log(`  claude   not configured (--no-install); set ANTHROPIC_BASE_URL=${proxy.url} yourself`);
-  // FLUX is not Claude-specific: any OpenAI-style client works by pointing its
+  // MESH is not Claude-specific: any OpenAI-style client works by pointing its
   // base URL here and keeping its own key. The proxy picks the upstream from
   // the request (Anthropic vs OpenAI-style) and your key passes straight through.
   console.log(`  openai   point any OpenAI-style client here: OPENAI_BASE_URL=${proxy.url}/v1  (keep your own key)`);
   if (args.openaiUpstream) console.log(`  upstream OpenAI-style traffic → ${args.openaiUpstream}`);
   if (args.anthropicUpstream) console.log(`  upstream Anthropic traffic → ${args.anthropicUpstream}`);
   console.log("");
-  console.log(`  ${T} — I'm watching your traffic. I only ever tune FLUX, never your prompts`);
+  console.log(`  ${T} — I'm watching your traffic. I only ever tune MESH, never your prompts`);
   console.log(`  ${T}   or answers. Everything I report is verified from your provider's own`);
   console.log(`  ${T}   usage — never an estimate.`);
   if (withheld.length > 0) {
@@ -291,7 +291,7 @@ export async function runStart(argv: string[]): Promise<void> {
   const tick = (): void => {
     const s = summariseLedger(args.ledgerDir);
     if (!s.chainOk) {
-      console.log(`  ${T} — ⚠ ledger chain check failed at ${s.brokenAt}. Stop and run: flux verify`);
+      console.log(`  ${T} — ⚠ ledger chain check failed at ${s.brokenAt}. Stop and run: mesh verify`);
       return;
     }
     if (s.events === lastEvents) return;
@@ -315,9 +315,9 @@ export async function runStart(argv: string[]): Promise<void> {
     console.log("");
     if (s.events > 0) {
       console.log(`  ${T} — session done: ${s.events} request${s.events === 1 ? "" : "s"}, $${s.savedUsd.toFixed(4)} verified saved.`);
-      console.log(`  ${T}   Recompute it yourself any time: flux verify`);
+      console.log(`  ${T}   Recompute it yourself any time: mesh verify`);
     } else {
-      console.log(`  ${T} — no requests ran through FLUX this session.`);
+      console.log(`  ${T} — no requests ran through MESH this session.`);
     }
     console.log(`  Claude Code restored. Bye.`);
     process.exit(0);

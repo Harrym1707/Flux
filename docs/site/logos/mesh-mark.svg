@@ -1,5 +1,5 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 130" role="img" aria-label="Flux">
-  <title>Flux</title>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 130" role="img" aria-label="Mesh">
+  <title>Mesh</title>
   <g transform="translate(60,42)" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round">
     <!-- top cube -->
     <path d="M0 -30 L26 -15 L26 15 L0 30 L-26 15 L-26 -15 Z"/>

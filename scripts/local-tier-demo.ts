@@ -6,7 +6,7 @@
  * Runs a sample of mixed traffic through the local-tier router and shows which
  * requests would run on a local open-weight model (e.g. PrismML Bonsai on a
  * local OpenAI-compatible endpoint) instead of the expensive cloud model, and
- * what that saves — the cloud cost avoided, valued against FLUX's own price
+ * what that saves — the cloud cost avoided, valued against MESH's own price
  * catalogue. Nothing is sent anywhere; this is the decision + economics only.
  */
 import { publishedModelPrices } from "../packages/core/src/model-prices.js";
