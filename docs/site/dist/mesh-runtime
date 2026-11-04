@@ -2997,7 +2997,7 @@ async function runUpdate(argv) {
 var BASE, DIR, RUNTIME, VERSION_FILE, SHA_FILE, BACKUP, BACKUP_VERSION, BACKUP_SHA;
 var init_update = __esm({
   "packages/cli/src/update.ts"() {
-    BASE = (process.env.MESH_BASE_URL ?? "https://www.fluxtoken.dev").replace(/\/$/, "");
+    BASE = (process.env.MESH_BASE_URL ?? "https://www.mesh-technology.com").replace(/\/$/, "");
     DIR = join2(homedir(), ".mesh", "runtime");
     RUNTIME = join2(DIR, "mesh-runtime.mjs");
     VERSION_FILE = join2(DIR, "version");
@@ -3295,7 +3295,7 @@ var init_start = __esm({
     init_proxy();
     init_theo_policy();
     init_update();
-    BUILD_COMMIT = true ? "d7b8628" : process.env.MESH_BUILD_COMMIT ?? "dev";
+    BUILD_COMMIT = true ? "5d826eb" : process.env.MESH_BUILD_COMMIT ?? "dev";
     MESH_HOME = join3(homedir2(), ".mesh");
     CLAUDE_SETTINGS = join3(homedir2(), ".claude", "settings.json");
     DEFAULT_PORT = 8787;

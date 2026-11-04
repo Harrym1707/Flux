@@ -67,7 +67,7 @@ competitor or DIY alternative alongside increases survival.
   account + launch post = classic removal; r/LocalLLaMA screenshots comment
   histories). r/ClaudeAI needs 50+ karma for feed Showcase.
 - Text posts only; never a URL in the title; GitHub/npm link mid-body after
-  the measurements (fluxtoken.dev is a young domain — spam filters).
+  the measurements (mesh-technology.com is a young domain — spam filters).
 - One sub per day, rewritten per sub; 9 helpful contributions per promo one.
 - Timing: Tue–Thu 1400–1700 UTC for US-dev subs.
 - Flairs: Built with Claude (r/ClaudeCode), Showcase (r/ClaudeAI),

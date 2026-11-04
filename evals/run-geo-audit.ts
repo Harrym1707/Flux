@@ -3,7 +3,7 @@
  * gates. Run it locally (`node --import tsx evals/run-geo-audit.ts`) or let
  * the Pages workflow run it after every deploy; any failure exits non-zero.
  *
- *   MESH_SITE_ORIGIN  the deployed origin (default https://www.fluxtoken.dev)
+ *   MESH_SITE_ORIGIN  the deployed origin (default https://www.mesh-technology.com)
  *
  * What answer engines need, checked against what is actually served:
  * machine-readable entry points (llms.txt, llms-full.txt), explicit crawler
@@ -12,7 +12,7 @@
  * present in the machine-readable surfaces.
  */
 
-const ORIGIN = (process.env.MESH_SITE_ORIGIN ?? "https://www.fluxtoken.dev").replace(/\/$/, "");
+const ORIGIN = (process.env.MESH_SITE_ORIGIN ?? "https://www.mesh-technology.com").replace(/\/$/, "");
 
 type Check = { name: string; ok: boolean; detail?: string };
 const checks: Check[] = [];

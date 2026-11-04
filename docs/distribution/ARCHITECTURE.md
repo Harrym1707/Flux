@@ -36,9 +36,9 @@ tool. It is part of the trust story, not a delivery channel for the runtime.
 
 ### 2. Website curl channel (bootstrap → runtime → manifest)
 
-The channel behind `curl -fsSL https://www.fluxtoken.dev/install.sh | sh`. It
+The channel behind `curl -fsSL https://www.mesh-technology.com/install.sh | sh`. It
 exists so a user can install with no npm account and a download they can read in
-full before running. Three hosted artifacts, all under `fluxtoken.dev`:
+full before running. Three hosted artifacts, all under `mesh-technology.com`:
 
 | Hosted path | Artifact | Size (committed build) |
 |---|---|---|

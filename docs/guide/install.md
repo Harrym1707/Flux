@@ -16,7 +16,7 @@ provider — never stored, never logged.
 ## Install (recommended)
 
 ```bash
-curl -fsSL https://www.fluxtoken.dev/install.sh | sh
+curl -fsSL https://www.mesh-technology.com/install.sh | sh
 ```
 
 Then start it:
@@ -29,7 +29,7 @@ Piping a script to `sh` is worth a look first — the installer is small and
 readable:
 
 ```bash
-curl -fsSL https://www.fluxtoken.dev/install.sh | less
+curl -fsSL https://www.mesh-technology.com/install.sh | less
 ```
 
 ## What the install actually does

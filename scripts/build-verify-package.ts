@@ -153,7 +153,7 @@ SOFTWARE.
 
 writeFileSync(path.join(outDir, "README.md"), `# @mesh-ai/verify
 
-The verification half of [MESH](https://www.fluxtoken.dev), under MIT.
+The verification half of [MESH](https://www.mesh-technology.com), under MIT.
 
 MESH bills 1% of verified LLM API savings from an append-only, hash-chained
 ledger that lives on the customer's own disk. An honesty claim you cannot
@@ -176,7 +176,7 @@ Library use:
 import { verifyLedgerChain, recomputeInvoice } from "@mesh-ai/verify";
 \`\`\`
 
-Ledger format and methodology: https://www.fluxtoken.dev/methodology.html
+Ledger format and methodology: https://www.mesh-technology.com/methodology.html
 `, "utf8");
 
 const manifest = {
@@ -196,7 +196,7 @@ const manifest = {
   engines: { node: ">=18" },
   repository: { type: "git", url: "git+https://github.com/Harrym1707/Flux.git", directory: "packages/verify/pkg" },
   bugs: "https://github.com/Harrym1707/Flux/issues",
-  homepage: "https://www.fluxtoken.dev",
+  homepage: "https://www.mesh-technology.com",
   keywords: ["llm", "cost", "ledger", "verification", "anthropic", "openai", "mesh"],
 };
 writeFileSync(path.join(outDir, "package.json"), JSON.stringify(manifest, null, 2) + "\n", "utf8");

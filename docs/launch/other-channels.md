@@ -23,8 +23,8 @@ Subject: Mesh — local LLM cost proxy with a customer-recomputable savings ledg
 > and the quote output for already-optimised stacks literally says "do not
 > pay us". Published numbers include where it loses.
 >
-> Repo: https://github.com/Harrym1707/Flux · Site: https://www.fluxtoken.dev
-> · Five-minute start: https://www.fluxtoken.dev/start.html
+> Repo: https://github.com/Harrym1707/Flux · Site: https://www.mesh-technology.com
+> · Five-minute start: https://www.mesh-technology.com/start.html
 >
 > Happy to answer anything. — Harry
 
@@ -61,7 +61,7 @@ quote says "do not pay us."
 
 6/ Free to try, nothing leaves your machine, ~22ms added p50. Production
 pricing is 1% of verified savings — a month that saves nothing bills
-nothing. fluxtoken.dev
+nothing. mesh-technology.com
 
 ## 4. Product Hunt (later — after HN + some social proof)
 

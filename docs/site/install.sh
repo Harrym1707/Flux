@@ -2,10 +2,10 @@
 # MESH installer — downloads the small `mesh` launcher and puts it on your PATH.
 # It installs ONE tiny file (~3KB) that fetches and checksum-verifies the runtime
 # on first use. It never touches your API key. Read it before you run it:
-#   curl -fsSL https://www.fluxtoken.dev/install.sh | less
+#   curl -fsSL https://www.mesh-technology.com/install.sh | less
 set -eu
 
-BASE="${MESH_BASE_URL:-https://www.fluxtoken.dev}"
+BASE="${MESH_BASE_URL:-https://www.mesh-technology.com}"
 BIN_DIR="$HOME/.mesh/bin"
 
 printf 'MESH installer\n\n'

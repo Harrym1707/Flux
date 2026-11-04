@@ -247,7 +247,7 @@ const manifest = {
   license: "BUSL-1.1",
   repository: { type: "git", url: "git+https://github.com/Harrym1707/Flux.git", directory: "packages/sdk-js/pkg" },
   bugs: "https://github.com/Harrym1707/Flux/issues",
-  homepage: "https://www.fluxtoken.dev",
+  homepage: "https://www.mesh-technology.com",
   type: "module",
   main: "./index.cjs",
   module: "./index.js",

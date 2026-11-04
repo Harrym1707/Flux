@@ -8,7 +8,7 @@
  * answer engines can cite the pages directly. Deploying is one founder
  * action: enable GitHub Pages on the folder, or drag it into any static host.
  *
- *   MESH_SITE_ORIGIN  canonical origin (e.g. https://flux.dev); a placeholder
+ *   MESH_SITE_ORIGIN  canonical origin (e.g. https://mesh-technology.com); a placeholder
  *                     is used (and loudly warned about) when unset.
  *   MESH_REPO_URL     where ../pilot/* links resolve (the public repo).
  *
@@ -24,7 +24,7 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const siteDir = path.join(root, "docs/site");
 const outDir = path.join(siteDir, "dist");
 
-const ORIGIN = (process.env.MESH_SITE_ORIGIN ?? "https://REPLACE-WITH-YOUR-DOMAIN.example").replace(/\/$/, "");
+const ORIGIN = (process.env.MESH_SITE_ORIGIN ?? "https://www.mesh-technology.com").replace(/\/$/, "");
 const REPO_URL = (process.env.MESH_REPO_URL ?? "https://github.com/Harrym1707/Flux").replace(/\/$/, "");
 if (ORIGIN.includes("REPLACE-WITH-YOUR-DOMAIN")) {
   console.warn("WARNING: MESH_SITE_ORIGIN is unset; canonical URLs and the sitemap use a placeholder domain.");
@@ -388,7 +388,7 @@ if (failures.length > 0) {
   process.exit(1);
 }
 // Host the downloadable CLI at /mesh when it has been built, so the install
-// one-liner `curl -fsSL https://www.fluxtoken.dev/mesh` resolves. Optional:
+// one-liner `curl -fsSL https://www.mesh-technology.com/mesh` resolves. Optional:
 // a site build without the CLI artifact just omits it (and says so).
 // Host the CLI: /mesh is the tiny bootstrap users download; it fetches and
 // verifies /mesh-runtime against /mesh-version.json and caches it. Build the

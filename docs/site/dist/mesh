@@ -9,7 +9,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-var BASE = (process.env.MESH_BASE_URL ?? "https://www.fluxtoken.dev").replace(/\/$/, "");
+var BASE = (process.env.MESH_BASE_URL ?? "https://www.mesh-technology.com").replace(/\/$/, "");
 var DIR = join(homedir(), ".mesh", "runtime");
 var RUNTIME = join(DIR, "mesh-runtime.mjs");
 var VERSION_FILE = join(DIR, "version");

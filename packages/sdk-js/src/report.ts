@@ -200,7 +200,7 @@ independently, without MESH and without accepting any terms:
 <code>npx -y -p @mesh-ai/verify mesh-verify &lt;spool.jsonl&gt;</code> — if your
 recomputation disagrees with this statement, yours wins. Negative levers are
 shown negative and reduce the bill; savings you already had are itemised above
-and never billed. Methodology: https://www.fluxtoken.dev/methodology.html<br>
+and never billed. Methodology: https://www.mesh-technology.com/methodology.html<br>
 MESH is a product of Mesh AI Technologies Limited, registered in England and Wales, company no. 17543982.
 </footer>
 </main>

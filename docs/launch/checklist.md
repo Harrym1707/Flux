@@ -7,8 +7,8 @@ lasts hours; a broken first impression lasts.
 
 - [ ] `npx -y -p @mesh-ai/sdk mesh-proxy` works from a clean machine (no repo,
       no login) — this is the first thing every visitor will run
-- [ ] www.fluxtoken.dev loads fast; /start.html renders; GEO audit green
-      (`MESH_SITE_ORIGIN=https://www.fluxtoken.dev node --import tsx evals/run-geo-audit.ts`)
+- [ ] www.mesh-technology.com loads fast; /start.html renders; GEO audit green
+      (`MESH_SITE_ORIGIN=https://www.mesh-technology.com node --import tsx evals/run-geo-audit.ts`)
 - [ ] CI green on main; nightly-evals has a passing run
 - [ ] README front section reads correctly on the GitHub mobile app (most HN
       readers open the repo on a phone first)

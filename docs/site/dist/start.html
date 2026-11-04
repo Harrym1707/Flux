@@ -5,17 +5,17 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Get started in five minutes</title>
 <meta name="description" content="MESH sits between your app and your AI provider, removes the tokens you were about to pay for twice, and writes every request into a tamper-evident ledger you can audit yourself. No signup, no account, no key handover: your API key passes through to the provider and is never stored. Works with Claud">
-<link rel="canonical" href="https://www.fluxtoken.dev/start.html">
+<link rel="canonical" href="https://www.mesh-technology.com/start.html">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="mesh">
 <meta property="og:title" content="Get started in five minutes">
 <meta property="og:description" content="MESH sits between your app and your AI provider, removes the tokens you were about to pay for twice, and writes every request into a tamper-evident ledger you can audit yourself. No signup, no account, no key handover: your API key passes through to the provider and is never stored. Works with Claud">
-<meta property="og:url" content="https://www.fluxtoken.dev/start.html">
-<meta property="og:image" content="https://www.fluxtoken.dev/og.png">
+<meta property="og:url" content="https://www.mesh-technology.com/start.html">
+<meta property="og:image" content="https://www.mesh-technology.com/og.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
 <meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:image" content="https://www.fluxtoken.dev/og.png">
+<meta name="twitter:image" content="https://www.mesh-technology.com/og.png">
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -77,12 +77,12 @@ footer{border-top:2px solid var(--signal);margin-top:3rem;padding-top:1rem;font-
 <p>MESH sits between your app and your AI provider, removes the tokens you were about to pay for twice, and writes every request into a tamper-evident ledger you can audit yourself. No signup, no account, no key handover: your API key passes through to the provider and is never stored. Works with Claude (Anthropic), OpenAI, and any OpenAI-compatible endpoint.</p>
 <h2>Claude Code — one command</h2>
 <p>Install the <code>mesh</code> command (needs Node 22+, which Claude Code already uses):</p>
-<pre class="block"><code>curl -fsSL https://www.fluxtoken.dev/install.sh | sh</code></pre>
+<pre class="block"><code>curl -fsSL https://www.mesh-technology.com/install.sh | sh</code></pre>
 <p>Then start it:</p>
 <pre class="block"><code>mesh start</code></pre>
 <p>That points Claude Code at MESH and runs <strong>Theo</strong> — your token engineer — alongside you. Use Claude Code exactly as normal; press Ctrl+C to stop and Claude Code reverts cleanly. Check your own verified number any time with <code>mesh verify</code>.</p>
-<p>The installer drops one tiny launcher that fetches and checksum-verifies the runtime; it never touches your API key. Read it first if you like: <code>curl -fsSL https://www.fluxtoken.dev/install.sh | less</code>.</p>
-<p><strong>Other ways in:</strong> once <code>@mesh-ai/mesh</code> is published, <code>npx @mesh-ai/mesh start</code> works with no install. Or grab the launcher directly: <code>curl -fsSL https://www.fluxtoken.dev/mesh -o mesh &amp;&amp; chmod +x mesh &amp;&amp; ./mesh start</code>.</p>
+<p>The installer drops one tiny launcher that fetches and checksum-verifies the runtime; it never touches your API key. Read it first if you like: <code>curl -fsSL https://www.mesh-technology.com/install.sh | less</code>.</p>
+<p><strong>Other ways in:</strong> once <code>@mesh-ai/mesh</code> is published, <code>npx @mesh-ai/mesh start</code> works with no install. Or grab the launcher directly: <code>curl -fsSL https://www.mesh-technology.com/mesh -o mesh &amp;&amp; chmod +x mesh &amp;&amp; ./mesh start</code>.</p>
 <p>The rest of this page is the manual setup for any other app or language.</p>
 <h2>Step 1 — run the proxy</h2>
 <p>One command, nothing to clone:</p>

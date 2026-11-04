@@ -45,5 +45,5 @@ research/channels.md. Posts: show-hn.md, reddit-posts.md, other-channels.md.
   about the same tool within ~30 days — the acceptable sequel is a NEW
   measurement ("one month of ledger data: here's where it lost").
 - The pilot-quote issue template is the destination; the repo is the landing
-  page; fluxtoken.dev is the reference, linked mid-body, never the headline
+  page; mesh-technology.com is the reference, linked mid-body, never the headline
   link (young domain + HN's sign-up-page rule).

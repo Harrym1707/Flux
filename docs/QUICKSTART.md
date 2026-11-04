@@ -2,7 +2,7 @@
 
 > This file previously documented an early telemetry-receiver prototype that
 > no longer exists. The real quickstart lives in the [README](../README.md)
-> and on [www.fluxtoken.dev](https://www.fluxtoken.dev). Short version:
+> and on [www.mesh-technology.com](https://www.mesh-technology.com). Short version:
 
 ```bash
 npx -y -p @mesh-ai/sdk mesh-proxy

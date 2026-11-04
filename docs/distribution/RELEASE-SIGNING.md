@@ -14,7 +14,7 @@ authenticity**:
   (`packages/cli/src/bootstrap.ts:76-80`). That proves the bytes match the
   manifest — nothing more.
 - The manifest and the runtime are **committed to git** and **served
-  same-origin** from `fluxtoken.dev` (`scripts/build-site.ts:388-403`,
+  same-origin** from `mesh-technology.com` (`scripts/build-site.ts:388-403`,
   `.github/workflows/pages.yml`). An attacker — or an accident — that can write
   `docs/site/dist` moves the runtime *and* its sha256 together. The checksum
   attests nothing such an actor couldn't also replace. There is no signature

@@ -59,7 +59,7 @@ For the always-on service, use `mesh install --port 9000`.
 
 If the bootstrap reports the runtime failed its checksum, it refuses to run that
 copy — try again, as it is usually a corrupted download. If it can't reach
-`https://www.fluxtoken.dev` on a fresh machine with no cached runtime, check your
+`https://www.mesh-technology.com` on a fresh machine with no cached runtime, check your
 connection and retry; an existing install keeps working offline from its cache.
 
 ### Ledger chain broken

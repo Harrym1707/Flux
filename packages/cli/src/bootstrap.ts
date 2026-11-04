@@ -17,7 +17,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-const BASE = (process.env.MESH_BASE_URL ?? "https://www.fluxtoken.dev").replace(/\/$/, "");
+const BASE = (process.env.MESH_BASE_URL ?? "https://www.mesh-technology.com").replace(/\/$/, "");
 const DIR = join(homedir(), ".mesh", "runtime");
 const RUNTIME = join(DIR, "mesh-runtime.mjs");
 const VERSION_FILE = join(DIR, "version");

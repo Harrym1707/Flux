@@ -633,7 +633,7 @@ section h2::after{content:"";position:absolute;left:50%;transform:translateX(-50
     <button class="os-tab" type="button" role="tab" data-os="npm" aria-selected="false">npm</button>
     <button class="os-tab" type="button" role="tab" disabled title="Windows support is coming">Windows &middot; soon</button>
   </div>
-  <div class="install-cmd rise" data-os-panel="unix"><span class="prompt">$</span><code>curl -fsSL https://www.fluxtoken.dev/install.sh | sh</code><button class="copy" type="button" data-copy="curl -fsSL https://www.fluxtoken.dev/install.sh | sh">copy</button></div>
+  <div class="install-cmd rise" data-os-panel="unix"><span class="prompt">$</span><code>curl -fsSL https://www.mesh-technology.com/install.sh | sh</code><button class="copy" type="button" data-copy="curl -fsSL https://www.mesh-technology.com/install.sh | sh">copy</button></div>
   <div class="install-cmd rise" data-os-panel="npm" hidden><span class="prompt">$</span><code>npx @mesh-ai/mesh start</code><button class="copy" type="button" data-copy="npx @mesh-ai/mesh start">copy</button></div>
   <p class="install-note rise">Then <code>mesh start</code> &middot; needs Node 22+ &middot; <b>your key never leaves Claude Code</b> &middot; <a href="start.html">full setup guide</a></p>
 </section>

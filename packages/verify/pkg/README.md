@@ -1,6 +1,6 @@
 # @mesh-ai/verify
 
-The verification half of [MESH](https://www.fluxtoken.dev), under MIT.
+The verification half of [MESH](https://www.mesh-technology.com), under MIT.
 
 MESH bills 1% of verified LLM API savings from an append-only, hash-chained
 ledger that lives on the customer's own disk. An honesty claim you cannot
@@ -23,4 +23,4 @@ Library use:
 import { verifyLedgerChain, recomputeInvoice } from "@mesh-ai/verify";
 ```
 
-Ledger format and methodology: https://www.fluxtoken.dev/methodology.html
+Ledger format and methodology: https://www.mesh-technology.com/methodology.html

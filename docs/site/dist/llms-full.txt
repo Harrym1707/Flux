@@ -60,7 +60,7 @@ passes through to the provider and is never stored. Works with Claude
 Install the `mesh` command (needs Node 22+, which Claude Code already uses):
 
 ```bash
-curl -fsSL https://www.fluxtoken.dev/install.sh | sh
+curl -fsSL https://www.mesh-technology.com/install.sh | sh
 ```
 
 Then start it:
@@ -76,11 +76,11 @@ Claude Code reverts cleanly. Check your own verified number any time with
 
 The installer drops one tiny launcher that fetches and checksum-verifies the
 runtime; it never touches your API key. Read it first if you like:
-`curl -fsSL https://www.fluxtoken.dev/install.sh | less`.
+`curl -fsSL https://www.mesh-technology.com/install.sh | less`.
 
 **Other ways in:** once `@mesh-ai/mesh` is published, `npx @mesh-ai/mesh start`
 works with no install. Or grab the launcher directly:
-`curl -fsSL https://www.fluxtoken.dev/mesh -o mesh && chmod +x mesh && ./mesh start`.
+`curl -fsSL https://www.mesh-technology.com/mesh -o mesh && chmod +x mesh && ./mesh start`.
 
 The rest of this page is the manual setup for any other app or language.
 

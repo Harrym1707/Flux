@@ -87,7 +87,7 @@ writeFileSync(path.join(outDir, "package.json"), `${JSON.stringify({
   engines: { node: ">=22" },
   keywords: ["llm", "anthropic", "claude", "claude-code", "proxy", "cost", "tokens", "mesh"],
   license: "BUSL-1.1",
-  homepage: "https://www.fluxtoken.dev",
+  homepage: "https://www.mesh-technology.com",
   repository: { type: "git", url: "git+https://github.com/Harrym1707/Flux.git" },
 }, null, 2)}\n`);
 
@@ -101,7 +101,7 @@ Download one small file (needs Node 22+); it fetches and verifies the runtime,
 then keeps it up to date:
 
 \`\`\`sh
-curl -fsSL https://www.fluxtoken.dev/mesh -o mesh && chmod +x mesh && ./mesh start
+curl -fsSL https://www.mesh-technology.com/mesh -o mesh && chmod +x mesh && ./mesh start
 \`\`\`
 
 …or with npm:
