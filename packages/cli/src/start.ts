@@ -32,7 +32,7 @@ import { join } from "node:path";
 // client surface: proxy + reducer + ledger + Theo policy.
 import { recomputeInvoice, verifyLedgerChain, type LedgerRecord } from "../../core/src/savings-ledger.js";
 import { startMeshProxy } from "../../sdk-js/src/proxy.js";
-import { defaultPolicy, policyToReductionConfig, withheldLevers } from "../../sdk-js/src/theo-policy.js";
+import { defaultPolicy, policyToReductionConfig, withheldLevers, type TheoPolicy } from "../../sdk-js/src/theo-policy.js";
 import { pullNewerRuntime } from "./update.js";
 
 declare const __MESH_BUILD_COMMIT__: string | undefined;
@@ -42,6 +42,22 @@ export const BUILD_COMMIT =
 export const MESH_HOME = join(homedir(), ".mesh");
 export const CLAUDE_SETTINGS = join(homedir(), ".claude", "settings.json");
 export const DEFAULT_PORT = 8787;
+
+/**
+ * Read the user's Theo policy without writing anything — the default (STRICT,
+ * lossless-only) when none exists yet. Shared by the dashboard and `mesh status`
+ * so both read the policy the same way; the proxy's own read in
+ * startProxyWithPolicy is separate because it writes the default on first run.
+ */
+export function readPolicy(): TheoPolicy {
+  const path = join(MESH_HOME, "theo-policy.json");
+  if (!existsSync(path)) return defaultPolicy("local", new Date().toISOString());
+  try {
+    return JSON.parse(readFileSync(path, "utf8")) as TheoPolicy;
+  } catch {
+    return defaultPolicy("local", new Date().toISOString());
+  }
+}
 
 type StartArgs = {
   port: number;

@@ -12,14 +12,13 @@
  * Manrope, the Mesh-blue accent and the hand-drawn squiggle, matching the site.
  */
 import { spawn } from "node:child_process";
-import { existsSync, readFileSync } from "node:fs";
 import { createServer } from "node:http";
 import { connect } from "node:net";
 import { platform } from "node:os";
 import { join } from "node:path";
 import { recomputeInvoice } from "../../core/src/savings-ledger.js";
-import { defaultPolicy, withheldLevers, type TheoPolicy } from "../../sdk-js/src/theo-policy.js";
-import { BUILD_COMMIT, DEFAULT_PORT, MESH_HOME, readLedger } from "./start.js";
+import { policyCoverage, withheldLevers } from "../../sdk-js/src/theo-policy.js";
+import { BUILD_COMMIT, DEFAULT_PORT, MESH_HOME, readLedger, readPolicy } from "./start.js";
 
 type DashArgs = { port: number; proxyPort: number; ledgerDir: string; open: boolean };
 
@@ -48,13 +47,6 @@ function parseArgs(argv: string[]): DashArgs {
     else throw new Error(`Unknown option: ${key}. See mesh dashboard --help.`);
   }
   return args;
-}
-
-function readPolicy(): TheoPolicy {
-  const path = join(MESH_HOME, "theo-policy.json");
-  if (!existsSync(path)) return defaultPolicy("local", new Date().toISOString());
-  try { return JSON.parse(readFileSync(path, "utf8")) as TheoPolicy; }
-  catch { return defaultPolicy("local", new Date().toISOString()); }
 }
 
 function proxyUp(port: number): Promise<boolean> {
@@ -91,6 +83,7 @@ async function buildData(args: DashArgs): Promise<unknown> {
       qualityCeilingPercent: policy.qualityCeilingPercent,
       active,
       withheld: withheldLevers(policy),
+      coverage: policyCoverage(policy),
     },
   };
 }
@@ -179,6 +172,12 @@ const PAGE = `<!doctype html><html lang="en"><head><meta charset="utf-8">
   .chip.on{border-color:var(--accent);color:var(--accent);background:rgba(37,99,235,.06)}
   .chip.on .k{color:var(--muted);font-weight:500}
   .chip.held{border-color:var(--stone-line);color:var(--stone-muted);background:var(--stone)}
+  .chip.avail{border-style:dashed;border-color:var(--stone-line);color:var(--muted);background:#fff}
+  .coverage{font-size:13.5px;color:var(--muted);line-height:1.4}
+  .coverage .n{color:var(--ink);font-weight:800}
+  .coverage .pct{color:var(--accent);font-weight:700}
+  .meter{margin-top:9px;height:8px;border-radius:999px;background:var(--stone);overflow:hidden}
+  .meter .fill{height:100%;width:0;background:var(--accent);border-radius:999px;transition:width .5s ease}
   .ceiling{font-size:13px;color:var(--muted);margin-top:14px;line-height:1.5}
   table{width:100%;border-collapse:collapse;font-size:14px}
   th,td{text-align:left;padding:8px 8px;border-bottom:1px solid var(--line)}
@@ -206,10 +205,14 @@ const PAGE = `<!doctype html><html lang="en"><head><meta charset="utf-8">
   <div class="grid">
     <div class="panel theo">
       <h2><span class="hex">⬢ Theo</span> — what he's doing</h2>
-      <p class="sub">Applying now</p>
+      <div class="coverage" id="coverage"></div>
+      <div class="meter"><div class="fill" id="coverfill"></div></div>
+      <p class="sub" style="margin-top:16px">Applying now</p>
       <div id="active"><span class="empty">—</span></div>
       <p class="sub" style="margin-top:14px">Held behind the replay-gate</p>
       <div id="withheld"><span class="empty">nothing held</span></div>
+      <p class="sub" style="margin-top:14px">Not yet adopted</p>
+      <div id="available"><span class="empty">—</span></div>
       <div class="ceiling" id="ceiling"></div>
     </div>
     <div class="panel">
@@ -237,6 +240,11 @@ async function tick(){
     $('saved').innerHTML='<span class="cur">$</span>'+usd(d.savings.netUsd);
     const v=$('verdict'); v.textContent=d.savings.verdict==='charge'?'billing':'do not charge'; v.className='verdict '+d.savings.verdict;
     $('events').textContent=d.savings.eventsConsidered+' requests'+(d.savings.unpricedEvents?(' · '+d.savings.unpricedEvents+' unpriced (recorded, not billed)'):'');
+    const cov=d.theo.coverage;
+    $('coverage').innerHTML='Theo is live on <span class="n">'+cov.activeCount+'</span> of <span class="n">'+cov.enforceableCount+'</span> levers he can enforce <span class="pct">('+cov.activeCoveragePercent.toFixed(0)+'%)</span> · '+cov.heldCount+' held · '+cov.availableCount+' not yet adopted';
+    $('coverfill').style.width=cov.activeCoveragePercent.toFixed(1)+'%';
+    const avail=cov.stands.filter(s=>s.state==='available');
+    $('available').innerHTML=avail.length?avail.map(s=>'<span class="chip avail" title="Theo can enforce this; he has not adopted it for you yet.">'+s.label+'</span>').join(''):'<span class="empty">none — Theo has adopted every lever he can</span>';
     $('active').innerHTML=d.theo.active.length?d.theo.active.map(l=>'<span class="chip on">'+l.lever+'<span class="k"> · '+l.class+'</span></span>').join(''):'<span class="empty">none</span>';
     $('withheld').innerHTML=d.theo.withheld.length?d.theo.withheld.map(w=>'<span class="chip held" title="'+(w.reason||'')+'">'+w.lever+'</span>').join(''):'<span class="empty">nothing held</span>';
     $('ceiling').textContent='Quality ceiling: '+d.theo.qualityCeilingPercent+'% — anything that could cost more than this stays off until a replay of your traffic proves it safe.';

@@ -15,7 +15,8 @@ import { chmodSync, copyFileSync, existsSync, mkdirSync, readFileSync, rmSync, w
 import { homedir, platform } from "node:os";
 import { dirname, join, resolve } from "node:path";
 
-import { BUILD_COMMIT, CLAUDE_SETTINGS, DEFAULT_PORT, MESH_HOME, summariseLedger } from "./start.js";
+import { BUILD_COMMIT, CLAUDE_SETTINGS, DEFAULT_PORT, MESH_HOME, readPolicy, summariseLedger } from "./start.js";
+import { policyCoverage } from "../../sdk-js/src/theo-policy.js";
 
 const LABEL = "dev.meshtoken.mesh";
 const PLIST = join(homedir(), "Library", "LaunchAgents", `${LABEL}.plist`);
@@ -193,6 +194,13 @@ export async function runStatus(_argv: string[]): Promise<void> {
   } else {
     console.log(`  ⬢ theo    no traffic yet — use Claude Code and check back`);
   }
+  const cov = policyCoverage(readPolicy());
+  console.log(
+    `  coverage  live on ${cov.activeCount}/${cov.enforceableCount} enforceable levers ` +
+    `(${cov.activeCoveragePercent.toFixed(0)}%)` +
+    `${cov.heldCount ? ` · ${cov.heldCount} held for proof` : ""}` +
+    `${cov.availableCount ? ` · ${cov.availableCount} not yet adopted` : ""}`,
+  );
   if (!up && loaded) console.log(`  note      service is registered but the proxy is down; see ${DAEMON_LOG}`);
   console.log("");
 }

@@ -2882,9 +2882,68 @@ function defaultPolicy(user, at) {
     updatedAt: at
   };
 }
+function policyCoverage(policy) {
+  const byId = new Map(policy.levers.map((lever) => [lever.lever, lever]));
+  const heldById = new Map(withheldLevers(policy).map((withheld) => [withheld.lever, withheld.reason]));
+  const stands = ENFORCEABLE_LEVERS.map((group) => {
+    let state = "available";
+    let reason;
+    let leverClass;
+    for (const member of group.members) {
+      const lever = byId.get(member);
+      if (lever === void 0) continue;
+      leverClass = lever.class;
+      const enforced = lever.class === "lossless" || proofClearsCeiling(lever, policy.qualityCeilingPercent);
+      if (enforced) {
+        state = "active";
+        reason = void 0;
+        break;
+      }
+      state = "held";
+      reason = heldById.get(member);
+    }
+    return {
+      lever: group.id,
+      label: group.label,
+      state,
+      ...leverClass ? { class: leverClass } : {},
+      ...reason ? { reason } : {}
+    };
+  });
+  const activeCount = stands.filter((stand) => stand.state === "active").length;
+  const heldCount = stands.filter((stand) => stand.state === "held").length;
+  const availableCount = stands.filter((stand) => stand.state === "available").length;
+  const enforceableCount = ENFORCEABLE_LEVERS.length;
+  return {
+    enforceableCount,
+    activeCount,
+    heldCount,
+    availableCount,
+    activeCoveragePercent: enforceableCount === 0 ? 0 : activeCount / enforceableCount * 100,
+    stands
+  };
+}
+var ENFORCEABLE_LEVERS;
 var init_theo_policy = __esm({
   "packages/sdk-js/src/theo-policy.ts"() {
     "use strict";
+    ENFORCEABLE_LEVERS = [
+      { id: "tool-schema-compaction", label: "Tool-schema compaction", members: ["tool-schema-compaction"] },
+      { id: "tool-schema-description-trim", label: "Tool-schema description trim", members: ["tool-schema-description-trim"] },
+      { id: "duplicate-context-removal", label: "Duplicate-context removal", members: ["duplicate-context-removal"] },
+      { id: "cache-prefix-repair", label: "Cache-prefix repair", members: ["cache-prefix-repair"] },
+      { id: "stale-history-compaction", label: "Stale-history compaction", members: ["stale-history-compaction"] },
+      { id: "cross-turn-memory-dedup", label: "Cross-turn memory dedup", members: ["cross-turn-memory-dedup"] },
+      { id: "fresh-tool-result-cap", label: "Fresh tool-result cap", members: ["fresh-tool-result-cap"] },
+      { id: "output-cap", label: "Output cap", members: ["output-cap"] },
+      { id: "execution-tier-flex", label: "Execution-tier flex", members: ["execution-tier-flex"] },
+      { id: "cache-ttl", label: "Cache TTL", members: ["cache-ttl-5m", "cache-ttl-1h"] },
+      {
+        id: "output-effort",
+        label: "Output effort",
+        members: ["output-effort-low", "output-effort-medium", "output-effort-high", "output-effort-xhigh", "output-effort-max"]
+      }
+    ];
   }
 });
 
@@ -3016,6 +3075,7 @@ __export(start_exports, {
   DEFAULT_PORT: () => DEFAULT_PORT,
   MESH_HOME: () => MESH_HOME,
   readLedger: () => readLedger,
+  readPolicy: () => readPolicy,
   runServe: () => runServe,
   runStart: () => runStart,
   startProxyWithPolicy: () => startProxyWithPolicy,
@@ -3031,6 +3091,15 @@ import {
 } from "node:fs";
 import { homedir as homedir2 } from "node:os";
 import { join as join3 } from "node:path";
+function readPolicy() {
+  const path = join3(MESH_HOME, "theo-policy.json");
+  if (!existsSync3(path)) return defaultPolicy("local", (/* @__PURE__ */ new Date()).toISOString());
+  try {
+    return JSON.parse(readFileSync3(path, "utf8"));
+  } catch {
+    return defaultPolicy("local", (/* @__PURE__ */ new Date()).toISOString());
+  }
+}
 function parseStart(argv) {
   const args = {
     port: 8787,
@@ -3295,7 +3364,7 @@ var init_start = __esm({
     init_proxy();
     init_theo_policy();
     init_update();
-    BUILD_COMMIT = true ? "5d826eb" : process.env.MESH_BUILD_COMMIT ?? "dev";
+    BUILD_COMMIT = true ? "6ad530d" : process.env.MESH_BUILD_COMMIT ?? "dev";
     MESH_HOME = join3(homedir2(), ".mesh");
     CLAUDE_SETTINGS = join3(homedir2(), ".claude", "settings.json");
     DEFAULT_PORT = 8787;
@@ -3484,6 +3553,10 @@ async function runStatus(_argv) {
   } else {
     console.log(`  \u2B22 theo    no traffic yet \u2014 use Claude Code and check back`);
   }
+  const cov = policyCoverage(readPolicy());
+  console.log(
+    `  coverage  live on ${cov.activeCount}/${cov.enforceableCount} enforceable levers (${cov.activeCoveragePercent.toFixed(0)}%)${cov.heldCount ? ` \xB7 ${cov.heldCount} held for proof` : ""}${cov.availableCount ? ` \xB7 ${cov.availableCount} not yet adopted` : ""}`
+  );
   if (!up && loaded) console.log(`  note      service is registered but the proxy is down; see ${DAEMON_LOG}`);
   console.log("");
 }
@@ -3494,6 +3567,7 @@ var LABEL, PLIST, DAEMON_LOG, STABLE_BIN, DEFAULT_LEDGER;
 var init_daemon = __esm({
   "packages/cli/src/daemon.ts"() {
     init_start();
+    init_theo_policy();
     LABEL = "dev.meshtoken.mesh";
     PLIST = join4(homedir3(), "Library", "LaunchAgents", `${LABEL}.plist`);
     DAEMON_LOG = join4(MESH_HOME, "daemon.log");
@@ -3734,7 +3808,6 @@ __export(dashboard_exports, {
   runDashboard: () => runDashboard
 });
 import { spawn } from "node:child_process";
-import { existsSync as existsSync7, readFileSync as readFileSync7 } from "node:fs";
 import { createServer as createServer2 } from "node:http";
 import { connect as connect3 } from "node:net";
 import { platform as platform3 } from "node:os";
@@ -3768,15 +3841,6 @@ function parseArgs(argv) {
     else throw new Error(`Unknown option: ${key}. See mesh dashboard --help.`);
   }
   return args;
-}
-function readPolicy() {
-  const path = join7(MESH_HOME, "theo-policy.json");
-  if (!existsSync7(path)) return defaultPolicy("local", (/* @__PURE__ */ new Date()).toISOString());
-  try {
-    return JSON.parse(readFileSync7(path, "utf8"));
-  } catch {
-    return defaultPolicy("local", (/* @__PURE__ */ new Date()).toISOString());
-  }
 }
 function proxyUp(port) {
   return new Promise((resolve3) => {
@@ -3814,7 +3878,8 @@ async function buildData(args) {
     theo: {
       qualityCeilingPercent: policy.qualityCeilingPercent,
       active,
-      withheld: withheldLevers(policy)
+      withheld: withheldLevers(policy),
+      coverage: policyCoverage(policy)
     }
   };
 }
@@ -3912,6 +3977,12 @@ var init_dashboard = __esm({
   .chip.on{border-color:var(--accent);color:var(--accent);background:rgba(37,99,235,.06)}
   .chip.on .k{color:var(--muted);font-weight:500}
   .chip.held{border-color:var(--stone-line);color:var(--stone-muted);background:var(--stone)}
+  .chip.avail{border-style:dashed;border-color:var(--stone-line);color:var(--muted);background:#fff}
+  .coverage{font-size:13.5px;color:var(--muted);line-height:1.4}
+  .coverage .n{color:var(--ink);font-weight:800}
+  .coverage .pct{color:var(--accent);font-weight:700}
+  .meter{margin-top:9px;height:8px;border-radius:999px;background:var(--stone);overflow:hidden}
+  .meter .fill{height:100%;width:0;background:var(--accent);border-radius:999px;transition:width .5s ease}
   .ceiling{font-size:13px;color:var(--muted);margin-top:14px;line-height:1.5}
   table{width:100%;border-collapse:collapse;font-size:14px}
   th,td{text-align:left;padding:8px 8px;border-bottom:1px solid var(--line)}
@@ -3939,10 +4010,14 @@ var init_dashboard = __esm({
   <div class="grid">
     <div class="panel theo">
       <h2><span class="hex">\u2B22 Theo</span> \u2014 what he's doing</h2>
-      <p class="sub">Applying now</p>
+      <div class="coverage" id="coverage"></div>
+      <div class="meter"><div class="fill" id="coverfill"></div></div>
+      <p class="sub" style="margin-top:16px">Applying now</p>
       <div id="active"><span class="empty">\u2014</span></div>
       <p class="sub" style="margin-top:14px">Held behind the replay-gate</p>
       <div id="withheld"><span class="empty">nothing held</span></div>
+      <p class="sub" style="margin-top:14px">Not yet adopted</p>
+      <div id="available"><span class="empty">\u2014</span></div>
       <div class="ceiling" id="ceiling"></div>
     </div>
     <div class="panel">
@@ -3970,6 +4045,11 @@ async function tick(){
     $('saved').innerHTML='<span class="cur">$</span>'+usd(d.savings.netUsd);
     const v=$('verdict'); v.textContent=d.savings.verdict==='charge'?'billing':'do not charge'; v.className='verdict '+d.savings.verdict;
     $('events').textContent=d.savings.eventsConsidered+' requests'+(d.savings.unpricedEvents?(' \xB7 '+d.savings.unpricedEvents+' unpriced (recorded, not billed)'):'');
+    const cov=d.theo.coverage;
+    $('coverage').innerHTML='Theo is live on <span class="n">'+cov.activeCount+'</span> of <span class="n">'+cov.enforceableCount+'</span> levers he can enforce <span class="pct">('+cov.activeCoveragePercent.toFixed(0)+'%)</span> \xB7 '+cov.heldCount+' held \xB7 '+cov.availableCount+' not yet adopted';
+    $('coverfill').style.width=cov.activeCoveragePercent.toFixed(1)+'%';
+    const avail=cov.stands.filter(s=>s.state==='available');
+    $('available').innerHTML=avail.length?avail.map(s=>'<span class="chip avail" title="Theo can enforce this; he has not adopted it for you yet.">'+s.label+'</span>').join(''):'<span class="empty">none \u2014 Theo has adopted every lever he can</span>';
     $('active').innerHTML=d.theo.active.length?d.theo.active.map(l=>'<span class="chip on">'+l.lever+'<span class="k"> \xB7 '+l.class+'</span></span>').join(''):'<span class="empty">none</span>';
     $('withheld').innerHTML=d.theo.withheld.length?d.theo.withheld.map(w=>'<span class="chip held" title="'+(w.reason||'')+'">'+w.lever+'</span>').join(''):'<span class="empty">nothing held</span>';
     $('ceiling').textContent='Quality ceiling: '+d.theo.qualityCeilingPercent+'% \u2014 anything that could cost more than this stays off until a replay of your traffic proves it safe.';
