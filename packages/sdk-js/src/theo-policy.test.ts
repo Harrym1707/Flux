@@ -4,6 +4,9 @@ import {
   policyToReductionConfig,
   withheldLevers,
   publishLever,
+  policyCoverage,
+  knownLeverIds,
+  ENFORCEABLE_LEVERS,
   type TheoPolicy,
   type TheoLever,
 } from "./theo-policy.js";
@@ -74,5 +77,54 @@ describe("Theo policy", () => {
     expect(p.levers.some((l) => l.lever === "cache-ttl-5m")).toBe(false); // input untouched
     expect(next.levers.some((l) => l.lever === "cache-ttl-5m")).toBe(true);
     expect(() => publishLever(p, { lever: "output-effort-low", class: "lossy" }, AT)).toThrow(/without a gate proof/);
+  });
+});
+
+describe("policyCoverage", () => {
+  it("ENFORCEABLE_LEVERS stays in sync with knownLeverIds (every id in exactly one group)", () => {
+    const known = knownLeverIds().sort();
+    const members = ENFORCEABLE_LEVERS.flatMap((group) => group.members).sort();
+    expect(members).toEqual(known); // same set, no duplicates, nothing missing
+    expect(new Set(members).size).toBe(members.length);
+  });
+
+  it("the default policy is active on its three lossless levers and the rest are available", () => {
+    const coverage = policyCoverage(defaultPolicy("u", AT));
+    expect(coverage.activeCount).toBe(3); // tool-schema-compaction, duplicate-context-removal, cache-prefix-repair
+    expect(coverage.heldCount).toBe(0);
+    expect(coverage.enforceableCount).toBe(ENFORCEABLE_LEVERS.length);
+    expect(coverage.availableCount).toBe(coverage.enforceableCount - 3);
+    expect(coverage.activeCoveragePercent).toBeCloseTo((3 / coverage.enforceableCount) * 100, 6);
+    const active = coverage.stands.filter((s) => s.state === "active").map((s) => s.lever).sort();
+    expect(active).toEqual(["cache-prefix-repair", "duplicate-context-removal", "tool-schema-compaction"]);
+  });
+
+  it("a lossy lever with a passing proof is active; one over the ceiling is held with a reason", () => {
+    const policy: TheoPolicy = {
+      schemaVersion: 1, user: "u", version: 1, qualityCeilingPercent: 1, updatedAt: AT,
+      levers: [
+        { lever: "output-effort-low", class: "lossy",
+          gate: { savingPercent: 20, qualityDeltaPercent: -0.5, grader: "tests", provenAt: AT } }, // clears 1%
+        { lever: "output-cap", class: "lossy",
+          gate: { savingPercent: 10, qualityDeltaPercent: -3, grader: "tests", provenAt: AT } },    // over 1%
+      ],
+    };
+    const coverage = policyCoverage(policy);
+    const effort = coverage.stands.find((s) => s.lever === "output-effort")!;
+    const cap = coverage.stands.find((s) => s.lever === "output-cap")!;
+    expect(effort.state).toBe("active");
+    expect(cap.state).toBe("held");
+    expect(cap.reason).toMatch(/exceeds the 1% ceiling/);
+  });
+
+  it("groups mutually-exclusive variants so one cache TTL counts as one active lever", () => {
+    const policy: TheoPolicy = {
+      schemaVersion: 1, user: "u", version: 1, qualityCeilingPercent: 2, updatedAt: AT,
+      levers: [{ lever: "cache-ttl-1h", class: "lossless" }],
+    };
+    const coverage = policyCoverage(policy);
+    const ttl = coverage.stands.find((s) => s.lever === "cache-ttl")!;
+    expect(ttl.state).toBe("active");
+    expect(coverage.activeCount).toBe(1); // not two, despite two TTL ids existing
   });
 });

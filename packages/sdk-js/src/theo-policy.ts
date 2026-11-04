@@ -194,3 +194,104 @@ export function knownLeverIds(): string[] {
     "output-effort-low", "output-effort-medium", "output-effort-high", "output-effort-xhigh", "output-effort-max",
   ];
 }
+
+export type EnforceableLever = { id: string; label: string; members: readonly string[] };
+
+/**
+ * The levers the proxy can enforce, grouped so mutually-exclusive variants count
+ * once: a policy cannot run output-effort-low AND output-effort-high, nor both
+ * cache TTLs, so counting each id separately would understate coverage. Every id
+ * in knownLeverIds() belongs to exactly one group here, and vice versa — the test
+ * `ENFORCEABLE_LEVERS stays in sync with knownLeverIds` holds the two together.
+ */
+export const ENFORCEABLE_LEVERS: readonly EnforceableLever[] = [
+  { id: "tool-schema-compaction", label: "Tool-schema compaction", members: ["tool-schema-compaction"] },
+  { id: "tool-schema-description-trim", label: "Tool-schema description trim", members: ["tool-schema-description-trim"] },
+  { id: "duplicate-context-removal", label: "Duplicate-context removal", members: ["duplicate-context-removal"] },
+  { id: "cache-prefix-repair", label: "Cache-prefix repair", members: ["cache-prefix-repair"] },
+  { id: "stale-history-compaction", label: "Stale-history compaction", members: ["stale-history-compaction"] },
+  { id: "cross-turn-memory-dedup", label: "Cross-turn memory dedup", members: ["cross-turn-memory-dedup"] },
+  { id: "fresh-tool-result-cap", label: "Fresh tool-result cap", members: ["fresh-tool-result-cap"] },
+  { id: "output-cap", label: "Output cap", members: ["output-cap"] },
+  { id: "execution-tier-flex", label: "Execution-tier flex", members: ["execution-tier-flex"] },
+  { id: "cache-ttl", label: "Cache TTL", members: ["cache-ttl-5m", "cache-ttl-1h"] },
+  {
+    id: "output-effort",
+    label: "Output effort",
+    members: ["output-effort-low", "output-effort-medium", "output-effort-high", "output-effort-xhigh", "output-effort-max"],
+  },
+];
+
+/**
+ * Where an enforceable lever stands for this user right now:
+ * - `active`:    Theo is enforcing it (lossless, or lossy with a proof within the ceiling).
+ * - `held`:      it is in the policy but a lossy proof does not yet clear the ceiling.
+ * - `available`: Theo can enforce it but has not adopted it yet — a candidate for the live gate.
+ */
+export type LeverStandState = "active" | "held" | "available";
+
+export type LeverStand = {
+  lever: string;
+  label: string;
+  state: LeverStandState;
+  class?: TheoLeverClass;
+  reason?: string;
+};
+
+export type PolicyCoverage = {
+  /** Enforceable levers in the repertoire (grouped). */
+  enforceableCount: number;
+  activeCount: number;
+  heldCount: number;
+  availableCount: number;
+  /** activeCount / enforceableCount * 100 — the share of the repertoire live right now. */
+  activeCoveragePercent: number;
+  stands: LeverStand[];
+};
+
+/**
+ * How much of the proxy's enforceable repertoire Theo is actually using for this
+ * user. The honest denominator for the live dashboard: it shows not just the
+ * levers Theo applies and holds, but every lever he COULD apply and has not
+ * adopted yet — so a user can see how complete the coverage is, not only what is
+ * on. Pure: the same policy always yields the same coverage.
+ */
+export function policyCoverage(policy: TheoPolicy): PolicyCoverage {
+  const byId = new Map(policy.levers.map((lever) => [lever.lever, lever]));
+  const heldById = new Map(withheldLevers(policy).map((withheld) => [withheld.lever, withheld.reason]));
+
+  const stands: LeverStand[] = ENFORCEABLE_LEVERS.map((group) => {
+    let state: LeverStandState = "available";
+    let reason: string | undefined;
+    let leverClass: TheoLeverClass | undefined;
+    for (const member of group.members) {
+      const lever = byId.get(member);
+      if (lever === undefined) continue;
+      leverClass = lever.class;
+      const enforced = lever.class === "lossless" || proofClearsCeiling(lever, policy.qualityCeilingPercent);
+      if (enforced) { state = "active"; reason = undefined; break; }
+      state = "held";
+      reason = heldById.get(member);
+    }
+    return {
+      lever: group.id,
+      label: group.label,
+      state,
+      ...(leverClass ? { class: leverClass } : {}),
+      ...(reason ? { reason } : {}),
+    };
+  });
+
+  const activeCount = stands.filter((stand) => stand.state === "active").length;
+  const heldCount = stands.filter((stand) => stand.state === "held").length;
+  const availableCount = stands.filter((stand) => stand.state === "available").length;
+  const enforceableCount = ENFORCEABLE_LEVERS.length;
+  return {
+    enforceableCount,
+    activeCount,
+    heldCount,
+    availableCount,
+    activeCoveragePercent: enforceableCount === 0 ? 0 : (activeCount / enforceableCount) * 100,
+    stands,
+  };
+}
