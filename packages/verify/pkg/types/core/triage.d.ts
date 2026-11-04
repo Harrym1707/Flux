@@ -1,9 +1,9 @@
 /**
- * Horizontal customer triage: which kind of traffic is this, and what is FLUX
+ * Horizontal customer triage: which kind of traffic is this, and what is MESH
  * honestly worth on it?
  *
- * The A/B results made one thing unambiguous: the saving FLUX delivers is a
- * property of the WORKLOAD SHAPE, not of FLUX. The same software measured
+ * The A/B results made one thing unambiguous: the saving MESH delivers is a
+ * property of the WORKLOAD SHAPE, not of MESH. The same software measured
  * ~2% from caching on a multi-turn agent (whose appended history already hits
  * the provider cache ~90% of the time), ~40% from prefix repair on one-shot
  * templated traffic (whose embedded clock blocked the cache entirely), ~30%

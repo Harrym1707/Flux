@@ -2,7 +2,7 @@
  * The single shared provider-usage normaliser.
  *
  * Hoisted from the replay gate (packages/sdk-js/src/replay-gate.ts replayUsage)
- * so every FLUX component - the request-path SDK wrapper, the replay gate, and
+ * so every MESH component - the request-path SDK wrapper, the replay gate, and
  * the ledger - reads provider usage through ONE parser. The old arrangement had
  * three divergent parsers: the SDK wrapper's tokenUsage returned undefined on
  * both the Chat Completions shape (prompt_tokens) and the Anthropic shape
@@ -28,7 +28,7 @@
  * a top-level `service_tier` on the response; Anthropic reports
  * `usage.service_tier` ("standard" | "priority" | "batch"). Billing reads the
  * tier the provider ANSWERED with, never the one the request asked for.
- * "priority" maps to standard pricing (FLUX claims no saving on it) and
+ * "priority" maps to standard pricing (MESH claims no saving on it) and
  * "batch" maps to the batch execution mode.
  */
 export type NormalizedProviderUsage = {
@@ -78,7 +78,7 @@ export declare function responseServiceTier(response: unknown): string | undefin
 /**
  * Map response-side tier evidence onto a billing execution mode. "flex" and
  * "batch" are the only modes with their own catalogue rates; Anthropic's
- * "priority" (and every unknown value) maps to STANDARD pricing, so FLUX never
+ * "priority" (and every unknown value) maps to STANDARD pricing, so MESH never
  * claims a tier saving it cannot price.
  */
 export declare function executionModeFromServiceTier(serviceTier: string | undefined): ResponseExecutionMode;

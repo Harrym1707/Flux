@@ -5,7 +5,7 @@ import { type SegmentQuote } from "./triage.js";
  * The pre-contract quote, built from a design partner's OWN gateway export.
  *
  * One file of their real traffic in; one shareable report out: which customer
- * shape each stream is, what FLUX is honestly worth on it, what their own
+ * shape each stream is, what MESH is honestly worth on it, what their own
  * gateway already saves them (credited, never billed), and -- when nothing is
  * worth charging for -- the explicit "do not pay us" answer. Every band in the
  * report cites the measurement it is an analogue of; nothing here invents a

@@ -1,7 +1,7 @@
 {
-  "name": "@flux-ai/verify",
+  "name": "@mesh-ai/verify",
   "version": "0.1.0",
-  "description": "Independently verify a FLUX savings ledger: hash-chain verification and invoice recomputation, MIT-licensed, zero dependencies.",
+  "description": "Independently verify a MESH savings ledger: hash-chain verification and invoice recomputation, MIT-licensed, zero dependencies.",
   "license": "MIT",
   "type": "module",
   "main": "./index.cjs",
@@ -15,7 +15,7 @@
     }
   },
   "bin": {
-    "flux-verify": "bin/flux-verify.mjs"
+    "mesh-verify": "bin/mesh-verify.mjs"
   },
   "files": [
     "index.js",
@@ -42,6 +42,6 @@
     "verification",
     "anthropic",
     "openai",
-    "flux"
+    "mesh"
   ]
 }

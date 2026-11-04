@@ -4,12 +4,12 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Get started in five minutes</title>
-<meta name="description" content="FLUX sits between your app and your AI provider, removes the tokens you were about to pay for twice, and writes every request into a tamper-evident ledger you can audit yourself. No signup, no account, no key handover: your API key passes through to the provider and is never stored. Works with Claud">
+<meta name="description" content="MESH sits between your app and your AI provider, removes the tokens you were about to pay for twice, and writes every request into a tamper-evident ledger you can audit yourself. No signup, no account, no key handover: your API key passes through to the provider and is never stored. Works with Claud">
 <link rel="canonical" href="https://www.fluxtoken.dev/start.html">
 <meta property="og:type" content="website">
-<meta property="og:site_name" content="flux">
+<meta property="og:site_name" content="mesh">
 <meta property="og:title" content="Get started in five minutes">
-<meta property="og:description" content="FLUX sits between your app and your AI provider, removes the tokens you were about to pay for twice, and writes every request into a tamper-evident ledger you can audit yourself. No signup, no account, no key handover: your API key passes through to the provider and is never stored. Works with Claud">
+<meta property="og:description" content="MESH sits between your app and your AI provider, removes the tokens you were about to pay for twice, and writes every request into a tamper-evident ledger you can audit yourself. No signup, no account, no key handover: your API key passes through to the provider and is never stored. Works with Claud">
 <meta property="og:url" content="https://www.fluxtoken.dev/start.html">
 <meta property="og:image" content="https://www.fluxtoken.dev/og.png">
 <meta property="og:image:width" content="1200">
@@ -21,7 +21,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&display=swap" rel="stylesheet">
 <style>:root{
-  /* FLUX brand: Off White ground, Deep Graphite ink, Flux Blue accent, Frost tone-step */
+  /* MESH brand: Off White ground, Deep Graphite ink, Mesh Blue accent, Frost tone-step */
   --bg:#FAFAF9;
   --surface:#ffffff;
   --fg:#0B0F14;
@@ -68,31 +68,31 @@ th{background:var(--signal-soft);font-weight:700}
 ul{padding-left:1.2rem}
 li{margin:.3rem 0}
 footer{border-top:2px solid var(--signal);margin-top:3rem;padding-top:1rem;font-size:.85rem;color:var(--muted)}</style>
-<script type="application/ld+json">{"@context":"https://schema.org","@type":"HowTo","name":"Cut your LLM API bill with FLUX in five minutes","description":"Run the FLUX proxy with one npx command, point your app's baseURL at it, and recompute the verified-savings invoice yourself from the hash-chained ledger you hold.","totalTime":"PT5M","tool":[{"@type":"HowToTool","name":"@flux-ai/sdk (npm)"}],"step":[{"@type":"HowToStep","name":"Run the proxy","text":"npx -y -p @flux-ai/sdk flux-proxy — starts a local proxy on http://127.0.0.1:8787 with a hash-chained ledger in ./flux-ledger. No signup; your API key passes through and is never stored."},{"@type":"HowToStep","name":"Point your app at it","text":"Change one line: new Anthropic({ baseURL: \"http://127.0.0.1:8787\" }) or new OpenAI({ baseURL: \"http://127.0.0.1:8787/v1\" }). Any language and any OpenAI-compatible endpoint work."},{"@type":"HowToStep","name":"Run traffic as normal","text":"Responses return byte-identical, streaming included. Reduction is lossless-only by default; each request appends one hash-chained event recording usage numbers and lever names, never prompt content."},{"@type":"HowToStep","name":"Recompute the invoice yourself","text":"Use verifyLedgerChain and recomputeInvoice from @flux-ai/sdk on your own ledger file. If FLUX saved nothing the verdict reads do_not_charge. The fee is 1% of verified savings, monthly, nothing else."}]}</script>
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"HowTo","name":"Cut your LLM API bill with MESH in five minutes","description":"Run the MESH proxy with one npx command, point your app's baseURL at it, and recompute the verified-savings invoice yourself from the hash-chained ledger you hold.","totalTime":"PT5M","tool":[{"@type":"HowToTool","name":"@mesh-ai/sdk (npm)"}],"step":[{"@type":"HowToStep","name":"Run the proxy","text":"npx -y -p @mesh-ai/sdk mesh-proxy — starts a local proxy on http://127.0.0.1:8787 with a hash-chained ledger in ./mesh-ledger. No signup; your API key passes through and is never stored."},{"@type":"HowToStep","name":"Point your app at it","text":"Change one line: new Anthropic({ baseURL: \"http://127.0.0.1:8787\" }) or new OpenAI({ baseURL: \"http://127.0.0.1:8787/v1\" }). Any language and any OpenAI-compatible endpoint work."},{"@type":"HowToStep","name":"Run traffic as normal","text":"Responses return byte-identical, streaming included. Reduction is lossless-only by default; each request appends one hash-chained event recording usage numbers and lever names, never prompt content."},{"@type":"HowToStep","name":"Recompute the invoice yourself","text":"Use verifyLedgerChain and recomputeInvoice from @mesh-ai/sdk on your own ledger file. If MESH saved nothing the verdict reads do_not_charge. The fee is 1% of verified savings, monthly, nothing else."}]}</script>
 </head>
 <body>
-<nav><a class="brand" href="index.html">flux</a><span class="tagline">Less in. More out.</span><a href="index.html">Home</a><a href="start.html" class="active">Get started</a><a href="overview.html">Overview</a><a href="segments.html">Savings by segment</a><a href="methodology.html">Methodology</a><a href="evidence.html">Evidence</a><a href="comparison.html">Honest comparison</a><a href="faq.html">FAQ</a></nav>
+<nav><a class="brand" href="index.html">mesh</a><span class="tagline">Less in. More out.</span><a href="index.html">Home</a><a href="start.html" class="active">Get started</a><a href="overview.html">Overview</a><a href="segments.html">Savings by segment</a><a href="methodology.html">Methodology</a><a href="evidence.html">Evidence</a><a href="comparison.html">Honest comparison</a><a href="faq.html">FAQ</a></nav>
 <main>
 <h1>Get started in five minutes</h1>
-<p>FLUX sits between your app and your AI provider, removes the tokens you were about to pay for twice, and writes every request into a tamper-evident ledger you can audit yourself. No signup, no account, no key handover: your API key passes through to the provider and is never stored. Works with Claude (Anthropic), OpenAI, and any OpenAI-compatible endpoint.</p>
+<p>MESH sits between your app and your AI provider, removes the tokens you were about to pay for twice, and writes every request into a tamper-evident ledger you can audit yourself. No signup, no account, no key handover: your API key passes through to the provider and is never stored. Works with Claude (Anthropic), OpenAI, and any OpenAI-compatible endpoint.</p>
 <h2>Claude Code — one command</h2>
-<p>Install the <code>flux</code> command (needs Node 22+, which Claude Code already uses):</p>
+<p>Install the <code>mesh</code> command (needs Node 22+, which Claude Code already uses):</p>
 <pre class="block"><code>curl -fsSL https://www.fluxtoken.dev/install.sh | sh</code></pre>
 <p>Then start it:</p>
-<pre class="block"><code>flux start</code></pre>
-<p>That points Claude Code at FLUX and runs <strong>Theo</strong> — your token engineer — alongside you. Use Claude Code exactly as normal; press Ctrl+C to stop and Claude Code reverts cleanly. Check your own verified number any time with <code>flux verify</code>.</p>
+<pre class="block"><code>mesh start</code></pre>
+<p>That points Claude Code at MESH and runs <strong>Theo</strong> — your token engineer — alongside you. Use Claude Code exactly as normal; press Ctrl+C to stop and Claude Code reverts cleanly. Check your own verified number any time with <code>mesh verify</code>.</p>
 <p>The installer drops one tiny launcher that fetches and checksum-verifies the runtime; it never touches your API key. Read it first if you like: <code>curl -fsSL https://www.fluxtoken.dev/install.sh | less</code>.</p>
-<p><strong>Other ways in:</strong> once <code>@flux-ai/flux</code> is published, <code>npx @flux-ai/flux start</code> works with no install. Or grab the launcher directly: <code>curl -fsSL https://www.fluxtoken.dev/flux -o flux &amp;&amp; chmod +x flux &amp;&amp; ./flux start</code>.</p>
+<p><strong>Other ways in:</strong> once <code>@mesh-ai/mesh</code> is published, <code>npx @mesh-ai/mesh start</code> works with no install. Or grab the launcher directly: <code>curl -fsSL https://www.fluxtoken.dev/mesh -o mesh &amp;&amp; chmod +x mesh &amp;&amp; ./mesh start</code>.</p>
 <p>The rest of this page is the manual setup for any other app or language.</p>
 <h2>Step 1 — run the proxy</h2>
 <p>One command, nothing to clone:</p>
-<pre class="block"><code>npx -y -p @flux-ai/sdk flux-proxy</code></pre>
+<pre class="block"><code>npx -y -p @mesh-ai/sdk mesh-proxy</code></pre>
 <p>You'll see:</p>
-<pre class="block"><code>FLUX proxy listening on http://127.0.0.1:8787
-Ledger spools: ./flux-ledger</code></pre>
-<p>To switch on the Claude prompt-cache lever too (our single biggest measured saver, 37.9% on multi-turn traffic), start it as <code>FLUX_PROXY_CACHE_TTL=5m npx -y -p @flux-ai/sdk flux-proxy</code>.</p>
+<pre class="block"><code>MESH proxy listening on http://127.0.0.1:8787
+Ledger spools: ./mesh-ledger</code></pre>
+<p>To switch on the Claude prompt-cache lever too (our single biggest measured saver, 37.9% on multi-turn traffic), start it as <code>MESH_PROXY_CACHE_TTL=5m npx -y -p @mesh-ai/sdk mesh-proxy</code>.</p>
 <h2>Step 2 — point your app at it</h2>
-<p>Change one line. Keep your own API key — FLUX passes it through verbatim.</p>
+<p>Change one line. Keep your own API key — MESH passes it through verbatim.</p>
 <pre class="block"><code>// Anthropic SDK
 const anthropic = new Anthropic({ baseURL: &quot;http://127.0.0.1:8787&quot; });
 
@@ -100,25 +100,25 @@ const anthropic = new Anthropic({ baseURL: &quot;http://127.0.0.1:8787&quot; });
 const openai = new OpenAI({ baseURL: &quot;http://127.0.0.1:8787/v1&quot; });</code></pre>
 <p>Any language works — it's just a base URL. Python, Go, curl, LangChain, whatever you run today.</p>
 <h2>Step 3 — run your traffic as normal</h2>
-<p>Responses come back byte-identical, streaming included. Reduction is <strong>lossless-only by default</strong>: compacted tool schemas decode identically, removed duplicates are exact, and if anything fails your request goes through untouched. Each request appends one hash-chained event to <code>./flux-ledger/&lt;your-app&gt;-&lt;provider&gt;.jsonl</code> — usage numbers, lever names and hashes. Never your prompts.</p>
+<p>Responses come back byte-identical, streaming included. Reduction is <strong>lossless-only by default</strong>: compacted tool schemas decode identically, removed duplicates are exact, and if anything fails your request goes through untouched. Each request appends one hash-chained event to <code>./mesh-ledger/&lt;your-app&gt;-&lt;provider&gt;.jsonl</code> — usage numbers, lever names and hashes. Never your prompts.</p>
 <h2>Step 4 — check our maths yourself</h2>
 <p>This is the part no other cost tool offers: the invoice is a pure function of a ledger file <strong>you</strong> hold. Verify the chain and recompute it with the same published package:</p>
 <pre class="block"><code>node -e '
 const { readFileSync } = require(&quot;node:fs&quot;);
-const { verifyLedgerChain, recomputeInvoice } = require(&quot;@flux-ai/sdk&quot;);
+const { verifyLedgerChain, recomputeInvoice } = require(&quot;@mesh-ai/sdk&quot;);
 const records = readFileSync(process.argv[1], &quot;utf8&quot;).trim().split(/\n/).map(JSON.parse);
 const chain = verifyLedgerChain(records);
 if (!chain.ok) throw new Error(&quot;chain broken at seq &quot; + chain.seq);
 console.log(&quot;chain verified:&quot;, chain.length, &quot;records&quot;);
 console.log(JSON.stringify(recomputeInvoice(records.map(r =&gt; r.event)), null, 2));
-' flux-ledger/proxy-anthropic.jsonl</code></pre>
-<p>If FLUX saved you nothing, the verdict line literally reads <code>&quot;verdict&quot;: &quot;do_not_charge&quot;</code> — that is the honest outcome on traffic that is already lean, and we publish it as such.</p>
+' mesh-ledger/proxy-anthropic.jsonl</code></pre>
+<p>If MESH saved you nothing, the verdict line literally reads <code>&quot;verdict&quot;: &quot;do_not_charge&quot;</code> — that is the honest outcome on traffic that is already lean, and we publish it as such.</p>
 <h2>Already measuring with LiteLLM, Helicone or Langfuse?</h2>
 <p>You don't need to route any traffic to get a quote. Export your existing logs and run them through the quote tool — the verdict can be &quot;do not pay us&quot;:</p>
-<pre class="block"><code>npx -y -p @flux-ai/sdk flux-quote your-export.jsonl --format litellm</code></pre>
+<pre class="block"><code>npx -y -p @mesh-ai/sdk mesh-quote your-export.jsonl --format litellm</code></pre>
 <h2>What it costs</h2>
 <p><strong>1% of verified savings, monthly — nothing else.</strong> No subscription, no seats, no minimum. Savings are measured per completed task from the provider's own reported usage; a month that saved nothing bills nothing. The measurement rules are published in full in the <a href="methodology.html">methodology</a>, and every number we quote traces to a command and a commit on the <a href="evidence.html">evidence</a> page.</p>
-<h2>What FLUX never does</h2>
+<h2>What MESH never does</h2>
 <ul>
 <li>Never sends your prompts anywhere — analysis runs entirely on your machine.</li>
 <li>Never stores or forwards your API key beyond the provider you chose.</li>
@@ -127,10 +127,10 @@ console.log(JSON.stringify(recomputeInvoice(records.map(r =&gt; r.event)), null,
 </ul>
 <h2>Want a guided pilot?</h2>
 <p>Open a <a href="https://github.com/Harrym1707/Flux/blob/main/docs/pilot/runbook.md">pilot request</a> — bring an export from your existing gateway and leave with a per-segment quote from your own traffic, including the honest band for your workload shape.</p>
-<footer><strong>flux</strong> — spend tokens where they matter. Every number on this site traces to a
+<footer><strong>mesh</strong> — spend tokens where they matter. Every number on this site traces to a
 command and a commit — <a href="evidence.html">evidence</a>. Savings are measured per completed task;
 estimates are always labelled. <a href="https://github.com/Harrym1707/Flux">Source</a> · <a href="llms.txt">llms.txt</a><br>
-Flux AI Technologies Limited · registered in England and Wales · company no. 17543982</footer>
+Mesh AI Technologies Limited · registered in England and Wales · company no. 17543982</footer>
 </main>
 </body>
 </html>

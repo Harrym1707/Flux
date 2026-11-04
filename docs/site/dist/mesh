@@ -9,9 +9,9 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-var BASE = (process.env.FLUX_BASE_URL ?? "https://www.fluxtoken.dev").replace(/\/$/, "");
-var DIR = join(homedir(), ".flux", "runtime");
-var RUNTIME = join(DIR, "flux-runtime.mjs");
+var BASE = (process.env.MESH_BASE_URL ?? "https://www.fluxtoken.dev").replace(/\/$/, "");
+var DIR = join(homedir(), ".mesh", "runtime");
+var RUNTIME = join(DIR, "mesh-runtime.mjs");
 var VERSION_FILE = join(DIR, "version");
 var SHA_FILE = join(DIR, "sha256");
 var LAST_CHECK = join(DIR, ".last-check");
@@ -37,7 +37,7 @@ async function fetchManifest(ms) {
   const ac = new AbortController();
   const timer = setTimeout(() => ac.abort(), ms);
   try {
-    const res = await fetch(`${BASE}/flux-version.json`, { signal: ac.signal });
+    const res = await fetch(`${BASE}/mesh-version.json`, { signal: ac.signal });
     if (!res.ok) return null;
     return await res.json();
   } catch {
@@ -53,7 +53,7 @@ async function ensureRuntime() {
   const manifest = await fetchManifest(have ? 2e3 : 9e3);
   if (manifest === null) {
     if (have !== null) return;
-    console.error(`FLUX: couldn't reach ${BASE} to set up. Check your connection and try again.`);
+    console.error(`MESH: couldn't reach ${BASE} to set up. Check your connection and try again.`);
     process.exit(1);
   }
   if (have === manifest.version) {
@@ -61,10 +61,10 @@ async function ensureRuntime() {
     return;
   }
   const first = have === null;
-  process.stderr.write(first ? "Setting up FLUX (one-time)\u2026 " : "Updating FLUX\u2026 ");
+  process.stderr.write(first ? "Setting up MESH (one-time)\u2026 " : "Updating MESH\u2026 ");
   let bytes;
   try {
-    const res = await fetch(`${BASE}/${manifest.runtime ?? "flux-runtime"}`);
+    const res = await fetch(`${BASE}/${manifest.runtime ?? "mesh-runtime"}`);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     bytes = Buffer.from(await res.arrayBuffer());
   } catch (error) {
@@ -73,12 +73,12 @@ async function ensureRuntime() {
       return;
     }
     process.stderr.write("failed\n");
-    console.error(`FLUX: couldn't download the runtime (${String(error)}).`);
+    console.error(`MESH: couldn't download the runtime (${String(error)}).`);
     process.exit(1);
   }
   if (createHash("sha256").update(bytes).digest("hex") !== manifest.sha256) {
     process.stderr.write("failed\n");
-    console.error("FLUX: the downloaded runtime failed its checksum \u2014 refusing to run it. Try again.");
+    console.error("MESH: the downloaded runtime failed its checksum \u2014 refusing to run it. Try again.");
     process.exit(1);
   }
   writeFileSync(RUNTIME, bytes);
@@ -91,7 +91,7 @@ async function main() {
   await ensureRuntime();
   const result = spawnSync(process.execPath, [RUNTIME, ...process.argv.slice(2)], {
     stdio: "inherit",
-    env: { ...process.env, FLUX_BOOTSTRAP_PATH: fileURLToPath(import.meta.url) }
+    env: { ...process.env, MESH_BOOTSTRAP_PATH: fileURLToPath(import.meta.url) }
   });
   if (result.error) {
     console.error(String(result.error));

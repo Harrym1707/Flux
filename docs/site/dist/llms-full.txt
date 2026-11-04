@@ -1,4 +1,4 @@
-# FLUX
+# MESH
 
 > LLM cost reduction for Claude (Anthropic), OpenAI and OpenAI-compatible
 > APIs, billed as a percentage of verified savings. Integration is one URL
@@ -20,26 +20,26 @@
 > earning live on the agent shape it previously lost money on.
 
 ## Install
-FLUX is on npm as @flux-ai/sdk. Proxy mode needs no code changes:
-`npx -y -p @flux-ai/sdk flux-proxy`, then set your client's baseURL to
+MESH is on npm as @mesh-ai/sdk. Proxy mode needs no code changes:
+`npx -y -p @mesh-ai/sdk mesh-proxy`, then set your client's baseURL to
 http://127.0.0.1:8787 (Anthropic) or http://127.0.0.1:8787/v1 (OpenAI and
 compatibles). The invoice is recomputable by the customer with
 verifyLedgerChain and recomputeInvoice from the same package. Quote from an
 existing LiteLLM/Helicone/Langfuse export without routing any traffic:
-`npx -y -p @flux-ai/sdk flux-quote your-export.jsonl --format litellm`.
+`npx -y -p @mesh-ai/sdk mesh-quote your-export.jsonl --format litellm`.
 
 Always-on / 24-7 agents are the strongest measured shapes (multi-agent teams
 -55.6% cost, autonomous long-horizon agents -40.0%, simulator-measured at
 breakpoint-exact provider rules): long-lived agents re-send their history
-every turn, and FLUX keeps it on the cached rate with guards, digests stale
+every turn, and MESH keeps it on the cached rate with guards, digests stale
 context, caps oversized tool results, and meters output re-emission waste.
 
 ## Docs
 - [Get started in five minutes](start.html)
-- [What FLUX saves and how](overview.html)
+- [What MESH saves and how](overview.html)
 - [Methodology: the eight rules every number passes](methodology.html)
 - [Per-segment bands, mechanisms, and what changes them](segments.html)
-- [Honest comparison, including where FLUX loses](comparison.html)
+- [Honest comparison, including where MESH loses](comparison.html)
 - [FAQ built from printed caveats](faq.html)
 - [Every number traced to its command and commit](evidence.html)
 - [Pilot runbook: a quote from your own logs in five minutes](https://github.com/Harrym1707/Flux/blob/main/docs/pilot/runbook.md)
@@ -49,7 +49,7 @@ context, caps oversized tool results, and meters output re-emission waste.
 
 # Get started in five minutes
 
-FLUX sits between your app and your AI provider, removes the tokens you were
+MESH sits between your app and your AI provider, removes the tokens you were
 about to pay for twice, and writes every request into a tamper-evident ledger
 you can audit yourself. No signup, no account, no key handover: your API key
 passes through to the provider and is never stored. Works with Claude
@@ -57,7 +57,7 @@ passes through to the provider and is never stored. Works with Claude
 
 ## Claude Code — one command
 
-Install the `flux` command (needs Node 22+, which Claude Code already uses):
+Install the `mesh` command (needs Node 22+, which Claude Code already uses):
 
 ```bash
 curl -fsSL https://www.fluxtoken.dev/install.sh | sh
@@ -66,21 +66,21 @@ curl -fsSL https://www.fluxtoken.dev/install.sh | sh
 Then start it:
 
 ```bash
-flux start
+mesh start
 ```
 
-That points Claude Code at FLUX and runs **Theo** — your token engineer —
+That points Claude Code at MESH and runs **Theo** — your token engineer —
 alongside you. Use Claude Code exactly as normal; press Ctrl+C to stop and
 Claude Code reverts cleanly. Check your own verified number any time with
-`flux verify`.
+`mesh verify`.
 
 The installer drops one tiny launcher that fetches and checksum-verifies the
 runtime; it never touches your API key. Read it first if you like:
 `curl -fsSL https://www.fluxtoken.dev/install.sh | less`.
 
-**Other ways in:** once `@flux-ai/flux` is published, `npx @flux-ai/flux start`
+**Other ways in:** once `@mesh-ai/mesh` is published, `npx @mesh-ai/mesh start`
 works with no install. Or grab the launcher directly:
-`curl -fsSL https://www.fluxtoken.dev/flux -o flux && chmod +x flux && ./flux start`.
+`curl -fsSL https://www.fluxtoken.dev/mesh -o mesh && chmod +x mesh && ./mesh start`.
 
 The rest of this page is the manual setup for any other app or language.
 
@@ -89,23 +89,23 @@ The rest of this page is the manual setup for any other app or language.
 One command, nothing to clone:
 
 ```bash
-npx -y -p @flux-ai/sdk flux-proxy
+npx -y -p @mesh-ai/sdk mesh-proxy
 ```
 
 You'll see:
 
 ```text
-FLUX proxy listening on http://127.0.0.1:8787
-Ledger spools: ./flux-ledger
+MESH proxy listening on http://127.0.0.1:8787
+Ledger spools: ./mesh-ledger
 ```
 
 To switch on the Claude prompt-cache lever too (our single biggest measured
 saver, 37.9% on multi-turn traffic), start it as
-`FLUX_PROXY_CACHE_TTL=5m npx -y -p @flux-ai/sdk flux-proxy`.
+`MESH_PROXY_CACHE_TTL=5m npx -y -p @mesh-ai/sdk mesh-proxy`.
 
 ## Step 2 — point your app at it
 
-Change one line. Keep your own API key — FLUX passes it through verbatim.
+Change one line. Keep your own API key — MESH passes it through verbatim.
 
 ```js
 // Anthropic SDK
@@ -124,7 +124,7 @@ Responses come back byte-identical, streaming included. Reduction is
 **lossless-only by default**: compacted tool schemas decode identically,
 removed duplicates are exact, and if anything fails your request goes through
 untouched. Each request appends one hash-chained event to
-`./flux-ledger/<your-app>-<provider>.jsonl` — usage numbers, lever names and
+`./mesh-ledger/<your-app>-<provider>.jsonl` — usage numbers, lever names and
 hashes. Never your prompts.
 
 ## Step 4 — check our maths yourself
@@ -136,16 +136,16 @@ published package:
 ```bash
 node -e '
 const { readFileSync } = require("node:fs");
-const { verifyLedgerChain, recomputeInvoice } = require("@flux-ai/sdk");
+const { verifyLedgerChain, recomputeInvoice } = require("@mesh-ai/sdk");
 const records = readFileSync(process.argv[1], "utf8").trim().split(/\n/).map(JSON.parse);
 const chain = verifyLedgerChain(records);
 if (!chain.ok) throw new Error("chain broken at seq " + chain.seq);
 console.log("chain verified:", chain.length, "records");
 console.log(JSON.stringify(recomputeInvoice(records.map(r => r.event)), null, 2));
-' flux-ledger/proxy-anthropic.jsonl
+' mesh-ledger/proxy-anthropic.jsonl
 ```
 
-If FLUX saved you nothing, the verdict line literally reads
+If MESH saved you nothing, the verdict line literally reads
 `"verdict": "do_not_charge"` — that is the honest outcome on traffic that is
 already lean, and we publish it as such.
 
@@ -155,7 +155,7 @@ You don't need to route any traffic to get a quote. Export your existing logs
 and run them through the quote tool — the verdict can be "do not pay us":
 
 ```bash
-npx -y -p @flux-ai/sdk flux-quote your-export.jsonl --format litellm
+npx -y -p @mesh-ai/sdk mesh-quote your-export.jsonl --format litellm
 ```
 
 ## What it costs
@@ -167,7 +167,7 @@ measurement rules are published in full in the [methodology](methodology.md),
 and every number we quote traces to a command and a commit on the
 [evidence](evidence.md) page.
 
-## What FLUX never does
+## What MESH never does
 
 - Never sends your prompts anywhere — analysis runs entirely on your machine.
 - Never stores or forwards your API key beyond the provider you chose.
@@ -183,13 +183,13 @@ including the honest band for your workload shape.
 
 ---
 
-# FLUX — verified LLM cost reduction, billed only on savings you can recompute
+# MESH — verified LLM cost reduction, billed only on savings you can recompute
 
-FLUX is a drop-in wrapper for your OpenAI or Anthropic client that reduces what
+MESH is a drop-in wrapper for your OpenAI or Anthropic client that reduces what
 you spend per completed task — and proves it. You pay a percentage of verified
-savings. If your traffic is already optimised, FLUX tells you not to pay us.
+savings. If your traffic is already optimised, MESH tells you not to pay us.
 
-## What FLUX saves, by traffic type
+## What MESH saves, by traffic type
 
 Every figure below is measured per completed task with quality held (at least
 36 of 40 tasks fully correct and complete), on a simulated harness using each
@@ -209,13 +209,13 @@ your own pilot replaces every band with your number before any fee exists.
 | Already-optimised stacks | **0–5% — do not pay us** | measured on fixtures |
 
 The spread is the honest part: savings are a property of your workload's shape,
-not of FLUX. The first thing FLUX does is tell you which row you are — from
+not of MESH. The first thing MESH does is tell you which row you are — from
 your own logs, in about five minutes, before any contract exists.
 [Get a quote from your own export →](../pilot/runbook.md)
 
 ## How it works, in one paragraph
 
-Your bill is `tokens × price-per-token × execution tier`. FLUX attacks all
+Your bill is `tokens × price-per-token × execution tier`. MESH attacks all
 three at once: it removes tokens that carry no information (oversized tool
 results capped at injection, exact duplicates, schema bloat) without ever
 breaking your provider's prefix cache; it repairs prompts so cached pricing
@@ -240,7 +240,7 @@ your own recorded requests, that quality held.
 
 ---
 
-# What FLUX saves, segment by segment
+# What MESH saves, segment by segment
 
 Savings are a property of your workload's shape. One global percentage would be
 a lie to someone; these are the four shapes, each with its mechanism, its
@@ -251,7 +251,7 @@ per [methodology](methodology.md); traceability in [evidence](evidence.md).
 
 **Mechanism:** your provider sells the same model at 50% off for work that can
 wait (OpenAI's flex service tier on a synchronous API; Anthropic's batches,
-which stack with prompt caching). FLUX applies the tier only to traffic you
+which stack with prompt caching). MESH applies the tier only to traffic you
 flag latency-tolerant, stacks it with every token lever below, and bills from
 the tier the provider *actually served* — bounced requests bill at full rate.
 **The number to use is 57.7%** (net of assumed 10% default-fallback + 5% retry
@@ -264,7 +264,7 @@ assumption), and Anthropic-side pricing once its batch rate is catalogued.
 
 **Mechanism:** the most common silent waste we model: a per-request value (a
 timestamp, a request id) at the top of an otherwise identical prompt, which
-disables provider caching entirely. FLUX relocates it, the prefix caches at
+disables provider caching entirely. MESH relocates it, the prefix caches at
 one-tenth price, and schema/duplicate levers stack on top. Add the tier for
 latency-tolerant one-shots and the band reaches 72.8%.
 **What changes it:** how big your shared template is and whether a breaker is
@@ -273,7 +273,7 @@ actually present — the five-minute quote measures both from your export.
 ## Interactive agents — 25.9–29.4% busy, 34.3% sparse
 
 **Mechanism:** busy agent traffic is already heavily subsidised by the
-provider's cache (35–40% on its own, which we never claim), so FLUX's honest
+provider's cache (35–40% on its own, which we never claim), so MESH's honest
 headroom is the *fresh* tokens: oversized tool results are capped at injection
 (headlines, errors and file paths preserved verbatim; the replay gate approved
 this lever at exactly zero quality delta), stale history is compacted
@@ -285,7 +285,7 @@ per-model cache-minimum fix, which may lower the sparse figure on some models.
 **On Claude the ceiling is different — and higher.** Anthropic's prompt
 cache is opt-in, and agents that never place `cache_control` re-pay full
 rate for their whole conversation history every turn (our first live export
-measured exactly that: a five-turn agent with zero cache traffic). FLUX
+measured exactly that: a five-turn agent with zero cache traffic). MESH
 stamps the stable prefix with a 5-minute-TTL breakpoint. In the deterministic
 fixture, the cache-only comparison is **37.9% lower cost** than the identical
 J prompt stack with caching disabled; both arms have 38/40 clean tasks and the
@@ -293,7 +293,7 @@ stamp is metadata-only. The earlier **57.3%** full-stack comparison used a raw
 uncached baseline with 40/40 clean tasks, while the candidate had 38/40 (−5 pp).
 That fails the agreed −2 pp quality limit, so 57.3% is diagnostic and not a
 qualified full-stack saving. Real-traffic cache validation remains open. If
-you already place your own breakpoints, FLUX defers and never claims this.
+you already place your own breakpoints, MESH defers and never claims this.
 **This is also where we tell you our ceiling:** if someone promises an
 interactive agent 70%, ask for their per-task evidence.
 
@@ -310,10 +310,10 @@ the cache stamp, breakpoint-exact provider rules, simulator-measured).
 
 **The always-on trap is cadence.** A busy loop (calls under five minutes
 apart) keeps the provider's 5-minute cache warm for free — every read
-refreshes the clock, and FLUX's stamp earns indefinitely. But an always-on
+refreshes the clock, and MESH's stamp earns indefinitely. But an always-on
 agent that is *bursty* — polling every ten minutes, waiting on webhooks —
 silently expires its cache in every gap and re-pays the write premium on its
-whole history each time it wakes. FLUX's volatility and minimum guards
+whole history each time it wakes. MESH's volatility and minimum guards
 already refuse the placements that lose money there; a cadence-aware TTL
 policy (choosing the 1-hour tier for prefixes whose observed gaps exceed five
 minutes) is in development and will be published with its own measured band,
@@ -333,7 +333,7 @@ economics) and your tool-result sizes.
 
 **Mechanism:** none, and that is the point. If your input already arrives
 largely cached, or your gateway's response cache already answers a big share of
-requests, FLUX's triage says so and the quote's verdict is `doNotPayUs`. On our
+requests, MESH's triage says so and the quote's verdict is `doNotPayUs`. On our
 fixture of such a stack the addressable saving was 2.4%. A percentage-of-savings
 vendor that charges you for savings you already had is buying a dispute; we
 decline up front.
@@ -341,14 +341,14 @@ decline up front.
 
 ---
 
-# Methodology — how every FLUX number is made
+# Methodology — how every MESH number is made
 
 The LLM cost-saving market has a measurement problem, documented by independent
 work rather than by us: three popular open-source token trimmers claiming
 60–90% savings delivered **3.7%** when independently replayed over 614M tokens
 of real traffic; a prompt-slimming technique modelled at ~77% measured **~13%**
 in production. The gap comes from measuring per *request* instead of per
-*completed task*, and from ignoring provider cache economics. FLUX's method
+*completed task*, and from ignoring provider cache economics. MESH's method
 exists to be immune to both.
 
 ## The rules every published number passes
@@ -366,8 +366,8 @@ exists to be immune to both.
    write premiums. Our simulator can and does show caching as a **net loss**
    on unfavourable traffic — that case has a unit test.
 4. **The provider's existing contribution is never claimed.** On busy agent
-   traffic, the provider's cache alone saves 35–40% before FLUX does anything.
-   That figure is printed separately and excluded from every FLUX claim.
+   traffic, the provider's cache alone saves 35–40% before MESH does anything.
+   That figure is printed separately and excluded from every MESH claim.
 5. **Tier savings are billed at the tier actually served.** Discounted-tier
    requests can be bounced back to full price under load; the published async
    figure (57.7%) is net of assumed fallback rates, and per-request billing
@@ -400,7 +400,7 @@ Known open items we publish rather than hide: per-model cacheable minimums are
 not yet in the simulator (the sparse-traffic 34.3% may overstate on some
 models). Anthropic batch rates ARE now catalogued (2026-10-27, from the page's
 definitive "Save 50% with batch processing"), so async-eligible Claude traffic
-prices natively at half standard and FLUX picks batch-routing or caching per
+prices natively at half standard and MESH picks batch-routing or caching per
 shape, whichever is cheaper; tracked in [evidence](evidence.md).
 
 
@@ -424,14 +424,14 @@ generated fixtures (27/27).
 | Interactive 25.9–29.4% | arm J across openai-30s / openai-600s / anthropic-5m blocks, clean 38/40 | `c7b03d4`, re-verified `4e51734` |
 | Proxy mode: zero-code integration | `packages/sdk-js/src/proxy.ts` + `evals/run-proxy.ts`; e2e tests cover reduction-before-forward, byte-identical passthrough, SSE streaming with usage parsed after the last byte, per-app hash chains, credential passthrough | `d31b125` |
 | Proxy overhead: adds ~22 ms p50 / ~24 ms p95 / ~30 ms p99 per request | `node --import tsx evals/run-proxy-overhead.ts` — proxied minus direct against the same instant loopback stub, 800 requests/arm at concurrency 8, ~31 KB agent request bodies, full lossless stack + 5m cache stamp + ledger append (darwin/arm64; absolute values vary by machine — rerun the command on yours). Against provider calls measured in seconds this is under 1% of request latency | run 2026-10-20 |
-| **THIRD live export: 18.2% of real spend** ($0.0365 of $0.2010), hash chains verified, spools committed to this repo | `FLUX_LIVE_KEEP=1 node --import tsx evals/run-live-agents.ts` on claude-sonnet-5-5, 30 requests. Coding-agent $0.0225/38.1% — the cache placement that LOST −$0.0063 in export #2 now earns: the volatility guard shipped in between refuses the volatile-prefix stamp. Rag $0.0086/22.0%, support $0.0054/10.3%, already-lean $0 (correct). Batch-classifier $0: the minimum guard suppressed its stamp, and the provider's own `count_tokens` API confirms the prefix is 927 real tokens — under Anthropic's documented 1024 cacheable minimum, so the suppression is right. That contradicts export #2's batch claim (below), which can no longer be re-audited; receipts are retained from now on. Spools: `evals/live-exports-2026-10-26/` — verify them yourself with flux-verify | run 2026-10-26 |
+| **THIRD live export: 18.2% of real spend** ($0.0365 of $0.2010), hash chains verified, spools committed to this repo | `MESH_LIVE_KEEP=1 node --import tsx evals/run-live-agents.ts` on claude-sonnet-5-5, 30 requests. Coding-agent $0.0225/38.1% — the cache placement that LOST −$0.0063 in export #2 now earns: the volatility guard shipped in between refuses the volatile-prefix stamp. Rag $0.0086/22.0%, support $0.0054/10.3%, already-lean $0 (correct). Batch-classifier $0: the minimum guard suppressed its stamp, and the provider's own `count_tokens` API confirms the prefix is 927 real tokens — under Anthropic's documented 1024 cacheable minimum, so the suppression is right. That contradicts export #2's batch claim (below), which can no longer be re-audited; receipts are retained from now on. Spools: `evals/live-exports-2026-10-26/` — verify them yourself with mesh-verify | run 2026-10-26 |
 | SECOND live export: 18.0% of real spend, every active agent billing | `evals/run-live-agents.ts` keyed rerun with the 5m cache stamp + the freshcap gate verdict wired: coding-agent $0.0206 (cap+schemas net of a −$0.0063 cache miss from its per-turn clock), batch-classifier +$0.0101 (cache stamp EARNING live, 6,286 reads — the one figure export #3's count_tokens check now contradicts: the batch prefix is under the provider's cacheable minimum, and these spools were not retained to re-audit, a process failure we fixed by committing export #3's spools), rag $0.0086, support $0.0054, already-lean $0 | run 2026-10-19, spools audited in session, not retained |
 | Multi-turn Claude cache-only comparison: 37.9% | `node --import tsx evals/run-cache-decomposition.ts` — J + 5m stamp vs the identical J stack with cache disabled; both arms clean 38/40, 97% hits, 200/200 stamps metadata-only. Isolates the pure cache effect | re-verified `6f08b72` (was 37.6% at `6249f86`; moves with the newline fix below) |
 | Full J + 5m stack vs raw uncached A: 57.3% lower simulated cost | same decomposition script, row 2: quality 38/40 vs the raw baseline's 40/40 (−5 pp; within the published >=36/40 gate, but a real delta) — quote 37.9% for the cache lever and label this one with its quality cost | re-verified `6f08b72` (was 57.1% at `6249f86`) |
 | Sparse interactive 34.3% | arm L, 1h cache TTL via the shipped `cacheTtl` stamp (stable-prefix placement), 600s spacing | fixed and re-verified `6f08b72`: ab210c1's stable/tail split silently dropped the separating newline between the two blocks, a model-visible content change; arm L's own metadata-only guard had started hard-crashing on it (and the eval's comparison helper had never been updated for the two-block shape). Was 34.0% at `67eeac6`, unreproducible between `ab210c1` and `6f08b72`. |
 | First real-traffic export: 9.3% net of spend | `evals/run-live-agents.ts`, 30 requests on claude-sonnet-5-5; a smoke run, NOT a band — lossy levers were recorded-unbilled and the old cache placement lost money (per-agent outcomes ranged −24% to +34% of that agent's spend) | `d84e256` run 2026-10-19, superseded by the second export |
 | One-shot 45.5% / 72.8% | one-shot section, arms H and I ($0.569 → $0.310 / $0.155) | `7b08666`, re-verified `4e51734` |
-| Provider cache's own 35–40% (never claimed by FLUX) | "what the cache itself is worth" section of the harness output | `33028df` onward |
+| Provider cache's own 35–40% (never claimed by MESH) | "what the cache itself is worth" section of the harness output | `33028df` onward |
 | "Do not pay us" 0–5% | support-assistant fixture, 77% pre-cached, triage verdict | `ff04a70` |
 | Replay gate approving fresh-cap at 0.00 quality delta and rejecting the 2000-token output cap at −5.50pp | `evals/run-replay-gate-freshcap.ts` | `ab5b4c7` |
 | Ledger determinism, exclusions, recomputable invoice | `packages/core/src/savings-ledger.test.ts`; canonical-invoice contract | `597e842`, `10407bf` |
@@ -462,7 +462,7 @@ generated fixtures (27/27).
 
 ---
 
-# An honest comparison — including where FLUX loses
+# An honest comparison — including where MESH loses
 
 Most cost-saving tools publish their best number. Independent measurement keeps
 finding a gap between claimed and delivered, so this page compares *methods*,
@@ -492,7 +492,7 @@ will correct it.
 
 ## Method comparison
 
-| | Typical trimmer / router | FLUX |
+| | Typical trimmer / router | MESH |
 |---|---|---|
 | Unit of measurement | per request | **per completed task** |
 | Quality check | self-graded or none | replay gate on your recorded requests; failed tasks void savings |
@@ -501,16 +501,16 @@ will correct it.
 | Headline number | one global percentage | per-segment bands, including "do not pay us" |
 | The invoice | trust us | hash-chained events; recompute it yourself |
 
-## Where FLUX loses, stated plainly
+## Where MESH loses, stated plainly
 
 - **Busy interactive agents: ~29% ceiling.** The provider's cache already
   delivers 35–40% there. Anyone promising such traffic 70% is claiming either
   the provider's savings or quality you will lose.
 - **Already-optimised stacks: 0–5%.** Our triage will tell you not to buy.
 - **A free trimmer may be all you need** if your waste is one obvious thing and
-  you don't need the saving verified. FLUX's value is the *verified, billable*
+  you don't need the saving verified. MESH's value is the *verified, billable*
   number; if you don't need that, rtk is free.
-- **Most FLUX figures are simulator-measured and labelled so.** The live
+- **Most MESH figures are simulator-measured and labelled so.** The live
   numbers so far come from small runs (the latest: 18.2% of real spend across
   30 requests, hash-chained spools committed to the repo so you can recompute
   it). The pilot exists to replace every number with ones from your own
@@ -522,7 +522,7 @@ Facts dated 2026-10-22 from each vendor's own documentation (the LiteLLM
 volatility row is our own empirical test, wire captures published in the
 repo). Blank praise sells nothing: each tool wins its own rows.
 
-| | FLUX | LiteLLM | Helicone | Langfuse |
+| | MESH | LiteLLM | Helicone | Langfuse |
 |---|---|---|---|---|
 | What it is | Cost-reduction proxy with verified-savings billing | MIT gateway + SDK, 100+ providers | Observability platform + AI gateway | Observability, prompt mgmt, evals |
 | Licence | BUSL-1.1 (verifier MIT) | MIT (enterprise carve-out) | Apache-2.0 | MIT except ee/ |
@@ -543,23 +543,23 @@ repo). Blank praise sells nothing: each tool wins its own rows.
 | Three popular OSS token trimmers | 60–90% | **3.7%** combined, 614M-token real-traffic replay | codepointer.dev deep dive |
 | Progressive tool-schema disclosure | ~77% modelled | **~13%** in production | archestra.ai bench |
 | Best-funded commercial router | 30%+ | ranked **12th of 12** | RouterArena leaderboard |
-| FLUX, per-workload bands | 26–81% by shape, simulator-measured and labelled | **18.2% live** on a deliberately mixed 30-request basket incl. two shapes designed to save ~0% (hash-chained spools committed to the repo; third consecutive live run) | our evidence page — every number traces to a command |
+| MESH, per-workload bands | 26–81% by shape, simulator-measured and labelled | **18.2% live** on a deliberately mixed 30-request basket incl. two shapes designed to save ~0% (hash-chained spools committed to the repo; third consecutive live run) | our evidence page — every number traces to a command |
 
 We publish the right-hand column for ourselves because we demand it of
-everyone else. Your pilot replaces every FLUX number with your own traffic's
+everyone else. Your pilot replaces every MESH number with your own traffic's
 numbers before any fee exists.
 
 ## LiteLLM, Helicone, Langfuse — what each actually does about cost
 
 These three are excellent tools we are often mentioned alongside. They solve
-different problems, they are each genuinely better than FLUX at those
-problems, and FLUX reads all three of their export formats directly — if you
+different problems, they are each genuinely better than MESH at those
+problems, and MESH reads all three of their export formats directly — if you
 run any of them, you are one file export away from a quote.
 [Runbook →](../pilot/runbook.md)
 
 ### LiteLLM (MIT gateway + SDK)
 
-Better than FLUX at: breadth (100+ providers behind one OpenAI-format API),
+Better than MESH at: breadth (100+ providers behind one OpenAI-format API),
 production routing (six load-balancing strategies, fallbacks, cooldowns,
 budgets, virtual keys), community and maturity — and the core is free.
 
@@ -579,14 +579,14 @@ six turns, with no stability check and no signal after six consecutive
 zero-read responses (wire captures in our repo under evals/wire-captures/).
 Under Anthropic's documented billing that traffic pays the 1.25× write
 premium every turn and never reads — the exact loss our own ledger once
-caught us making, which is why FLUX ships a volatility guard and nets every
+caught us making, which is why MESH ships a volatility guard and nets every
 cache write against its reads. If you want free levers, LiteLLM ships good
 ones; if you need to *know what they saved, net, with the receipt* — that is
-the product FLUX is.
+the product MESH is.
 
 ### Helicone (Apache-2.0 observability + AI gateway)
 
-Better than FLUX at: observability (dashboards, sessions, custom query
+Better than MESH at: observability (dashboards, sessions, custom query
 language, alerts), a hosted multi-provider gateway with unified billing, and
 prompt management — a mature platform (Pro $79/mo, Team $799/mo, as of
 2026-10-22).
@@ -600,7 +600,7 @@ Cost figures on direct integrations are self-described best-effort estimates.
 
 ### Langfuse (MIT-except-ee observability)
 
-Better than FLUX at: tracing and evals depth (agent graphs, LLM-as-judge,
+Better than MESH at: tracing and evals depth (agent graphs, LLM-as-judge,
 datasets, experiments), team features, and — worth crediting plainly —
 **cost-tracking auditability**: daily automated price audits against provider
 sources, customer-overridable model prices, and exact-cost ingestion that can
@@ -610,7 +610,7 @@ self-host; as of 2026-10-22).
 On cost reduction: none, by design — Langfuse is async observability and is
 never in the request path, so it cannot compact, dedupe, place cache
 breakpoints, or cache responses, and it does not claim to. It tells you where
-the money went; FLUX changes what the next request costs and proves the
+the money went; MESH changes what the next request costs and proves the
 difference.
 
 
@@ -618,32 +618,32 @@ difference.
 
 # FAQ — built from the caveats we already print
 
-**How do I install FLUX?**
-One command: `npx -y -p @flux-ai/sdk flux-proxy` starts a local proxy with a
+**How do I install MESH?**
+One command: `npx -y -p @mesh-ai/sdk mesh-proxy` starts a local proxy with a
 hash-chained ledger — then set your client's `baseURL` to
 `http://127.0.0.1:8787` (Anthropic) or `http://127.0.0.1:8787/v1` (OpenAI).
 No signup, no account, and your API key passes through without being stored.
 The full walk-through, including recomputing the invoice yourself, is on
 [Get started](start.md).
 
-**Does FLUX work with my language or framework?**
+**Does MESH work with my language or framework?**
 Yes, if it can set a base URL — which is Python, TypeScript, Go, curl,
 LangChain, LlamaIndex, and effectively everything else. Proxy mode is
-language-agnostic by construction; the one-line SDK mode (`withFlux(client)`)
+language-agnostic by construction; the one-line SDK mode (`withMesh(client)`)
 is TypeScript/JavaScript today. It covers Claude (Anthropic), OpenAI, and any
 OpenAI-compatible endpoint.
 
-**My agents run 24/7 — what does FLUX actually do for always-on workloads?**
+**My agents run 24/7 — what does MESH actually do for always-on workloads?**
 Long-lived agents re-send their whole history every turn, so they re-buy
 their own memory forever — on real agent traffic, each output token gets
-re-read ~27 more times downstream. FLUX keeps that history on the provider's
+re-read ~27 more times downstream. MESH keeps that history on the provider's
 cached rate (with guards that refuse placements that would lose money),
 digests stale context byte-stably, caps oversized tool results behind a
 quality gate, flags byte-identical retries, and meters output re-emission on
 your statement. The measured always-on shapes are our strongest bands: see
 [savings by segment](segments.md).
 
-**Can FLUX break my app?**
+**Can MESH break my app?**
 The default levers are lossless: compacted schemas decode identically, removed
 duplicates are exact, prefix repair reorders text without deleting it, and the
 reducer never throws — any failure returns your request untouched. Lossy levers
@@ -671,9 +671,9 @@ savings (e.g. a cache-write premium that didn't pay off) reduce the bill —
 they are never clamped to zero.
 
 **Do I have to change my code?**
-One line or none. SDK mode wraps your existing client (`withFlux(client)`).
-Proxy mode needs no code at all: run the FLUX proxy locally and point your
-client's `base_url` at it — your API key passes through verbatim (FLUX never
+One line or none. SDK mode wraps your existing client (`withMesh(client)`).
+Proxy mode needs no code at all: run the MESH proxy locally and point your
+client's `base_url` at it — your API key passes through verbatim (MESH never
 holds credentials), responses stream back untouched, and every request
 appends the same hash-chained ledger event the SDK writes. A stream whose
 usage cannot be read is recorded *unpriced*, never guessed.

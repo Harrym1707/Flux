@@ -24,6 +24,151 @@ var init_cost = __esm({
 });
 
 // packages/core/src/price-catalogue.ts
+function assertIsoDate(value, label) {
+  if (!ISO_DATE.test(value) || Number.isNaN(Date.parse(value))) {
+    throw new Error(`${label} must be an ISO calendar date (YYYY-MM-DD); received ${JSON.stringify(value)}.`);
+  }
+}
+function assertRate(value, label) {
+  if (value === void 0) return;
+  if (!Number.isFinite(value) || value < 0) {
+    throw new Error(`${label} must be a non-negative finite number of USD per million tokens.`);
+  }
+}
+function assertTiers(tiers, label) {
+  if (tiers.length === 0) throw new Error(`${label} must declare at least one price tier.`);
+  const unbounded = tiers.filter((tier) => tier.maxInputTokens === void 0);
+  if (unbounded.length !== 1) {
+    throw new Error(`${label} must declare exactly one tier without maxInputTokens; found ${unbounded.length}.`);
+  }
+  const bounds = tiers.map((tier) => tier.maxInputTokens).filter((bound) => bound !== void 0);
+  if (bounds.some((bound) => !Number.isInteger(bound) || bound <= 0)) {
+    throw new Error(`${label} tier bounds must be positive integers.`);
+  }
+  if (new Set(bounds).size !== bounds.length) {
+    throw new Error(`${label} declares duplicate tier bounds.`);
+  }
+  for (const tier of tiers) {
+    assertRate(tier.inputPerMillion, `${label} inputPerMillion`);
+    assertRate(tier.outputPerMillion, `${label} outputPerMillion`);
+    assertRate(tier.cachedInputPerMillion, `${label} cachedInputPerMillion`);
+    assertRate(tier.cacheWriteInputPerMillion, `${label} cacheWriteInputPerMillion`);
+    assertRate(tier.cacheWrite1hInputPerMillion, `${label} cacheWrite1hInputPerMillion`);
+  }
+}
+function assertProvenance(provenance, label) {
+  if (!provenance || typeof provenance.source !== "string" || provenance.source.trim() === "") {
+    throw new Error(`${label} needs a provenance.source so the rate can be traced to a published price.`);
+  }
+  assertIsoDate(provenance.capturedOn, `${label} provenance.capturedOn`);
+}
+function rangeKey(item) {
+  return `${item.provider} ${item.model} ${item.mode ?? "standard"}`;
+}
+function overlaps(left, right) {
+  return left.effectiveFrom < (right.effectiveTo ?? OPEN_ENDED) && right.effectiveFrom < (left.effectiveTo ?? OPEN_ENDED);
+}
+function validatePriceCatalogue(catalogue) {
+  const seen = /* @__PURE__ */ new Map();
+  for (const entry3 of catalogue.entries) {
+    const label = `Price entry ${entry3.provider}/${entry3.model} (${entry3.mode}) from ${entry3.effectiveFrom}`;
+    if (!entry3.provider.trim() || !entry3.model.trim()) {
+      throw new Error("Price entries need a non-empty provider and model.");
+    }
+    assertIsoDate(entry3.effectiveFrom, `${label} effectiveFrom`);
+    if (entry3.effectiveTo !== void 0) {
+      assertIsoDate(entry3.effectiveTo, `${label} effectiveTo`);
+      if (entry3.effectiveTo <= entry3.effectiveFrom) {
+        throw new Error(`${label} ends on or before it starts.`);
+      }
+    }
+    assertTiers(entry3.tiers, label);
+    assertProvenance(entry3.provenance, label);
+    const key = rangeKey(entry3);
+    const ranges = seen.get(key) ?? [];
+    const clash = ranges.find((range) => overlaps(range, entry3));
+    if (clash) {
+      throw new Error(
+        `${label} overlaps another rate for the same model and mode starting ${clash.effectiveFrom}; close the earlier rate with effectiveTo so each billing date resolves to exactly one price.`
+      );
+    }
+    ranges.push(entry3);
+    seen.set(key, ranges);
+  }
+  const negotiatedSeen = /* @__PURE__ */ new Map();
+  for (const rate of catalogue.negotiated) {
+    const label = `Negotiated rate ${rate.provider}/${rate.model} from ${rate.effectiveFrom}`;
+    const hasDiscount = rate.discountPercent !== void 0;
+    const hasTiers = rate.tiers !== void 0;
+    if (hasDiscount === hasTiers) {
+      throw new Error(`${label} must set exactly one of discountPercent or tiers.`);
+    }
+    assertIsoDate(rate.effectiveFrom, `${label} effectiveFrom`);
+    if (rate.effectiveTo !== void 0) {
+      assertIsoDate(rate.effectiveTo, `${label} effectiveTo`);
+      if (rate.effectiveTo <= rate.effectiveFrom) throw new Error(`${label} ends on or before it starts.`);
+    }
+    if (hasDiscount && (!Number.isFinite(rate.discountPercent) || rate.discountPercent < 0 || rate.discountPercent >= 100)) {
+      throw new Error(`${label} discountPercent must be at least 0 and below 100.`);
+    }
+    if (hasTiers) assertTiers(rate.tiers, label);
+    assertProvenance(rate.provenance, label);
+    const key = rangeKey(rate);
+    const ranges = negotiatedSeen.get(key) ?? [];
+    if (ranges.some((range) => overlaps(range, rate))) {
+      throw new Error(`${label} overlaps another negotiated rate for the same model and mode.`);
+    }
+    ranges.push(rate);
+    negotiatedSeen.set(key, ranges);
+  }
+  return catalogue;
+}
+function applicable(items, at) {
+  return items.find((item) => item.effectiveFrom <= at && (item.effectiveTo === void 0 || at < item.effectiveTo));
+}
+function tierFor(tiers, inputTokens) {
+  const bounded = tiers.filter((tier) => tier.maxInputTokens !== void 0).sort((left, right) => left.maxInputTokens - right.maxInputTokens);
+  const match = bounded.find((tier) => inputTokens <= tier.maxInputTokens);
+  return match ?? tiers.find((tier) => tier.maxInputTokens === void 0);
+}
+function withoutBound(tier) {
+  const { maxInputTokens: _bound, ...price } = tier;
+  return price;
+}
+function discounted(tier, discountPercent) {
+  const factor = 1 - discountPercent / 100;
+  return {
+    inputPerMillion: tier.inputPerMillion * factor,
+    outputPerMillion: tier.outputPerMillion * factor,
+    ...tier.cachedInputPerMillion === void 0 ? {} : { cachedInputPerMillion: tier.cachedInputPerMillion * factor },
+    ...tier.cacheWriteInputPerMillion === void 0 ? {} : { cacheWriteInputPerMillion: tier.cacheWriteInputPerMillion * factor },
+    ...tier.cacheWrite1hInputPerMillion === void 0 ? {} : { cacheWrite1hInputPerMillion: tier.cacheWrite1hInputPerMillion * factor }
+  };
+}
+function lookupPrice(catalogue, query, inputTokens = 0) {
+  assertIsoDate(query.at, "Price query `at`");
+  const mode = query.mode ?? "standard";
+  const candidates = catalogue.entries.filter((entry4) => entry4.provider === query.provider && entry4.model === query.model && entry4.mode === mode);
+  if (candidates.length === 0) {
+    return { status: "unpriced", reason: `No ${mode} rate is catalogued for ${query.provider}/${query.model}.` };
+  }
+  const entry3 = applicable(candidates, query.at);
+  if (!entry3) {
+    const ranges = candidates.map((candidate) => `${candidate.effectiveFrom} to ${candidate.effectiveTo ?? "current"}`).join("; ");
+    return {
+      status: "unpriced",
+      reason: `No ${mode} rate for ${query.provider}/${query.model} covers ${query.at}; catalogued ranges are ${ranges}.`
+    };
+  }
+  const tier = tierFor(entry3.tiers, inputTokens);
+  const override = applicable(
+    catalogue.negotiated.filter((rate) => rate.provider === query.provider && rate.model === query.model && (rate.mode ?? "standard") === mode),
+    query.at
+  );
+  if (!override) return { status: "priced", price: withoutBound(tier), entry: entry3 };
+  const price = override.tiers ? withoutBound(tierFor(override.tiers, inputTokens)) : discounted(tier, override.discountPercent);
+  return { status: "priced", price, entry: entry3, negotiated: override };
+}
 function canonicalJson(value) {
   if (value === null || typeof value !== "object") return JSON.stringify(value) ?? "null";
   if (Array.isArray(value)) {
@@ -32,10 +177,62 @@ function canonicalJson(value) {
   const entries = Object.entries(value).filter(([, member]) => member !== void 0).sort(([left], [right]) => left < right ? -1 : left > right ? 1 : 0).map(([key, member]) => `${JSON.stringify(key)}:${canonicalJson(member)}`);
   return `{${entries.join(",")}}`;
 }
+function canonicalSegments(value) {
+  return value.toLowerCase().replace(/[-_]latest$/, "").replace(/[-_]20\d{2}[-_]\d{2}[-_]\d{2}$/, "").replace(/[-_]20\d{6}$/, "").split(/[^a-z0-9]+/).filter((segment) => segment !== "");
+}
+function containsSegments(id, key) {
+  if (key.length === 0 || key.length > id.length) return false;
+  for (let offset = 0; offset + key.length <= id.length; offset += 1) {
+    if (key.every((segment, index) => id[offset + index] === segment)) return true;
+  }
+  return false;
+}
+function resolveModelId(catalogue, provider, rawModelId) {
+  const known = [...new Set(catalogue.entries.filter((entry3) => entry3.provider === provider).map((entry3) => entry3.model))];
+  if (known.length === 0) {
+    return { status: "unresolved", reason: `No models are catalogued for provider ${provider}.`, candidates: [] };
+  }
+  if (known.includes(rawModelId)) return { status: "resolved", model: rawModelId, via: "exact" };
+  for (const alias of catalogue.aliases ?? []) {
+    if (alias.provider !== provider) continue;
+    const matches = alias.id.endsWith("*") ? rawModelId.startsWith(alias.id.slice(0, -1)) : alias.id === rawModelId;
+    if (!matches) continue;
+    if (!known.includes(alias.model)) {
+      return {
+        status: "unresolved",
+        reason: `Alias ${alias.id} points at ${alias.model}, which is not catalogued for ${provider}.`,
+        candidates: known
+      };
+    }
+    return { status: "resolved", model: alias.model, via: "alias" };
+  }
+  const target = canonicalSegments(rawModelId);
+  const hits = known.map((model) => ({ model, key: canonicalSegments(model) })).filter(({ key }) => containsSegments(target, key)).sort((left, right) => right.key.length - left.key.length || right.key.join("").length - left.key.join("").length);
+  if (hits.length === 0) {
+    return {
+      status: "unresolved",
+      reason: `No catalogue key for ${provider} matches ${rawModelId}; add an alias.`,
+      candidates: known
+    };
+  }
+  const longest = hits[0].key.length;
+  const tied = hits.filter(({ key }) => key.length === longest);
+  if (tied.length > 1) {
+    return {
+      status: "unresolved",
+      reason: `${rawModelId} matches ${tied.length} catalogue keys equally well; add an explicit alias.`,
+      candidates: tied.map(({ model }) => model)
+    };
+  }
+  return { status: "resolved", model: hits[0].model, via: "normalised" };
+}
+var ISO_DATE, OPEN_ENDED;
 var init_price_catalogue = __esm({
   "packages/core/src/price-catalogue.ts"() {
     "use strict";
     init_cost();
+    ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+    OPEN_ENDED = "9999-12-31";
   }
 });
 
@@ -331,7 +528,7 @@ function dedupeRepeatedLeadingBlock(texts, minimumBlockTokens = 24, countTokens 
     if (tokens < minimumBlockTokens)
       return text;
     notes.push(`Turn ${index + 1}: replaced a ${tokens}-token leading block identical to turn 1's opening with a reference marker.`);
-    return `[flux: ${tokens} tokens of this turn's leading context, identical to turn 1, omitted]${text.slice(safe)}`;
+    return `[mesh: ${tokens} tokens of this turn's leading context, identical to turn 1, omitted]${text.slice(safe)}`;
   });
   return { texts: nextTexts, notes };
 }
@@ -376,9 +573,9 @@ function collectRequestText(value, depth = 0) {
   if (typeof value === "string")
     return value;
   if (Array.isArray(value))
-    return value.map((entry2) => collectRequestText(entry2, depth + 1)).filter(Boolean).join("\n");
+    return value.map((entry3) => collectRequestText(entry3, depth + 1)).filter(Boolean).join("\n");
   if (typeof value === "object" && value !== null) {
-    return Object.values(value).map((entry2) => collectRequestText(entry2, depth + 1)).filter(Boolean).join("\n");
+    return Object.values(value).map((entry3) => collectRequestText(entry3, depth + 1)).filter(Boolean).join("\n");
   }
   return "";
 }
@@ -510,19 +707,19 @@ var init_confidence = __esm({
 
 // packages/core/dist/src/price-catalogue.js
 import { createHash as createHash2 } from "node:crypto";
-function assertIsoDate(value, label) {
-  if (!ISO_DATE.test(value) || Number.isNaN(Date.parse(value))) {
+function assertIsoDate2(value, label) {
+  if (!ISO_DATE2.test(value) || Number.isNaN(Date.parse(value))) {
     throw new Error(`${label} must be an ISO calendar date (YYYY-MM-DD); received ${JSON.stringify(value)}.`);
   }
 }
-function assertRate(value, label) {
+function assertRate2(value, label) {
   if (value === void 0)
     return;
   if (!Number.isFinite(value) || value < 0) {
     throw new Error(`${label} must be a non-negative finite number of USD per million tokens.`);
   }
 }
-function assertTiers(tiers, label) {
+function assertTiers2(tiers, label) {
   if (tiers.length === 0)
     throw new Error(`${label} must declare at least one price tier.`);
   const unbounded = tiers.filter((tier) => tier.maxInputTokens === void 0);
@@ -537,48 +734,48 @@ function assertTiers(tiers, label) {
     throw new Error(`${label} declares duplicate tier bounds.`);
   }
   for (const tier of tiers) {
-    assertRate(tier.inputPerMillion, `${label} inputPerMillion`);
-    assertRate(tier.outputPerMillion, `${label} outputPerMillion`);
-    assertRate(tier.cachedInputPerMillion, `${label} cachedInputPerMillion`);
-    assertRate(tier.cacheWriteInputPerMillion, `${label} cacheWriteInputPerMillion`);
-    assertRate(tier.cacheWrite1hInputPerMillion, `${label} cacheWrite1hInputPerMillion`);
+    assertRate2(tier.inputPerMillion, `${label} inputPerMillion`);
+    assertRate2(tier.outputPerMillion, `${label} outputPerMillion`);
+    assertRate2(tier.cachedInputPerMillion, `${label} cachedInputPerMillion`);
+    assertRate2(tier.cacheWriteInputPerMillion, `${label} cacheWriteInputPerMillion`);
+    assertRate2(tier.cacheWrite1hInputPerMillion, `${label} cacheWrite1hInputPerMillion`);
   }
 }
-function assertProvenance(provenance, label) {
+function assertProvenance2(provenance, label) {
   if (!provenance || typeof provenance.source !== "string" || provenance.source.trim() === "") {
     throw new Error(`${label} needs a provenance.source so the rate can be traced to a published price.`);
   }
-  assertIsoDate(provenance.capturedOn, `${label} provenance.capturedOn`);
+  assertIsoDate2(provenance.capturedOn, `${label} provenance.capturedOn`);
 }
-function rangeKey(item) {
+function rangeKey2(item) {
   return `${item.provider} ${item.model} ${item.mode ?? "standard"}`;
 }
-function overlaps(left, right) {
-  return left.effectiveFrom < (right.effectiveTo ?? OPEN_ENDED) && right.effectiveFrom < (left.effectiveTo ?? OPEN_ENDED);
+function overlaps2(left, right) {
+  return left.effectiveFrom < (right.effectiveTo ?? OPEN_ENDED2) && right.effectiveFrom < (left.effectiveTo ?? OPEN_ENDED2);
 }
-function validatePriceCatalogue(catalogue) {
+function validatePriceCatalogue2(catalogue) {
   const seen = /* @__PURE__ */ new Map();
-  for (const entry2 of catalogue.entries) {
-    const label = `Price entry ${entry2.provider}/${entry2.model} (${entry2.mode}) from ${entry2.effectiveFrom}`;
-    if (!entry2.provider.trim() || !entry2.model.trim()) {
+  for (const entry3 of catalogue.entries) {
+    const label = `Price entry ${entry3.provider}/${entry3.model} (${entry3.mode}) from ${entry3.effectiveFrom}`;
+    if (!entry3.provider.trim() || !entry3.model.trim()) {
       throw new Error("Price entries need a non-empty provider and model.");
     }
-    assertIsoDate(entry2.effectiveFrom, `${label} effectiveFrom`);
-    if (entry2.effectiveTo !== void 0) {
-      assertIsoDate(entry2.effectiveTo, `${label} effectiveTo`);
-      if (entry2.effectiveTo <= entry2.effectiveFrom) {
+    assertIsoDate2(entry3.effectiveFrom, `${label} effectiveFrom`);
+    if (entry3.effectiveTo !== void 0) {
+      assertIsoDate2(entry3.effectiveTo, `${label} effectiveTo`);
+      if (entry3.effectiveTo <= entry3.effectiveFrom) {
         throw new Error(`${label} ends on or before it starts.`);
       }
     }
-    assertTiers(entry2.tiers, label);
-    assertProvenance(entry2.provenance, label);
-    const key = rangeKey(entry2);
+    assertTiers2(entry3.tiers, label);
+    assertProvenance2(entry3.provenance, label);
+    const key = rangeKey2(entry3);
     const ranges = seen.get(key) ?? [];
-    const clash = ranges.find((range) => overlaps(range, entry2));
+    const clash = ranges.find((range) => overlaps2(range, entry3));
     if (clash) {
       throw new Error(`${label} overlaps another rate for the same model and mode starting ${clash.effectiveFrom}; close the earlier rate with effectiveTo so each billing date resolves to exactly one price.`);
     }
-    ranges.push(entry2);
+    ranges.push(entry3);
     seen.set(key, ranges);
   }
   const negotiatedSeen = /* @__PURE__ */ new Map();
@@ -589,9 +786,9 @@ function validatePriceCatalogue(catalogue) {
     if (hasDiscount === hasTiers) {
       throw new Error(`${label} must set exactly one of discountPercent or tiers.`);
     }
-    assertIsoDate(rate.effectiveFrom, `${label} effectiveFrom`);
+    assertIsoDate2(rate.effectiveFrom, `${label} effectiveFrom`);
     if (rate.effectiveTo !== void 0) {
-      assertIsoDate(rate.effectiveTo, `${label} effectiveTo`);
+      assertIsoDate2(rate.effectiveTo, `${label} effectiveTo`);
       if (rate.effectiveTo <= rate.effectiveFrom)
         throw new Error(`${label} ends on or before it starts.`);
     }
@@ -599,11 +796,11 @@ function validatePriceCatalogue(catalogue) {
       throw new Error(`${label} discountPercent must be at least 0 and below 100.`);
     }
     if (hasTiers)
-      assertTiers(rate.tiers, label);
-    assertProvenance(rate.provenance, label);
-    const key = rangeKey(rate);
+      assertTiers2(rate.tiers, label);
+    assertProvenance2(rate.provenance, label);
+    const key = rangeKey2(rate);
     const ranges = negotiatedSeen.get(key) ?? [];
-    if (ranges.some((range) => overlaps(range, rate))) {
+    if (ranges.some((range) => overlaps2(range, rate))) {
       throw new Error(`${label} overlaps another negotiated rate for the same model and mode.`);
     }
     ranges.push(rate);
@@ -611,19 +808,19 @@ function validatePriceCatalogue(catalogue) {
   }
   return catalogue;
 }
-function applicable(items, at) {
+function applicable2(items, at) {
   return items.find((item) => item.effectiveFrom <= at && (item.effectiveTo === void 0 || at < item.effectiveTo));
 }
-function tierFor(tiers, inputTokens) {
+function tierFor2(tiers, inputTokens) {
   const bounded = tiers.filter((tier) => tier.maxInputTokens !== void 0).sort((left, right) => left.maxInputTokens - right.maxInputTokens);
   const match = bounded.find((tier) => inputTokens <= tier.maxInputTokens);
   return match ?? tiers.find((tier) => tier.maxInputTokens === void 0);
 }
-function withoutBound(tier) {
+function withoutBound2(tier) {
   const { maxInputTokens: _bound, ...price } = tier;
   return price;
 }
-function discounted(tier, discountPercent) {
+function discounted2(tier, discountPercent) {
   const factor = 1 - discountPercent / 100;
   return {
     inputPerMillion: tier.inputPerMillion * factor,
@@ -633,27 +830,27 @@ function discounted(tier, discountPercent) {
     ...tier.cacheWrite1hInputPerMillion === void 0 ? {} : { cacheWrite1hInputPerMillion: tier.cacheWrite1hInputPerMillion * factor }
   };
 }
-function lookupPrice(catalogue, query, inputTokens = 0) {
-  assertIsoDate(query.at, "Price query `at`");
+function lookupPrice2(catalogue, query, inputTokens = 0) {
+  assertIsoDate2(query.at, "Price query `at`");
   const mode = query.mode ?? "standard";
-  const candidates = catalogue.entries.filter((entry3) => entry3.provider === query.provider && entry3.model === query.model && entry3.mode === mode);
+  const candidates = catalogue.entries.filter((entry4) => entry4.provider === query.provider && entry4.model === query.model && entry4.mode === mode);
   if (candidates.length === 0) {
     return { status: "unpriced", reason: `No ${mode} rate is catalogued for ${query.provider}/${query.model}.` };
   }
-  const entry2 = applicable(candidates, query.at);
-  if (!entry2) {
+  const entry3 = applicable2(candidates, query.at);
+  if (!entry3) {
     const ranges = candidates.map((candidate) => `${candidate.effectiveFrom} to ${candidate.effectiveTo ?? "current"}`).join("; ");
     return {
       status: "unpriced",
       reason: `No ${mode} rate for ${query.provider}/${query.model} covers ${query.at}; catalogued ranges are ${ranges}.`
     };
   }
-  const tier = tierFor(entry2.tiers, inputTokens);
-  const override = applicable(catalogue.negotiated.filter((rate) => rate.provider === query.provider && rate.model === query.model && (rate.mode ?? "standard") === mode), query.at);
+  const tier = tierFor2(entry3.tiers, inputTokens);
+  const override = applicable2(catalogue.negotiated.filter((rate) => rate.provider === query.provider && rate.model === query.model && (rate.mode ?? "standard") === mode), query.at);
   if (!override)
-    return { status: "priced", price: withoutBound(tier), entry: entry2 };
-  const price = override.tiers ? withoutBound(tierFor(override.tiers, inputTokens)) : discounted(tier, override.discountPercent);
-  return { status: "priced", price, entry: entry2, negotiated: override };
+    return { status: "priced", price: withoutBound2(tier), entry: entry3 };
+  const price = override.tiers ? withoutBound2(tierFor2(override.tiers, inputTokens)) : discounted2(tier, override.discountPercent);
+  return { status: "priced", price, entry: entry3, negotiated: override };
 }
 function priceUsage2(catalogue, query, usage) {
   for (const [name, value] of Object.entries(usage)) {
@@ -663,7 +860,7 @@ function priceUsage2(catalogue, query, usage) {
       throw new Error(`Token usage ${name} must be a non-negative finite number.`);
     }
   }
-  const lookup = lookupPrice(catalogue, query, usage.inputTokens);
+  const lookup = lookupPrice2(catalogue, query, usage.inputTokens);
   if (lookup.status === "unpriced")
     return lookup;
   const cached = usage.cachedInputTokens ?? 0;
@@ -700,10 +897,10 @@ function canonicalJson2(value) {
 function catalogueVersion2(catalogue) {
   return createHash2("sha256").update(canonicalJson2(catalogue)).digest("hex").slice(0, 16);
 }
-function canonicalSegments(value) {
+function canonicalSegments2(value) {
   return value.toLowerCase().replace(/[-_]latest$/, "").replace(/[-_]20\d{2}[-_]\d{2}[-_]\d{2}$/, "").replace(/[-_]20\d{6}$/, "").split(/[^a-z0-9]+/).filter((segment) => segment !== "");
 }
-function containsSegments(id, key) {
+function containsSegments2(id, key) {
   if (key.length === 0 || key.length > id.length)
     return false;
   for (let offset = 0; offset + key.length <= id.length; offset += 1) {
@@ -713,7 +910,7 @@ function containsSegments(id, key) {
   return false;
 }
 function resolveModelId2(catalogue, provider, rawModelId) {
-  const known = [...new Set(catalogue.entries.filter((entry2) => entry2.provider === provider).map((entry2) => entry2.model))];
+  const known = [...new Set(catalogue.entries.filter((entry3) => entry3.provider === provider).map((entry3) => entry3.model))];
   if (known.length === 0) {
     return { status: "unresolved", reason: `No models are catalogued for provider ${provider}.`, candidates: [] };
   }
@@ -734,8 +931,8 @@ function resolveModelId2(catalogue, provider, rawModelId) {
     }
     return { status: "resolved", model: alias.model, via: "alias" };
   }
-  const target = canonicalSegments(rawModelId);
-  const hits = known.map((model) => ({ model, key: canonicalSegments(model) })).filter(({ key }) => containsSegments(target, key)).sort((left, right) => right.key.length - left.key.length || right.key.join("").length - left.key.join("").length);
+  const target = canonicalSegments2(rawModelId);
+  const hits = known.map((model) => ({ model, key: canonicalSegments2(model) })).filter(({ key }) => containsSegments2(target, key)).sort((left, right) => right.key.length - left.key.length || right.key.join("").length - left.key.join("").length);
   if (hits.length === 0) {
     return {
       status: "unresolved",
@@ -754,13 +951,13 @@ function resolveModelId2(catalogue, provider, rawModelId) {
   }
   return { status: "resolved", model: hits[0].model, via: "normalised" };
 }
-var ISO_DATE, OPEN_ENDED;
+var ISO_DATE2, OPEN_ENDED2;
 var init_price_catalogue2 = __esm({
   "packages/core/dist/src/price-catalogue.js"() {
     "use strict";
     init_cost2();
-    ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
-    OPEN_ENDED = "9999-12-31";
+    ISO_DATE2 = /^\d{4}-\d{2}-\d{2}$/;
+    OPEN_ENDED2 = "9999-12-31";
   }
 });
 
@@ -785,7 +982,7 @@ function entry(provider, model, provenance, bands, mode = "standard", effectiveF
 function anthropicCacheableMinimumTokens(modelId) {
   return /haiku/i.test(modelId) ? 2048 : 1024;
 }
-var ANTHROPIC, OPENAI, ANTHROPIC_BATCH, OBSERVED_FROM, anthropic, openai, aliases, publishedModelPrices;
+var ANTHROPIC, OPENAI, ANTHROPIC_BATCH, DEEPSEEK, OBSERVED_FROM, anthropic, openai, deepseek, aliases, publishedModelPrices;
 var init_model_prices = __esm({
   "packages/core/dist/src/model-prices.js"() {
     "use strict";
@@ -804,6 +1001,11 @@ var init_model_prices = __esm({
       source: "https://claude.com/pricing",
       capturedOn: "2026-10-27",
       note: `Batch processing = 50% of standard, per the page's definitive "Save 50% with batch processing". Derived by halving the dated standard rates; cache-write premiums under batch are not published and are omitted (priced unpriced, never guessed).`
+    };
+    DEEPSEEK = {
+      source: "https://api-docs.deepseek.com/quick_start/pricing",
+      capturedOn: "2026-11-03",
+      note: "Off-peak list rates (peak is 2x in the 01-10 UTC weekday windows); catalogued at off-peak so a saving is never over-valued. Per 1M tokens."
     };
     OBSERVED_FROM = "2026-10-08";
     anthropic = [
@@ -858,6 +1060,10 @@ var init_model_prices = __esm({
       // than leaving async savings unpriced.
       entry("openai", "gpt-5", OPENAI, [{ input: 0.625, output: 5, cachedInput: 0.0625 }], "flex")
     ];
+    deepseek = [
+      entry("deepseek", "deepseek-flash", DEEPSEEK, [{ input: 0.15, output: 0.6, cachedInput: 3e-3 }], "standard", "2026-11-03"),
+      entry("deepseek", "deepseek-v4-pro", DEEPSEEK, [{ input: 0.66, output: 1.98, cachedInput: 0.022 }], "standard", "2026-11-03")
+    ];
     aliases = [
       // Anthropic ids embed the published name, so normalisation covers dated
       // builds such as claude-sonnet-5-5-20260514. These cover the pointers.
@@ -870,10 +1076,14 @@ var init_model_prices = __esm({
       { provider: "openai", id: "chatgpt-4o-latest", model: "gpt-4o" },
       { provider: "openai", id: "gpt-4o-2024-*", model: "gpt-4o" },
       { provider: "openai", id: "gpt-4o-mini-2024-*", model: "gpt-4o-mini" },
-      { provider: "openai", id: "o3-mini-2025-*", model: "o3-mini" }
+      { provider: "openai", id: "o3-mini-2025-*", model: "o3-mini" },
+      // DeepSeek: the current ids match their keys (normalisation covers them); only
+      // the legacy pointer needs an explicit map. deepseek-v4-flash bills at Flash,
+      // per DeepSeek's pricing page.
+      { provider: "deepseek", id: "deepseek-v4-flash", model: "deepseek-flash" }
     ];
-    publishedModelPrices = validatePriceCatalogue({
-      entries: [...anthropic, ...openai],
+    publishedModelPrices = validatePriceCatalogue2({
+      entries: [...anthropic, ...openai, ...deepseek],
       negotiated: [],
       aliases
     });
@@ -1067,12 +1277,12 @@ function digestStaleBody(text) {
   const kept = [];
   let droppedChars = 0;
   for (const [index, segment] of segments.entries()) {
-    const keep = index === 0 || STALE_BODY_MUST_KEEP.test(segment) || STALE_BODY_FILE_PATH.test(segment) || FLUX_MARKER.test(segment);
+    const keep = index === 0 || STALE_BODY_MUST_KEEP.test(segment) || STALE_BODY_FILE_PATH.test(segment) || MESH_MARKER.test(segment);
     if (keep) kept.push(segment);
     else droppedChars += segment.length;
   }
   if (droppedChars === 0) return text;
-  const digest2 = `${kept.join(" ")} [flux: ${droppedChars} chars of stale detail compacted]`;
+  const digest2 = `${kept.join(" ")} [mesh: ${droppedChars} chars of stale detail compacted]`;
   return digest2.length < text.length ? digest2 : text;
 }
 function capToolResultBody(text, maximumTokens, countTokens) {
@@ -1085,12 +1295,12 @@ function capToolResultBody(text, maximumTokens, countTokens) {
   const kept = [];
   let droppedChars = 0;
   for (const [index, segment] of segments.entries()) {
-    const keep = index === 0 || STALE_BODY_MUST_KEEP.test(segment) || STALE_BODY_FILE_PATH.test(segment) || FLUX_MARKER.test(segment);
+    const keep = index === 0 || STALE_BODY_MUST_KEEP.test(segment) || STALE_BODY_FILE_PATH.test(segment) || MESH_MARKER.test(segment);
     if (keep) kept.push(segment);
     else droppedChars += segment.length;
   }
   if (droppedChars === 0) return text;
-  const capped = `${kept.join(" ")} [flux: ${droppedChars} chars of fresh tool-result detail capped]`;
+  const capped = `${kept.join(" ")} [mesh: ${droppedChars} chars of fresh tool-result detail capped]`;
   return capped.length < text.length ? capped : text;
 }
 function transformBodyValue(value, transform, state) {
@@ -1176,7 +1386,7 @@ function capFreshToolResults(input, maximumTokens, countTokens, changes) {
     lever: "fresh-tool-result-cap",
     lossless: false,
     estimatedTokensSaved: savedTokens,
-    detail: `Capped ${state.bodies} oversized tool-result/assistant body(ies) above ${maximumTokens} tokens at injection, before first send (headlines, errors, file paths and FLUX markers kept verbatim). These tokens would have been billed once at the FULL input rate; history compaction only reaches their cached rebills.`
+    detail: `Capped ${state.bodies} oversized tool-result/assistant body(ies) above ${maximumTokens} tokens at injection, before first send (headlines, errors, file paths and MESH markers kept verbatim). These tokens would have been billed once at the FULL input rate; history compaction only reaches their cached rebills.`
   });
   return next;
 }
@@ -1572,7 +1782,7 @@ function reduceRequest(request, config = {}) {
           lossless: true,
           // Nothing was changed; this records WHY no stamp was placed.
           estimatedTokensSaved: 0,
-          detail: `Cache stamp withheld: the stable prefix measures ${result.belowMinimum.measuredTokens} token(s) by FLUX's approximate counter, under the ${result.belowMinimum.minimumTokens}-token threshold FLUX requires \u2014 the model's documented ${anthropicCacheableMinimumTokens(typeof next.model === "string" ? next.model : "")}-token cacheable minimum with a 1.30x margin for the counter's calibrated overcount on prose. Anthropic processes a prefix under its minimum without caching at all \u2014 a provider-side no-op \u2014 so a breakpoint here would buy a write premium and never read, and would record a saving that can never happen.`
+          detail: `Cache stamp withheld: the stable prefix measures ${result.belowMinimum.measuredTokens} token(s) by MESH's approximate counter, under the ${result.belowMinimum.minimumTokens}-token threshold MESH requires \u2014 the model's documented ${anthropicCacheableMinimumTokens(typeof next.model === "string" ? next.model : "")}-token cacheable minimum with a 1.30x margin for the counter's calibrated overcount on prose. Anthropic processes a prefix under its minimum without caching at all \u2014 a provider-side no-op \u2014 so a breakpoint here would buy a write premium and never read, and would record a saving that can never happen.`
         });
       }
       if (result.stamped) {
@@ -1649,7 +1859,7 @@ function reduceRequest(request, config = {}) {
             lossless: true,
             // Nothing was changed; this records WHY no effort was set.
             estimatedTokensSaved: 0,
-            detail: `Effort '${level}' withheld: model '${model || "(none)"}' is not in FLUX's dated allow-list of Claude models known to accept that level. An unsupported effort value is a 400, and the reducer never risks breaking a request, so it is left as the caller sent it.`
+            detail: `Effort '${level}' withheld: model '${model || "(none)"}' is not in MESH's dated allow-list of Claude models known to accept that level. An unsupported effort value is a 400, and the reducer never risks breaking a request, so it is left as the caller sent it.`
           });
         }
       }
@@ -1669,7 +1879,7 @@ function reduceRequest(request, config = {}) {
     return unchanged(cause instanceof Error ? cause.message : String(cause));
   }
 }
-var PREFIX_BREAKERS, STALE_BODY_MUST_KEEP, STALE_BODY_FILE_PATH, FLUX_MARKER;
+var PREFIX_BREAKERS, STALE_BODY_MUST_KEEP, STALE_BODY_FILE_PATH, MESH_MARKER;
 var init_reduce_request = __esm({
   "packages/sdk-js/src/reduce-request.ts"() {
     "use strict";
@@ -1683,7 +1893,7 @@ var init_reduce_request = __esm({
     ];
     STALE_BODY_MUST_KEEP = /\b(error|errors|errored|fail|fails|failed|failure|exception|traceback|stack trace|denied|timeout|timed out|warning|fatal|panic|refused|rejected|not found|invalid)\b/i;
     STALE_BODY_FILE_PATH = /(?:^|[\s"'`(=[])((?:\/|\.{1,2}\/|~\/|[A-Za-z]:\\)[\w.\\/-]+|[\w.-]+\/[\w./-]+|[\w-]+\.(?:ts|tsx|js|jsx|mjs|cjs|py|json|jsonl|md|yml|yaml|toml|txt|csv|tsv|html|css|go|rs|java|rb|sh|sql|log|xml|lock))\b/;
-    FLUX_MARKER = /\[flux: \d+ chars of [\w -]+\]/;
+    MESH_MARKER = /\[mesh: \d+ chars of [\w -]+\]/;
   }
 });
 
@@ -1756,20 +1966,20 @@ var init_cache_volatility_guard = __esm({
         }
         const prefixChanged = prior.prefixHash !== prefixHash;
         const historyExtends = messageHashes.length >= prior.messageHashes.length && prior.messageHashes.every((hash, index) => messageHashes[index] === hash);
-        const entry2 = { prefixHash, messageHashes, volatile: prior.volatile, stableStreak: prior.stableStreak };
+        const entry3 = { prefixHash, messageHashes, volatile: prior.volatile, stableStreak: prior.stableStreak };
         let decision = { stamp: true };
         if (prefixChanged || !historyExtends) {
-          entry2.volatile = true;
-          entry2.stableStreak = 0;
+          entry3.volatile = true;
+          entry3.stableStreak = 0;
           decision = {
             stamp: false,
             reason: prefixChanged ? "tools/system changed between turns of this conversation, so a cached prefix could never be read back" : "the conversation history was rewritten between turns, so a cached prefix could never be read back"
           };
-        } else if (entry2.volatile) {
-          entry2.stableStreak += 1;
-          if (entry2.stableStreak >= 2) {
-            entry2.volatile = false;
-            entry2.stableStreak = 0;
+        } else if (entry3.volatile) {
+          entry3.stableStreak += 1;
+          if (entry3.stableStreak >= 2) {
+            entry3.volatile = false;
+            entry3.stableStreak = 0;
           } else {
             decision = {
               stamp: false,
@@ -1777,7 +1987,7 @@ var init_cache_volatility_guard = __esm({
             };
           }
         }
-        this.conversations.set(key, entry2);
+        this.conversations.set(key, entry3);
         return decision;
       }
       evict() {
@@ -1886,7 +2096,7 @@ function priceLedgerUsage(catalogue, input) {
       reason: `Cache-write TTL split (5m ${split5m ?? 0} + 1h ${split1h ?? 0}) does not sum to cacheWriteInputTokens ${input.usage.cacheWriteInputTokens}.`
     };
   }
-  const write1hForPricing = splitReported ? split1h ?? 0 : input.fluxPlacedCacheControl && input.fluxPlacedTtl !== "5m" ? input.usage.cacheWriteInputTokens : 0;
+  const write1hForPricing = splitReported ? split1h ?? 0 : input.meshPlacedCacheControl && input.meshPlacedTtl !== "5m" ? input.usage.cacheWriteInputTokens : 0;
   const pricingUsage = {
     inputTokens: input.usage.inputTokens,
     outputTokens: input.usage.outputTokens,
@@ -1923,7 +2133,7 @@ function priceLedgerUsage(catalogue, input) {
     actualUsd: actual.costUsd,
     inputUsd: actualInputOnly.costUsd,
     ...input.executionMode === "standard" ? {} : { tierSavedUsd: standardWithCache.costUsd - actual.costUsd },
-    ...hasCacheTraffic ? input.fluxPlacedCacheControl ? { cacheAttributedUsd: cacheDeltaUsd } : { providerCacheAlreadyOwnedUsd: cacheDeltaUsd } : {}
+    ...hasCacheTraffic ? input.meshPlacedCacheControl ? { cacheAttributedUsd: cacheDeltaUsd } : { providerCacheAlreadyOwnedUsd: cacheDeltaUsd } : {}
   };
 }
 var LEDGER_GENESIS_HASH2;
@@ -1967,8 +2177,8 @@ function billableEventFromRequest(event, config, catalogue, pinnedCatalogueVersi
   const provider = config.provider ?? "openai";
   const changes = event.reduction && !event.reduction.skipped ? event.reduction.changes : [];
   const ttlChange = changes.find((change) => CACHE_TTL_LEVERS.has(change.lever));
-  const fluxPlacedCacheControl = ttlChange !== void 0;
-  const fluxPlacedTtl = ttlChange === void 0 ? void 0 : CACHE_TTL_LEVERS.get(ttlChange.lever);
+  const meshPlacedCacheControl = ttlChange !== void 0;
+  const meshPlacedTtl = ttlChange === void 0 ? void 0 : CACHE_TTL_LEVERS.get(ttlChange.lever);
   const executionMode = executionModeOf(event.responseServiceTier);
   const usage = usageOf(event);
   const pricing = usage === void 0 ? { pricingStatus: "unpriced", reason: "The event carries no complete, valid provider-verbatim usage." } : priceLedgerUsage(catalogue, {
@@ -1977,8 +2187,8 @@ function billableEventFromRequest(event, config, catalogue, pinnedCatalogueVersi
     at: event.timestamp.slice(0, 10),
     executionMode,
     usage,
-    fluxPlacedCacheControl,
-    ...fluxPlacedTtl === void 0 ? {} : { fluxPlacedTtl }
+    meshPlacedCacheControl,
+    ...meshPlacedTtl === void 0 ? {} : { meshPlacedTtl }
   });
   const priced = pricing.pricingStatus === "priced" ? pricing : void 0;
   const levers = [];
@@ -2154,7 +2364,7 @@ function forwardHeaders(req, provider) {
     if (HOP_HEADERS.has(name.toLowerCase()) || value === void 0) continue;
     out[name.toLowerCase()] = Array.isArray(value) ? value.join(", ") : value;
   }
-  delete out["x-flux-application"];
+  delete out["x-mesh-application"];
   if (provider === "openai") {
     delete out["x-api-key"];
   } else if (out["x-api-key"] !== void 0) {
@@ -2164,7 +2374,7 @@ function forwardHeaders(req, provider) {
   return out;
 }
 function readBody(req) {
-  return new Promise((resolve2, reject) => {
+  return new Promise((resolve3, reject) => {
     const chunks = [];
     let received = 0;
     req.on("data", (chunk) => {
@@ -2176,7 +2386,7 @@ function readBody(req) {
       }
       chunks.push(chunk);
     });
-    req.on("end", () => resolve2(Buffer.concat(chunks)));
+    req.on("end", () => resolve3(Buffer.concat(chunks)));
     req.on("error", reject);
   });
 }
@@ -2247,7 +2457,7 @@ function outputTextFromSse(provider, sseText) {
   }
   return parts.join("");
 }
-function startFluxProxy(options) {
+function startMeshProxy(options) {
   const baseReduction = options.tokenReduction ?? LOSSLESS_DEFAULT;
   const reduction = baseReduction.cacheTtl !== void 0 && baseReduction.cacheVolatilityGuard === void 0 ? { ...baseReduction, cacheVolatilityGuard: new CachePrefixVolatilityGuard() } : baseReduction;
   const upstreams = {
@@ -2291,13 +2501,13 @@ ${provider}`;
     const path = (req.url ?? "").split("?")[0];
     if (!hostAllowed(req)) {
       res.writeHead(403, { "content-type": "application/json" });
-      res.end(JSON.stringify({ error: "FLUX proxy serves loopback clients only." }));
+      res.end(JSON.stringify({ error: "MESH proxy serves loopback clients only." }));
       return;
     }
     const fetchSite = req.headers["sec-fetch-site"];
     if (fetchSite === "cross-site" || fetchSite === "same-site") {
       res.writeHead(403, { "content-type": "application/json" });
-      res.end(JSON.stringify({ error: "FLUX proxy does not serve cross-origin browser requests." }));
+      res.end(JSON.stringify({ error: "MESH proxy does not serve cross-origin browser requests." }));
       return;
     }
     if (req.method === "GET" && path.startsWith("/v1/")) {
@@ -2325,7 +2535,7 @@ ${provider}`;
     if (surface === void 0) {
       res.writeHead(404, { "content-type": "application/json" });
       res.end(JSON.stringify({
-        error: "FLUX proxy forwards POST /v1/messages (Anthropic), /v1/responses and /v1/chat/completions (OpenAI-compatible). Point your client's base_url at this server."
+        error: "MESH proxy forwards POST /v1/messages (Anthropic), /v1/responses and /v1/chat/completions (OpenAI-compatible). Point your client's base_url at this server."
       }));
       return;
     }
@@ -2352,7 +2562,7 @@ ${provider}`;
     }
     const { request: reducedRequest, summary } = reduceRequest(body, reduction);
     const sendBody = JSON.stringify(reducedRequest);
-    const applicationIdHeader = req.headers["x-flux-application"];
+    const applicationIdHeader = req.headers["x-mesh-application"];
     const applicationId = ((Array.isArray(applicationIdHeader) ? applicationIdHeader[0] : applicationIdHeader) ?? "proxy").slice(0, 128);
     const headers = forwardHeaders(req, surface.provider);
     headers["content-type"] = "application/json";
@@ -2455,9 +2665,9 @@ ${provider}`;
     try {
       const text = Buffer.concat(chunks).toString("utf8");
       const contentType = upstreamResponse.headers.get("content-type") ?? "";
-      if (process.env.FLUX_PROXY_DEBUG === "1" && !upstreamResponse.ok) {
+      if (process.env.MESH_PROXY_DEBUG === "1" && !upstreamResponse.ok) {
         console.warn(
-          `[flux-debug] upstream ${upstreamResponse.status} model=${JSON.stringify(body.model)} path=${path} anthropic-beta=${JSON.stringify(req.headers["anthropic-beta"] ?? null)} errbody=${text.slice(0, 500)}`
+          `[mesh-debug] upstream ${upstreamResponse.status} model=${JSON.stringify(body.model)} path=${path} anthropic-beta=${JSON.stringify(req.headers["anthropic-beta"] ?? null)} errbody=${text.slice(0, 500)}`
         );
       }
       let responseShaped;
@@ -2521,19 +2731,19 @@ ${provider}`;
     handle(req, res).catch(() => {
       if (!res.headersSent) {
         res.writeHead(500, { "content-type": "application/json" });
-        res.end(JSON.stringify({ error: "FLUX proxy internal error." }));
+        res.end(JSON.stringify({ error: "MESH proxy internal error." }));
       } else {
         res.end();
       }
     });
   });
   server.maxConnections = 256;
-  return new Promise((resolve2, reject) => {
+  return new Promise((resolve3, reject) => {
     server.once("error", reject);
     server.listen(options.port ?? 0, "127.0.0.1", () => {
       const address = server.address();
       const port = typeof address === "object" && address !== null ? address.port : options.port ?? 0;
-      resolve2({
+      resolve3({
         port,
         url: `http://127.0.0.1:${port}`,
         close: () => new Promise((done, fail) => server.close((err) => err ? fail(err) : done()))
@@ -2678,13 +2888,134 @@ var init_theo_policy = __esm({
   }
 });
 
+// packages/cli/src/update.ts
+var update_exports = {};
+__export(update_exports, {
+  pullNewerRuntime: () => pullNewerRuntime,
+  runUpdate: () => runUpdate
+});
+import { createHash as createHash6 } from "node:crypto";
+import { copyFileSync, existsSync as existsSync2, mkdirSync as mkdirSync3, readFileSync as readFileSync2, writeFileSync } from "node:fs";
+import { homedir } from "node:os";
+import { join as join2 } from "node:path";
+function read(path) {
+  try {
+    return readFileSync2(path, "utf8").trim();
+  } catch {
+    return null;
+  }
+}
+async function pullNewerRuntime() {
+  mkdirSync3(DIR, { recursive: true });
+  const have = existsSync2(VERSION_FILE) ? read(VERSION_FILE) : null;
+  let manifest;
+  try {
+    const res = await fetch(`${BASE}/mesh-version.json`);
+    if (!res.ok) return null;
+    manifest = await res.json();
+  } catch {
+    return null;
+  }
+  if (have === manifest.version) return null;
+  let bytes;
+  try {
+    const res = await fetch(`${BASE}/${manifest.runtime ?? "mesh-runtime"}`);
+    if (!res.ok) return null;
+    bytes = Buffer.from(await res.arrayBuffer());
+  } catch {
+    return null;
+  }
+  if (createHash6("sha256").update(bytes).digest("hex") !== manifest.sha256) return null;
+  if (existsSync2(RUNTIME)) {
+    copyFileSync(RUNTIME, BACKUP);
+    if (have !== null) writeFileSync(BACKUP_VERSION, have);
+    if (existsSync2(SHA_FILE)) copyFileSync(SHA_FILE, BACKUP_SHA);
+  }
+  writeFileSync(RUNTIME, bytes);
+  writeFileSync(VERSION_FILE, manifest.version);
+  writeFileSync(SHA_FILE, manifest.sha256);
+  return manifest.version;
+}
+function rollback() {
+  if (!existsSync2(BACKUP)) {
+    console.error("No previous runtime to roll back to.");
+    process.exit(1);
+  }
+  copyFileSync(BACKUP, RUNTIME);
+  const prev = read(BACKUP_VERSION) ?? "previous";
+  writeFileSync(VERSION_FILE, prev);
+  if (existsSync2(BACKUP_SHA)) copyFileSync(BACKUP_SHA, SHA_FILE);
+  console.log(`Rolled back to ${prev}.`);
+}
+async function runUpdate(argv) {
+  if (argv.includes("--rollback")) {
+    rollback();
+    return;
+  }
+  mkdirSync3(DIR, { recursive: true });
+  const have = existsSync2(VERSION_FILE) ? read(VERSION_FILE) : null;
+  let manifest;
+  try {
+    const res = await fetch(`${BASE}/mesh-version.json`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    manifest = await res.json();
+  } catch (error) {
+    console.error(`Couldn't reach ${BASE} to check for updates (${String(error)}).`);
+    process.exit(1);
+  }
+  if (have === manifest.version) {
+    console.log(`Already up to date (${have}).`);
+    return;
+  }
+  process.stdout.write(`Updating ${have ?? "(none)"} \u2192 ${manifest.version}\u2026 `);
+  let bytes;
+  try {
+    const res = await fetch(`${BASE}/${manifest.runtime ?? "mesh-runtime"}`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    bytes = Buffer.from(await res.arrayBuffer());
+  } catch (error) {
+    console.log("failed");
+    console.error(String(error));
+    process.exit(1);
+  }
+  if (createHash6("sha256").update(bytes).digest("hex") !== manifest.sha256) {
+    console.log("failed");
+    console.error("The downloaded runtime failed its checksum \u2014 refusing to install it.");
+    process.exit(1);
+  }
+  if (existsSync2(RUNTIME)) {
+    copyFileSync(RUNTIME, BACKUP);
+    if (have !== null) writeFileSync(BACKUP_VERSION, have);
+    if (existsSync2(SHA_FILE)) copyFileSync(SHA_FILE, BACKUP_SHA);
+  }
+  writeFileSync(RUNTIME, bytes);
+  writeFileSync(VERSION_FILE, manifest.version);
+  writeFileSync(SHA_FILE, manifest.sha256);
+  console.log("done.");
+  console.log(`Now on ${manifest.version}. Roll back with: mesh update --rollback`);
+}
+var BASE, DIR, RUNTIME, VERSION_FILE, SHA_FILE, BACKUP, BACKUP_VERSION, BACKUP_SHA;
+var init_update = __esm({
+  "packages/cli/src/update.ts"() {
+    BASE = (process.env.MESH_BASE_URL ?? "https://www.fluxtoken.dev").replace(/\/$/, "");
+    DIR = join2(homedir(), ".mesh", "runtime");
+    RUNTIME = join2(DIR, "mesh-runtime.mjs");
+    VERSION_FILE = join2(DIR, "version");
+    SHA_FILE = join2(DIR, "sha256");
+    BACKUP = join2(DIR, "mesh-runtime.previous.mjs");
+    BACKUP_VERSION = join2(DIR, "version.previous");
+    BACKUP_SHA = join2(DIR, "sha256.previous");
+  }
+});
+
 // packages/cli/src/start.ts
 var start_exports = {};
 __export(start_exports, {
   BUILD_COMMIT: () => BUILD_COMMIT,
   CLAUDE_SETTINGS: () => CLAUDE_SETTINGS,
   DEFAULT_PORT: () => DEFAULT_PORT,
-  FLUX_HOME: () => FLUX_HOME,
+  MESH_HOME: () => MESH_HOME,
+  readLedger: () => readLedger,
   runServe: () => runServe,
   runStart: () => runStart,
   startProxyWithPolicy: () => startProxyWithPolicy,
@@ -2692,26 +3023,37 @@ __export(start_exports, {
 });
 import { randomBytes } from "node:crypto";
 import {
-  existsSync as existsSync2,
-  mkdirSync as mkdirSync3,
-  readFileSync as readFileSync2,
+  existsSync as existsSync3,
+  mkdirSync as mkdirSync4,
+  readFileSync as readFileSync3,
   readdirSync,
-  writeFileSync
+  writeFileSync as writeFileSync2
 } from "node:fs";
-import { homedir } from "node:os";
-import { join as join2 } from "node:path";
+import { homedir as homedir2 } from "node:os";
+import { join as join3 } from "node:path";
 function parseStart(argv) {
-  const args = { port: 8787, ledgerDir: join2(FLUX_HOME, "ledger"), install: true };
+  const args = {
+    port: 8787,
+    ledgerDir: join3(MESH_HOME, "ledger"),
+    install: true,
+    // Env defaults so the background service (mesh serve) can be pointed at an
+    // OpenAI-compatible provider too, not just the foreground command.
+    anthropicUpstream: process.env.MESH_ANTHROPIC_UPSTREAM,
+    openaiUpstream: process.env.MESH_OPENAI_UPSTREAM
+  };
   for (let i = 0; i < argv.length; i += 1) {
     const key = argv[i];
     if (key === "--help" || key === "-h") {
       console.log(
-        `Usage: flux start [options]
+        `Usage: mesh start [options]
 
-  --port <n>       Port for the local proxy (default 8787).
-  --ledger <dir>   Where to write the hash-chained ledger (default ~/.flux/ledger).
-  --no-install     Don't touch ~/.claude/settings.json; just run the proxy.
-  --help           Show this message.`
+  --port <n>              Port for the local proxy (default 8787).
+  --ledger <dir>          Where to write the hash-chained ledger (default ~/.mesh/ledger).
+  --openai-base <url>     Send OpenAI-style traffic to this host instead of api.openai.com \u2014
+                          any OpenAI-compatible provider (Grok, DeepSeek, Mistral, Llama, \u2026).
+  --anthropic-base <url>  Send Anthropic traffic to this host instead of api.anthropic.com.
+  --no-install            Don't touch ~/.claude/settings.json; just run the proxy.
+  --help                  Show this message.`
       );
       process.exit(0);
     }
@@ -2724,59 +3066,64 @@ function parseStart(argv) {
     i += 1;
     if (key === "--port") args.port = Number.parseInt(value, 10);
     else if (key === "--ledger") args.ledgerDir = value;
-    else throw new Error(`Unknown option: ${key}. See flux start --help.`);
+    else if (key === "--openai-base") args.openaiUpstream = value;
+    else if (key === "--anthropic-base") args.anthropicUpstream = value;
+    else throw new Error(`Unknown option: ${key}. See mesh start --help.`);
   }
   if (!Number.isInteger(args.port) || args.port < 0 || args.port > 65535) throw new Error("--port must be 0-65535.");
+  for (const url of [args.anthropicUpstream, args.openaiUpstream]) {
+    if (url !== void 0 && !/^https?:\/\//.test(url)) throw new Error(`Upstream must be an http(s) URL: ${url}`);
+  }
   return args;
 }
 function blindKey() {
-  const path = join2(FLUX_HOME, "blind.key");
-  if (existsSync2(path)) return readFileSync2(path, "utf8").trim();
+  const path = join3(MESH_HOME, "blind.key");
+  if (existsSync3(path)) return readFileSync3(path, "utf8").trim();
   const key = randomBytes(32).toString("hex");
-  writeFileSync(path, key, { mode: 384 });
+  writeFileSync2(path, key, { mode: 384 });
   return key;
 }
 function configureClaudeCode(baseUrl) {
-  mkdirSync3(join2(homedir(), ".claude"), { recursive: true });
+  mkdirSync4(join3(homedir2(), ".claude"), { recursive: true });
   let settings = {};
   let hadFile = false;
-  if (existsSync2(CLAUDE_SETTINGS)) {
+  if (existsSync3(CLAUDE_SETTINGS)) {
     hadFile = true;
     try {
-      settings = JSON.parse(readFileSync2(CLAUDE_SETTINGS, "utf8"));
+      settings = JSON.parse(readFileSync3(CLAUDE_SETTINGS, "utf8"));
     } catch {
-      throw new Error(`~/.claude/settings.json isn't valid JSON \u2014 fix or move it, then re-run. FLUX won't overwrite it.`);
+      throw new Error(`~/.claude/settings.json isn't valid JSON \u2014 fix or move it, then re-run. MESH won't overwrite it.`);
     }
   }
   const env = { ...settings.env ?? {} };
   const priorBaseUrl = env.ANTHROPIC_BASE_URL;
   env.ANTHROPIC_BASE_URL = baseUrl;
-  writeFileSync(CLAUDE_SETTINGS, `${JSON.stringify({ ...settings, env }, null, 2)}
+  writeFileSync2(CLAUDE_SETTINGS, `${JSON.stringify({ ...settings, env }, null, 2)}
 `);
   return function restore() {
     try {
-      const now = JSON.parse(readFileSync2(CLAUDE_SETTINGS, "utf8"));
+      const now = JSON.parse(readFileSync3(CLAUDE_SETTINGS, "utf8"));
       const nowEnv = { ...now.env ?? {} };
       if (priorBaseUrl === void 0) delete nowEnv.ANTHROPIC_BASE_URL;
       else nowEnv.ANTHROPIC_BASE_URL = priorBaseUrl;
       const next = { ...now, env: nowEnv };
       if (Object.keys(nowEnv).length === 0) delete next.env;
       if (!hadFile && Object.keys(next).length === 0) return;
-      writeFileSync(CLAUDE_SETTINGS, `${JSON.stringify(next, null, 2)}
+      writeFileSync2(CLAUDE_SETTINGS, `${JSON.stringify(next, null, 2)}
 `);
     } catch {
     }
   };
 }
-function summariseLedger(ledgerDir) {
-  if (!existsSync2(ledgerDir)) return { events: 0, savedUsd: 0, verdict: "do_not_charge", chainOk: true };
+function readLedger(ledgerDir) {
+  if (!existsSync3(ledgerDir)) return { records: [], chainOk: true };
   const spools = readdirSync(ledgerDir).filter((f) => f.endsWith(".jsonl") && !f.endsWith(".features.jsonl"));
   const allRecords = [];
   let chainOk = true;
   let brokenAt;
   for (const spool of spools) {
     const records = [];
-    const raw = readFileSync2(join2(ledgerDir, spool), "utf8").trim();
+    const raw = readFileSync3(join3(ledgerDir, spool), "utf8").trim();
     if (raw === "") continue;
     for (const line of raw.split(/\r?\n/)) {
       if (line.trim() === "") continue;
@@ -2792,36 +3139,44 @@ function summariseLedger(ledgerDir) {
     }
     allRecords.push(...records);
   }
-  if (allRecords.length === 0) return { events: 0, savedUsd: 0, verdict: "do_not_charge", chainOk };
-  const invoice = recomputeInvoice(allRecords.map((r) => r.event));
+  return { records: allRecords, chainOk, ...brokenAt === void 0 ? {} : { brokenAt } };
+}
+function summariseLedger(ledgerDir) {
+  const { records, chainOk, brokenAt } = readLedger(ledgerDir);
+  if (records.length === 0) return { events: 0, savedUsd: 0, verdict: "do_not_charge", chainOk, ...brokenAt === void 0 ? {} : { brokenAt } };
+  const invoice = recomputeInvoice(records.map((r) => r.event));
   return {
-    events: allRecords.length,
+    events: records.length,
     savedUsd: invoice.netVerifiedSavingsUsd,
     verdict: invoice.verdict,
     chainOk,
-    brokenAt
+    ...brokenAt === void 0 ? {} : { brokenAt }
   };
 }
-async function startProxyWithPolicy(port, ledgerDir) {
-  mkdirSync3(FLUX_HOME, { recursive: true });
-  mkdirSync3(ledgerDir, { recursive: true });
-  const policyPath = join2(FLUX_HOME, "theo-policy.json");
-  const policy = existsSync2(policyPath) ? JSON.parse(readFileSync2(policyPath, "utf8")) : defaultPolicy("local", (/* @__PURE__ */ new Date()).toISOString());
-  if (!existsSync2(policyPath)) writeFileSync(policyPath, `${JSON.stringify(policy, null, 2)}
+async function startProxyWithPolicy(port, ledgerDir, upstreams = {}) {
+  mkdirSync4(MESH_HOME, { recursive: true });
+  mkdirSync4(ledgerDir, { recursive: true });
+  const policyPath = join3(MESH_HOME, "theo-policy.json");
+  const policy = existsSync3(policyPath) ? JSON.parse(readFileSync3(policyPath, "utf8")) : defaultPolicy("local", (/* @__PURE__ */ new Date()).toISOString());
+  if (!existsSync3(policyPath)) writeFileSync2(policyPath, `${JSON.stringify(policy, null, 2)}
 `);
-  const proxy = await startFluxProxy({
+  const proxy = await startMeshProxy({
     port,
     ledgerDirectory: ledgerDir,
     tokenReduction: policyToReductionConfig(policy),
-    blindFeaturesKey: blindKey()
+    blindFeaturesKey: blindKey(),
+    ...upstreams.anthropicUpstream ? { anthropicUpstream: upstreams.anthropicUpstream } : {},
+    ...upstreams.openaiUpstream ? { openaiUpstream: upstreams.openaiUpstream } : {}
   });
   return { proxy, policy };
 }
 async function runServe(argv) {
   const args = parseStart(argv);
-  const { proxy } = await startProxyWithPolicy(args.port, args.ledgerDir);
+  const { proxy } = await startProxyWithPolicy(args.port, args.ledgerDir, args);
   const stamp = () => (/* @__PURE__ */ new Date()).toISOString();
-  console.log(`[${stamp()}] flux serve \xB7 build ${BUILD_COMMIT} \xB7 proxy ${proxy.url} \xB7 ledger ${args.ledgerDir}`);
+  console.log(`[${stamp()}] mesh serve \xB7 build ${BUILD_COMMIT} \xB7 proxy ${proxy.url} \xB7 ledger ${args.ledgerDir}`);
+  if (args.openaiUpstream) console.log(`[${stamp()}] openai-style upstream \u2192 ${args.openaiUpstream}`);
+  if (args.anthropicUpstream) console.log(`[${stamp()}] anthropic upstream \u2192 ${args.anthropicUpstream}`);
   let lastEvents = -1;
   const monitor = setInterval(() => {
     const s = summariseLedger(args.ledgerDir);
@@ -2833,8 +3188,26 @@ async function runServe(argv) {
     lastEvents = s.events;
     console.log(`[${stamp()}] ${T} ${s.events} requests \xB7 $${s.savedUsd.toFixed(4)} verified saved (${s.verdict})`);
   }, 1e4);
+  const UPDATE_CHECK_MS = 6 * 60 * 60 * 1e3;
+  const autoUpdate = process.env.MESH_NO_AUTO_UPDATE === void 0 && BUILD_COMMIT !== "dev";
+  const updateTimer = autoUpdate ? setInterval(() => {
+    void (async () => {
+      try {
+        const next = await pullNewerRuntime();
+        if (next && next !== BUILD_COMMIT) {
+          console.log(`[${stamp()}] ${T} runtime updated ${BUILD_COMMIT} \u2192 ${next}; restarting to apply.`);
+          clearInterval(monitor);
+          clearInterval(updateTimer);
+          await proxy.close();
+          process.exit(0);
+        }
+      } catch {
+      }
+    })();
+  }, UPDATE_CHECK_MS) : void 0;
   const shutdown = async () => {
     clearInterval(monitor);
+    if (updateTimer) clearInterval(updateTimer);
     await proxy.close();
     process.exit(0);
   };
@@ -2849,18 +3222,21 @@ async function runServe(argv) {
 }
 async function runStart(argv) {
   const args = parseStart(argv);
-  const { proxy, policy } = await startProxyWithPolicy(args.port, args.ledgerDir);
+  const { proxy, policy } = await startProxyWithPolicy(args.port, args.ledgerDir, args);
   const restore = args.install ? configureClaudeCode(proxy.url) : () => {
   };
   const withheld = withheldLevers(policy);
   console.log("");
-  console.log(`  FLUX is running  \xB7  build ${BUILD_COMMIT}`);
+  console.log(`  MESH is running  \xB7  build ${BUILD_COMMIT}`);
   console.log(`  proxy    ${proxy.url}`);
-  console.log(`  ledger   ${args.ledgerDir}  (hash-chained; recompute any time with: flux verify)`);
-  if (args.install) console.log(`  claude   pointed at FLUX via ~/.claude/settings.json  (restored on exit)`);
+  console.log(`  ledger   ${args.ledgerDir}  (hash-chained; recompute any time with: mesh verify)`);
+  if (args.install) console.log(`  claude   pointed at MESH via ~/.claude/settings.json  (restored on exit)`);
   else console.log(`  claude   not configured (--no-install); set ANTHROPIC_BASE_URL=${proxy.url} yourself`);
+  console.log(`  openai   point any OpenAI-style client here: OPENAI_BASE_URL=${proxy.url}/v1  (keep your own key)`);
+  if (args.openaiUpstream) console.log(`  upstream OpenAI-style traffic \u2192 ${args.openaiUpstream}`);
+  if (args.anthropicUpstream) console.log(`  upstream Anthropic traffic \u2192 ${args.anthropicUpstream}`);
   console.log("");
-  console.log(`  ${T} \u2014 I'm watching your traffic. I only ever tune FLUX, never your prompts`);
+  console.log(`  ${T} \u2014 I'm watching your traffic. I only ever tune MESH, never your prompts`);
   console.log(`  ${T}   or answers. Everything I report is verified from your provider's own`);
   console.log(`  ${T}   usage \u2014 never an estimate.`);
   if (withheld.length > 0) {
@@ -2874,7 +3250,7 @@ async function runStart(argv) {
   const tick = () => {
     const s = summariseLedger(args.ledgerDir);
     if (!s.chainOk) {
-      console.log(`  ${T} \u2014 \u26A0 ledger chain check failed at ${s.brokenAt}. Stop and run: flux verify`);
+      console.log(`  ${T} \u2014 \u26A0 ledger chain check failed at ${s.brokenAt}. Stop and run: mesh verify`);
       return;
     }
     if (s.events === lastEvents) return;
@@ -2896,9 +3272,9 @@ async function runStart(argv) {
     console.log("");
     if (s.events > 0) {
       console.log(`  ${T} \u2014 session done: ${s.events} request${s.events === 1 ? "" : "s"}, $${s.savedUsd.toFixed(4)} verified saved.`);
-      console.log(`  ${T}   Recompute it yourself any time: flux verify`);
+      console.log(`  ${T}   Recompute it yourself any time: mesh verify`);
     } else {
-      console.log(`  ${T} \u2014 no requests ran through FLUX this session.`);
+      console.log(`  ${T} \u2014 no requests ran through MESH this session.`);
     }
     console.log(`  Claude Code restored. Bye.`);
     process.exit(0);
@@ -2912,15 +3288,16 @@ async function runStart(argv) {
   await new Promise(() => {
   });
 }
-var BUILD_COMMIT, FLUX_HOME, CLAUDE_SETTINGS, DEFAULT_PORT, T;
+var BUILD_COMMIT, MESH_HOME, CLAUDE_SETTINGS, DEFAULT_PORT, T;
 var init_start = __esm({
   "packages/cli/src/start.ts"() {
     init_savings_ledger();
     init_proxy();
     init_theo_policy();
-    BUILD_COMMIT = true ? "59b981f" : process.env.FLUX_BUILD_COMMIT ?? "dev";
-    FLUX_HOME = join2(homedir(), ".flux");
-    CLAUDE_SETTINGS = join2(homedir(), ".claude", "settings.json");
+    init_update();
+    BUILD_COMMIT = true ? "d7b8628" : process.env.MESH_BUILD_COMMIT ?? "dev";
+    MESH_HOME = join3(homedir2(), ".mesh");
+    CLAUDE_SETTINGS = join3(homedir2(), ".claude", "settings.json");
     DEFAULT_PORT = 8787;
     T = "\u2B22 theo";
   }
@@ -2936,13 +3313,13 @@ __export(daemon_exports, {
 });
 import { connect } from "node:net";
 import { execFileSync } from "node:child_process";
-import { chmodSync, copyFileSync, existsSync as existsSync3, mkdirSync as mkdirSync4, readFileSync as readFileSync3, rmSync, writeFileSync as writeFileSync2 } from "node:fs";
-import { homedir as homedir2, platform } from "node:os";
-import { dirname as dirname2, join as join3, resolve } from "node:path";
+import { chmodSync, copyFileSync as copyFileSync2, existsSync as existsSync4, mkdirSync as mkdirSync5, readFileSync as readFileSync4, rmSync, writeFileSync as writeFileSync3 } from "node:fs";
+import { homedir as homedir3, platform } from "node:os";
+import { dirname as dirname2, join as join4, resolve } from "node:path";
 function requireMac(action) {
   if (platform() !== "darwin") {
-    console.error(`\`flux ${action}\` uses macOS launchd and isn't wired for this platform yet.`);
-    console.error(`Use \`flux start\` instead \u2014 it does the same thing while it's running.`);
+    console.error(`\`mesh ${action}\` uses macOS launchd and isn't wired for this platform yet.`);
+    console.error(`Use \`mesh start\` instead \u2014 it does the same thing while it's running.`);
     process.exit(1);
   }
 }
@@ -2983,28 +3360,28 @@ function portUp(port, timeoutMs = 800) {
   });
 }
 function setClaudeBaseUrl(url) {
-  mkdirSync4(dirname2(CLAUDE_SETTINGS), { recursive: true });
+  mkdirSync5(dirname2(CLAUDE_SETTINGS), { recursive: true });
   let settings = {};
-  if (existsSync3(CLAUDE_SETTINGS)) {
+  if (existsSync4(CLAUDE_SETTINGS)) {
     try {
-      settings = JSON.parse(readFileSync3(CLAUDE_SETTINGS, "utf8"));
+      settings = JSON.parse(readFileSync4(CLAUDE_SETTINGS, "utf8"));
     } catch {
-      throw new Error("~/.claude/settings.json isn't valid JSON \u2014 fix it first; FLUX won't overwrite it.");
+      throw new Error("~/.claude/settings.json isn't valid JSON \u2014 fix it first; MESH won't overwrite it.");
     }
   }
   const env = { ...settings.env ?? {}, ANTHROPIC_BASE_URL: url };
-  writeFileSync2(CLAUDE_SETTINGS, `${JSON.stringify({ ...settings, env }, null, 2)}
+  writeFileSync3(CLAUDE_SETTINGS, `${JSON.stringify({ ...settings, env }, null, 2)}
 `);
 }
 function clearClaudeBaseUrl() {
-  if (!existsSync3(CLAUDE_SETTINGS)) return;
+  if (!existsSync4(CLAUDE_SETTINGS)) return;
   try {
-    const settings = JSON.parse(readFileSync3(CLAUDE_SETTINGS, "utf8"));
+    const settings = JSON.parse(readFileSync4(CLAUDE_SETTINGS, "utf8"));
     const env = { ...settings.env ?? {} };
     delete env.ANTHROPIC_BASE_URL;
     const next = { ...settings, env };
     if (Object.keys(env).length === 0) delete next.env;
-    writeFileSync2(CLAUDE_SETTINGS, `${JSON.stringify(next, null, 2)}
+    writeFileSync3(CLAUDE_SETTINGS, `${JSON.stringify(next, null, 2)}
 `);
   } catch {
   }
@@ -3029,16 +3406,16 @@ ${argXml}
 </dict>
 </plist>
 `;
-  mkdirSync4(dirname2(PLIST), { recursive: true });
-  writeFileSync2(PLIST, plist);
+  mkdirSync5(dirname2(PLIST), { recursive: true });
+  writeFileSync3(PLIST, plist);
 }
 async function runInstall(argv) {
   requireMac("install");
   const port = parsePort(argv);
-  mkdirSync4(join3(FLUX_HOME, "bin"), { recursive: true });
-  mkdirSync4(DEFAULT_LEDGER, { recursive: true });
-  const self = resolve(process.env.FLUX_BOOTSTRAP_PATH ?? process.argv[1] ?? "");
-  if (self !== STABLE_BIN) copyFileSync(self, STABLE_BIN);
+  mkdirSync5(join4(MESH_HOME, "bin"), { recursive: true });
+  mkdirSync5(DEFAULT_LEDGER, { recursive: true });
+  const self = resolve(process.env.MESH_BOOTSTRAP_PATH ?? process.argv[1] ?? "");
+  if (self !== STABLE_BIN) copyFileSync2(self, STABLE_BIN);
   chmodSync(STABLE_BIN, 493);
   if (isLoaded()) launchctl("unload", PLIST);
   writePlist(port);
@@ -3051,17 +3428,17 @@ async function runInstall(argv) {
   }
   console.log("");
   if (up) {
-    console.log(`  \u2B22 theo \u2014 FLUX is now always on.  build ${BUILD_COMMIT}`);
+    console.log(`  \u2B22 theo \u2014 MESH is now always on.  build ${BUILD_COMMIT}`);
     console.log(`  service  launchd ${LABEL} (starts at login, restarts if it stops)`);
     console.log(`  proxy    http://127.0.0.1:${port}  \xB7  ledger ${DEFAULT_LEDGER}`);
-    console.log(`  claude   pointed at FLUX permanently via ~/.claude/settings.json`);
+    console.log(`  claude   pointed at MESH permanently via ~/.claude/settings.json`);
     console.log(`  log      ${DAEMON_LOG}`);
     console.log("");
-    console.log(`  Just use Claude Code \u2014 every session is optimised. Check savings with: flux status`);
-    console.log(`  Turn it off any time with: flux uninstall`);
+    console.log(`  Just use Claude Code \u2014 every session is optimised. Check savings with: mesh status`);
+    console.log(`  Turn it off any time with: mesh uninstall`);
   } else {
     console.log(`  \u26A0 The service was installed but the proxy didn't answer on port ${port}.`);
-    console.log(`  Check ${DAEMON_LOG}, then re-run \`flux install\`, or use \`flux start\` instead.`);
+    console.log(`  Check ${DAEMON_LOG}, then re-run \`mesh install\`, or use \`mesh start\` instead.`);
     process.exitCode = 1;
   }
   console.log("");
@@ -3073,23 +3450,23 @@ function runUninstall(_argv) {
   clearClaudeBaseUrl();
   console.log("");
   console.log(`  \u2B22 theo \u2014 always-on removed. The service is stopped and Claude Code is back to normal.`);
-  console.log(`  Your ledger is kept at ${DEFAULT_LEDGER} \u2014 recompute any time with: flux verify`);
+  console.log(`  Your ledger is kept at ${DEFAULT_LEDGER} \u2014 recompute any time with: mesh verify`);
   console.log("");
 }
 function runStop(_argv) {
   requireMac("stop");
   if (!isLoaded()) {
     console.log("");
-    console.log(`  No FLUX background service is running.`);
-    console.log(`  (A foreground \`flux start\` is stopped with Ctrl+C.)`);
+    console.log(`  No MESH background service is running.`);
+    console.log(`  (A foreground \`mesh start\` is stopped with Ctrl+C.)`);
     console.log("");
     return;
   }
   launchctl("unload", "-w", PLIST);
   clearClaudeBaseUrl();
   console.log("");
-  console.log(`  \u2B22 theo \u2014 FLUX service stopped. Claude Code is back to normal.`);
-  console.log(`  The service is kept \u2014 resume always-on any time with: flux install`);
+  console.log(`  \u2B22 theo \u2014 MESH service stopped. Claude Code is back to normal.`);
+  console.log(`  The service is kept \u2014 resume always-on any time with: mesh install`);
   console.log(`  Your ledger is untouched.`);
   console.log("");
 }
@@ -3099,7 +3476,7 @@ async function runStatus(_argv) {
   const up = await portUp(port);
   const s = summariseLedger(DEFAULT_LEDGER);
   console.log("");
-  console.log(`  flux status \u2014 build ${BUILD_COMMIT}`);
+  console.log(`  mesh status \u2014 build ${BUILD_COMMIT}`);
   console.log(`  service   ${loaded ? "installed (launchd)" : "not installed"}`);
   console.log(`  proxy     ${up ? `up on http://127.0.0.1:${port}` : "not responding"}`);
   if (s.events > 0) {
@@ -3117,99 +3494,11 @@ var LABEL, PLIST, DAEMON_LOG, STABLE_BIN, DEFAULT_LEDGER;
 var init_daemon = __esm({
   "packages/cli/src/daemon.ts"() {
     init_start();
-    LABEL = "dev.fluxtoken.flux";
-    PLIST = join3(homedir2(), "Library", "LaunchAgents", `${LABEL}.plist`);
-    DAEMON_LOG = join3(FLUX_HOME, "daemon.log");
-    STABLE_BIN = join3(FLUX_HOME, "bin", "flux");
-    DEFAULT_LEDGER = join3(FLUX_HOME, "ledger");
-  }
-});
-
-// packages/cli/src/update.ts
-var update_exports = {};
-__export(update_exports, {
-  runUpdate: () => runUpdate
-});
-import { createHash as createHash6 } from "node:crypto";
-import { copyFileSync as copyFileSync2, existsSync as existsSync4, mkdirSync as mkdirSync5, readFileSync as readFileSync4, writeFileSync as writeFileSync3 } from "node:fs";
-import { homedir as homedir3 } from "node:os";
-import { join as join4 } from "node:path";
-function read(path) {
-  try {
-    return readFileSync4(path, "utf8").trim();
-  } catch {
-    return null;
-  }
-}
-function rollback() {
-  if (!existsSync4(BACKUP)) {
-    console.error("No previous runtime to roll back to.");
-    process.exit(1);
-  }
-  copyFileSync2(BACKUP, RUNTIME);
-  const prev = read(BACKUP_VERSION) ?? "previous";
-  writeFileSync3(VERSION_FILE, prev);
-  if (existsSync4(BACKUP_SHA)) copyFileSync2(BACKUP_SHA, SHA_FILE);
-  console.log(`Rolled back to ${prev}.`);
-}
-async function runUpdate(argv) {
-  if (argv.includes("--rollback")) {
-    rollback();
-    return;
-  }
-  mkdirSync5(DIR, { recursive: true });
-  const have = existsSync4(VERSION_FILE) ? read(VERSION_FILE) : null;
-  let manifest;
-  try {
-    const res = await fetch(`${BASE}/flux-version.json`);
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    manifest = await res.json();
-  } catch (error) {
-    console.error(`Couldn't reach ${BASE} to check for updates (${String(error)}).`);
-    process.exit(1);
-  }
-  if (have === manifest.version) {
-    console.log(`Already up to date (${have}).`);
-    return;
-  }
-  process.stdout.write(`Updating ${have ?? "(none)"} \u2192 ${manifest.version}\u2026 `);
-  let bytes;
-  try {
-    const res = await fetch(`${BASE}/${manifest.runtime ?? "flux-runtime"}`);
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    bytes = Buffer.from(await res.arrayBuffer());
-  } catch (error) {
-    console.log("failed");
-    console.error(String(error));
-    process.exit(1);
-  }
-  if (createHash6("sha256").update(bytes).digest("hex") !== manifest.sha256) {
-    console.log("failed");
-    console.error("The downloaded runtime failed its checksum \u2014 refusing to install it.");
-    process.exit(1);
-  }
-  if (existsSync4(RUNTIME)) {
-    copyFileSync2(RUNTIME, BACKUP);
-    if (have !== null) writeFileSync3(BACKUP_VERSION, have);
-    if (existsSync4(SHA_FILE)) copyFileSync2(SHA_FILE, BACKUP_SHA);
-  }
-  writeFileSync3(RUNTIME, bytes);
-  writeFileSync3(VERSION_FILE, manifest.version);
-  writeFileSync3(SHA_FILE, manifest.sha256);
-  console.log("done.");
-  console.log(`Now on ${manifest.version}. Roll back with: flux update --rollback`);
-}
-var BASE, DIR, RUNTIME, VERSION_FILE, SHA_FILE, BACKUP, BACKUP_VERSION, BACKUP_SHA;
-var init_update = __esm({
-  "packages/cli/src/update.ts"() {
-    BASE = (process.env.FLUX_BASE_URL ?? "https://www.fluxtoken.dev").replace(/\/$/, "");
-    DIR = join4(homedir3(), ".flux", "runtime");
-    RUNTIME = join4(DIR, "flux-runtime.mjs");
-    VERSION_FILE = join4(DIR, "version");
-    SHA_FILE = join4(DIR, "sha256");
-    BACKUP = join4(DIR, "flux-runtime.previous.mjs");
-    BACKUP_VERSION = join4(DIR, "version.previous");
-    BACKUP_SHA = join4(DIR, "sha256.previous");
+    LABEL = "dev.meshtoken.mesh";
+    PLIST = join4(homedir3(), "Library", "LaunchAgents", `${LABEL}.plist`);
+    DAEMON_LOG = join4(MESH_HOME, "daemon.log");
+    STABLE_BIN = join4(MESH_HOME, "bin", "mesh");
+    DEFAULT_LEDGER = join4(MESH_HOME, "ledger");
   }
 });
 
@@ -3242,8 +3531,8 @@ function sampleRequest() {
 }
 async function runVerify(_argv) {
   const checks = [];
-  const runtimeDir = join5(homedir4(), ".flux", "runtime");
-  const runtimeFile = join5(runtimeDir, "flux-runtime.mjs");
+  const runtimeDir = join5(homedir4(), ".mesh", "runtime");
+  const runtimeFile = join5(runtimeDir, "mesh-runtime.mjs");
   const recordedSha = existsSync5(join5(runtimeDir, "sha256")) ? readFileSync5(join5(runtimeDir, "sha256"), "utf8").trim() : null;
   if (recordedSha !== null && existsSync5(runtimeFile)) {
     const actual = createHash7("sha256").update(readFileSync5(runtimeFile)).digest("hex");
@@ -3263,7 +3552,7 @@ async function runVerify(_argv) {
     detail: reducerOk ? `lossless: ${summary.estimatedTokensBefore} \u2192 ${summary.estimatedTokensAfter} tokens (\u2212${summary.estimatedLosslessTokensSaved}), ${summary.changes.length} lever(s)` : `reducer did not fire (${summary.skippedReason ?? "no lossless saving"})`
   });
   if (!existsSync5(LEDGER_DIR) || readdirSync2(LEDGER_DIR).filter((f) => f.endsWith(".jsonl") && !f.endsWith(".features.jsonl")).length === 0) {
-    checks.push({ name: "ledger", ok: true, detail: "no ledger yet \u2014 run `flux start` and use Claude Code, then verify again" });
+    checks.push({ name: "ledger", ok: true, detail: "no ledger yet \u2014 run `mesh start` and use Claude Code, then verify again" });
     checks.push({ name: "determinism", ok: true, detail: "nothing to recompute yet" });
   } else {
     const spools = readdirSync2(LEDGER_DIR).filter((f) => f.endsWith(".jsonl") && !f.endsWith(".features.jsonl"));
@@ -3304,7 +3593,7 @@ async function runVerify(_argv) {
     });
   }
   console.log("");
-  console.log(`  flux verify \u2014 build ${BUILD_COMMIT}`);
+  console.log(`  mesh verify \u2014 build ${BUILD_COMMIT}`);
   console.log("");
   let allOk = true;
   for (const c of checks) {
@@ -3312,7 +3601,7 @@ async function runVerify(_argv) {
     console.log(`  ${c.ok ? "\u2713" : "\u2717"} ${c.name.padEnd(12)} ${c.detail}`);
   }
   console.log("");
-  console.log(`  Savings are measured from your provider's own reported usage, never FLUX's estimate.`);
+  console.log(`  Savings are measured from your provider's own reported usage, never MESH's estimate.`);
   console.log(`  The ledger is yours; this command recomputes the invoice from it with no network calls.`);
   console.log("");
   console.log(allOk ? `  All checks passed.` : `  SOME CHECKS FAILED \u2014 see above.`);
@@ -3324,7 +3613,7 @@ var init_verify = __esm({
     init_savings_ledger();
     init_reduce_request();
     init_start();
-    LEDGER_DIR = join5(homedir4(), ".flux", "ledger");
+    LEDGER_DIR = join5(homedir4(), ".mesh", "ledger");
   }
 });
 
@@ -3367,7 +3656,7 @@ function runVersion(argv) {
     console.log(JSON.stringify(info));
     return;
   }
-  console.log(`flux ${info.version} (build ${info.build}) \xB7 node ${info.node} \xB7 ${info.platform}`);
+  console.log(`mesh ${info.version} (build ${info.build}) \xB7 node ${info.node} \xB7 ${info.platform}`);
 }
 async function runDoctor(argv) {
   const checks = [];
@@ -3379,15 +3668,15 @@ async function runDoctor(argv) {
     detail: `v${process.versions.node}${nodeOk ? "" : " (Node 22 LTS required)"}`,
     fix: nodeOk ? void 0 : "Upgrade to Node 22 LTS: https://nodejs.org"
   });
-  const runtimeVersion = existsSync6(join6(FLUX_HOME, "runtime", "version")) ? readFileSync6(join6(FLUX_HOME, "runtime", "version"), "utf8").trim() : null;
+  const runtimeVersion = existsSync6(join6(MESH_HOME, "runtime", "version")) ? readFileSync6(join6(MESH_HOME, "runtime", "version"), "utf8").trim() : null;
   checks.push({
     ok: true,
     name: "runtime",
     detail: runtimeVersion ? `cached ${runtimeVersion}` : "running in place (no fetched runtime cached yet)"
   });
   const up = await portUp2(port);
-  checks.push({ ok: true, warn: !up, name: "proxy", detail: up ? `up on 127.0.0.1:${port}` : `not running on :${port}`, fix: up ? void 0 : "Start it with: flux start" });
-  let settingsDetail = "no ~/.claude/settings.json (Claude Code not configured for FLUX)";
+  checks.push({ ok: true, warn: !up, name: "proxy", detail: up ? `up on 127.0.0.1:${port}` : `not running on :${port}`, fix: up ? void 0 : "Start it with: mesh start" });
+  let settingsDetail = "no ~/.claude/settings.json (Claude Code not configured for MESH)";
   let settingsOk = true;
   if (existsSync6(CLAUDE_SETTINGS)) {
     try {
@@ -3399,24 +3688,24 @@ async function runDoctor(argv) {
       settingsDetail = "~/.claude/settings.json is not valid JSON";
     }
   }
-  checks.push({ ok: settingsOk, name: "claude", detail: settingsDetail, fix: settingsOk ? void 0 : "Fix or remove ~/.claude/settings.json; FLUX won't overwrite invalid JSON." });
+  checks.push({ ok: settingsOk, name: "claude", detail: settingsDetail, fix: settingsOk ? void 0 : "Fix or remove ~/.claude/settings.json; MESH won't overwrite invalid JSON." });
   if (platform2() === "darwin") {
     const loaded = serviceLoaded();
     checks.push({ ok: true, name: "service", detail: loaded ? "launchd service installed (always-on)" : "not installed (foreground only)" });
   }
-  const s = summariseLedger(join6(FLUX_HOME, "ledger"));
+  const s = summariseLedger(join6(MESH_HOME, "ledger"));
   checks.push({
     ok: s.chainOk,
     name: "ledger",
     detail: s.events === 0 ? "no ledger yet" : `${s.events} records${s.chainOk ? ", chain verified" : `, CHAIN BROKEN at ${s.brokenAt}`}`,
-    fix: s.chainOk ? void 0 : "Run `flux verify` and report this \u2014 the ledger should never break."
+    fix: s.chainOk ? void 0 : "Run `mesh verify` and report this \u2014 the ledger should never break."
   });
   if (argv.includes("--json")) {
     console.log(JSON.stringify({ checks }));
     return;
   }
   console.log("");
-  console.log(`  flux doctor \u2014 build ${BUILD_COMMIT}`);
+  console.log(`  mesh doctor \u2014 build ${BUILD_COMMIT}`);
   console.log("");
   let hardFail = false;
   for (const c of checks) {
@@ -3433,32 +3722,705 @@ var VERSION, LAUNCHD_LABEL, nodeMajor;
 var init_diag = __esm({
   "packages/cli/src/diag.ts"() {
     init_start();
-    VERSION = true ? "0.1.0" : process.env.FLUX_VERSION ?? "0.0.0";
-    LAUNCHD_LABEL = "dev.fluxtoken.flux";
+    VERSION = true ? "0.1.0" : process.env.MESH_VERSION ?? "0.0.0";
+    LAUNCHD_LABEL = "dev.meshtoken.mesh";
     nodeMajor = () => Number.parseInt(process.versions.node.split(".")[0] ?? "0", 10);
   }
 });
 
-// packages/cli/src/flux-runtime.ts
-var TOP_USAGE = `flux \u2014 cut your LLM bill, verified on your own usage.
+// packages/cli/src/dashboard.ts
+var dashboard_exports = {};
+__export(dashboard_exports, {
+  runDashboard: () => runDashboard
+});
+import { spawn } from "node:child_process";
+import { existsSync as existsSync7, readFileSync as readFileSync7 } from "node:fs";
+import { createServer as createServer2 } from "node:http";
+import { connect as connect3 } from "node:net";
+import { platform as platform3 } from "node:os";
+import { join as join7 } from "node:path";
+function parseArgs(argv) {
+  const args = { port: 8799, proxyPort: DEFAULT_PORT, ledgerDir: join7(MESH_HOME, "ledger"), open: true };
+  for (let i = 0; i < argv.length; i += 1) {
+    const key = argv[i];
+    if (key === "--help" || key === "-h") {
+      console.log(
+        `Usage: mesh dashboard [options]
 
-Usage: flux <command> [options]
+  --port <n>        Port for the dashboard (default 8799).
+  --proxy-port <n>  Proxy port to show as up/down (default ${DEFAULT_PORT}).
+  --ledger <dir>    Ledger to read (default ~/.mesh/ledger).
+  --no-open         Don't open a browser; just print the URL.
+  --help            Show this message.`
+      );
+      process.exit(0);
+    }
+    if (key === "--no-open") {
+      args.open = false;
+      continue;
+    }
+    const value = argv[i + 1];
+    if (value === void 0 || value.startsWith("--")) throw new Error(`${key} needs a value.`);
+    i += 1;
+    if (key === "--port") args.port = Number.parseInt(value, 10);
+    else if (key === "--proxy-port") args.proxyPort = Number.parseInt(value, 10);
+    else if (key === "--ledger") args.ledgerDir = value;
+    else throw new Error(`Unknown option: ${key}. See mesh dashboard --help.`);
+  }
+  return args;
+}
+function readPolicy() {
+  const path = join7(MESH_HOME, "theo-policy.json");
+  if (!existsSync7(path)) return defaultPolicy("local", (/* @__PURE__ */ new Date()).toISOString());
+  try {
+    return JSON.parse(readFileSync7(path, "utf8"));
+  } catch {
+    return defaultPolicy("local", (/* @__PURE__ */ new Date()).toISOString());
+  }
+}
+function proxyUp(port) {
+  return new Promise((resolve3) => {
+    const sock = connect3({ host: "127.0.0.1", port }, () => {
+      sock.destroy();
+      resolve3(true);
+    });
+    sock.setTimeout(400, () => {
+      sock.destroy();
+      resolve3(false);
+    });
+    sock.on("error", () => resolve3(false));
+  });
+}
+async function buildData(args) {
+  const { records, chainOk, brokenAt } = readLedger(args.ledgerDir);
+  const invoice = records.length ? recomputeInvoice(records.map((r) => r.event)) : null;
+  const policy = readPolicy();
+  const active = (policy.levers ?? []).map((l) => ({ lever: l.lever, class: l.class }));
+  return {
+    build: BUILD_COMMIT,
+    updatedAt: (/* @__PURE__ */ new Date()).toISOString(),
+    chainOk,
+    brokenAt: brokenAt ?? null,
+    proxyUp: await proxyUp(args.proxyPort),
+    savings: invoice ? {
+      netUsd: invoice.netVerifiedSavingsUsd,
+      verdict: invoice.verdict,
+      eventsConsidered: invoice.eventsConsidered,
+      eventsBilled: invoice.eventsBilled,
+      unpricedEvents: invoice.unpricedEvents
+    } : { netUsd: 0, verdict: "do_not_charge", eventsConsidered: 0, eventsBilled: 0, unpricedEvents: 0 },
+    lineItems: invoice?.lineItems ?? [],
+    recordedUnbilled: invoice?.recordedUnbilled ?? [],
+    theo: {
+      qualityCeilingPercent: policy.qualityCeilingPercent,
+      active,
+      withheld: withheldLevers(policy)
+    }
+  };
+}
+async function runDashboard(argv) {
+  const args = parseArgs(argv);
+  const server = createServer2(async (req, res) => {
+    try {
+      if (req.url === "/data") {
+        res.writeHead(200, { "content-type": "application/json", "cache-control": "no-store" });
+        res.end(JSON.stringify(await buildData(args)));
+        return;
+      }
+      if (req.url === "/" || req.url === "") {
+        res.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" });
+        res.end(PAGE);
+        return;
+      }
+      res.writeHead(404);
+      res.end("not found");
+    } catch (error) {
+      res.writeHead(500);
+      res.end(String(error));
+    }
+  });
+  await new Promise((resolve3) => server.listen(args.port, "127.0.0.1", resolve3));
+  const url = `http://127.0.0.1:${server.address().port}`;
+  console.log(`
+  MESH dashboard  \xB7  ${url}`);
+  console.log(`  Live view of your verified savings and what Theo is doing. Ctrl+C to stop.
+`);
+  if (args.open) openBrowser(url);
+  const shutdown = () => {
+    server.close();
+    process.exit(0);
+  };
+  process.on("SIGINT", shutdown);
+  process.on("SIGTERM", shutdown);
+  await new Promise(() => {
+  });
+}
+function openBrowser(url) {
+  const cmd = platform3() === "darwin" ? "open" : platform3() === "win32" ? "start" : "xdg-open";
+  try {
+    spawn(cmd, [url], { stdio: "ignore", detached: true, shell: platform3() === "win32" }).unref();
+  } catch {
+  }
+}
+var SQUIGGLE, DOTS, DOTS_GLOW, PAGE;
+var init_dashboard = __esm({
+  "packages/cli/src/dashboard.ts"() {
+    init_savings_ledger();
+    init_theo_policy();
+    init_start();
+    SQUIGGLE = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 80 10'%3E%3Cpath d='M0 5 q6 -4 12 0 t12 0 t12 0 t12 0 t12 0 t12 0' fill='none' stroke='%232563EB' stroke-width='1.6' opacity='.7'/%3E%3C/svg%3E";
+    DOTS = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='34' height='59'%3E%3Cg fill='%230B0F14' fill-opacity='0.05'%3E%3Ccircle cx='0' cy='0' r='1.1'/%3E%3Ccircle cx='34' cy='0' r='1.1'/%3E%3Ccircle cx='0' cy='59' r='1.1'/%3E%3Ccircle cx='34' cy='59' r='1.1'/%3E%3Ccircle cx='17' cy='29.5' r='1.1'/%3E%3C/g%3E%3C/svg%3E";
+    DOTS_GLOW = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='34' height='59'%3E%3Cg fill='%232563EB' fill-opacity='0.55'%3E%3Ccircle cx='0' cy='0' r='1.2'/%3E%3Ccircle cx='34' cy='0' r='1.2'/%3E%3Ccircle cx='0' cy='59' r='1.2'/%3E%3Ccircle cx='34' cy='59' r='1.2'/%3E%3Ccircle cx='17' cy='29.5' r='1.2'/%3E%3C/g%3E%3C/svg%3E";
+    PAGE = `<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>mesh \u2014 live</title>
+<style>
+  :root{color-scheme:light;
+    --bg:#FAFAF9;--ink:#0B0F14;--muted:#5B6472;--line:#E5E7EB;--accent:#2563EB;--ocean:#1D4ED8;
+    --paper:#ffffff;--stone:#E7E5E4;--stone-line:#CFCAC3;--stone-muted:#57534E;--bad:#DC2626}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 Manrope,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;padding:40px 24px}
+  .dotpaper{position:fixed;inset:0;z-index:0;pointer-events:none}
+  .dotpaper .base,.dotpaper .glow{position:absolute;inset:0}
+  .dotpaper .base{background:url("${DOTS}")}
+  .dotpaper .glow{opacity:0;transition:opacity .4s ease;background:url("${DOTS_GLOW}");
+    -webkit-mask-image:radial-gradient(circle 150px at var(--mx) var(--my),#000 0%,rgba(0,0,0,.35) 48%,transparent 72%);
+    mask-image:radial-gradient(circle 150px at var(--mx) var(--my),#000 0%,rgba(0,0,0,.35) 48%,transparent 72%)}
+  .dotpaper.lit .glow{opacity:1}
+  @media (prefers-reduced-motion:reduce){.dotpaper .glow{display:none}}
+  .wrap{max-width:900px;margin:0 auto;position:relative;z-index:1}
+  header{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin-bottom:22px}
+  .mark{font-size:22px;font-weight:800;letter-spacing:-.02em}
+  .mark .dot{color:var(--accent)}
+  .mark .live{font-size:14px;font-weight:600;color:var(--muted);margin-left:8px;letter-spacing:0}
+  .build{font-size:13px;color:var(--muted)}
+  .hero{background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:26px 28px 24px;margin-bottom:16px}
+  .cap{font-size:14px;color:var(--muted)}
+  .saved{font-size:clamp(46px,9vw,92px);font-weight:800;letter-spacing:-.04em;line-height:.95;color:var(--ocean);margin:4px 0 10px}
+  .saved .cur{color:var(--accent)}
+  .verdict{display:inline-block;font-size:13px;font-weight:700;padding:5px 13px;border-radius:999px}
+  .verdict.charge{background:rgba(37,99,235,.12);color:var(--accent)}
+  .verdict.do_not_charge{background:var(--stone);color:var(--stone-muted)}
+  .events{font-size:14px;color:var(--muted);margin-left:12px}
+  .grid{display:grid;grid-template-columns:1fr;gap:16px}@media(min-width:720px){.grid{grid-template-columns:1fr 1fr}}
+  .panel{background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:22px}
+  .panel h2{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:700;margin:0 0 16px;position:relative;padding-bottom:11px}
+  .panel h2::after{content:"";position:absolute;left:0;bottom:0;width:72px;height:9px;background:url("${SQUIGGLE}") left/contain no-repeat}
+  .theo .hex{color:var(--accent);font-weight:800}
+  .sub{font-size:13px;color:var(--muted);margin:0 0 7px}
+  .chip{display:inline-block;font-size:13px;font-weight:600;padding:5px 12px;border-radius:999px;margin:0 6px 7px 0;background:#fff;border:1px solid var(--line)}
+  .chip.on{border-color:var(--accent);color:var(--accent);background:rgba(37,99,235,.06)}
+  .chip.on .k{color:var(--muted);font-weight:500}
+  .chip.held{border-color:var(--stone-line);color:var(--stone-muted);background:var(--stone)}
+  .ceiling{font-size:13px;color:var(--muted);margin-top:14px;line-height:1.5}
+  table{width:100%;border-collapse:collapse;font-size:14px}
+  th,td{text-align:left;padding:8px 8px;border-bottom:1px solid var(--line)}
+  th{color:var(--muted);font-weight:600;font-size:13px}
+  td.num{text-align:right;font-variant-numeric:tabular-nums}
+  td .k{color:var(--muted)}
+  .empty{color:var(--muted);font-size:14px}
+  .unbilled{font-size:13px;color:var(--muted);margin-top:12px;line-height:1.5}
+  .foot{margin-top:18px;font-size:13px;color:var(--muted);display:flex;gap:18px;flex-wrap:wrap}
+  .ind{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:7px;vertical-align:1px;background:var(--stone-line)}
+  .ind.ok{background:var(--accent)} .ind.bad{background:var(--bad)}
+</style></head><body>
+<div class="dotpaper" id="dp"><div class="base"></div><div class="glow"></div></div>
+<div class="wrap">
+  <header>
+    <div class="mark">mesh<span class="dot">.</span><span class="live">live</span></div>
+    <span class="build" id="build"></span>
+  </header>
+  <div class="hero">
+    <div class="cap">Verified savings on your own traffic</div>
+    <div class="saved" id="saved"><span class="cur">$</span>0.0000</div>
+    <span class="verdict do_not_charge" id="verdict">\u2014</span>
+    <span class="events" id="events"></span>
+  </div>
+  <div class="grid">
+    <div class="panel theo">
+      <h2><span class="hex">\u2B22 Theo</span> \u2014 what he's doing</h2>
+      <p class="sub">Applying now</p>
+      <div id="active"><span class="empty">\u2014</span></div>
+      <p class="sub" style="margin-top:14px">Held behind the replay-gate</p>
+      <div id="withheld"><span class="empty">nothing held</span></div>
+      <div class="ceiling" id="ceiling"></div>
+    </div>
+    <div class="panel">
+      <h2>Savings by lever</h2>
+      <table><thead><tr><th>lever</th><th>kind</th><th class="num">events</th><th class="num">saved</th></tr></thead>
+      <tbody id="levers"><tr><td colspan="4" class="empty">No billable savings yet.</td></tr></tbody></table>
+      <div class="unbilled" id="unbilled"></div>
+    </div>
+  </div>
+  <div class="foot">
+    <span id="proxy"><span class="ind bad"></span>proxy</span>
+    <span id="chain"><span class="ind ok"></span>ledger</span>
+    <span id="updated"></span>
+  </div>
+</div>
+<script>
+const $=(id)=>document.getElementById(id);
+const usd=(n)=>Number(n||0).toFixed(4);
+const dp=$('dp');
+addEventListener('pointermove',(e)=>{dp.classList.add('lit');dp.style.setProperty('--mx',e.clientX+'px');dp.style.setProperty('--my',e.clientY+'px');});
+async function tick(){
+  try{
+    const d=await (await fetch('/data',{cache:'no-store'})).json();
+    $('build').textContent='build '+d.build;
+    $('saved').innerHTML='<span class="cur">$</span>'+usd(d.savings.netUsd);
+    const v=$('verdict'); v.textContent=d.savings.verdict==='charge'?'billing':'do not charge'; v.className='verdict '+d.savings.verdict;
+    $('events').textContent=d.savings.eventsConsidered+' requests'+(d.savings.unpricedEvents?(' \xB7 '+d.savings.unpricedEvents+' unpriced (recorded, not billed)'):'');
+    $('active').innerHTML=d.theo.active.length?d.theo.active.map(l=>'<span class="chip on">'+l.lever+'<span class="k"> \xB7 '+l.class+'</span></span>').join(''):'<span class="empty">none</span>';
+    $('withheld').innerHTML=d.theo.withheld.length?d.theo.withheld.map(w=>'<span class="chip held" title="'+(w.reason||'')+'">'+w.lever+'</span>').join(''):'<span class="empty">nothing held</span>';
+    $('ceiling').textContent='Quality ceiling: '+d.theo.qualityCeilingPercent+'% \u2014 anything that could cost more than this stays off until a replay of your traffic proves it safe.';
+    const rows=d.lineItems;
+    $('levers').innerHTML=rows.length?rows.map(li=>'<tr><td>'+li.leverId+'</td><td class="k">'+li.kind+(li.basis?' \xB7 '+li.basis:'')+'</td><td class="num">'+li.events+'</td><td class="num">$'+usd(li.savedUsd)+'</td></tr>').join(''):'<tr><td colspan="4" class="empty">No billable savings yet \u2014 run Claude Code through MESH and this fills in.</td></tr>';
+    $('unbilled').textContent=d.recordedUnbilled.length?('Also recorded (applied, never billed): '+d.recordedUnbilled.map(u=>u.leverId+' \xD7'+u.events).join(', ')):'';
+    $('proxy').innerHTML='<span class="ind '+(d.proxyUp?'ok':'bad')+'"></span>proxy '+(d.proxyUp?'up':'down');
+    $('chain').innerHTML='<span class="ind '+(d.chainOk?'ok':'bad')+'"></span>ledger '+(d.chainOk?'verified':('BROKEN at '+d.brokenAt));
+    $('updated').textContent='updated '+new Date(d.updatedAt).toLocaleTimeString();
+  }catch(e){ $('updated').textContent='reconnecting\u2026'; }
+}
+tick(); setInterval(tick,3000);
+</script></body></html>`;
+  }
+});
 
-  start      Start the FLUX proxy, point Claude Code at it, and run Theo
+// packages/core/src/token-reduction.ts
+var init_token_reduction2 = __esm({
+  "packages/core/src/token-reduction.ts"() {
+    "use strict";
+    init_cost();
+  }
+});
+
+// packages/core/src/cache-simulator.ts
+function ledgerTurnsByTask(events) {
+  const byTask = /* @__PURE__ */ new Map();
+  for (const event of events) {
+    if (event.status !== "succeeded" || !event.usage) continue;
+    const key = event.taskId ?? `__single:${event.requestId}`;
+    const turn = {
+      ...event.taskId === void 0 ? {} : { taskId: event.taskId },
+      turnIndex: event.turnIndex ?? 0,
+      timestampMs: Date.parse(event.timestamp),
+      inputTokens: event.usage.inputTokens,
+      outputTokens: event.usage.outputTokens,
+      cachedInputTokens: event.usage.cachedInputTokens
+    };
+    const bucket = byTask.get(key);
+    if (bucket) bucket.push(turn);
+    else byTask.set(key, [turn]);
+  }
+  for (const bucket of byTask.values()) {
+    bucket.sort((left, right) => left.turnIndex - right.turnIndex || (left.timestampMs ?? 0) - (right.timestampMs ?? 0));
+  }
+  return byTask;
+}
+function inputRatePerToken(price) {
+  return price.inputPerMillion / 1e6;
+}
+function cachedRatePerToken(price) {
+  return (price.cachedInputPerMillion ?? price.inputPerMillion * 0.1) / 1e6;
+}
+function recordedTurnCostUsd(turn, price) {
+  const cached = Math.min(turn.cachedInputTokens, turn.inputTokens);
+  const fresh = turn.inputTokens - cached;
+  return fresh * inputRatePerToken(price) + cached * cachedRatePerToken(price) + turn.outputTokens / 1e6 * price.outputPerMillion;
+}
+function estimateCompactionFromLedger(turns, compaction, price) {
+  if (turns.length < 2) throw new Error("Compaction needs at least two recorded turns.");
+  if (compaction.atTurn < 2 || compaction.atTurn > turns.length) {
+    throw new Error("Compaction must happen after the first turn and within the task.");
+  }
+  const ordered = [...turns].sort((left, right) => left.turnIndex - right.turnIndex || (left.timestampMs ?? 0) - (right.timestampMs ?? 0));
+  const preservedPrefixTokens = compaction.preservedPrefixTokens ?? ordered.reduce((min, turn) => Math.min(min, turn.inputTokens), Infinity);
+  const contextBefore = ordered[compaction.atTurn - 2].inputTokens;
+  const removedTokensPerTurn = Math.max(
+    0,
+    contextBefore - preservedPrefixTokens - compaction.summaryTokens
+  );
+  const post = ordered.slice(compaction.atTurn - 1);
+  const perTurnSavingUsd = post.map((turn) => {
+    const rate = turn.cachedInputTokens > 0 ? cachedRatePerToken(price) : inputRatePerToken(price);
+    return removedTokensPerTurn * rate;
+  });
+  const grossSavingUsd = perTurnSavingUsd.reduce((sum, value) => sum + value, 0);
+  const summarizationCostUsd = contextBefore * inputRatePerToken(price) + compaction.summaryTokens * inputRatePerToken(price) + compaction.summaryTokens / 1e6 * price.outputPerMillion;
+  const netSavingUsd = grossSavingUsd - summarizationCostUsd;
+  const recordedCostUsd = ordered.reduce((sum, turn) => sum + recordedTurnCostUsd(turn, price), 0);
+  const savingPercent = recordedCostUsd === 0 ? 0 : netSavingUsd / recordedCostUsd * 100;
+  let breakEvenTurns = null;
+  let running = 0;
+  for (let index = 0; index < perTurnSavingUsd.length; index += 1) {
+    running += perTurnSavingUsd[index];
+    if (running >= summarizationCostUsd) {
+      breakEvenTurns = index;
+      break;
+    }
+  }
+  return {
+    ...ordered[0].taskId === void 0 ? {} : { taskId: ordered[0].taskId },
+    turns: ordered.length,
+    compactionTurn: compaction.atTurn,
+    summaryTokens: compaction.summaryTokens,
+    preservedPrefixTokens,
+    removedTokensPerTurn,
+    postCompactionTurns: post.length,
+    recordedCostUsd,
+    summarizationCostUsd,
+    grossSavingUsd,
+    netSavingUsd,
+    savingPercent,
+    worthwhile: netSavingUsd > 0,
+    breakEvenTurns
+  };
+}
+var ANTHROPIC_NO_CACHE;
+var init_cache_simulator = __esm({
+  "packages/core/src/cache-simulator.ts"() {
+    "use strict";
+    init_cost();
+    init_token_reduction2();
+    ANTHROPIC_NO_CACHE = {
+      name: "anthropic-uncached",
+      minimumCacheableTokens: Number.MAX_SAFE_INTEGER,
+      incrementTokens: 1,
+      ttlSeconds: 0,
+      writeMultiplier: 1,
+      readMultiplier: 1
+    };
+  }
+});
+
+// packages/core/src/model-prices.ts
+function entry2(provider, model, provenance, bands, mode = "standard", effectiveFrom = OBSERVED_FROM2) {
+  return {
+    provider,
+    model,
+    mode,
+    effectiveFrom,
+    provenance,
+    tiers: bands.map((band) => ({
+      ...band.maxInputTokens === void 0 ? {} : { maxInputTokens: band.maxInputTokens },
+      inputPerMillion: band.input,
+      outputPerMillion: band.output,
+      ...band.cachedInput === void 0 ? {} : { cachedInputPerMillion: band.cachedInput },
+      ...band.cacheWriteInput === void 0 ? {} : { cacheWriteInputPerMillion: band.cacheWriteInput },
+      ...band.cacheWrite1hInput === void 0 ? {} : { cacheWrite1hInputPerMillion: band.cacheWrite1hInput }
+    }))
+  };
+}
+var ANTHROPIC2, OPENAI2, ANTHROPIC_BATCH2, DEEPSEEK2, OBSERVED_FROM2, anthropic2, openai2, deepseek2, aliases2, publishedModelPrices2;
+var init_model_prices2 = __esm({
+  "packages/core/src/model-prices.ts"() {
+    "use strict";
+    init_price_catalogue();
+    ANTHROPIC2 = {
+      source: "https://claude.com/pricing",
+      capturedOn: "2026-10-08",
+      note: "Published display names; cache read/write rates as listed. 5m cache writes bill 1.25x base input, 1h cache writes 2x base input, per the published prompt-caching pricing."
+    };
+    OPENAI2 = {
+      source: "https://developers.openai.com/api/docs/pricing",
+      capturedOn: "2026-10-08",
+      note: "Standard tier unless the entry says otherwise."
+    };
+    ANTHROPIC_BATCH2 = {
+      source: "https://claude.com/pricing",
+      capturedOn: "2026-10-27",
+      note: `Batch processing = 50% of standard, per the page's definitive "Save 50% with batch processing". Derived by halving the dated standard rates; cache-write premiums under batch are not published and are omitted (priced unpriced, never guessed).`
+    };
+    DEEPSEEK2 = {
+      source: "https://api-docs.deepseek.com/quick_start/pricing",
+      capturedOn: "2026-11-03",
+      note: "Off-peak list rates (peak is 2x in the 01-10 UTC weekday windows); catalogued at off-peak so a saving is never over-valued. Per 1M tokens."
+    };
+    OBSERVED_FROM2 = "2026-10-08";
+    anthropic2 = [
+      entry2("anthropic", "Fable 5.1", ANTHROPIC2, [
+        { input: 10, output: 50, cachedInput: 0.25, cacheWriteInput: 12.5, cacheWrite1hInput: 20 }
+      ]),
+      entry2("anthropic", "Opus 5.5", ANTHROPIC2, [
+        { input: 4, output: 20, cachedInput: 0.2, cacheWriteInput: 5, cacheWrite1hInput: 8 }
+      ]),
+      entry2("anthropic", "Sonnet 5.5", ANTHROPIC2, [
+        { input: 2, output: 10, cachedInput: 0.1, cacheWriteInput: 2.5, cacheWrite1hInput: 4 }
+      ]),
+      // Haiku 5.5 is tiered by prompt size: the higher band applies above 100K input tokens.
+      entry2("anthropic", "Haiku 5.5", ANTHROPIC2, [
+        { maxInputTokens: 1e5, input: 0.1, output: 0.5, cachedInput: 0.01, cacheWriteInput: 0.125, cacheWrite1hInput: 0.2 },
+        { input: 0.5, output: 2.5, cachedInput: 0.05, cacheWriteInput: 0.625, cacheWrite1hInput: 1 }
+      ]),
+      // Batch mode: 50% of standard, per the definitive "Save 50% with batch processing"
+      // (ANTHROPIC_BATCH provenance). Each rate is exactly half its standard entry above.
+      entry2("anthropic", "Fable 5.1", ANTHROPIC_BATCH2, [
+        { input: 5, output: 25, cachedInput: 0.125 }
+      ], "batch", "2026-10-27"),
+      entry2("anthropic", "Opus 5.5", ANTHROPIC_BATCH2, [
+        { input: 2, output: 10, cachedInput: 0.1 }
+      ], "batch", "2026-10-27"),
+      entry2("anthropic", "Sonnet 5.5", ANTHROPIC_BATCH2, [
+        { input: 1, output: 5, cachedInput: 0.05 }
+      ], "batch", "2026-10-27"),
+      entry2("anthropic", "Haiku 5.5", ANTHROPIC_BATCH2, [
+        { maxInputTokens: 1e5, input: 0.05, output: 0.25, cachedInput: 5e-3 },
+        { input: 0.25, output: 1.25, cachedInput: 0.025 }
+      ], "batch", "2026-10-27")
+    ];
+    openai2 = [
+      entry2("openai", "gpt-6-astra", OPENAI2, [{ input: 10, output: 50, cachedInput: 1 }]),
+      entry2("openai", "gpt-6.1-sol", OPENAI2, [{ input: 2, output: 10, cachedInput: 0.1 }]),
+      entry2("openai", "gpt-6-luna", OPENAI2, [{ input: 0.1, output: 0.5, cachedInput: 0.01 }]),
+      entry2("openai", "gpt-5.5", OPENAI2, [{ input: 5, output: 30, cachedInput: 0.5 }]),
+      entry2("openai", "gpt-5.4", OPENAI2, [{ input: 2.5, output: 15, cachedInput: 0.25 }]),
+      entry2("openai", "gpt-5.2", OPENAI2, [{ input: 1.75, output: 14, cachedInput: 0.175 }]),
+      entry2("openai", "gpt-5", OPENAI2, [{ input: 1.25, output: 10, cachedInput: 0.125 }]),
+      entry2("openai", "gpt-4o", OPENAI2, [{ input: 2.5, output: 10, cachedInput: 1.25 }]),
+      entry2("openai", "gpt-4o-mini", OPENAI2, [{ input: 0.15, output: 0.6, cachedInput: 0.075 }]),
+      entry2("openai", "o1", OPENAI2, [{ input: 15, output: 60, cachedInput: 7.5 }]),
+      entry2("openai", "o3-mini", OPENAI2, [{ input: 1.1, output: 4.4, cachedInput: 0.55 }]),
+      // Only the batch rate published explicitly is catalogued. The page describes batch
+      // and flex as "typically" half of standard; that is not a rate, so it is not seeded.
+      entry2("openai", "gpt-6-astra", OPENAI2, [{ input: 5, output: 25, cachedInput: 0.5 }], "batch"),
+      // Flex processing is billed at Batch API rates = 50% of standard, on a
+      // synchronous API, per OpenAI's flex-processing guide. Cached-input discount
+      // stacks on top. Catalogued so the ledger can price flex-tier events rather
+      // than leaving async savings unpriced.
+      entry2("openai", "gpt-5", OPENAI2, [{ input: 0.625, output: 5, cachedInput: 0.0625 }], "flex")
+    ];
+    deepseek2 = [
+      entry2("deepseek", "deepseek-flash", DEEPSEEK2, [{ input: 0.15, output: 0.6, cachedInput: 3e-3 }], "standard", "2026-11-03"),
+      entry2("deepseek", "deepseek-v4-pro", DEEPSEEK2, [{ input: 0.66, output: 1.98, cachedInput: 0.022 }], "standard", "2026-11-03")
+    ];
+    aliases2 = [
+      // Anthropic ids embed the published name, so normalisation covers dated
+      // builds such as claude-sonnet-5-5-20260514. These cover the pointers.
+      { provider: "anthropic", id: "claude-sonnet-5-5-latest", model: "Sonnet 5.5" },
+      { provider: "anthropic", id: "claude-opus-5-5-latest", model: "Opus 5.5" },
+      { provider: "anthropic", id: "claude-haiku-5-5-latest", model: "Haiku 5.5" },
+      { provider: "anthropic", id: "claude-fable-5-1-latest", model: "Fable 5.1" },
+      // OpenAI ids match their published names directly; these are the pointers
+      // and the dated snapshots that do not normalise onto a catalogued key.
+      { provider: "openai", id: "chatgpt-4o-latest", model: "gpt-4o" },
+      { provider: "openai", id: "gpt-4o-2024-*", model: "gpt-4o" },
+      { provider: "openai", id: "gpt-4o-mini-2024-*", model: "gpt-4o-mini" },
+      { provider: "openai", id: "o3-mini-2025-*", model: "o3-mini" },
+      // DeepSeek: the current ids match their keys (normalisation covers them); only
+      // the legacy pointer needs an explicit map. deepseek-v4-flash bills at Flash,
+      // per DeepSeek's pricing page.
+      { provider: "deepseek", id: "deepseek-v4-flash", model: "deepseek-flash" }
+    ];
+    publishedModelPrices2 = validatePriceCatalogue({
+      entries: [...anthropic2, ...openai2, ...deepseek2],
+      negotiated: [],
+      aliases: aliases2
+    });
+  }
+});
+
+// packages/cli/src/compaction.ts
+var compaction_exports = {};
+__export(compaction_exports, {
+  estimateLedger: () => estimateLedger,
+  runCompaction: () => runCompaction
+});
+import { writeFileSync as writeFileSync4 } from "node:fs";
+import { join as join8, resolve as resolve2 } from "node:path";
+function parse(argv) {
+  const args = {
+    ledgerDir: join8(MESH_HOME, "ledger"),
+    atTokens: 6e4,
+    summaryTokens: 2e3,
+    minTurns: 3,
+    date: (/* @__PURE__ */ new Date()).toISOString().slice(0, 10)
+  };
+  for (let index = 0; index < argv.length; index += 1) {
+    const key = argv[index];
+    if (key === "--help" || key === "-h") {
+      console.log(USAGE);
+      process.exit(0);
+    }
+    const value = argv[index + 1];
+    if (value === void 0 || value.startsWith("--")) throw new Error(`${key} needs a value.`);
+    index += 1;
+    switch (key) {
+      case "--ledger":
+        args.ledgerDir = resolve2(value);
+        break;
+      case "--at-tokens":
+        args.atTokens = Number(value);
+        break;
+      case "--summary-tokens":
+        args.summaryTokens = Number(value);
+        break;
+      case "--prefix-tokens":
+        args.prefixTokens = Number(value);
+        break;
+      case "--min-turns":
+        args.minTurns = Number(value);
+        break;
+      case "--date":
+        args.date = value;
+        break;
+      case "--json":
+        args.json = resolve2(value);
+        break;
+      default:
+        throw new Error(`Unknown option: ${key}`);
+    }
+  }
+  for (const [name, value] of [
+    ["--at-tokens", args.atTokens],
+    ["--summary-tokens", args.summaryTokens],
+    ["--min-turns", args.minTurns],
+    ...args.prefixTokens === void 0 ? [] : [["--prefix-tokens", args.prefixTokens]]
+  ]) {
+    if (!Number.isFinite(value) || value < 0) throw new Error(`${name} must be a non-negative number.`);
+  }
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(args.date)) throw new Error("--date must be YYYY-MM-DD.");
+  return args;
+}
+function modelByTask(events) {
+  const map = /* @__PURE__ */ new Map();
+  for (const event of events) {
+    if (event.taskId === void 0 || map.has(event.taskId)) continue;
+    map.set(event.taskId, { provider: event.provider, model: event.model });
+  }
+  return map;
+}
+function estimateLedger(events, args) {
+  const byTask = ledgerTurnsByTask(events);
+  const models = modelByTask(events);
+  const estimates = [];
+  const skipped = { unpriced: 0, noTrigger: 0, tooShort: 0 };
+  for (const [key, turns] of byTask) {
+    if (turns.length < args.minTurns) {
+      skipped.tooShort += 1;
+      continue;
+    }
+    const triggerIndex = turns.findIndex((turn) => turn.inputTokens >= args.atTokens);
+    const atTurn = triggerIndex < 1 ? triggerIndex === 0 ? 2 : -1 : triggerIndex + 1;
+    if (atTurn < 2) {
+      skipped.noTrigger += 1;
+      continue;
+    }
+    const meta = models.get(key);
+    const resolved = meta ? resolveModelId(publishedModelPrices2, meta.provider, meta.model) : { status: "unresolved" };
+    const lookup = resolved.status === "resolved" ? lookupPrice(publishedModelPrices2, { provider: meta.provider, model: resolved.model, at: args.date }) : { status: "unpriced" };
+    if (lookup.status === "unpriced") {
+      skipped.unpriced += 1;
+      continue;
+    }
+    const estimate = estimateCompactionFromLedger(
+      turns,
+      {
+        atTurn,
+        summaryTokens: args.summaryTokens,
+        ...args.prefixTokens === void 0 ? {} : { preservedPrefixTokens: args.prefixTokens }
+      },
+      lookup.price
+    );
+    estimates.push({ ...estimate, model: resolved.status === "resolved" ? resolved.model : meta.model });
+  }
+  estimates.sort((left, right) => right.netSavingUsd - left.netSavingUsd);
+  return { estimates, skipped };
+}
+function money(value) {
+  const sign = value < 0 ? "-" : "";
+  return `${sign}$${Math.abs(value).toFixed(4)}`;
+}
+async function runCompaction(argv) {
+  const args = parse(argv);
+  const { records, chainOk, brokenAt } = readLedger(args.ledgerDir);
+  if (records.length === 0) {
+    console.log(`No ledger events found in ${args.ledgerDir}.`);
+    console.log(`Run some traffic through "mesh start" first, then try again.`);
+    return;
+  }
+  if (!chainOk) {
+    console.log(`\u26A0 Ledger hash-chain check failed at ${brokenAt}. Run "mesh verify" before trusting these numbers.`);
+  }
+  const { estimates, skipped } = estimateLedger(records.map((record) => record.event), args);
+  if (args.json !== void 0) {
+    writeFileSync4(args.json, `${JSON.stringify(estimates, null, 2)}
+`);
+  }
+  if (estimates.length === 0) {
+    console.log(`No multi-turn task reached ${args.atTokens.toLocaleString()} input tokens, so nothing would have been compacted.`);
+    console.log(`Lower --at-tokens to explore smaller tasks. (${records.length} events read.)`);
+    return;
+  }
+  const totalRecorded = estimates.reduce((sum, e) => sum + e.recordedCostUsd, 0);
+  const totalNet = estimates.reduce((sum, e) => sum + e.netSavingUsd, 0);
+  const wins = estimates.filter((e) => e.worthwhile).length;
+  console.log(`mesh compaction \u2014 advisory estimate on ${estimates.length} task(s), ${records.length} recorded events.`);
+  console.log(`Trigger: compact at the first turn \u2265 ${args.atTokens.toLocaleString()} tokens; summary ${args.summaryTokens.toLocaleString()} tokens.
+`);
+  console.log(`  ${"task".padEnd(20)} ${"turns".padStart(5)} ${"at".padStart(3)} ${"recorded".padStart(10)} ${"net".padStart(10)}  verdict`);
+  for (const e of estimates) {
+    const label = (e.taskId ?? "\u2014").slice(0, 20).padEnd(20);
+    const verdict = e.worthwhile ? `save ${e.savingPercent.toFixed(0)}% (break-even +${e.breakEvenTurns ?? "?"})` : `net loss ${e.savingPercent.toFixed(0)}% \u2014 leave uncompacted`;
+    console.log(`  ${label} ${String(e.turns).padStart(5)} ${String(e.compactionTurn).padStart(3)} ${money(e.recordedCostUsd).padStart(10)} ${money(e.netSavingUsd).padStart(10)}  ${verdict}`);
+  }
+  console.log(`
+  ${wins}/${estimates.length} task(s) worth compacting.`);
+  console.log(`  Recorded cost on these tasks: ${money(totalRecorded)}. Net if all compacted: ${money(totalNet)}.`);
+  if (skipped.noTrigger + skipped.tooShort + skipped.unpriced > 0) {
+    console.log(`  Skipped: ${skipped.noTrigger} below the trigger, ${skipped.tooShort} too short, ${skipped.unpriced} unpriced.`);
+  }
+  console.log(`
+  Advisory only: counterfactual savings, valued at the rate the ledger shows you paid.`);
+  console.log(`  Not the identical-byte savings the invoice bills on \u2014 nothing here changes your ledger.`);
+}
+var USAGE;
+var init_compaction = __esm({
+  "packages/cli/src/compaction.ts"() {
+    init_cache_simulator();
+    init_price_catalogue();
+    init_model_prices2();
+    init_start();
+    USAGE = `Usage: mesh compaction [options]
+
+Read your recorded ledger and estimate what context compaction would save,
+per multi-turn task. Advisory only \u2014 counterfactual, never billed.
+
+  --ledger <dir>         Ledger directory to read. Default ~/.mesh/ledger.
+  --at-tokens <n>        Compact at the first turn whose input reaches n tokens.
+                         Default 60000 (a typical harness trigger).
+  --summary-tokens <n>   Size of the summary that replaces the history. Default 2000.
+  --prefix-tokens <n>    Preserved system/tool prefix. Default: inferred per task
+                         as its smallest recorded input (a conservative floor).
+  --min-turns <n>        Ignore tasks shorter than this. Default 3.
+  --date <YYYY-MM-DD>    Pricing date for the catalogue lookup. Default: today.
+  --json <path>          Write the full per-task estimate as JSON.
+  --help                 Show this message.`;
+  }
+});
+
+// packages/cli/src/mesh-runtime.ts
+var TOP_USAGE = `mesh \u2014 cut your LLM bill, verified on your own usage.
+
+Usage: mesh <command> [options]
+
+  start      Start the MESH proxy, point Claude Code at it, and run Theo
              alongside you. One command; reverts cleanly on exit.
-  install    Always-on: run FLUX as a background service so every Claude Code
+  install    Always-on: run MESH as a background service so every Claude Code
              session is optimised, with nothing to start by hand.
   stop       Stop the background service (kept, resume with install); restore Claude Code.
   uninstall  Stop and remove the background service; restore Claude Code.
   status     Is the service up, and what has Theo saved so far?
+  dashboard  Open a live local web view of your savings and what Theo is doing.
   update     Update the runtime now (--rollback to revert to the previous one).
-  verify     Re-prove FLUX's claims on this machine: the build's provenance,
+  verify     Re-prove MESH's claims on this machine: the build's provenance,
              your ledger's hash-chain, and a deterministic invoice recompute.
   doctor     Diagnose this machine: Node, the proxy, Claude Code wiring, the
              service, and the ledger \u2014 each with a one-line fix.
   version    Print the installed version and build.
+  compaction Estimate, per task in your ledger, what context compaction would
+             save \u2014 and where it would cost more than it saves (advisory).
 
-Run "flux <command> --help" for command options.`;
+Run "mesh <command> --help" for command options.`;
 async function main() {
   const sub = process.argv[2];
   if (sub === "start") {
@@ -3479,8 +4441,12 @@ async function main() {
     await (await Promise.resolve().then(() => (init_verify(), verify_exports))).runVerify(process.argv.slice(3));
   } else if (sub === "doctor") {
     await (await Promise.resolve().then(() => (init_diag(), diag_exports))).runDoctor(process.argv.slice(3));
+  } else if (sub === "dashboard") {
+    await (await Promise.resolve().then(() => (init_dashboard(), dashboard_exports))).runDashboard(process.argv.slice(3));
   } else if (sub === "version" || sub === "--version" || sub === "-v") {
     (await Promise.resolve().then(() => (init_diag(), diag_exports))).runVersion(process.argv.slice(3));
+  } else if (sub === "compaction") {
+    await (await Promise.resolve().then(() => (init_compaction(), compaction_exports))).runCompaction(process.argv.slice(3));
   } else {
     console.log(TOP_USAGE);
   }
