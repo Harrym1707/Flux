@@ -533,7 +533,7 @@ section h2::after{content:"";position:absolute;left:50%;transform:translateX(-50
 @media (max-width:980px){.price-wrap{min-height:auto}}
 `.trim();
 
-  const MARK = `<svg viewBox="0 0 120 130" fill="none" aria-hidden="true"><g transform="translate(60,42)" stroke="currentColor" stroke-width="4" stroke-linejoin="round" stroke-linecap="round"><path d="M0 -30 L26 -15 L26 15 L0 30 L-26 15 L-26 -15 Z"/><path d="M0 0 L26 -15 M0 0 L-26 -15 M0 0 L0 30"/><path d="M-26 15 L0 30 L0 60 L-26 75 L-52 60 L-52 30 Z"/><path d="M-26 45 L0 30 M-26 45 L-52 30 M-26 45 L-26 75"/><path d="M26 15 L52 30 L52 60 L26 75 L0 60 L0 30 Z"/><path d="M26 45 L52 30 M26 45 L0 30 M26 45 L26 75"/></g></svg>`;
+  const MARK = `<svg viewBox="0 0 240 240" fill="none" aria-hidden="true"><g stroke="currentColor" stroke-width="16" stroke-linejoin="round" stroke-linecap="round"><path d="M139.24 34.86 L100.03 49.91 L93.46 91.39 L126.1 117.82 L165.31 102.77 L171.88 61.29 Z"/><path d="M80.38 107.54 L41.17 122.6 L34.6 164.08 L67.24 190.51 L106.45 175.46 L113.02 133.98 Z"/><path d="M172.76 122.18 L133.55 137.23 L126.98 178.71 L159.62 205.14 L198.83 190.09 L205.4 148.61 Z"/></g></svg>`;
 
   // Theo, the MESH token-engineer bot: a small, friendly ink-line robot with a
   // Mesh-blue "signal" dot that pulses, eyes that blink and a gentle float.
