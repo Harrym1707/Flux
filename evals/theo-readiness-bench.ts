@@ -103,24 +103,66 @@ function median(xs: number[]): number {
 
 const LOSSLESS = { toolSchemas: true as const, duplicateContext: true as const, repairCachePrefix: true as const };
 
-/** Measure answer-equivalence of the AUTO (lossless) reduction on a real sample:
- *  the live-now config must apply only lossless changes — anything else can move
- *  an answer and is a safety failure the loop must fix. Also returns the MEASURED
- *  auto-safe %, a cross-check on the coverage model's projection. */
-function measureEquivalence(): { workload: string; samples: number; allLossless: boolean; measuredAutoSafePct: number; lossyLeaks: string[] } {
-  const samples = sampleCodingWorkload();
+type EquivResult = { workload: string; allLossless: boolean; measuredAutoSafePct: number; lossyLeaks: string[] };
+
+/** A string of roughly `tok` tokens (~4 chars/token). */
+function sized(unit: string, tok: number): string {
+  if (tok <= 0) return "";
+  const target = Math.round(tok * 4);
+  let s = "";
+  while (s.length < target) s += unit;
+  return s.slice(0, target);
+}
+
+/** Synthesise a representative request that exercises a profile's structure:
+ *  verbose tool schemas (schema compaction), a verbatim block re-sent each turn
+ *  (duplicate-context dedup), a stable system+tools prefix (cache repair). */
+function requestFor(p: WorkloadProfile): Record<string, unknown> {
+  const s = p.segments;
+  const toolCount = s.toolSchemas > 0 ? Math.max(1, Math.round(s.toolSchemas / 350)) : 0;
+  const tools = Array.from({ length: toolCount }, (_, i) => ({
+    type: "function",
+    function: {
+      name: `tool_${i}`,
+      description: sized(`Operate on subsystem ${i}; inspect and return records. `, 40),
+      parameters: {
+        $schema: "https://json-schema.org/draft/2020-12/schema",
+        type: "object",
+        properties: { id: { type: "string", title: "id", description: "Record identifier." } },
+        required: ["id"],
+      },
+    },
+  }));
+  const system = sized("You are a careful, precise assistant. ", s.systemPrompt);
+  const dupBlock = sized("reference block alpha; records nominal; ", Math.min(Math.max(s.history, s.retrievedContext), 900));
+  const messages: Array<Record<string, unknown>> = [];
+  const turns = Math.min(6, Math.max(1, p.requests));
+  for (let t = 0; t < turns; t += 1) {
+    messages.push({ role: "user", content: sized(`step ${t}: continue. `, s.userTurn) });
+    if (s.history > 0) messages.push({ role: "assistant", content: dupBlock });
+    if (s.retrievedContext > 0) messages.push({ role: "tool", content: dupBlock });
+  }
+  return { model: "claude-sonnet-5-5", max_tokens: Math.max(16, s.output), system, tools, messages };
+}
+
+/** Answer-equivalence of the AUTO (lossless) reduction for one workload. The real
+ *  coding-agent sample is used where available; others use a synthesised request.
+ *  A lossy change in the auto path is a safety failure the loop must catch. */
+function equivalenceFor(p: WorkloadProfile): EquivResult {
+  const reqs = p.name === "coding-agent"
+    ? sampleCodingWorkload().map((s) => s.request)
+    : [requestFor(p)];
   let before = 0;
   let saved = 0;
   const lossyLeaks: string[] = [];
-  for (const s of samples) {
-    const r = reduceRequest(s.request, LOSSLESS);
+  for (const req of reqs) {
+    const r = reduceRequest(req, LOSSLESS);
     before += r.summary.estimatedTokensBefore;
     saved += r.summary.estimatedLosslessTokensSaved;
     for (const c of r.summary.changes) if (!c.lossless) lossyLeaks.push(c.lever);
   }
   return {
-    workload: "coding-agent",
-    samples: samples.length,
+    workload: p.name,
     allLossless: lossyLeaks.length === 0,
     measuredAutoSafePct: before > 0 ? Number(((saved / before) * 100).toFixed(2)) : 0,
     lossyLeaks: [...new Set(lossyLeaks)],
@@ -132,7 +174,9 @@ function main(): void {
   const withWaste = rows.filter((r) => r.autoSafePct + r.gatedUpsidePct + r.uncapturedPct >= 1);
   const dormant = rows.filter((r) => r.status === "DORMANT");
 
-  const equiv = measureEquivalence();
+  const equivRows = CORPUS.map(equivalenceFor);
+  const equivLeaks = equivRows.filter((e) => !e.allLossless);
+  const equivAllLossless = equivLeaks.length === 0;
   const composite = {
     corpusSize: rows.length,
     medianAutoSafePct: Number(median(withWaste.map((r) => r.autoSafePct)).toFixed(2)),
@@ -140,23 +184,22 @@ function main(): void {
     dormantCount: dormant.length,
     answerEquivalenceMeasured: true,
     answerEquivalence: {
-      measuredWorkloads: 1,
+      measuredWorkloads: equivRows.length,
       ofCorpus: rows.length,
-      allLossless: equiv.allLossless,
-      measuredAutoSafePct: equiv.measuredAutoSafePct,
-      lossyLeaks: equiv.lossyLeaks,
+      allLossless: equivAllLossless,
+      workloadsWithLeak: equivLeaks.map((e) => e.workload),
     },
   };
 
   // Blockers vs the done-criteria.
   const blockers: string[] = [];
-  if (!equiv.allLossless) blockers.push(`SAFETY FAILURE: the auto (live-now) config applied lossy lever(s) on coding-agent — ${equiv.lossyLeaks.join(", ")}`);
-  else blockers.push(`SAFETY: answer-equivalence verified on coding-agent (auto reduction 100% lossless, measured ${equiv.measuredAutoSafePct}%); extend to the other ${rows.length - 1} workloads`);
+  if (!equivAllLossless) blockers.push(`SAFETY FAILURE: the auto (live-now) config applied lossy lever(s) on ${equivLeaks.map((e) => `${e.workload} (${e.lossyLeaks.join("/")})`).join(", ")}`);
+  else blockers.push(`SAFETY: answer-equivalence verified across all ${equivRows.length} workloads (auto reduction 100% lossless)`);
   if (composite.corpusSize < 8) blockers.push(`CORPUS: only ${composite.corpusSize}/8 workload types`);
   if (composite.dormantCount > 0) blockers.push(`DORMANCY: ${composite.dormantCount} workload(s) with uncaptured waste and no saving — ${dormant.map((d) => d.workload).join(", ")}`);
   blockers.push("AUTONOMY: pipeline not yet wired to run on a real ledger spool unattended");
 
-  const result = { iteration: 2, timestamp: new Date().toISOString(), composite, workloads: rows, blockers };
+  const result = { iteration: 3, timestamp: new Date().toISOString(), composite, workloads: rows, blockers, equivalence: equivRows };
   writeFileSync("evals/results/theo-readiness.json", `${JSON.stringify(result, null, 2)}\n`, "utf8");
 
   const pct = (n: number): string => `${n >= 0 ? "" : ""}${n.toFixed(1)}%`;
@@ -172,9 +215,7 @@ function main(): void {
       `median realisable ${pct(composite.medianRealisablePct)} · dormant ${composite.dormantCount}`,
   );
   console.log(
-    `answer-equivalence (coding-agent, ${equiv.samples} samples): ` +
-      `${equiv.allLossless ? "all-lossless ✓" : `LOSSY LEAK ✗ ${equiv.lossyLeaks.join(", ")}`} · ` +
-      `measured auto-safe ${equiv.measuredAutoSafePct}%`,
+    `answer-equivalence: ${equivAllLossless ? `all ${equivRows.length} workloads lossless ✓` : `LOSSY LEAK ✗ ${equivLeaks.map((e) => e.workload).join(", ")}`}`,
   );
   console.log("\nBlockers to ready:");
   for (const b of blockers) console.log(`  - ${b}`);

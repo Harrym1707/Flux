@@ -69,3 +69,18 @@ projected — a sane reducer-vs-model cross-check). Safety now *verified* on 1/9
 workloads; no regression (corpus 9, dormant 0). **Kept.**
 Next: extend answer-equivalence to the other 8 workloads (needs a per-profile
 request synthesiser), then the AUTONOMY blocker (run on a real ledger spool).
+
+### Iteration 3 — extend answer-equivalence to all 9 workloads
+Hypothesis: safety was verified on 1/9; extend it across the corpus. Added a
+per-profile request synthesiser (verbose tool schemas, a verbatim block re-sent
+each turn, stable prefix) and ran `reduceRequest(lossless)` per workload;
+coding-agent keeps its real sample.
+Delta: **all 9 workloads lossless ✓** — the auto / live-now path applies no
+answer-changing change anywhere. SAFETY criterion now measured corpus-wide (was
+1/9). No regression (corpus 9, dormant 0). **Kept.**
+Lead for next (important): measured auto-safe on the *synthetic* requests is ~0%
+for rag-docqa / long-context-summarize / chatbot-memory, while the coverage
+*model* projects 6–8% lossless for them. So either the synthesiser isn't creating
+a real dedup/cache signal (likely — repeated whole messages may not dedup) or the
+model over-projects lossless savings. Reconcile reducer-vs-model before trusting
+the projection. Remaining hard blocker: AUTONOMY (run on a real ledger spool).

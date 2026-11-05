@@ -1,6 +1,6 @@
 {
-  "iteration": 2,
-  "timestamp": "2026-11-05T22:12:14.303Z",
+  "iteration": 3,
+  "timestamp": "2026-11-05T22:35:07.069Z",
   "composite": {
     "corpusSize": 9,
     "medianAutoSafePct": 6.75,
@@ -8,11 +8,10 @@
     "dormantCount": 0,
     "answerEquivalenceMeasured": true,
     "answerEquivalence": {
-      "measuredWorkloads": 1,
+      "measuredWorkloads": 9,
       "ofCorpus": 9,
       "allLossless": true,
-      "measuredAutoSafePct": 6.12,
-      "lossyLeaks": []
+      "workloadsWithLeak": []
     }
   },
   "workloads": [
@@ -117,7 +116,63 @@
     }
   ],
   "blockers": [
-    "SAFETY: answer-equivalence verified on coding-agent (auto reduction 100% lossless, measured 6.12%); extend to the other 8 workloads",
+    "SAFETY: answer-equivalence verified across all 9 workloads (auto reduction 100% lossless)",
     "AUTONOMY: pipeline not yet wired to run on a real ledger spool unattended"
+  ],
+  "equivalence": [
+    {
+      "workload": "coding-agent",
+      "allLossless": true,
+      "measuredAutoSafePct": 6.12,
+      "lossyLeaks": []
+    },
+    {
+      "workload": "rag-docqa",
+      "allLossless": true,
+      "measuredAutoSafePct": 0,
+      "lossyLeaks": []
+    },
+    {
+      "workload": "support-chat",
+      "allLossless": true,
+      "measuredAutoSafePct": 0.44,
+      "lossyLeaks": []
+    },
+    {
+      "workload": "batch-classifier",
+      "allLossless": true,
+      "measuredAutoSafePct": 0,
+      "lossyLeaks": []
+    },
+    {
+      "workload": "already-lean",
+      "allLossless": true,
+      "measuredAutoSafePct": 0,
+      "lossyLeaks": []
+    },
+    {
+      "workload": "long-context-summarize",
+      "allLossless": true,
+      "measuredAutoSafePct": 0,
+      "lossyLeaks": []
+    },
+    {
+      "workload": "tool-heavy-agent",
+      "allLossless": true,
+      "measuredAutoSafePct": 3.38,
+      "lossyLeaks": []
+    },
+    {
+      "workload": "chatbot-memory",
+      "allLossless": true,
+      "measuredAutoSafePct": 0,
+      "lossyLeaks": []
+    },
+    {
+      "workload": "translation",
+      "allLossless": true,
+      "measuredAutoSafePct": 0,
+      "lossyLeaks": []
+    }
   ]
 }
