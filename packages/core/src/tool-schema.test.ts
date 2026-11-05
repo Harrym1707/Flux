@@ -113,6 +113,105 @@ describe("minifyToolSchemas", () => {
     expect(result.tools).toEqual([]);
     expect(result.lossyTokensSaved).toBe(0);
   });
+
+  it("keeps $defs that a $ref resolves into, instead of leaving a dangling pointer", () => {
+    const pydanticStyleTool = {
+      type: "function",
+      function: {
+        name: "create_user",
+        description: "Create a user record.",
+        parameters: {
+          type: "object",
+          properties: { user: { $ref: "#/$defs/User" } },
+          required: ["user"],
+          $defs: {
+            User: { type: "object", properties: { name: { type: "string" } } },
+          },
+        },
+      },
+    };
+    const result = minifyToolSchemas([pydanticStyleTool]);
+    const serialised = JSON.stringify(result.tools);
+    expect(serialised).toContain("$ref");
+    expect(serialised).toContain("$defs");
+    expect(serialised).toContain('"User"');
+    expect(result.changes.some((change) => change.kind === "plumbing" && change.at.endsWith("$defs"))).toBe(false);
+  });
+
+  it("keeps $defs referenced only by another definition inside it (recursive types)", () => {
+    const recursiveTool = {
+      type: "function",
+      function: {
+        name: "create_node",
+        description: "Create a tree node.",
+        parameters: {
+          type: "object",
+          properties: { node: { $ref: "#/$defs/Node" } },
+          $defs: {
+            Node: {
+              type: "object",
+              properties: {
+                value: { type: "string" },
+                children: { type: "array", items: { $ref: "#/$defs/Node" } },
+              },
+            },
+          },
+        },
+      },
+    };
+    const result = minifyToolSchemas([recursiveTool]);
+    expect(JSON.stringify(result.tools)).toContain("$defs");
+  });
+
+  it("still drops $defs as lossless plumbing when nothing refers into it", () => {
+    const deadDefsTool = {
+      type: "function",
+      function: {
+        name: "lookup",
+        description: "Look something up.",
+        parameters: {
+          type: "object",
+          properties: { id: { type: "string" } },
+          $defs: { Unused: { type: "object", properties: { note: { type: "string" } } } },
+        },
+      },
+    };
+    const result = minifyToolSchemas([deadDefsTool]);
+    const serialised = JSON.stringify(result.tools);
+    expect(serialised).not.toContain("$defs");
+    expect(serialised).not.toContain("Unused");
+    const change = result.changes.find((change) => change.at.endsWith("$defs"));
+    expect(change?.lossless).toBe(true);
+  });
+
+  it("does not let one tool's dead $defs affect another tool's referenced $defs", () => {
+    const referenced = {
+      type: "function",
+      function: {
+        name: "create_user",
+        parameters: {
+          type: "object",
+          properties: { user: { $ref: "#/$defs/User" } },
+          $defs: { User: { type: "object", properties: { name: { type: "string" } } } },
+        },
+      },
+    };
+    const dead = {
+      type: "function",
+      function: {
+        name: "lookup",
+        parameters: {
+          type: "object",
+          properties: { id: { type: "string" } },
+          $defs: { Unused: { type: "object" } },
+        },
+      },
+    };
+    const result = minifyToolSchemas([referenced, dead]);
+    const [first, second] = result.tools;
+    expect(JSON.stringify(first)).toContain("$defs");
+    expect(JSON.stringify(second)).not.toContain("$defs");
+  });
 });
 
 describe("auditToolCatalogue", () => {
