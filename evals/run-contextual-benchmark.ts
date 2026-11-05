@@ -57,7 +57,7 @@ function parse(argv: string[]): Args {
     maximumQualityDrop: numberOption("maximum-quality-drop", 0.02),
     minimumValidationGroups: numberOption("minimum-validation-groups", 100),
     bootstrapSamples: numberOption("bootstrap-samples", 2_000),
-    seed: values.seed ?? "flux-contextual-benchmark-v1",
+    seed: values.seed ?? "mesh-contextual-benchmark-v1",
     out: resolve(values.out ?? `reports/contextual-${values.dataset}.json`),
   };
 }
@@ -103,7 +103,7 @@ function markdown(
       : `selected k=${selection.selectedK}, local-weight=${selection.selectedLocalWeight}`}; validation quality delta ${selection.validationMeanQualityDelta.toFixed(4)} (cluster-bootstrap lower 95% ${selection.validationLower95QualityDelta.toFixed(4)}), validation cost/request ${selection.validationMeanCostUsd === null ? "n/a" : `$${selection.validationMeanCostUsd.toFixed(8)}`}, validation tokens/request ${selection.validationMeanTokens?.toFixed(1) ?? "n/a"}`,
   );
   return [
-    `# FLUX contextual routing benchmark: ${report.dataset}`,
+    `# MESH contextual routing benchmark: ${report.dataset}`,
     "",
     `Source: ${source}. Method: ${report.method}. Train: ${report.trainSamples}; test: ${report.testSamples}.`,
     "",

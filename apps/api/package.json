@@ -1,5 +1,5 @@
 {
-  "name": "@flux/api",
+  "name": "@mesh-ai/api",
   "version": "0.1.0",
   "private": true,
   "type": "module",

@@ -6,15 +6,15 @@ proof. One community per day, never a blast.
 
 ---
 
-## 1. console.dev pitch (email — their published criteria fit FLUX exactly)
+## 1. console.dev pitch (email — their published criteria fit MESH exactly)
 
-Subject: Flux — local LLM cost proxy with a customer-recomputable savings ledger
+Subject: Mesh — local LLM cost proxy with a customer-recomputable savings ledger
 
-> Hi — Flux might fit Console's selection criteria: it's dev-first,
+> Hi — Mesh might fit Console's selection criteria: it's dev-first,
 > entirely self-service (one command, no signup, no sales call), and the docs
 > lead with runnable commands.
 >
-> `npx -y -p @flux-ai/sdk flux-proxy` starts a local proxy; point your
+> `npx -y -p @mesh-ai/sdk mesh-proxy` starts a local proxy; point your
 > Anthropic/OpenAI client's baseURL at it and it reduces each request before
 > the provider sees it (lossless-only by default), then writes a hash-chained
 > ledger of provider-verbatim usage to your disk. The differentiator is
@@ -23,8 +23,8 @@ Subject: Flux — local LLM cost proxy with a customer-recomputable savings ledg
 > and the quote output for already-optimised stacks literally says "do not
 > pay us". Published numbers include where it loses.
 >
-> Repo: https://github.com/Harrym1707/Flux · Site: https://www.fluxtoken.dev
-> · Five-minute start: https://www.fluxtoken.dev/start.html
+> Repo: https://github.com/Harrym1707/Mesh · Site: https://www.mesh-technology.com
+> · Five-minute start: https://www.mesh-technology.com/start.html
 >
 > Happy to answer anything. — Harry
 
@@ -42,7 +42,7 @@ five-turn coding agent re-paying full input rate for its ENTIRE history every
 turn — zero cache traffic. That's the default state of most agent loops
 running right now.
 
-2/ So we built Flux: a local proxy. `npx -y -p @flux-ai/sdk flux-proxy`,
+2/ So we built Mesh: a local proxy. `npx -y -p @mesh-ai/sdk mesh-proxy`,
 point baseURL at it, keep your own key. Requests get reduced losslessly
 before the provider sees them; responses come back byte-identical.
 
@@ -61,7 +61,7 @@ quote says "do not pay us."
 
 6/ Free to try, nothing leaves your machine, ~22ms added p50. Production
 pricing is 1% of verified savings — a month that saves nothing bills
-nothing. fluxtoken.dev
+nothing. mesh-technology.com
 
 ## 4. Product Hunt (later — after HN + some social proof)
 
@@ -77,7 +77,7 @@ nothing. fluxtoken.dev
 1. AlternativeTo — create account NOW (must age 7 days before listing); list
    as alternative to Helicone / LiteLLM / OpenRouter, category LLM cost.
 2. tensorchord/Awesome-LLMOps PR — "Cost Management" section, one line:
-   "FLUX — local proxy that reduces Claude/OpenAI request cost and meters
+   "MESH — local proxy that reduces Claude/OpenAI request cost and meters
    verified savings into a customer-recomputable hash-chained ledger."
 3. The smaller awesome lists (awesome-llm, awesome-llmops, awesome-claude
    variants) — same line, one PR each, spread over days not minutes.

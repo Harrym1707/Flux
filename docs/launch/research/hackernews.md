@@ -1,7 +1,7 @@
 # Show HN research — rules, precedents, attack map (2026-10-20)
 
 ## Venue verdicts
-- **Hacker News: the launch venue.** FLUX qualifies ("things people can run"):
+- **Hacker News: the launch venue.** MESH qualifies ("things people can run"):
   the npx one-liner is the qualifying artifact. 2026 context: Show HN is being
   actively restricted against AI-generated one-offs — post from an account
   with real participation history; visible engineering depth is a survival
@@ -21,13 +21,13 @@
   85%" (3 pts; top comment: "Not a single example of what it does or how it
   works"), every "cut LLM costs 10x" variant.
 - THE LESSON: verifiable mechanism + modest checkable numbers = 100–340 pts;
-  savings-percentage benefit claim = 1–5 pts. FLUX's honesty ledger IS the
+  savings-percentage benefit claim = 1–5 pts. MESH's honesty ledger IS the
   winning framing; the 1% billing is the losing framing — keep it out of the
   title, third in the first comment, pre-caveated.
 
 ## Title candidates (proven template: Name – plain mechanism, differentiator)
-1. Show HN: Flux – local proxy that cuts Claude/OpenAI costs, with a verifiable ledger
-2. Show HN: Flux – LLM cost proxy whose savings ledger you can recompute yourself
+1. Show HN: Mesh – local proxy that cuts Claude/OpenAI costs, with a verifiable ledger
+2. Show HN: Mesh – LLM cost proxy whose savings ledger you can recompute yourself
 3. Show HN: A local LLM proxy that tells you when NOT to use it (risky-clever)
 Never in a title: "open source" (we are BUSL — using it invites a flamewar;
 omit rather than approximate), emoji, "!", "AI-powered", benefit percentages.
@@ -37,7 +37,7 @@ omit rather than approximate), emoji, "!", "AI-powered", benefit percentages.
 2. Mechanism in plain words + the exact npx command.
 3. Modest, checkable numbers WITH the band and the losers ("near 0% on stacks
    already caching well").
-4. Volunteer the weaknesses before the thread finds them: where FLUX loses,
+4. Volunteer the weaknesses before the thread finds them: where MESH loses,
    BUSL and why, the added hop, the do-not-pay-us verdict.
 5. End with a real question ("What would make you trust a savings number you
    didn't compute?").
@@ -56,7 +56,7 @@ B. "BUSL is not open source" — precedent: HashiCorp thread, Helicone's launch.
    is worthless" (founder decision).
 C. "Just use the provider's prompt caching yourself" — answer: agree + demo
    the do-not-pay-us verdict on a well-cached stack. Only credible counter.
-D. "A proxy sees my keys/prompts; latency; reliability" — FLUX is LOCAL;
+D. "A proxy sees my keys/prompts; latency; reliability" — MESH is LOCAL;
    pre-answer explicitly: keys never leave the machine, no hosted hop,
    nothing phones home, fail-open on crash, measured ~22ms added p50.
 E. "Vibe-coded/insecure" — precedent: Sherlock's ssl_insecure=true found in

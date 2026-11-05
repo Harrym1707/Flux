@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 240" role="img" aria-label="Mesh">
+  <title>Mesh</title>
+  <g fill="none" stroke="currentColor" stroke-width="16" stroke-linejoin="round" stroke-linecap="round">
+    <!-- top hexagon -->
+    <path d="M139.24 34.86 L100.03 49.91 L93.46 91.39 L126.1 117.82 L165.31 102.77 L171.88 61.29 Z"/>
+    <!-- bottom-left hexagon -->
+    <path d="M80.38 107.54 L41.17 122.6 L34.6 164.08 L67.24 190.51 L106.45 175.46 L113.02 133.98 Z"/>
+    <!-- bottom-right hexagon -->
+    <path d="M172.76 122.18 L133.55 137.23 L126.98 178.71 L159.62 205.14 L198.83 190.09 L205.4 148.61 Z"/>
+  </g>
+</svg>

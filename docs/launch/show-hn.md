@@ -5,14 +5,14 @@ on the evidence page; do not add any that isn't.
 
 ## Title (pick one — mechanism-led, never the billing, never "open source")
 
-> Show HN: Flux – local proxy that cuts Claude/OpenAI costs, with a verifiable ledger
+> Show HN: Mesh – local proxy that cuts Claude/OpenAI costs, with a verifiable ledger
 
 Alternative:
-> Show HN: Flux – LLM cost proxy whose savings ledger you can recompute yourself
+> Show HN: Mesh – LLM cost proxy whose savings ledger you can recompute yourself
 
 ## URL
 
-`https://github.com/Harrym1707/Flux` — the repo, NOT fluxtoken.dev (HN rules
+`https://github.com/Harrym1707/Mesh` — the repo, NOT mesh-technology.com (HN rules
 treat a marketing page as a disqualifying "sign-up page"; the site link goes
 in the first comment).
 
@@ -20,16 +20,16 @@ in the first comment).
 
 ---
 
-Hi HN — I built Flux after measuring something that surprised me: Anthropic's
+Hi HN — I built Mesh after measuring something that surprised me: Anthropic's
 prompt cache is opt-in, and most agents never opt in. The first time I ran
 five typical agent workloads through a meter, a five-turn coding agent was
 re-paying full input rate for its entire conversation history on every single
 turn — zero cache traffic. Multiply that by every agent loop running today
 and it's a lot of money nobody meant to spend.
 
-Flux is a local proxy. One command, no signup, no account:
+Mesh is a local proxy. One command, no signup, no account:
 
-    npx -y -p @flux-ai/sdk flux-proxy
+    npx -y -p @mesh-ai/sdk mesh-proxy
 
 Point your client's baseURL at it (`http://127.0.0.1:8787`) and keep your own
 API key — it passes through verbatim and is never stored. Requests are
@@ -62,7 +62,7 @@ Honest numbers, because that's the whole point of the thing:
 
 Where it loses, stated up front: busy interactive agents cap around 29%
 because the provider's cache already does the heavy lifting; if you already
-place cache_control correctly and dedupe your context, Flux will mostly tell
+place cache_control correctly and dedupe your context, Mesh will mostly tell
 you to keep your money.
 
 Licence and pricing, plainly: the code is source-available under BUSL 1.1 —

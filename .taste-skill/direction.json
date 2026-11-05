@@ -4,7 +4,7 @@
  "seed": 1631001276,
  "redraws": 0,
  "input": {
-  "brief": "FLUX: a proxy that cuts Claude/OpenAI API bills by removing waste tokens before they bill, verified per task in a hash-chained ledger the customer recomputes; billed only as a share of verified savings; admits where it loses (do-not-pay-us verdict)",
+  "brief": "MESH: a proxy that cuts Claude/OpenAI API bills by removing waste tokens before they bill, verified per task in a hash-chained ledger the customer recomputes; billed only as a share of verified savings; admits where it loses (do-not-pay-us verdict)",
   "sector": "dev-tool",
   "tone": null,
   "have": [

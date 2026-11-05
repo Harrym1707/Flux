@@ -1,5 +1,5 @@
 /**
- * Cold-install smoke for the packaged @flux-ai/sdk artifact.
+ * Cold-install smoke for the packaged @mesh-ai/sdk artifact.
  *
  *   node --import tsx scripts/build-sdk-package.ts && node --import tsx scripts/smoke-sdk-package.ts
  *
@@ -34,15 +34,15 @@ if (tarball === undefined) fail("npm pack produced no tarball.");
 console.log(`packed ${tarball}`);
 
 // 2. Cold install into a scratch project.
-const scratch = mkdtempSync(path.join(tmpdir(), "flux-smoke-"));
+const scratch = mkdtempSync(path.join(tmpdir(), "mesh-smoke-"));
 writeFileSync(path.join(scratch, "package.json"), JSON.stringify({ name: "smoke", private: true }), "utf8");
 run("npm", ["install", "--no-audit", "--no-fund", "--ignore-scripts", path.join(pkgDir, tarball)], scratch);
 console.log("cold install ok");
 
 // 3. CJS require: the entry loads and the core surface is present.
 const cjsCheck = `
-const sdk = require("@flux-ai/sdk");
-const needed = ["withFlux", "startFluxProxy", "reduceRequest", "recomputeInvoice", "verifyLedgerChain", "createSavingsLedger"];
+const sdk = require("@mesh-ai/sdk");
+const needed = ["withMesh", "startMeshProxy", "reduceRequest", "recomputeInvoice", "verifyLedgerChain", "createSavingsLedger"];
 for (const name of needed) {
   if (typeof sdk[name] !== "function") { console.error("missing export " + name); process.exit(1); }
 }
@@ -57,7 +57,7 @@ const esmCheck = `
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { reduceRequest, startFluxProxy, recomputeInvoice } from "@flux-ai/sdk";
+import { reduceRequest, startMeshProxy, recomputeInvoice } from "@mesh-ai/sdk";
 
 const block = "Clause 4471 applies to every refund older than thirty days and must be cited in full. ".repeat(3);
 const { summary } = reduceRequest({
@@ -68,7 +68,7 @@ const { summary } = reduceRequest({
 }, { duplicateContext: true });
 if (summary.skipped || summary.estimatedTokensSaved <= 0) { console.error("reduction did not reduce"); process.exit(1); }
 
-const proxy = await startFluxProxy({ ledgerDirectory: mkdtempSync(join(tmpdir(), "flux-smoke-ledger-")) });
+const proxy = await startMeshProxy({ ledgerDirectory: mkdtempSync(join(tmpdir(), "mesh-smoke-ledger-")) });
 const res = await fetch(proxy.url + "/v1/other", { method: "POST", body: "{}" });
 if (res.status !== 404) { console.error("proxy route guard failed: " + res.status); process.exit(1); }
 await proxy.close();
@@ -83,33 +83,33 @@ console.log(run("node", ["check.mjs"], scratch).trim());
 // 5. Both bins are wired and respond to a cold invocation.
 const quoteUsage = (() => {
   try {
-    run("node", ["node_modules/.bin/flux-quote"], scratch);
+    run("node", ["node_modules/.bin/mesh-quote"], scratch);
     return "";
   } catch (cause) {
     return String((cause as { stderr?: string }).stderr ?? "");
   }
 })();
-if (!quoteUsage.includes("Usage: flux-quote")) fail("flux-quote bin did not print usage.");
-console.log("flux-quote bin ok");
+if (!quoteUsage.includes("Usage: mesh-quote")) fail("mesh-quote bin did not print usage.");
+console.log("mesh-quote bin ok");
 
 // A plain invocation would listen forever, so the cold check for the proxy
 // bin is its own config guard: a bogus TTL must exit immediately with the
 // documented message, proving the bin resolves its import and runs.
 const proxyTtlGuard = (() => {
   try {
-    execFileSync("node", ["node_modules/.bin/flux-proxy"], {
+    execFileSync("node", ["node_modules/.bin/mesh-proxy"], {
       cwd: scratch, encoding: "utf8", timeout: 30_000,
-      env: { ...process.env, FLUX_PROXY_CACHE_TTL: "bogus" },
+      env: { ...process.env, MESH_PROXY_CACHE_TTL: "bogus" },
     });
     return "";
   } catch (cause) {
     return String((cause as { stderr?: string }).stderr ?? "");
   }
 })();
-if (!proxyTtlGuard.includes('FLUX_PROXY_CACHE_TTL must be "5m" or "1h"')) {
-  fail("flux-proxy bin did not validate FLUX_PROXY_CACHE_TTL.");
+if (!proxyTtlGuard.includes('MESH_PROXY_CACHE_TTL must be "5m" or "1h"')) {
+  fail("mesh-proxy bin did not validate MESH_PROXY_CACHE_TTL.");
 }
-console.log("flux-proxy bin ok");
+console.log("mesh-proxy bin ok");
 
 rmSync(scratch, { recursive: true, force: true });
 rmSync(path.join(pkgDir, tarball), { force: true });

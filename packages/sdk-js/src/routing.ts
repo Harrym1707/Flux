@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
-import type { FluxRequestContext, FluxRoutingConfig, FluxRoutingPolicy } from "./types.js";
+import type { MeshRequestContext, MeshRoutingConfig, MeshRoutingPolicy } from "./types.js";
 
-export type FluxRoute = {
+export type MeshRoute = {
   model: string;
   requestedModel: string;
   policyId?: string;
@@ -16,7 +16,7 @@ function bucket(key: string): number {
   return firstWord / 0x1_0000_0000;
 }
 
-function validPolicy(policy: FluxRoutingPolicy): boolean {
+function validPolicy(policy: MeshRoutingPolicy): boolean {
   if (!policy.id || !policy.taskClass || !policy.baselineModel) return false;
   if (policy.workflow !== undefined && typeof policy.workflow !== "string") return false;
   if (!Number.isInteger(policy.minimumSamples) || policy.minimumSamples < 1) return false;
@@ -40,11 +40,11 @@ function validPolicy(policy: FluxRoutingPolicy): boolean {
 }
 
 export function chooseRoute(
-  config: FluxRoutingConfig | undefined,
+  config: MeshRoutingConfig | undefined,
   request: Record<PropertyKey, any>,
   taskClass: string | undefined,
-  context: FluxRequestContext = {},
-): FluxRoute {
+  context: MeshRequestContext = {},
+): MeshRoute {
   const requestedModel = typeof request.model === "string" ? request.model : "unknown";
   const policy = Array.isArray(config?.policies)
     ? config.policies.find((candidate) => candidate &&
@@ -53,7 +53,7 @@ export function chooseRoute(
       (candidate.difficulty === undefined || candidate.difficulty === context.difficulty) &&
       (candidate.riskLevel === undefined || candidate.riskLevel === context.riskLevel))
     : undefined;
-  const baseline = (reason: FluxRoute["reason"], policyId?: string): FluxRoute => ({
+  const baseline = (reason: MeshRoute["reason"], policyId?: string): MeshRoute => ({
     model: requestedModel,
     requestedModel,
     policyId,

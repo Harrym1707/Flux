@@ -52,4 +52,4 @@ jobs:
       # that parses, a sitemap whose entries resolve, and the published numbers.
       - run: node --import tsx evals/run-geo-audit.ts
         env:
-          FLUX_SITE_ORIGIN: https://www.fluxtoken.dev
+          MESH_SITE_ORIGIN: https://www.mesh-technology.com

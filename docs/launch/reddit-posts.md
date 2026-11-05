@@ -20,11 +20,11 @@ actually metered five typical agent workloads, a five-turn coding agent was
 re-paying full input rate for its entire history every single turn. Zero
 cache traffic. The cache just… wasn't on, because nobody turns it on.
 
-So I built flux — a local proxy. One command, no signup:
+So I built mesh — a local proxy. One command, no signup:
 
-    npx -y -p @flux-ai/sdk flux-proxy
+    npx -y -p @mesh-ai/sdk mesh-proxy
 
-(or read the source first: github.com/Harrym1707/Flux — it's your API key
+(or read the source first: github.com/Harrym1707/Mesh — it's your API key
 going through it, you should.)
 
 Point your client's baseURL at it and it compacts tool schemas (decodes

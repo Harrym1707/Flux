@@ -1,6 +1,7 @@
-import type { LedgerGateVerdict, PriceCatalogue } from "../../core/dist/src/index.js";
-import type { FluxReductionSummary, FluxTokenReductionConfig } from "./reduce-request.js";
-export type FluxTelemetryConfig = {
+import type { LedgerGateVerdict } from "../../core/dist/src/savings-ledger.js";
+import type { PriceCatalogue } from "../../core/dist/src/price-catalogue.js";
+import type { MeshReductionSummary, MeshTokenReductionConfig } from "./reduce-request.js";
+export type MeshTelemetryConfig = {
   /**
    * Where to POST usage metadata. Unset (the default) means telemetry is OFF
    * and nothing is ever sent anywhere. There is no mode that sends content:
@@ -10,9 +11,9 @@ export type FluxTelemetryConfig = {
   endpoint?: string;
 };
 
-export type FluxRequestEvent = {
+export type MeshRequestEvent = {
   /** What reduction removed from this request, when reduction is configured. */
-  reduction?: FluxReductionSummary;
+  reduction?: MeshReductionSummary;
   requestId: string;
   applicationId: string;
   provider: string;
@@ -50,7 +51,7 @@ export type FluxRequestEvent = {
   /**
    * Provider-reported TTL split of the cache writes (Anthropic
    * usage.cache_creation). Present as a PAIR only when the provider reported
-   * the split; absent means unknown, and billing uses FLUX's stamped TTL when
+   * the split; absent means unknown, and billing uses MESH's stamped TTL when
    * available (otherwise the 1h premium, dispute-safe), never assumes 5m.
    */
   cacheWrite5mInputTokens?: number;
@@ -70,7 +71,7 @@ export type FluxRequestEvent = {
   timestamp: string;
 };
 
-export type FluxRoutingEvidence = {
+export type MeshRoutingEvidence = {
   baselineModel: string;
   candidateModel: string;
   eligibleForReview: boolean;
@@ -81,20 +82,20 @@ export type FluxRoutingEvidence = {
   candidateCostUsd: number;
 };
 
-export type FluxRoutingCandidate = {
+export type MeshRoutingCandidate = {
   model: string;
   /** Share of requests assigned to this candidate, from 0 to 1. */
   trafficShare: number;
   /** Explicit human approval after reviewing the offline replay report. */
   approved: boolean;
-  evidence: FluxRoutingEvidence;
+  evidence: MeshRoutingEvidence;
   /** Optional lower output-token cap for this candidate. The baseline request is unchanged on fallback. */
   maxOutputTokens?: number;
   /** Versioned deterministic context-reduction transform evaluated in replay. */
   contextProfileId?: string;
 };
 
-export type FluxRoutingPolicy = {
+export type MeshRoutingPolicy = {
   id: string;
   taskClass: string;
   workflow?: string;
@@ -104,16 +105,16 @@ export type FluxRoutingPolicy = {
   minimumSamples: number;
   minimumCandidateAccuracyLower95: number;
   maximumAccuracyDrop: number;
-  candidates: FluxRoutingCandidate[];
+  candidates: MeshRoutingCandidate[];
 };
 
-export type FluxRoutingConfig = {
-  policies: FluxRoutingPolicy[];
+export type MeshRoutingConfig = {
+  policies: MeshRoutingPolicy[];
   /** Return a stable, non-sensitive key such as tenant/user or job ID. */
   getRequestKey: (request: unknown) => string | undefined;
 };
 
-export type FluxExactCacheConfig = {
+export type MeshExactCacheConfig = {
   /** Maximum completed responses retained in this client process. */
   maxEntries: number;
   /** Cache entry lifetime in milliseconds. */
@@ -122,7 +123,7 @@ export type FluxExactCacheConfig = {
   getScopeKey: (request: unknown) => string | undefined;
 };
 
-export type FluxEvaluationCaptureAttempt = {
+export type MeshEvaluationCaptureAttempt = {
   model: string;
   contextProfileId?: string;
   maxOutputTokens?: number;
@@ -136,7 +137,7 @@ export type FluxEvaluationCaptureAttempt = {
 };
 
 /** Content-bearing local evaluation record. Enable only with an explicit redactor. */
-export type FluxEvaluationCaptureRecord = {
+export type MeshEvaluationCaptureRecord = {
   schemaVersion: 1;
   id: string;
   caseId: string;
@@ -151,14 +152,14 @@ export type FluxEvaluationCaptureRecord = {
   riskLevel?: "low" | "medium" | "high";
   request: unknown;
   expected?: unknown;
-  attempts: FluxEvaluationCaptureAttempt[];
+  attempts: MeshEvaluationCaptureAttempt[];
   cacheHit?: boolean;
   routeReason?: string;
   status: "succeeded" | "failed";
   timestamp: string;
 };
 
-export type FluxEvaluationCaptureConfig = {
+export type MeshEvaluationCaptureConfig = {
   /** Stable ID across deliberate replays of the same application test case. */
   getCaseId?: (request: unknown) => string | undefined;
   /** Optional stable group key, ideally a one-way hash of the normalized input. */
@@ -168,9 +169,9 @@ export type FluxEvaluationCaptureConfig = {
   /** Task-specific scorer returning a normalized value in [0, 1]. */
   score?: (expected: unknown, response: unknown, meta: { model: string; workflow?: string; taskClass?: string }) => number;
   /** Required privacy boundary: return a sanitized copy, or undefined to discard the record. */
-  redact: (record: FluxEvaluationCaptureRecord) => FluxEvaluationCaptureRecord | undefined;
+  redact: (record: MeshEvaluationCaptureRecord) => MeshEvaluationCaptureRecord | undefined;
   /** Write sanitized records locally or to an explicitly chosen sink. */
-  write: (record: FluxEvaluationCaptureRecord) => void | Promise<void>;
+  write: (record: MeshEvaluationCaptureRecord) => void | Promise<void>;
 };
 
 /**
@@ -180,7 +181,7 @@ export type FluxEvaluationCaptureConfig = {
  * into the request path. The spool is the billing source of truth a customer
  * recomputes themselves with `recomputeInvoice`.
  */
-export type FluxSavingsLedgerConfig = {
+export type MeshSavingsLedgerConfig = {
   /** Append-only JSONL file; parent directories are created on first write. */
   path: string;
   /** Provider key used to resolve rates in the catalogue. Default "openai". */
@@ -194,16 +195,16 @@ export type FluxSavingsLedgerConfig = {
    */
   gateVerdicts?: Record<string, LedgerGateVerdict>;
   /** Optional task correlation so a failed task's turns are excluded from the invoice. */
-  getCorrelation?: (event: FluxRequestEvent) => { taskId?: string; turnIndex?: number } | undefined;
+  getCorrelation?: (event: MeshRequestEvent) => { taskId?: string; turnIndex?: number } | undefined;
   /**
    * Optional measured counterfactual cost (standard tier, no levers) in USD for
    * this request, from a replay/counterfactual measurement path. Stored on the
    * event; the measured token-reduction delta bills only when it is present.
    */
-  getBaselineUsd?: (event: FluxRequestEvent) => number | undefined;
+  getBaselineUsd?: (event: MeshRequestEvent) => number | undefined;
 };
 
-export type FluxRequestContext = {
+export type MeshRequestContext = {
   taskClass?: string;
   workflow?: string;
   difficulty?: "low" | "medium" | "high";
@@ -211,16 +212,16 @@ export type FluxRequestContext = {
 };
 
 /** A deterministic, versioned context transformation that can be replayed before rollout. */
-export type FluxContextProfile = {
+export type MeshContextProfile = {
   id: string;
   version: string;
   /** Optional guard; every supplied field must exactly match the request's trusted context. */
-  match?: Partial<Pick<FluxRequestContext, "taskClass" | "workflow" | "difficulty" | "riskLevel">>;
+  match?: Partial<Pick<MeshRequestContext, "taskClass" | "workflow" | "difficulty" | "riskLevel">>;
   /** Transform synchronously to avoid adding another model call to the inference path. */
-  transform: (request: unknown, context: FluxRequestContext) => unknown;
+  transform: (request: unknown, context: MeshRequestContext) => unknown;
 };
 
-export type FluxOptions = {
+export type MeshOptions = {
   applicationId: string;
   pricing?: {
     inputPerMillion: number;
@@ -238,31 +239,31 @@ export type FluxOptions = {
     cacheWrite1hInputPerMillion?: number;
     outputPerMillion: number;
   }>;
-  telemetry?: FluxTelemetryConfig;
+  telemetry?: MeshTelemetryConfig;
   classify?: (request: unknown) => string | undefined;
-  getContext?: (request: unknown) => FluxRequestContext;
+  getContext?: (request: unknown) => MeshRequestContext;
   /**
    * Token reduction applied to every request, independent of routing. Omit to
    * leave requests untouched.
    */
-  tokenReduction?: FluxTokenReductionConfig;
-  contextProfiles?: readonly FluxContextProfile[];
+  tokenReduction?: MeshTokenReductionConfig;
+  contextProfiles?: readonly MeshContextProfile[];
   /** @deprecated Use versioned contextProfiles for replayable context transformations. */
-  contextTransforms?: Record<string, (request: unknown, context: FluxRequestContext) => unknown>;
-  routing?: FluxRoutingConfig;
+  contextTransforms?: Record<string, (request: unknown, context: MeshRequestContext) => unknown>;
+  routing?: MeshRoutingConfig;
   /** Return false or throw to retry a routed candidate request on the baseline model. */
   qualityCheck?: (input: {
     request: unknown;
     response: unknown;
     taskClass?: string;
-    context?: FluxRequestContext;
+    context?: MeshRequestContext;
     candidateModel: string;
   }) => boolean | Promise<boolean>;
   /** Opt-in, in-memory exact response cache. Tool/conversation/streaming requests are bypassed. */
-  exactCache?: FluxExactCacheConfig;
+  exactCache?: MeshExactCacheConfig;
   /** Off by default. Captures request/response content only when explicitly configured. */
-  evaluationCapture?: FluxEvaluationCaptureConfig;
+  evaluationCapture?: MeshEvaluationCaptureConfig;
   /** Off by default. Appends hash-chained billable events to a local JSONL spool. */
-  ledger?: FluxSavingsLedgerConfig;
-  onEvent?: (event: FluxRequestEvent) => void;
+  ledger?: MeshSavingsLedgerConfig;
+  onEvent?: (event: MeshRequestEvent) => void;
 };

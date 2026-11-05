@@ -1,33 +1,62 @@
 # Get started in five minutes
 
-FLUX sits between your app and your AI provider, removes the tokens you were
+MESH sits between your app and your AI provider, removes the tokens you were
 about to pay for twice, and writes every request into a tamper-evident ledger
 you can audit yourself. No signup, no account, no key handover: your API key
 passes through to the provider and is never stored. Works with Claude
 (Anthropic), OpenAI, and any OpenAI-compatible endpoint.
+
+## Claude Code — one command
+
+Install the `mesh` command (needs Node 22+, which Claude Code already uses):
+
+```bash
+curl -fsSL https://www.mesh-technology.com/install.sh | sh
+```
+
+Then start it:
+
+```bash
+mesh start
+```
+
+That points Claude Code at MESH and runs **Theo** — your token engineer —
+alongside you. Use Claude Code exactly as normal; press Ctrl+C to stop and
+Claude Code reverts cleanly. Check your own verified number any time with
+`mesh verify`.
+
+The installer drops one tiny launcher that fetches and checksum-verifies the
+runtime; it never touches your API key. Read it first if you like:
+`curl -fsSL https://www.mesh-technology.com/install.sh | less`.
+
+**Other ways in:** once `@mesh-ai/mesh` is published, `npx @mesh-ai/mesh start`
+works with no install. Or grab the launcher directly:
+`curl -fsSL https://www.mesh-technology.com/mesh -o mesh && chmod +x mesh && ./mesh start`.
+
+The rest of this page is the manual setup for any other app or language.
 
 ## Step 1 — run the proxy
 
 One command, nothing to clone:
 
 ```bash
-npx -y -p @flux-ai/sdk flux-proxy
+npx -y -p @mesh-ai/sdk mesh-proxy
 ```
 
 You'll see:
 
 ```text
-FLUX proxy listening on http://127.0.0.1:8787
-Ledger spools: ./flux-ledger
+MESH proxy listening on http://127.0.0.1:8787
+Ledger spools: ./mesh-ledger
 ```
 
 To switch on the Claude prompt-cache lever too (our single biggest measured
 saver, 37.9% on multi-turn traffic), start it as
-`FLUX_PROXY_CACHE_TTL=5m npx -y -p @flux-ai/sdk flux-proxy`.
+`MESH_PROXY_CACHE_TTL=5m npx -y -p @mesh-ai/sdk mesh-proxy`.
 
 ## Step 2 — point your app at it
 
-Change one line. Keep your own API key — FLUX passes it through verbatim.
+Change one line. Keep your own API key — MESH passes it through verbatim.
 
 ```js
 // Anthropic SDK
@@ -46,7 +75,7 @@ Responses come back byte-identical, streaming included. Reduction is
 **lossless-only by default**: compacted tool schemas decode identically,
 removed duplicates are exact, and if anything fails your request goes through
 untouched. Each request appends one hash-chained event to
-`./flux-ledger/<your-app>-<provider>.jsonl` — usage numbers, lever names and
+`./mesh-ledger/<your-app>-<provider>.jsonl` — usage numbers, lever names and
 hashes. Never your prompts.
 
 ## Step 4 — check our maths yourself
@@ -58,16 +87,16 @@ published package:
 ```bash
 node -e '
 const { readFileSync } = require("node:fs");
-const { verifyLedgerChain, recomputeInvoice } = require("@flux-ai/sdk");
+const { verifyLedgerChain, recomputeInvoice } = require("@mesh-ai/sdk");
 const records = readFileSync(process.argv[1], "utf8").trim().split(/\n/).map(JSON.parse);
 const chain = verifyLedgerChain(records);
 if (!chain.ok) throw new Error("chain broken at seq " + chain.seq);
 console.log("chain verified:", chain.length, "records");
 console.log(JSON.stringify(recomputeInvoice(records.map(r => r.event)), null, 2));
-' flux-ledger/proxy-anthropic.jsonl
+' mesh-ledger/proxy-anthropic.jsonl
 ```
 
-If FLUX saved you nothing, the verdict line literally reads
+If MESH saved you nothing, the verdict line literally reads
 `"verdict": "do_not_charge"` — that is the honest outcome on traffic that is
 already lean, and we publish it as such.
 
@@ -77,7 +106,7 @@ You don't need to route any traffic to get a quote. Export your existing logs
 and run them through the quote tool — the verdict can be "do not pay us":
 
 ```bash
-npx -y -p @flux-ai/sdk flux-quote your-export.jsonl --format litellm
+npx -y -p @mesh-ai/sdk mesh-quote your-export.jsonl --format litellm
 ```
 
 ## What it costs
@@ -89,7 +118,7 @@ measurement rules are published in full in the [methodology](methodology.md),
 and every number we quote traces to a command and a commit on the
 [evidence](evidence.md) page.
 
-## What FLUX never does
+## What MESH never does
 
 - Never sends your prompts anywhere — analysis runs entirely on your machine.
 - Never stores or forwards your API key beyond the provider you chose.

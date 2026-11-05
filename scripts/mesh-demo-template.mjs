@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// The zero-key FLUX demo: the ENTIRE loop — proxy, reduction, hash-chained
+// The zero-key MESH demo: the ENTIRE loop — proxy, reduction, hash-chained
 // ledger, independent recomputation — on your machine in ~10 seconds, with
 // no API key, no account, and no network access (the "provider" is a local
 // stub). DEMO TRAFFIC: the percentages below describe this synthetic run,
@@ -8,7 +8,7 @@ import { createServer } from "node:http";
 import { mkdtempSync, readFileSync, readdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { recomputeInvoice, startFluxProxy, verifyLedgerChain } from "../index.js";
+import { recomputeInvoice, startMeshProxy, verifyLedgerChain } from "../index.js";
 
 const stub = createServer((req, res) => {
   const chunks = [];
@@ -27,14 +27,14 @@ const stub = createServer((req, res) => {
 await new Promise((ready) => stub.listen(0, "127.0.0.1", ready));
 const stubUrl = `http://127.0.0.1:${stub.address().port}`;
 
-const ledgerDirectory = mkdtempSync(join(tmpdir(), "flux-demo-"));
-const proxy = await startFluxProxy({
+const ledgerDirectory = mkdtempSync(join(tmpdir(), "mesh-demo-"));
+const proxy = await startMeshProxy({
   ledgerDirectory,
   anthropicUpstream: stubUrl,
   tokenReduction: { toolSchemas: true, duplicateContext: true, repairCachePrefix: true, cacheTtl: "5m" },
 });
 
-console.log("FLUX zero-key demo — a local stub stands in for the provider; nothing leaves this machine.\n");
+console.log("MESH zero-key demo — a local stub stands in for the provider; nothing leaves this machine.\n");
 
 const PREAMBLE = "You are a careful assistant on a production team. Verify inputs, cite sources, prefer small reversible steps, and keep answers terse. ".repeat(12);
 const TOOLS = Array.from({ length: 8 }, (_, i) => ({
@@ -47,7 +47,7 @@ const EXCERPT = "Clause 4 of the services agreement sets the notification window
 async function send(name, request) {
   const response = await fetch(`${proxy.url}/v1/messages`, {
     method: "POST",
-    headers: { "content-type": "application/json", "x-api-key": "sk-demo-not-a-real-key", "x-flux-application": name },
+    headers: { "content-type": "application/json", "x-api-key": "sk-demo-not-a-real-key", "x-mesh-application": name },
     body: JSON.stringify(request),
   });
   await response.arrayBuffer();
@@ -83,7 +83,7 @@ for (let item = 0; item < 4; item += 1) {
 }
 console.log("3. four templated batch classifications: shared template stamped once, read thereafter");
 
-// 4. An already-lean request FLUX should leave alone.
+// 4. An already-lean request MESH should leave alone.
 await send("demo-lean", {
   model: "claude-sonnet-5-5", max_tokens: 60,
   messages: [{ role: "user", content: "Summarise: the meeting moved to 3pm." }],
@@ -100,6 +100,6 @@ for (const spool of readdirSync(ledgerDirectory).sort()) {
   console.log(`${spool}: ${records.length} event(s), chain ${chain.ok ? "VERIFIED" : "BROKEN"} — verdict ${invoice.verdict}, net verified savings $${invoice.netVerifiedSavingsUsd.toFixed(4)}`);
 }
 console.log(`\nThe spools live at ${ledgerDirectory} — inspect them, or re-verify independently with the MIT verifier:`);
-console.log(`  npx -y -p @flux-ai/verify flux-verify ${join(ledgerDirectory, "demo-agent-anthropic.jsonl")}`);
+console.log(`  npx -y -p @mesh-ai/verify mesh-verify ${join(ledgerDirectory, "demo-agent-anthropic.jsonl")}`);
 console.log("\nDemo traffic only: these numbers describe this synthetic run, never your workload.");
-console.log("Real traffic is one line: point your client baseURL at flux-proxy and keep your own key.");
+console.log("Real traffic is one line: point your client baseURL at mesh-proxy and keep your own key.");

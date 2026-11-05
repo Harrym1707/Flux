@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "purpose": "Measure whether public AI/search systems correctly understand the FLUX category and product.",
+  "purpose": "Measure whether public AI/search systems correctly understand the MESH category and product.",
   "queries": [
     "How can I reduce LLM inference costs?",
     "How do I reduce token usage in an AI SaaS product?",

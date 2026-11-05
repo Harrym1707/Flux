@@ -1,5 +1,5 @@
 /**
- * flux-bill — turn a customer's FLUX ledger spool(s) into a Stripe invoice.
+ * mesh-bill — turn a customer's MESH ledger spool(s) into a Stripe invoice.
  *
  * Reads the spools, recomputes the invoice (pure, from the hash-chained ledger),
  * verifies the chain, builds the Stripe plan (packages/core/stripe-billing),
@@ -17,7 +17,7 @@
  *   - No prompt content is read or sent — only the usage-derived invoice totals.
  *
  * Usage:
- *   STRIPE_TEST_SECRET_KEY=... node --import tsx scripts/flux-bill.ts \
+ *   STRIPE_TEST_SECRET_KEY=... node --import tsx scripts/mesh-bill.ts \
  *     --customer cus_XXX --period 2026-10 --fee 1 spool1.jsonl [spool2.jsonl ...]
  *   Optional: --finalize (finalize+send instead of leaving a draft),
  *             --label "acme-anthropic", --live (requires confirmation).
@@ -79,7 +79,7 @@ async function stripePost(
 async function main(): Promise<void> {
   const args = parseArgs(process.argv.slice(2));
   const key = process.env.STRIPE_TEST_SECRET_KEY ?? process.env.STRIPE_SECRET_KEY ?? "";
-  if (!key) throw new Error("Set STRIPE_TEST_SECRET_KEY (source ~/.config/flux/stripe.env).");
+  if (!key) throw new Error("Set STRIPE_TEST_SECRET_KEY (source ~/.config/mesh/stripe.env).");
   if (!args.customer) throw new Error("--customer cus_… is required.");
   if (args.spools.length === 0) throw new Error("Pass at least one ledger spool (.jsonl).");
 
@@ -135,7 +135,7 @@ async function main(): Promise<void> {
     currency: plan.currency, // match the fee currency; the account default may differ (e.g. GBP)
     collection_method: "charge_automatically",
     auto_advance: "false", // never let the draft advance to payment on its own
-    description: `FLUX statement ${plan.metadata.flux_period ?? ""}`,
+    description: `MESH statement ${plan.metadata.mesh_period ?? ""}`,
   }, `${plan.idempotencyKey}-inv`);
 
   await stripePost(key, "invoiceitems", {
@@ -144,9 +144,9 @@ async function main(): Promise<void> {
     amount: String(plan.amountCents),
     currency: plan.currency,
     description: plan.description,
-    "metadata[flux_period]": plan.metadata.flux_period ?? "",
-    "metadata[flux_fee_percent]": plan.metadata.flux_fee_percent ?? "",
-    "metadata[flux_net_verified_savings_usd]": plan.metadata.flux_net_verified_savings_usd ?? "",
+    "metadata[mesh_period]": plan.metadata.mesh_period ?? "",
+    "metadata[mesh_fee_percent]": plan.metadata.mesh_fee_percent ?? "",
+    "metadata[mesh_net_verified_savings_usd]": plan.metadata.mesh_net_verified_savings_usd ?? "",
   }, `${plan.idempotencyKey}-item`);
 
   console.log(`\nCreated Stripe invoice ${inv.id} — status ${inv.status} (${isLive ? "LIVE" : "TEST"} mode).`);

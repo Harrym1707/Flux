@@ -8,8 +8,8 @@
  *
  * The only additions on top of the verbatim move are the two env knobs:
  *
- *   FLUX_AB_TASKS  - task count (default 40, the original constant).
- *   FLUX_AB_SEED   - rotates the task->domain ASSIGNMENT only (default 0).
+ *   MESH_AB_TASKS  - task count (default 40, the original constant).
+ *   MESH_AB_SEED   - rotates the task->domain ASSIGNMENT only (default 0).
  *
  * With both unset, every byte of every request is identical to the original
  * inline fixture. The seed must never touch the natural-output-length formula
@@ -26,19 +26,19 @@ function envInteger(name: string, fallback: number, minimum: number, maximum: nu
   return parsed;
 }
 
-/** Task count. Defaults to the original 40; FLUX_AB_TASKS overrides. */
-export const TASKS = envInteger("FLUX_AB_TASKS", 40, 1, 2_000);
+/** Task count. Defaults to the original 40; MESH_AB_TASKS overrides. */
+export const TASKS = envInteger("MESH_AB_TASKS", 40, 1, 2_000);
 export const TURNS_PER_TASK = 5;
 
 /**
- * Domain-rotation seed. FLUX_AB_SEED shifts which domain each task asks about,
+ * Domain-rotation seed. MESH_AB_SEED shifts which domain each task asks about,
  * so a run at SEED=3 is the same workload with the task->domain table rotated.
  * It deliberately cannot change anything else: not the tool results, not the
  * output-length formula, not the quality logic.
  */
-export const SEED_OFFSET = envInteger("FLUX_AB_SEED", 0, 0, 1_000);
+export const SEED_OFFSET = envInteger("MESH_AB_SEED", 0, 0, 1_000);
 
-/** The task->domain assignment, the ONLY thing FLUX_AB_SEED may rotate. */
+/** The task->domain assignment, the ONLY thing MESH_AB_SEED may rotate. */
 export function domainOf(taskIndex: number): (typeof DOMAINS)[number] {
   return DOMAINS[(taskIndex + SEED_OFFSET) % DOMAINS.length]!;
 }
@@ -107,7 +107,7 @@ export type AnyObject = Record<string, unknown>;
 /** One turn of one task, as the caller would build it. */
 export function buildRequest(taskIndex: number, turn: number, clockHour: number): AnyObject {
   // domainOf() replaces the original inline `DOMAINS[taskIndex % DOMAINS.length]`
-  // so FLUX_AB_SEED can rotate the assignment; at the default seed of 0 it is
+  // so MESH_AB_SEED can rotate the assignment; at the default seed of 0 it is
   // the same expression and every request byte is unchanged.
   const domain = domainOf(taskIndex);
   const history: AnyObject[] = [];

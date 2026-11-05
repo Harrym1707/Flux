@@ -18,7 +18,7 @@ import { type TokenPrice } from "./cost.js";
  * must charge the cache rate on the minified size, not the original.
  *
  * Every lever carries the published evidence for its reduction factor. Those
- * factors come from their authors' benchmarks, not from FLUX measuring them on
+ * factors come from their authors' benchmarks, not from MESH measuring them on
  * your traffic, so a projection from this model is a hypothesis to verify by
  * replay, never a realised saving. Realised savings come from provider-reported
  * usage priced through the catalogue.
@@ -125,7 +125,7 @@ export declare function projectSavings(profile: WorkloadProfile, levers: Lever[]
 /**
  * Workload shapes the levers behave very differently on. The headline number a
  * customer sees depends far more on which of these they are than on anything
- * FLUX does, which is why one global percentage would be misleading.
+ * MESH does, which is why one global percentage would be misleading.
  */
 export declare const WORKLOAD_ARCHETYPES: Record<string, WorkloadProfile>;
 /** Levers applicable to a profile, in the order they should be applied. */

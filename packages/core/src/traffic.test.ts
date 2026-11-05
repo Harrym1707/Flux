@@ -133,7 +133,7 @@ describe("episode identification", () => {
 });
 
 describe("traffic measurement", () => {
-  it("separates input already arriving cached from what FLUX could save", () => {
+  it("separates input already arriving cached from what MESH could save", () => {
     const rows = Array.from({ length: 4 }, (_, index) => usageRow({ id: `r${index}`, cached_tokens: 500 }));
     const measurement = measureTraffic(ingestTraffic(rows, AT).records, publishedModelPrices);
     expect(measurement.alreadyCachedShare).toBeCloseTo(0.5, 6);

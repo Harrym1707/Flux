@@ -47,6 +47,21 @@ const ANTHROPIC_BATCH = {
     "under batch are not published and are omitted (priced unpriced, never guessed).",
 } as const;
 
+// DeepSeek publishes TIME-OF-DAY pricing: off-peak rates are half the peak
+// rates, with peak hours 01:00-04:00 and 06:00-10:00 UTC Mon-Fri (excluding
+// Chinese public holidays), everything else off-peak. The catalogue has no
+// time-of-day dimension, so these entries use the OFF-PEAK (lower) rate: MESH
+// then never OVER-values a DeepSeek saving, and conservatively under-counts it
+// during the peak windows until a time-of-day rate dimension lands. Current API
+// models are deepseek-flash and deepseek-v4-pro (deepseek-v4-flash is a legacy
+// alias billed at the Flash rate). Read from DeepSeek's own pricing page.
+const DEEPSEEK = {
+  source: "https://api-docs.deepseek.com/quick_start/pricing",
+  capturedOn: "2026-11-03",
+  note: "Off-peak list rates (peak is 2x in the 01-10 UTC weekday windows); catalogued at " +
+    "off-peak so a saving is never over-valued. Per 1M tokens.",
+} as const;
+
 const OBSERVED_FROM = "2026-10-08";
 
 type Rates = {
@@ -138,6 +153,13 @@ const openai: ModelPriceEntry[] = [
   entry("openai", "gpt-5", OPENAI, [{ input: 0.625, output: 5, cachedInput: 0.0625 }], "flex"),
 ];
 
+// DeepSeek — OpenAI-compatible provider, reachable through `mesh start --openai-base
+// https://api.deepseek.com`. Off-peak rates per the DEEPSEEK provenance note above.
+const deepseek: ModelPriceEntry[] = [
+  entry("deepseek", "deepseek-flash", DEEPSEEK, [{ input: 0.15, output: 0.6, cachedInput: 0.003 }], "standard", "2026-11-03"),
+  entry("deepseek", "deepseek-v4-pro", DEEPSEEK, [{ input: 0.66, output: 1.98, cachedInput: 0.022 }], "standard", "2026-11-03"),
+];
+
 /**
  * API identifiers to catalogue keys.
  *
@@ -163,11 +185,15 @@ const aliases: ModelAlias[] = [
   { provider: "openai", id: "gpt-4o-2024-*", model: "gpt-4o" },
   { provider: "openai", id: "gpt-4o-mini-2024-*", model: "gpt-4o-mini" },
   { provider: "openai", id: "o3-mini-2025-*", model: "o3-mini" },
+  // DeepSeek: the current ids match their keys (normalisation covers them); only
+  // the legacy pointer needs an explicit map. deepseek-v4-flash bills at Flash,
+  // per DeepSeek's pricing page.
+  { provider: "deepseek", id: "deepseek-v4-flash", model: "deepseek-flash" },
 ];
 
 /** Published list rates as observed on the capture date. */
 export const publishedModelPrices: PriceCatalogue = validatePriceCatalogue({
-  entries: [...anthropic, ...openai],
+  entries: [...anthropic, ...openai, ...deepseek],
   negotiated: [],
   aliases,
 });
@@ -179,7 +205,7 @@ export const publishedModelPrices: PriceCatalogue = validatePriceCatalogue({
  * prompt-caching, captured 2026-10-08, same capture date as `ANTHROPIC`
  * above). Below this minimum the provider processes the request without
  * caching at all — not an error, a silent no-op — so a breakpoint placed on
- * a shorter prefix can never be read back and would make FLUX claim a
+ * a shorter prefix can never be read back and would make MESH claim a
  * saving that cannot happen.
  *
  * Matched on the raw model id by substring rather than through

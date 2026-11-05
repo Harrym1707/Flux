@@ -39,4 +39,4 @@ Allow: /
 User-agent: *
 Allow: /
 
-Sitemap: https://www.fluxtoken.dev/sitemap.xml
+Sitemap: https://www.mesh-technology.com/sitemap.xml

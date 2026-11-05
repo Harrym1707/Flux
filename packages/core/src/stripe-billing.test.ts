@@ -36,8 +36,8 @@ describe("buildStripeInvoicePlan", () => {
     expect(plan.currency).toBe("usd");
     expect(plan.customerId).toBe("cus_TEST123");
     expect(plan.description).toContain("1% of $12.50 net verified savings");
-    expect(plan.description).toContain("flux-verify");
-    expect(plan.metadata.flux_net_verified_savings_usd).toBe("12.5000");
+    expect(plan.description).toContain("mesh-verify");
+    expect(plan.metadata.mesh_net_verified_savings_usd).toBe("12.5000");
     expect(plan.finalize).toBe(false); // draft by default — nothing charged without a human
   });
 
@@ -88,7 +88,7 @@ describe("buildStripeInvoicePlan", () => {
     const b = buildStripeInvoicePlan(invoice(), true, opts);
     if (a.action !== "bill" || b.action !== "bill") throw new Error("expected bill");
     expect(a.idempotencyKey).toBe(b.idempotencyKey);
-    expect(a.idempotencyKey).toBe("flux-cus_TEST123-2026-10-13");
+    expect(a.idempotencyKey).toBe("mesh-cus_TEST123-2026-10-13");
   });
 
   it("refuses to build without a Stripe customer id", () => {

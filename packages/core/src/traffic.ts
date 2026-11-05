@@ -302,7 +302,7 @@ export type WorkloadMeasurement = {
   requests: number;
   inputTokens: number;
   outputTokens: number;
-  /** Tokens the provider already served from cache before FLUX touched anything. */
+  /** Tokens the provider already served from cache before MESH touched anything. */
   alreadyCachedInputTokens: number;
   meanToolSchemaTokens: number;
   /** Measured from the request's own tool definitions; absent when none were sent. */
@@ -323,7 +323,7 @@ export type TrafficMeasurement = {
   totalBaselineCostUsd: number;
   /** Models the catalogue could not price; their spend is excluded, never assumed zero. */
   unpricedModels: string[];
-  /** Share of input tokens already arriving cached, which FLUX must not claim credit for. */
+  /** Share of input tokens already arriving cached, which MESH must not claim credit for. */
   alreadyCachedShare: number;
   promptTextAvailable: boolean;
   /** True when at least one record carried a task identifier. */
@@ -339,7 +339,7 @@ function groupKey(record: TrafficRecord): string {
  * Measure a traffic sample.
  *
  * Deliberately conservative in two places. Input already arriving cached is
- * reported separately and never counted as a FLUX saving, because the customer
+ * reported separately and never counted as a MESH saving, because the customer
  * already has it. And a model the catalogue cannot price is named and excluded
  * rather than treated as free, the same discipline applied to benchmark sources.
  */

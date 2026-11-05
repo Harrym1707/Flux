@@ -3,45 +3,45 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>FLUX — verified LLM cost reduction, billed only on savings you can recompute</title>
-<meta name="description" content="FLUX is a drop-in wrapper for your OpenAI or Anthropic client that reduces what you spend per completed task — and proves it. You pay a percentage of verified savings. If your traffic is already optimised, FLUX tells you not to pay us.">
-<link rel="canonical" href="https://www.fluxtoken.dev/overview.html">
+<title>MESH — verified LLM cost reduction, billed only on savings you can recompute</title>
+<meta name="description" content="MESH is a drop-in wrapper for your OpenAI or Anthropic client that reduces what you spend per completed task — and proves it. You pay a percentage of verified savings. If your traffic is already optimised, MESH tells you not to pay us.">
+<link rel="canonical" href="https://www.mesh-technology.com/overview.html">
 <meta property="og:type" content="website">
-<meta property="og:site_name" content="flux">
-<meta property="og:title" content="FLUX — verified LLM cost reduction, billed only on savings you can recompute">
-<meta property="og:description" content="FLUX is a drop-in wrapper for your OpenAI or Anthropic client that reduces what you spend per completed task — and proves it. You pay a percentage of verified savings. If your traffic is already optimised, FLUX tells you not to pay us.">
-<meta property="og:url" content="https://www.fluxtoken.dev/overview.html">
-<meta property="og:image" content="https://www.fluxtoken.dev/og.png">
+<meta property="og:site_name" content="mesh">
+<meta property="og:title" content="MESH — verified LLM cost reduction, billed only on savings you can recompute">
+<meta property="og:description" content="MESH is a drop-in wrapper for your OpenAI or Anthropic client that reduces what you spend per completed task — and proves it. You pay a percentage of verified savings. If your traffic is already optimised, MESH tells you not to pay us.">
+<meta property="og:url" content="https://www.mesh-technology.com/overview.html">
+<meta property="og:image" content="https://www.mesh-technology.com/og.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
 <meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:image" content="https://www.fluxtoken.dev/og.png">
+<meta name="twitter:image" content="https://www.mesh-technology.com/og.png">
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&display=swap" rel="stylesheet">
 <style>:root{
-  /* FLUX brand: Midnight Tide / Open Ocean / Sky Signal / Cloud White */
-  --bg:#F1F7FB;
+  /* MESH brand: Off White ground, Deep Graphite ink, Mesh Blue accent, Frost tone-step */
+  --bg:#FAFAF9;
   --surface:#ffffff;
-  --fg:#102A43;
-  --muted:#486581;
-  --line:#d9e6f0;
-  --brand:#2864A5;
-  --signal:#9DD9F5;
-  --signal-soft:#e4f4fd;
-  --code:#e8f1f8;
+  --fg:#0B0F14;
+  --muted:#5B6472;
+  --line:#E5E7EB;
+  --brand:#2563EB;
+  --signal:#2563EB;
+  --signal-soft:#EEF2FE;
+  --code:#F1F3F5;
 }
 @media (prefers-color-scheme: dark){:root{
-  --bg:#0b1d2e;
-  --surface:#102A43;
-  --fg:#F1F7FB;
-  --muted:#9fb3c8;
-  --line:#24415c;
-  --brand:#9DD9F5;
-  --signal:#9DD9F5;
-  --signal-soft:#16314a;
-  --code:#16314a;
+  --bg:#0B0F14;
+  --surface:#14181F;
+  --fg:#FAFAF9;
+  --muted:#9AA3B2;
+  --line:#262B33;
+  --brand:#6B93FF;
+  --signal:#6B93FF;
+  --signal-soft:#17202E;
+  --code:#161B22;
 }}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.7 Manrope,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
@@ -57,9 +57,9 @@ h3{font-size:1.05rem;font-weight:700}
 a{color:var(--brand)}
 strong{color:var(--fg)}
 code{background:var(--code);padding:.1em .35em;border-radius:5px;font-size:.88em}
-pre.block{background:#102A43;color:#F1F7FB;border-radius:10px;padding:1rem 1.1rem;overflow-x:auto;font-size:.85rem;line-height:1.6}
+pre.block{background:#E7E5E4;color:#0B0F14;border-radius:10px;padding:1rem 1.1rem;overflow-x:auto;font-size:.85rem;line-height:1.6}
 pre.block code{background:none;padding:0;font-size:inherit;color:inherit}
-@media (prefers-color-scheme: dark){pre.block{background:#0b1d2e;border:1px solid var(--line)}}
+@media (prefers-color-scheme: dark){pre.block{background:#14181F;color:#FAFAF9;border:1px solid var(--line)}}
 .table-wrap{overflow-x:auto;background:var(--surface);border:1px solid var(--line);border-radius:10px;margin:1rem 0}
 table{border-collapse:collapse;width:100%;font-size:.95rem}
 th,td{border-bottom:1px solid var(--line);padding:.6rem .75rem;text-align:left;vertical-align:top}
@@ -70,11 +70,11 @@ li{margin:.3rem 0}
 footer{border-top:2px solid var(--signal);margin-top:3rem;padding-top:1rem;font-size:.85rem;color:var(--muted)}</style>
 </head>
 <body>
-<nav><a class="brand" href="index.html">flux</a><span class="tagline">Less in. More out.</span><a href="index.html">Home</a><a href="start.html">Get started</a><a href="overview.html" class="active">Overview</a><a href="segments.html">Savings by segment</a><a href="methodology.html">Methodology</a><a href="evidence.html">Evidence</a><a href="comparison.html">Honest comparison</a><a href="faq.html">FAQ</a></nav>
+<nav><a class="brand" href="index.html">mesh</a><span class="tagline">Less in. More out.</span><a href="index.html">Home</a><a href="start.html">Get started</a><a href="overview.html" class="active">Overview</a><a href="segments.html">Savings by segment</a><a href="methodology.html">Methodology</a><a href="evidence.html">Evidence</a><a href="comparison.html">Honest comparison</a><a href="faq.html">FAQ</a></nav>
 <main>
-<h1>FLUX — verified LLM cost reduction, billed only on savings you can recompute</h1>
-<p>FLUX is a drop-in wrapper for your OpenAI or Anthropic client that reduces what you spend per completed task — and proves it. You pay a percentage of verified savings. If your traffic is already optimised, FLUX tells you not to pay us.</p>
-<h2>What FLUX saves, by traffic type</h2>
+<h1>MESH — verified LLM cost reduction, billed only on savings you can recompute</h1>
+<p>MESH is a drop-in wrapper for your OpenAI or Anthropic client that reduces what you spend per completed task — and proves it. You pay a percentage of verified savings. If your traffic is already optimised, MESH tells you not to pay us.</p>
+<h2>What MESH saves, by traffic type</h2>
 <p>Every figure below is measured per completed task with quality held (at least 36 of 40 tasks fully correct and complete), on a simulated harness using each provider's published prices and cache rules — except where marked live. A first real-traffic export exists (30 requests, measured 9–25% per agent); your own pilot replaces every band with your number before any fee exists. <a href="methodology.html">How these numbers are made →</a></p>
 <div class="table-wrap"><table>
 <thead><tr><th>Your traffic looks like</th><th>Measured saving</th><th>Label</th></tr></thead>
@@ -87,9 +87,9 @@ footer{border-top:2px solid var(--signal);margin-top:3rem;padding-top:1rem;font-
 <tr><td>Interactive agents, busy traffic</td><td><strong>25.9–29.4%</strong></td><td>simulator-measured</td></tr>
 <tr><td>Already-optimised stacks</td><td><strong>0–5% — do not pay us</strong></td><td>measured on fixtures</td></tr>
 </tbody></table></div>
-<p>The spread is the honest part: savings are a property of your workload's shape, not of FLUX. The first thing FLUX does is tell you which row you are — from your own logs, in about five minutes, before any contract exists. <a href="https://github.com/Harrym1707/Flux/blob/main/docs/pilot/runbook.md">Get a quote from your own export →</a></p>
+<p>The spread is the honest part: savings are a property of your workload's shape, not of MESH. The first thing MESH does is tell you which row you are — from your own logs, in about five minutes, before any contract exists. <a href="https://github.com/Harrym1707/Mesh/blob/main/docs/pilot/runbook.md">Get a quote from your own export →</a></p>
 <h2>How it works, in one paragraph</h2>
-<p>Your bill is <code>tokens × price-per-token × execution tier</code>. FLUX attacks all three at once: it removes tokens that carry no information (oversized tool results capped at injection, exact duplicates, schema bloat) without ever breaking your provider's prefix cache; it repairs prompts so cached pricing (10× cheaper input) actually applies; and it routes traffic you flag as latency-tolerant to the provider's own discounted tiers (50% off, same model, same answer). Risky changes are enabled only after a replay gate proves, on your own recorded requests, that quality held.</p>
+<p>Your bill is <code>tokens × price-per-token × execution tier</code>. MESH attacks all three at once: it removes tokens that carry no information (oversized tool results capped at injection, exact duplicates, schema bloat) without ever breaking your provider's prefix cache; it repairs prompts so cached pricing (10× cheaper input) actually applies; and it routes traffic you flag as latency-tolerant to the provider's own discounted tiers (50% off, same model, same answer). Risky changes are enabled only after a replay gate proves, on your own recorded requests, that quality held.</p>
 <h2>Why you can trust the number on your invoice</h2>
 <ul>
 <li>Savings are computed from your <strong>provider's own reported usage</strong>, never our estimates.</li>
@@ -98,10 +98,10 @@ footer{border-top:2px solid var(--signal);margin-top:3rem;padding-top:1rem;font-
 <li>A changed answer is a failed task, and <strong>failed tasks void their savings</strong>.</li>
 </ul>
 <p><a href="methodology.html">Methodology</a> · <a href="segments.html">Per-segment detail</a> · <a href="comparison.html">Honest comparison with alternatives</a> · <a href="faq.html">FAQ</a> · <a href="evidence.html">Every number's provenance</a></p>
-<footer><strong>flux</strong> — spend tokens where they matter. Every number on this site traces to a
+<footer><strong>mesh</strong> — spend tokens where they matter. Every number on this site traces to a
 command and a commit — <a href="evidence.html">evidence</a>. Savings are measured per completed task;
-estimates are always labelled. <a href="https://github.com/Harrym1707/Flux">Source</a> · <a href="llms.txt">llms.txt</a><br>
-Flux AI Technologies Limited · registered in England and Wales · company no. 17543982</footer>
+estimates are always labelled. <a href="https://github.com/Harrym1707/Mesh">Source</a> · <a href="llms.txt">llms.txt</a><br>
+Mesh AI Technologies Limited · registered in England and Wales · company no. 17543982</footer>
 </main>
 </body>
 </html>

@@ -1,4 +1,4 @@
-# Compliance calendar — Flux AI Technologies Limited
+# Compliance calendar — Mesh AI Technologies Limited
 
 Company number **17543982**, incorporated **2026-10-26**, registered in England
 and Wales. Status: Active. SIC 62012 (business and domestic software
@@ -28,7 +28,7 @@ top of the report.
   Prompts never touching our machines does not exempt the company: contact and
   billing data is personal data.
 - **First paying pilot** → professional indemnity + cyber insurance quotes
-  (not legally required with no employees, but FLUX sits in the customer's API
+  (not legally required with no employees, but MESH sits in the customer's API
   request path and B2B contracts commonly demand PI).
 - **Hiring anyone** → employers' liability insurance becomes a legal duty
   same-day, PAYE registration needed. Currently: no employees.
@@ -41,10 +41,10 @@ top of the report.
 
 - Company name, number 17543982, place of registration (England and Wales)
   and registered office address must appear on the website, emails, invoices
-  and order forms. Site footer + flux-report statement update is QUEUED,
+  and order forms. Site footer + mesh-report statement update is QUEUED,
   pending founder decision on registered-office address (home address vs
   service address) — see ops notes.
-- Company money and personal money stay separate: all FLUX revenue into the
+- Company money and personal money stay separate: all MESH revenue into the
   company bank account, records kept 6 years.
 - Companies House email reminders: founder to enrol (2 minutes, free) as
   belt-and-braces alongside this calendar.

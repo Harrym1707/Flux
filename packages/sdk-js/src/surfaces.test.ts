@@ -3,8 +3,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { verifyLedgerChain, type LedgerRecord } from "../../core/dist/src/index.js";
-import { withFlux } from "./openai.js";
-import type { FluxRequestEvent } from "./types.js";
+import { withMesh } from "./openai.js";
+import type { MeshRequestEvent } from "./types.js";
 
 /**
  * The Chat Completions and Anthropic Messages surfaces, mirroring the
@@ -46,11 +46,11 @@ describe("chat.completions.create surface", () => {
   }
 
   it("preserves the provider response and emits one chained event priced from the RESPONSE tier", async () => {
-    const dir = mkdtempSync(join(tmpdir(), "flux-chat-"));
+    const dir = mkdtempSync(join(tmpdir(), "mesh-chat-"));
     const path = join(dir, "ledger.jsonl");
     const seen: AnyObject[] = [];
-    const events: FluxRequestEvent[] = [];
-    const client = withFlux(chatClient(seen), {
+    const events: MeshRequestEvent[] = [];
+    const client = withMesh(chatClient(seen), {
       applicationId: "chat-surface-test",
       ledger: { path, provider: "openai" },
       onEvent: (event) => events.push(event),
@@ -77,7 +77,7 @@ describe("chat.completions.create surface", () => {
   });
 
   it("counts cached chat tokens INSIDE prompt_tokens, never on top of them", async () => {
-    const dir = mkdtempSync(join(tmpdir(), "flux-chat-"));
+    const dir = mkdtempSync(join(tmpdir(), "mesh-chat-"));
     const path = join(dir, "ledger.jsonl");
     const cachedResponse = {
       choices: [{ message: { role: "assistant", content: "ok" } }],
@@ -87,7 +87,7 @@ describe("chat.completions.create surface", () => {
         prompt_tokens_details: { cached_tokens: 800 },
       },
     };
-    const client = withFlux({
+    const client = withMesh({
       chat: { completions: { create: async (_request: AnyObject) => structuredClone(cachedResponse) } },
     }, { applicationId: "chat-surface-test", ledger: { path, provider: "openai" } });
     await client.chat.completions.create({ model: "gpt-6-astra", messages: [{ role: "user", content: "hi" }] });
@@ -99,7 +99,7 @@ describe("chat.completions.create surface", () => {
 
   it("applies a routing candidate's output cap through max_completion_tokens, never max_output_tokens", async () => {
     const seen: AnyObject[] = [];
-    const client = withFlux(chatClient(seen), {
+    const client = withMesh(chatClient(seen), {
       applicationId: "chat-surface-test",
       classify: () => "triage",
       routing: {
@@ -157,11 +157,11 @@ describe("anthropic messages.create surface", () => {
   }
 
   it("preserves the response, reads reads/writes OUTSIDE input_tokens, and bills the 1h split it stamped", async () => {
-    const dir = mkdtempSync(join(tmpdir(), "flux-anthropic-"));
+    const dir = mkdtempSync(join(tmpdir(), "mesh-anthropic-"));
     const path = join(dir, "ledger.jsonl");
     const seen: AnyObject[] = [];
-    const events: FluxRequestEvent[] = [];
-    const client = withFlux(anthropicClient(seen), {
+    const events: MeshRequestEvent[] = [];
+    const client = withMesh(anthropicClient(seen), {
       applicationId: "anthropic-surface-test",
       tokenReduction: { cacheTtl: "1h" },
       ledger: { path, provider: "anthropic" },
@@ -177,7 +177,7 @@ describe("anthropic messages.create surface", () => {
       messages: [{ role: "user", content: "hi" }],
     });
     expect(response.content[0].text).toBe("ok");
-    // The cacheTtl lever stamped the STABLE prefix of the request FLUX sent:
+    // The cacheTtl lever stamped the STABLE prefix of the request MESH sent:
     // the system prompt, never the varying one-shot message.
     expect(JSON.stringify(seen[0]!.system)).toContain('"cache_control":{"type":"ephemeral","ttl":"1h"}');
     expect(JSON.stringify(seen[0]!.messages)).not.toContain("cache_control");
@@ -195,8 +195,8 @@ describe("anthropic messages.create surface", () => {
     expect(billed.pricingStatus).toBe("priced");
     // 400K fresh at 2/M + 600K 1h writes at 4/M.
     expect(billed.actualUsd).toBeCloseTo(3.2, 10);
-    // Cache economics attribute to FLUX (it placed the stamp) and are negative
-    // here: a write surcharge with no reads to earn it counts against FLUX.
+    // Cache economics attribute to MESH (it placed the stamp) and are negative
+    // here: a write surcharge with no reads to earn it counts against MESH.
     const cacheLever = billed.levers.find((lever) => lever.leverId === "cache-ttl-1h")!;
     expect(cacheLever.kind).toBe("provider_cache");
     expect(cacheLever.savedUsd).toBeCloseTo(-1.2, 10);
@@ -204,11 +204,11 @@ describe("anthropic messages.create surface", () => {
   });
 
   it("records batch tier evidence from usage.service_tier even when the mode is unpriced", async () => {
-    const dir = mkdtempSync(join(tmpdir(), "flux-anthropic-"));
+    const dir = mkdtempSync(join(tmpdir(), "mesh-anthropic-"));
     const path = join(dir, "ledger.jsonl");
     const batchResponse = structuredClone(anthropicResponse) as AnyObject;
     batchResponse.usage.service_tier = "batch";
-    const client = withFlux(anthropicClient([], batchResponse), {
+    const client = withMesh(anthropicClient([], batchResponse), {
       applicationId: "anthropic-surface-test",
       ledger: { path, provider: "anthropic" },
     });
@@ -225,11 +225,11 @@ describe("anthropic messages.create surface", () => {
   });
 
   it("maps Anthropic priority tier to standard pricing: no tier lever is ever claimed on it", async () => {
-    const dir = mkdtempSync(join(tmpdir(), "flux-anthropic-"));
+    const dir = mkdtempSync(join(tmpdir(), "mesh-anthropic-"));
     const path = join(dir, "ledger.jsonl");
     const priorityResponse = structuredClone(anthropicResponse) as AnyObject;
     priorityResponse.usage.service_tier = "priority";
-    const client = withFlux(anthropicClient([], priorityResponse), {
+    const client = withMesh(anthropicClient([], priorityResponse), {
       applicationId: "anthropic-surface-test",
       ledger: { path, provider: "anthropic" },
     });
@@ -244,9 +244,9 @@ describe("anthropic messages.create surface", () => {
   });
 
   it("shares ONE ledger chain across surfaces on a client exposing several", async () => {
-    const dir = mkdtempSync(join(tmpdir(), "flux-multi-"));
+    const dir = mkdtempSync(join(tmpdir(), "mesh-multi-"));
     const path = join(dir, "ledger.jsonl");
-    const client = withFlux({
+    const client = withMesh({
       responses: { create: async (_request: AnyObject) => ({ output_text: "ok", usage: { input_tokens: 10, output_tokens: 1 } }) },
       messages: { create: async (_request: AnyObject) => structuredClone(anthropicResponse) },
     }, { applicationId: "multi-surface-test", ledger: { path } });
@@ -260,13 +260,13 @@ describe("anthropic messages.create surface", () => {
   });
 });
 
-describe("withFlux surface detection", () => {
+describe("withMesh surface detection", () => {
   it("rejects a client with no supported surface", () => {
-    expect(() => withFlux({} as AnyObject, { applicationId: "x" })).toThrow(/responses\.create\(\)/);
+    expect(() => withMesh({} as AnyObject, { applicationId: "x" })).toThrow(/responses\.create\(\)/);
   });
 
   it("leaves unrelated client properties untouched", async () => {
-    const client = withFlux({
+    const client = withMesh({
       apiKey: "k",
       chat: { completions: { create: async () => ({ choices: [], usage: { prompt_tokens: 1, completion_tokens: 1 } }) } },
     }, { applicationId: "x" });

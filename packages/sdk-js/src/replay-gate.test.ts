@@ -160,7 +160,7 @@ describe("replayGate", () => {
     const candidate = result.candidates[0]!;
     expect(candidate.approved).toBe(true);
     expect(candidate.inputTokensSaved).toBeGreaterThan(0);
-    // Savings come from the reported usage, not FLUX's estimate.
+    // Savings come from the reported usage, not MESH's estimate.
     expect(candidate.baselineUsage.inputTokens).toBeGreaterThan(candidate.candidateUsage.inputTokens);
   });
 

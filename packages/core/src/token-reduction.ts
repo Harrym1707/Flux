@@ -18,7 +18,7 @@ import { estimateTokenCost, type TokenPrice } from "./cost.js";
  * saving. It is never the basis of a realised-saving claim: those come from the
  * provider's own reported usage, priced through the catalogue. A deployment
  * should pass the tokenizer matching its model via `countTokens`, because a
- * tokenizer pinned inside FLUX would drift from the provider's own counting.
+ * tokenizer pinned inside MESH would drift from the provider's own counting.
  */
 
 export type TokenCounter = (text: string) => number;
@@ -173,14 +173,14 @@ export function collapseWhitespace(): Reducer {
       const code: string[] = [];
       const masked = text.replace(CODE_FENCE, (match) => {
         code.push(match);
-        return `@@FLUXCODE${code.length - 1}@@`;
+        return `@@MESHCODE${code.length - 1}@@`;
       });
       const squeezed = masked
         .replace(/[ \t]+/g, " ")
         .replace(/ *\n/g, "\n")
         .replace(/\n{3,}/g, "\n\n")
         .trim();
-      const restored = squeezed.replace(/@@FLUXCODE(\d+)@@/g, (_match, index) => code[Number(index)]!);
+      const restored = squeezed.replace(/@@MESHCODE(\d+)@@/g, (_match, index) => code[Number(index)]!);
       const notes = restored.length < text.length
         ? [`Collapsed ${text.length - restored.length} characters of redundant whitespace, preserving code blocks.`]
         : [];
@@ -325,7 +325,7 @@ export function dedupeRepeatedLeadingBlock(
       `Turn ${index + 1}: replaced a ${tokens}-token leading block identical to turn 1's opening with a ` +
         "reference marker.",
     );
-    return `[flux: ${tokens} tokens of this turn's leading context, identical to turn 1, omitted]${text.slice(safe)}`;
+    return `[mesh: ${tokens} tokens of this turn's leading context, identical to turn 1, omitted]${text.slice(safe)}`;
   });
   return { texts: nextTexts, notes };
 }

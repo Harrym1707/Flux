@@ -1,10 +1,10 @@
 /**
- * Build the npm-pack-able @flux-ai/sdk artifact.
+ * Build the npm-pack-able @mesh-ai/sdk artifact.
  *
  *   node --import tsx scripts/build-sdk-package.ts
  *
  * Produces packages/sdk-js/pkg/ containing:
- *   - index.js  (ESM bundle, @flux/core inlined)
+ *   - index.js  (ESM bundle, @mesh-ai/core inlined)
  *   - index.cjs (CJS bundle, same sources)
  *   - types/    (the package's .d.ts plus the core .d.ts it re-exports,
  *                with the workspace-relative core import rewritten)
@@ -135,14 +135,14 @@ const sdkTypes = copyDeclarations(sdkDist, path.join(outDir, "types"), true);
 const coreTypes = copyDeclarations(coreDist, path.join(outDir, "types/core"), false);
 console.log(`copied ${sdkTypes} sdk + ${coreTypes} core declaration file(s)`);
 
-// The packaged flux-quote CLI: the five-minute design-partner experience.
+// The packaged mesh-quote CLI: the five-minute design-partner experience.
 // Plain JS against the bundled entry, so the artifact stays dependency-free.
 mkdirSync(path.join(outDir, "bin"), { recursive: true });
-writeFileSync(path.join(outDir, "bin/flux-quote.mjs"), `#!/usr/bin/env node
+writeFileSync(path.join(outDir, "bin/mesh-quote.mjs"), `#!/usr/bin/env node
 // Pre-contract savings quote from YOUR gateway export (LiteLLM, Helicone or
 // Langfuse), including the honest "do not pay us" verdict.
 //
-//   flux-quote <export-file> [--format litellm|helicone|langfuse]
+//   mesh-quote <export-file> [--format litellm|helicone|langfuse]
 //              [--at YYYY-MM-DD] [--out quote.json]
 import { readFileSync, writeFileSync } from "node:fs";
 import { buildQuoteReport, canonicalJson, publishedModelPrices, renderQuoteReport } from "../index.js";
@@ -154,7 +154,7 @@ function fail(message) {
 
 const args = process.argv.slice(2);
 if (args.length === 0 || args[0].startsWith("--")) {
-  fail("Usage: flux-quote <export-file> [--format litellm|helicone|langfuse] [--at YYYY-MM-DD] [--out quote.json]");
+  fail("Usage: mesh-quote <export-file> [--format litellm|helicone|langfuse] [--at YYYY-MM-DD] [--out quote.json]");
 }
 const file = args[0];
 let format = "litellm";
@@ -188,37 +188,37 @@ if (out !== undefined) {
 // The zero-key demo ships from a template file: embedding runnable JS inside
 // a template literal double-escapes every backtick, so the file is authored
 // as real JS and copied verbatim.
-writeFileSync(path.join(outDir, "bin/flux-demo.mjs"),
-  readFileSync(path.join(root, "scripts/flux-demo-template.mjs"), "utf8"), "utf8");
-writeFileSync(path.join(outDir, "bin/flux-report.mjs"),
-  readFileSync(path.join(root, "scripts/flux-report-template.mjs"), "utf8"), "utf8");
+writeFileSync(path.join(outDir, "bin/mesh-demo.mjs"),
+  readFileSync(path.join(root, "scripts/mesh-demo-template.mjs"), "utf8"), "utf8");
+writeFileSync(path.join(outDir, "bin/mesh-report.mjs"),
+  readFileSync(path.join(root, "scripts/mesh-report-template.mjs"), "utf8"), "utf8");
 
-writeFileSync(path.join(outDir, "bin/flux-proxy.mjs"), `#!/usr/bin/env node
-// FLUX proxy mode: point your client's base_url here, keep your own API key.
+writeFileSync(path.join(outDir, "bin/mesh-proxy.mjs"), `#!/usr/bin/env node
+// MESH proxy mode: point your client's base_url here, keep your own API key.
 // Requests are reduced before they reach the provider, responses (including
 // SSE streams) return byte-identical, and every request appends one
 // hash-chained ledger event. Lossless levers only by default.
 //
-//   FLUX_PROXY_PORT        default 8787
-//   FLUX_PROXY_LEDGER_DIR  default ./flux-ledger
-//   FLUX_PROXY_CACHE_TTL   "5m" | "1h" to enable the Anthropic cache stamp
+//   MESH_PROXY_PORT        default 8787
+//   MESH_PROXY_LEDGER_DIR  default ./mesh-ledger
+//   MESH_PROXY_CACHE_TTL   "5m" | "1h" to enable the Anthropic cache stamp
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
-import { startFluxProxy } from "../index.js";
+import { startMeshProxy } from "../index.js";
 
-const port = Number(process.env.FLUX_PROXY_PORT ?? 8787);
+const port = Number(process.env.MESH_PROXY_PORT ?? 8787);
 if (!Number.isInteger(port) || port < 0 || port > 65535) {
-  console.error(\`FLUX_PROXY_PORT must be a port number, got \${JSON.stringify(process.env.FLUX_PROXY_PORT)}.\`);
+  console.error(\`MESH_PROXY_PORT must be a port number, got \${JSON.stringify(process.env.MESH_PROXY_PORT)}.\`);
   process.exit(1);
 }
-const ledgerDirectory = process.env.FLUX_PROXY_LEDGER_DIR ?? join(process.cwd(), "flux-ledger");
+const ledgerDirectory = process.env.MESH_PROXY_LEDGER_DIR ?? join(process.cwd(), "mesh-ledger");
 mkdirSync(ledgerDirectory, { recursive: true });
-const cacheTtl = process.env.FLUX_PROXY_CACHE_TTL;
+const cacheTtl = process.env.MESH_PROXY_CACHE_TTL;
 if (cacheTtl !== undefined && cacheTtl !== "5m" && cacheTtl !== "1h") {
-  console.error(\`FLUX_PROXY_CACHE_TTL must be "5m" or "1h", got \${JSON.stringify(cacheTtl)}.\`);
+  console.error(\`MESH_PROXY_CACHE_TTL must be "5m" or "1h", got \${JSON.stringify(cacheTtl)}.\`);
   process.exit(1);
 }
-const proxy = await startFluxProxy({
+const proxy = await startMeshProxy({
   port,
   ledgerDirectory,
   tokenReduction: {
@@ -228,7 +228,7 @@ const proxy = await startFluxProxy({
     ...(cacheTtl === undefined ? {} : { cacheTtl }),
   },
 });
-console.log(\`FLUX proxy listening on \${proxy.url}\`);
+console.log(\`MESH proxy listening on \${proxy.url}\`);
 console.log(\`Ledger spools: \${ledgerDirectory}\`);
 console.log(\`Anthropic SDK: new Anthropic({ baseURL: "\${proxy.url}" })\`);
 console.log(\`OpenAI SDK:    new OpenAI({ baseURL: "\${proxy.url}/v1" })\`);
@@ -245,9 +245,9 @@ const manifest = {
   version: workspaceManifest.version,
   description: "Cut LLM API costs on Claude and OpenAI: one-URL proxy or one-line SDK wrapper that reduces each request losslessly and meters VERIFIED savings into an append-only, customer-recomputable ledger. Pay only a share of verified savings.",
   license: "BUSL-1.1",
-  repository: { type: "git", url: "git+https://github.com/Harrym1707/Flux.git", directory: "packages/sdk-js/pkg" },
-  bugs: "https://github.com/Harrym1707/Flux/issues",
-  homepage: "https://www.fluxtoken.dev",
+  repository: { type: "git", url: "git+https://github.com/Harrym1707/Mesh.git", directory: "packages/sdk-js/pkg" },
+  bugs: "https://github.com/Harrym1707/Mesh/issues",
+  homepage: "https://www.mesh-technology.com",
   type: "module",
   main: "./index.cjs",
   module: "./index.js",
@@ -259,17 +259,17 @@ const manifest = {
       require: "./index.cjs",
     },
   },
-  bin: { "flux-quote": "bin/flux-quote.mjs", "flux-proxy": "bin/flux-proxy.mjs", "flux-demo": "bin/flux-demo.mjs", "flux-report": "bin/flux-report.mjs" },
+  bin: { "mesh-quote": "bin/mesh-quote.mjs", "mesh-proxy": "bin/mesh-proxy.mjs", "mesh-demo": "bin/mesh-demo.mjs", "mesh-report": "bin/mesh-report.mjs" },
   files: ["index.js", "index.cjs", "bin", "types", "README.md", "LICENSE"],
   engines: { node: ">=18" },
 };
 writeFileSync(path.join(outDir, "package.json"), `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
 copyFileSync(path.join(root, "LICENSE"), path.join(outDir, "LICENSE"));
 
-writeFileSync(path.join(outDir, "README.md"), `# @flux-ai/sdk
+writeFileSync(path.join(outDir, "README.md"), `# @mesh-ai/sdk
 
 Cut LLM API costs on Claude (Anthropic), OpenAI, and OpenAI-compatible APIs.
-FLUX reduces each request losslessly before it is sent and meters VERIFIED
+MESH reduces each request losslessly before it is sent and meters VERIFIED
 savings into an append-only, hash-chained JSONL ledger you can recompute into
 the invoice yourself. The fee is a share of verified savings; a period that
 saved nothing says do_not_charge.
@@ -277,7 +277,7 @@ saved nothing says do_not_charge.
 ## Proxy mode: no code changes
 
 \`\`\`bash
-npx flux-proxy   # then point your client's base_url at it
+npx mesh-proxy   # then point your client's base_url at it
 \`\`\`
 
 \`\`\`js
@@ -285,7 +285,7 @@ const anthropic = new Anthropic({ baseURL: "http://127.0.0.1:8787" });
 const openai = new OpenAI({ baseURL: "http://127.0.0.1:8787/v1" });
 \`\`\`
 
-Your API key passes through verbatim (FLUX never holds credentials), responses
+Your API key passes through verbatim (MESH never holds credentials), responses
 — SSE streams included — return byte-identical, and every request appends one
 ledger event. Prompts never leave your machine: the ledger records usage
 numbers, lever names and hashes, not content.
@@ -293,12 +293,12 @@ numbers, lever names and hashes, not content.
 ## SDK mode: one line
 
 \`\`\`js
-import { withFlux } from "@flux-ai/sdk"; // or require("@flux-ai/sdk")
+import { withMesh } from "@mesh-ai/sdk"; // or require("@mesh-ai/sdk")
 
-const client = withFlux(anthropic, {
+const client = withMesh(anthropic, {
   applicationId: "my-app",
   tokenReduction: { toolSchemas: true, duplicateContext: true, repairCachePrefix: true },
-  ledger: { path: "./flux-ledger.jsonl", provider: "anthropic" },
+  ledger: { path: "./mesh-ledger.jsonl", provider: "anthropic" },
 });
 \`\`\`
 
@@ -309,7 +309,7 @@ your responses; the meter never throws into the request path.
 ## Quote from your gateway export
 
 \`\`\`bash
-npx flux-quote your-export.jsonl --format litellm   # or helicone | langfuse
+npx mesh-quote your-export.jsonl --format litellm   # or helicone | langfuse
 \`\`\`
 
 Includes the honest "do not pay us" verdict for already-optimised stacks.

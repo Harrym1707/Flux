@@ -9,7 +9,7 @@ import {
  * The customer-facing monthly statement: one self-contained HTML page
  * rendered from the customer's own ledger spools.
  *
- * This is the invoice as FLUX means it: every figure on the page is the
+ * This is the invoice as MESH means it: every figure on the page is the
  * output of `recomputeInvoice` over records the customer holds, the chain
  * verification status is printed at the top (a broken chain renders DO NOT
  * PAY, not a number), exclusions and unbilled levers are itemised rather
@@ -27,7 +27,7 @@ export type LedgerReportSpool = {
 export type LedgerReportOptions = {
   /** Restrict to one invoice period (YYYY-MM). Omitted: all events. */
   period?: string;
-  /** FLUX's contracted share of net verified savings. Default 1 (percent). */
+  /** MESH's contracted share of net verified savings. Default 1 (percent). */
   feePercent?: number;
   /**
    * Verified-savings deficit carried in from prior statements (cumulative
@@ -156,7 +156,7 @@ export function renderLedgerReport(
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>FLUX statement — ${escapeHtml(periodLabel)}</title>
+<title>MESH statement — ${escapeHtml(periodLabel)}</title>
 <style>
 :root{--bg:#F1F7FB;--ink:#102A43;--muted:#486581;--ocean:#2864A5;--line:#d9e6f0;--paper:#ffffff;--neg:#B3261E}
 *{box-sizing:border-box}
@@ -187,7 +187,7 @@ code{background:#e8f1f8;padding:1px 5px;border-radius:4px;font-size:12px}
 <body>
 <main>
 <header>
-  <h1>FLUX statement</h1>
+  <h1>MESH statement</h1>
   <p class="meta">period: ${escapeHtml(periodLabel)} · generated ${escapeHtml(generatedAt)} · fee ${feePercent}% of verified savings — nothing else</p>
 </header>
 ${sectionHtml}
@@ -196,12 +196,12 @@ ${sectionHtml}
 <footer>
 Every figure on this statement is recomputed from ledger files on YOUR machine —
 usage numbers from the provider's own responses, never prompt content. Verify it
-independently, without FLUX and without accepting any terms:
-<code>npx -y -p @flux-ai/verify flux-verify &lt;spool.jsonl&gt;</code> — if your
+independently, without MESH and without accepting any terms:
+<code>npx -y -p @mesh-ai/verify mesh-verify &lt;spool.jsonl&gt;</code> — if your
 recomputation disagrees with this statement, yours wins. Negative levers are
 shown negative and reduce the bill; savings you already had are itemised above
-and never billed. Methodology: https://www.fluxtoken.dev/methodology.html<br>
-FLUX is a product of Flux AI Technologies Limited, registered in England and Wales, company no. 17543982.
+and never billed. Methodology: https://www.mesh-technology.com/methodology.html<br>
+MESH is a product of Mesh AI Technologies Limited, registered in England and Wales, company no. 17543982.
 </footer>
 </main>
 </body>

@@ -122,7 +122,7 @@ const server = createServer(async (req, res) => {
   const url = new URL(req.url ?? "/", "http://127.0.0.1");
 
   if (req.method === "GET" && url.pathname === "/health") {
-    sendJson(res, 200, { ok: true, service: "flux-api" });
+    sendJson(res, 200, { ok: true, service: "mesh-api" });
     return;
   }
 
@@ -182,5 +182,5 @@ const server = createServer(async (req, res) => {
 });
 
 server.listen(port, "127.0.0.1", () => {
-  console.log(`FLUX local dashboard: http://127.0.0.1:${port}`);
+  console.log(`MESH local dashboard: http://127.0.0.1:${port}`);
 });

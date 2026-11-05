@@ -3,30 +3,32 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>flux — less in, more out</title>
+<title>mesh — less in, more out</title>
 <meta name="description" content="Cut your Claude and OpenAI API bill. One URL in, savings verified per completed task, pay only a share of verified savings. Every invoice is recomputable from a ledger you hold.">
-<link rel="canonical" href="https://www.fluxtoken.dev/">
+<link rel="canonical" href="https://www.mesh-technology.com/">
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <meta property="og:type" content="website">
-<meta property="og:site_name" content="flux">
-<meta property="og:title" content="flux — less in, more out">
+<meta property="og:site_name" content="mesh">
+<meta property="og:title" content="mesh — less in, more out">
 <meta property="og:description" content="Cut your Claude and OpenAI API bill. Savings verified per completed task; pay only a share of verified savings.">
-<meta property="og:image" content="https://www.fluxtoken.dev/og.png">
+<meta property="og:image" content="https://www.mesh-technology.com/og.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
 <meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:image" content="https://www.fluxtoken.dev/og.png">
-<meta property="og:url" content="https://www.fluxtoken.dev/">
+<meta name="twitter:image" content="https://www.mesh-technology.com/og.png">
+<meta property="og:url" content="https://www.mesh-technology.com/">
 <meta name="twitter:card" content="summary">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&display=swap" rel="stylesheet">
-<script type="application/ld+json">{"@context":"https://schema.org","@type":"SoftwareApplication","name":"FLUX","applicationCategory":"DeveloperApplication","operatingSystem":"Any","url":"https://www.fluxtoken.dev/","description":"Cut LLM API costs on Claude and OpenAI. One-URL proxy or one-line SDK; savings verified per completed task into a customer-recomputable ledger; fee is a share of verified savings."}</script>
-<script type="application/ld+json">{"@context":"https://schema.org","@type":"Organization","name":"FLUX","url":"https://www.fluxtoken.dev/","logo":"https://www.fluxtoken.dev/favicon.svg","sameAs":["https://github.com/Harrym1707/Flux"],"slogan":"Less in. More out."}</script>
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"SoftwareApplication","name":"MESH","applicationCategory":"DeveloperApplication","operatingSystem":"Any","url":"https://www.mesh-technology.com/","description":"Cut LLM API costs on Claude and OpenAI. One-URL proxy or one-line SDK; savings verified per completed task into a customer-recomputable ledger; fee is a share of verified savings."}</script>
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"Organization","name":"MESH","url":"https://www.mesh-technology.com/","logo":"https://www.mesh-technology.com/favicon.svg","sameAs":["https://github.com/Harrym1707/Mesh"],"slogan":"Less in. More out."}</script>
 <style>:root{
-  --bg:#F1F7FB; --surface:#0E2133; --surface-2:#13293E; --ink:#102A43; --muted:#486581;
-  --line:#d9e6f0; --accent:#9DD9F5; --accent-ink:#081522; --ocean:#2864A5; --paper:#ffffff; --paper-ink:#102A43;
-  --deep:#081522; --deep-ink:#F1F7FB; --deep-muted:#9FB3C8; --deep-line:#24415C;
+  /* MESH brand: Off White ground, Deep Graphite ink, Mesh Blue accent, Frost tone-step */
+  --bg:#FAFAF9; --surface:#0B0F14; --surface-2:#14181F; --ink:#0B0F14; --muted:#5B6472;
+  --line:#E5E7EB; --accent:#2563EB; --accent-ink:#ffffff; --ocean:#1D4ED8; --paper:#ffffff; --paper-ink:#0B0F14;
+  --deep:#0B0F14; --deep-ink:#FAFAF9; --deep-muted:#9AA3B2; --deep-line:#262B33;
+  --stone:#E7E5E4; --stone-2:#DAD6D1; --stone-line:#CFCAC3; --stone-muted:#57534E;
   --s1:8px; --s2:16px; --s3:24px; --s4:32px; --s5:48px; --s6:64px; --s7:96px;
   --axis:27vw; --radius:4px;
 }
@@ -34,34 +36,91 @@
 html{scroll-behavior:smooth}
 body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 Manrope,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
 a{color:var(--ink)}
+/* Faded isometric dot-paper, fixed behind the page; dots glow faintly near the cursor. */
+.dotpaper{position:fixed;inset:0;z-index:0;pointer-events:none}
+.dotpaper .base,.dotpaper .glow{position:absolute;inset:0}
+.dotpaper .base{background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='34' height='59'%3E%3Cg fill='%230B0F14' fill-opacity='0.05'%3E%3Ccircle cx='0' cy='0' r='1.1'/%3E%3Ccircle cx='34' cy='0' r='1.1'/%3E%3Ccircle cx='0' cy='59' r='1.1'/%3E%3Ccircle cx='34' cy='59' r='1.1'/%3E%3Ccircle cx='17' cy='29.5' r='1.1'/%3E%3C/g%3E%3C/svg%3E")}
+.dotpaper .glow{opacity:0;transition:opacity .4s ease;
+  background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='34' height='59'%3E%3Cg fill='%232563EB' fill-opacity='0.55'%3E%3Ccircle cx='0' cy='0' r='1.2'/%3E%3Ccircle cx='34' cy='0' r='1.2'/%3E%3Ccircle cx='0' cy='59' r='1.2'/%3E%3Ccircle cx='34' cy='59' r='1.2'/%3E%3Ccircle cx='17' cy='29.5' r='1.2'/%3E%3C/g%3E%3C/svg%3E");
+  -webkit-mask-image:radial-gradient(circle 160px at var(--mx) var(--my),#000 0%,rgba(0,0,0,.35) 48%,transparent 72%);
+  mask-image:radial-gradient(circle 160px at var(--mx) var(--my),#000 0%,rgba(0,0,0,.35) 48%,transparent 72%)}
+.dotpaper.lit .glow{opacity:1}
+@media (prefers-reduced-motion:reduce){.dotpaper .glow{display:none}}
 .rise,.exchange .call,.exchange .response,.total-side .figure{opacity:0;transform:translateY(12px);transition:opacity .5s ease,transform .5s ease}
 .rise.in,.rise.in .call,.rise.in .response,.rise.in .figure{opacity:1;transform:none}
 .rise.in .response{transition-delay:.18s}
+/* headings never fade — always present for readers and crawlers */
+h2.rise{opacity:1;transform:none;transition:none}
 
 @media (prefers-reduced-motion: reduce){.rise,.exchange .call,.exchange .response,.total-side .figure{opacity:1;transform:none;transition:none}html{scroll-behavior:auto}}
 
-/* ---------- hero: the poster. Type enacts the product. ---------- */
-.hero-wrap{position:relative;min-height:96svh;overflow:hidden}
-#field{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
-.hero{position:relative;min-height:96svh;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;padding:var(--s7) var(--s4)}
-.hero .mark{position:absolute;top:40px;left:var(--s4);width:44px;height:44px}
-.hero .signin{position:absolute;top:52px;right:var(--s4);font-size:13px;color:var(--muted);text-decoration:none;z-index:2}
-.hero .signin:hover{color:var(--accent)}
-.hero .col{max-width:60rem}
-.hero h1{margin:0 0 var(--s3);line-height:1}
-.hero h1 .in{display:block;font-size:clamp(20px,3vw,30px);font-weight:600;letter-spacing:.02em;color:var(--muted);opacity:.85;margin-bottom:var(--s1)}
-.hero h1 .out{display:block;font-size:clamp(64px,11vw,120px);font-weight:800;letter-spacing:-.045em;background:linear-gradient(135deg,#102A43 10%,#2864A5 70%,#4E8FC7 100%);-webkit-background-clip:text;background-clip:text;color:transparent}
-.hero .sub{font-size:20px;line-height:1.5;color:var(--muted);margin:0 auto 36px;max-width:34rem}
-.hero .actions{display:flex;align-items:center;justify-content:center;gap:var(--s3)}
-.hero .mark{z-index:2}
-.btn{display:inline-block;padding:12px 22px;border-radius:var(--radius);font-weight:700;font-size:16px;text-decoration:none;background:var(--ink);color:#F1F7FB;transition:background .18s ease}
+/* ---------- hero: editorial-minimal. Near-white, massive type, one accent ---------- */
+.hero-wrap{position:relative;z-index:1;min-height:84svh;background:transparent}
+.hero{position:relative;min-height:84svh;display:flex;flex-direction:row;align-items:center;justify-content:space-between;gap:var(--s6);text-align:left;padding:var(--s5) var(--s4) var(--s7)}
+.hero h1 .dot{color:var(--accent)}
+.hero .col{position:relative;z-index:2;max-width:44rem;flex:1 1 auto}
+.hero-proof{flex:0 0 auto;max-width:21rem;text-align:right;border-top:2px solid var(--ink);padding-top:16px}
+.hero-proof .lbl{font-size:15px;line-height:1.5;color:var(--muted);margin:0}
+.hero-proof .pct{display:block;font-size:clamp(52px,6vw,84px);font-weight:800;letter-spacing:-.03em;line-height:1;margin:0 0 10px;color:var(--ink)}
+.hero-proof .pct span{color:var(--accent)}
+@media (max-width:760px){.hero-proof .pct{display:inline;font-size:1.15em;margin:0}}
+.topnav{position:relative;z-index:3;display:flex;align-items:center;justify-content:space-between;padding:26px var(--s4) 0}
+.brandlock{display:flex;align-items:center;gap:11px;text-decoration:none;color:var(--ink)}
+.brandlock svg{height:34px;width:auto;display:block}
+.brandlock b{font-size:24px;font-weight:800;letter-spacing:-.03em;color:var(--ink)}
+.topnav-links{display:flex;align-items:center;gap:var(--s4)}
+.topnav .navlink{font-size:14px;font-weight:600;color:var(--muted);text-decoration:none}
+.topnav .navlink:hover{color:var(--accent)}
+.topnav .signin{font-size:14px;font-weight:700;color:var(--ink);text-decoration:none}
+.topnav .signin:hover{color:var(--accent)}
+@media (max-width:560px){.topnav .navlink{display:none}}
+.hero .kicker{margin:0 0 var(--s2);font-size:15px;font-weight:700;letter-spacing:.005em;color:var(--accent)}
+.hero h1{margin:0 0 var(--s4);font-size:clamp(56px,8.4vw,128px);font-weight:800;letter-spacing:-.045em;line-height:.92;max-width:9ch;color:var(--ink)}
+.hero .sub{font-size:20px;line-height:1.6;color:var(--ink);margin:0 0 40px;max-width:34rem}
+.hero .actions{display:flex;align-items:center;justify-content:flex-start;gap:var(--s3)}
+.hero .col>.rise:nth-child(1){transition-delay:.04s}
+.hero .col>.rise:nth-child(2){transition-delay:.14s}
+.hero .col>.rise:nth-child(3){transition-delay:.24s}
+.hero .col>.rise:nth-child(4){transition-delay:.34s}
+.btn{display:inline-block;padding:12px 22px;border-radius:var(--radius);font-weight:700;font-size:16px;text-decoration:none;background:var(--accent);color:#fff;transition:background .18s ease}
 .btn:hover{background:var(--ocean)}
 .arrowlink{font-size:16px;color:var(--ocean);text-decoration:none;border-bottom:1px solid var(--line)}
 .arrowlink:hover{color:var(--accent);border-color:var(--accent)}
 .arrowlink::after{content:" \2192"}
+/* The primary call to action: Download Mesh — deliberately the biggest button. */
+.btn-download{display:inline-flex;align-items:center;gap:11px;padding:17px 32px;font-size:19px;font-weight:800;letter-spacing:-.01em;border-radius:9px;background:var(--accent);color:#fff;text-decoration:none;transition:transform .18s ease,background .18s ease}
+.btn-download:hover{background:var(--ocean);transform:translateY(-2px)}
+.btn-download svg{width:21px;height:21px;transition:transform .22s ease}
+.btn-download:hover svg{transform:translateY(3px)}
+.btn-download .arrow{animation:dlbob 2.6s ease-in-out infinite}
+@keyframes dlbob{0%,100%{transform:translateY(0)}50%{transform:translateY(2px)}}
+@media (prefers-reduced-motion:reduce){.btn-download .arrow{animation:none}}
+.hero .cta-note{margin-top:16px;font-size:14px;color:var(--muted)}
+.hero .cta-note b{color:var(--ink);font-weight:700}
+/* ---------- install section: centered, OS-switchable command ---------- */
+.install-sect{padding:var(--s7) var(--s4);text-align:center}
+.os-tabs{display:inline-flex;gap:4px;background:var(--stone);border-radius:10px;padding:4px;margin:0 auto var(--s4)}
+.os-tab{font:14px/1 Manrope,-apple-system,sans-serif;font-weight:600;border:none;background:none;color:var(--muted);padding:9px 16px;border-radius:7px;cursor:pointer;transition:background .15s ease,color .15s ease}
+.os-tab[aria-selected="true"]{background:#fff;color:var(--ink);font-weight:700}
+.os-tab:disabled{opacity:.55;cursor:default}
+.install-cmd{display:flex;align-items:center;gap:14px;max-width:41rem;margin:0 auto;background:var(--ink);color:#F5F7FA;border-radius:10px;padding:16px 16px 16px 20px;font:14.5px/1.4 ui-monospace,Menlo,Consolas,monospace;text-align:left}
+.install-cmd[hidden]{display:none}
+.install-cmd .prompt{color:#7D8BA1;flex:none;user-select:none}
+.install-cmd code{flex:1;min-width:0;overflow-x:auto;white-space:nowrap}
+.install-cmd .copy{flex:none;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.22);color:#F5F7FA;font:12px/1 ui-monospace,monospace;border-radius:5px;padding:7px 12px;cursor:pointer;transition:background .15s ease}
+.install-cmd .copy:hover{background:rgba(255,255,255,.22)}
+.install-note{margin-top:var(--s3);font-size:14px;color:var(--muted)}
+.install-note code{font:13px/1 ui-monospace,Menlo,monospace;background:var(--stone);color:var(--ink);padding:2px 7px;border-radius:5px}
+.install-note b{color:var(--ink);font-weight:700}
+.install-note a{color:var(--ocean)}
+@media (max-width:860px){
+  .hero{flex-direction:column;align-items:flex-start;gap:var(--s4)}
+  .hero-proof{text-align:left;max-width:100%;align-self:stretch}
+}
 @media (max-width:760px){
   :root{--axis:24px}
-  .hero{min-height:84svh}
+  .hero{min-height:88svh;justify-content:center;padding-top:14svh}
+  .hero .col{max-width:100%;padding-left:0}
   .hero .sub{font-size:17px}
 }
 
@@ -73,6 +132,18 @@ a{color:var(--ink)}
 .band .n span{font-size:.45em;font-weight:800}
 .band p{font-size:16px;line-height:1.5;color:var(--muted);max-width:30ch;margin:var(--s2) auto 0}
 .bandcap{text-align:center;font-size:16px;color:var(--muted);max-width:46rem;margin:var(--s6) auto 0}
+.theo-sect{padding:var(--s7) var(--s4);text-align:center}
+.theo-wrap{max-width:46rem;margin:0 auto}
+.theo-avatar{width:136px;height:140px;margin:0 auto var(--s4);animation:theofloat 5.5s ease-in-out infinite}
+.theo-avatar svg{width:100%;height:100%;display:block;overflow:visible}
+.theo-signal{animation:theopulse 2.2s ease-in-out infinite}
+.theo-eye{transform-box:fill-box;transform-origin:center;animation:theoblink 5s ease-in-out infinite}
+@keyframes theofloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-9px)}}
+@keyframes theopulse{0%,100%{opacity:1}50%{opacity:.3}}
+@keyframes theoblink{0%,94%,100%{transform:scaleY(1)}97%{transform:scaleY(.12)}}
+@media (prefers-reduced-motion:reduce){.theo-avatar,.theo-signal,.theo-eye{animation:none}}
+.theo-lead{font-size:clamp(20px,2.3vw,25px);line-height:1.5;color:var(--ink);max-width:40rem;margin:0 auto var(--s3)}
+.theo-note{font-size:16px;line-height:1.65;color:var(--muted);max-width:40rem;margin:0 auto}
 .bandcap a{color:var(--ocean)}
 .bandcap strong{color:var(--ink)}
 
@@ -102,19 +173,19 @@ a{color:var(--ink)}
 #reducer pre{max-height:380px;overflow:auto}
 
 /* ---------- fragments: the product's own conventions ---------- */
-[data-ui]{background:var(--surface);border:1px solid var(--deep-line);border-radius:8px;font-size:13px;overflow:hidden;max-width:100%;color:#F1F7FB}
+[data-ui]{background:var(--stone);border:1px solid var(--stone-line);border-radius:8px;font-size:13px;overflow:hidden;max-width:100%;color:var(--ink);--surface-2:var(--stone-2);--deep-line:var(--stone-line);--deep-muted:var(--stone-muted)}
 [data-ui] .tblwrap{overflow-x:auto}
 [data-ui] table{min-width:540px}
 [data-ui] .bar{display:flex;align-items:center;justify-content:space-between;padding:10px 16px;border-bottom:1px solid var(--deep-line);font-weight:700;font-size:13px;color:var(--deep-muted)}
 [data-ui] .bar{min-width:0}
-[data-ui] .bar .pill{background:var(--surface-2);border:1px solid var(--deep-line);border-radius:999px;padding:2px 10px;font-variant-numeric:tabular-nums;color:#F1F7FB;white-space:nowrap;flex:none}
-[data-ui] pre{margin:0;padding:14px 16px;overflow-x:auto;font:13px/1.65 ui-monospace,SFMono-Regular,Menlo,monospace;color:#F1F7FB}
+[data-ui] .bar .pill{background:var(--surface-2);border:1px solid var(--deep-line);border-radius:999px;padding:2px 10px;font-variant-numeric:tabular-nums;color:var(--ink);white-space:nowrap;flex:none}
+[data-ui] pre{margin:0;padding:14px 16px;overflow-x:auto;font:13px/1.65 ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--ink)}
 [data-ui] .tok{color:var(--deep-muted)}
 [data-ui] .key{color:var(--accent)}
 [data-ui] .dup{transition:opacity .5s ease;text-decoration:line-through transparent}
 [data-ui] .dup.struck{opacity:.28;text-decoration:line-through}
 [data-ui] .footrow{display:flex;align-items:center;gap:12px;padding:10px 16px;border-top:1px solid var(--deep-line)}
-[data-ui] .ui-btn{font:inherit;font-weight:700;font-size:13px;background:var(--surface-2);color:#F1F7FB;border:1px solid var(--deep-line);border-radius:4px;padding:7px 14px;cursor:pointer}
+[data-ui] .ui-btn{font:inherit;font-weight:700;font-size:13px;background:var(--surface-2);color:var(--ink);border:1px solid var(--deep-line);border-radius:4px;padding:7px 14px;cursor:pointer}
 [data-ui] .ui-btn:hover{border-color:var(--accent);color:var(--accent)}
 [data-ui] .ok{font-size:13px;color:var(--accent);opacity:0;transition:opacity .4s ease}
 [data-ui] .ok.show{opacity:1}
@@ -125,7 +196,7 @@ a{color:var(--ink)}
 .copy{font:12px/1 ui-monospace,monospace;background:none;border:1px solid var(--deep-line);color:var(--deep-muted);border-radius:4px;padding:4px 8px;cursor:pointer}
 .copy:hover{color:var(--accent);border-color:var(--accent)}
 
-/* ---------- colour fields: two chapter breaks, flat, full-bleed ---------- */
+/* ---------- colour fields: two full-bleed chapter breaks (the page's punctuation) ---------- */
 .field-deep{background:var(--deep);color:var(--deep-ink)}
 .field-deep h2{color:var(--deep-ink)}
 .field-deep .total-side .note,.field-deep .total-side .cap{color:var(--deep-muted)}
@@ -145,10 +216,15 @@ a{color:var(--ink)}
 .field-ocean .btn:hover{background:#fff}
 
 /* ---------- sections ---------- */
-section{padding:var(--s7) var(--s4)}
+section{padding:var(--s7) var(--s4);position:relative;z-index:1}
 section h2{font-size:30px;font-weight:800;letter-spacing:-.01em;margin:0 0 var(--s6);position:relative;padding-bottom:18px}
 section h2::after{content:"";position:absolute;left:50%;transform:translateX(-50%);bottom:0;width:140px;height:12px;background:url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 140 12"><path d="M0 6 q6 -5 12 0 t12 0 q3 -9 6 0 t12 0 t12 0 q3 9 6 0 t12 0 t12 0 q6 -5 12 0 t12 0 t12 0" fill="none" stroke="%232864A5" stroke-width="1.6" opacity=".75"/></svg>') center/contain no-repeat}
 .field-ocean h2::after{opacity:.9}
+/* A section header that fills the frame: the heading on the left, a quiet signpost closing the right margin. */
+.sec-head{display:flex;align-items:baseline;justify-content:space-between;gap:var(--s4);flex-wrap:wrap}
+.sec-head h2{margin-bottom:var(--s6)}
+.sec-tag{font-size:14px;color:var(--muted);letter-spacing:.01em;white-space:nowrap;flex:0 0 auto}
+@media (max-width:600px){.sec-tag{display:none}}
 
 .axis-col{max-width:720px;margin:0 auto}
 .axis-col{margin-left:auto;margin-right:auto}
@@ -156,7 +232,7 @@ section h2::after{content:"";position:absolute;left:50%;transform:translateX(-50
 /* call and response */
 .exchange{margin-bottom:88px}
 .exchange .lead{font-size:20px;font-weight:600;margin:0 0 var(--s2);text-align:center}
-.exchange .call{background:var(--surface);border-radius:8px;position:relative;color:#F1F7FB}
+.exchange .call{background:var(--stone);border-radius:8px;position:relative;color:var(--ink);--surface-2:var(--stone-2);--deep-line:var(--stone-line);--deep-muted:var(--stone-muted)}
 .exchange .call .copy{position:absolute;top:10px;right:10px}
 .exchange .response{margin-top:var(--s2)}
 .exchange .response.breakout{width:100%}
@@ -181,7 +257,7 @@ section h2::after{content:"";position:absolute;left:50%;transform:translateX(-50
 .slip .total-row{display:flex;justify-content:space-between;background:var(--paper-ink);color:var(--paper);font-weight:800;padding:10px 12px;margin-top:16px;font-size:16px}
 
 /* the price, very large */
-.price-wrap{display:grid;grid-template-columns:1fr;gap:var(--s5);max-width:1080px;margin:0 auto;min-height:80svh;align-content:center}
+.price-wrap{display:grid;grid-template-columns:1fr;gap:var(--s5);max-width:1080px;margin:0 auto;align-content:center}
 @media (min-width:980px){.price-wrap{grid-template-columns:380px 1fr}}
 .price-side p{font-size:16px;line-height:1.6;max-width:38ch}
 .price-figure{position:relative}
@@ -228,7 +304,7 @@ section h2::after{content:"";position:absolute;left:50%;transform:translateX(-50
 @media (max-width:860px){.cta-row{grid-template-columns:1fr;margin:0}.cta-row .cta-main{height:auto;min-height:300px}.cta-row .cta-flat,.cta-row .xfade{height:120px}}
 
 /* single quiet line footer */
-.quiet-foot{margin-top:30svh;padding:0 var(--s4) 30px;display:grid;grid-template-columns:1fr auto 1fr;align-items:baseline;font-size:13px;color:var(--muted)}
+.quiet-foot{position:relative;z-index:1;margin-top:12svh;padding:0 var(--s4) 30px;display:grid;grid-template-columns:1fr auto 1fr;align-items:baseline;font-size:13px;color:var(--muted)}
 .quiet-foot .links{display:flex;gap:24px;flex-wrap:wrap;justify-content:center}
 .quiet-foot a{color:var(--ink);text-decoration:none}
 .quiet-foot a:hover{color:var(--accent)}
@@ -240,23 +316,47 @@ section h2::after{content:"";position:absolute;left:50%;transform:translateX(-50
 </head>
 <body>
 
+<div class="dotpaper" aria-hidden="true"><div class="base"></div><div class="glow"></div></div>
+
+<header class="topnav">
+  <a class="brandlock" href="index.html" aria-label="Mesh home"><svg viewBox="0 0 240 240" fill="none" aria-hidden="true"><g stroke="currentColor" stroke-width="16" stroke-linejoin="round" stroke-linecap="round"><path d="M139.24 34.86 L100.03 49.91 L93.46 91.39 L126.1 117.82 L165.31 102.77 L171.88 61.29 Z"/><path d="M80.38 107.54 L41.17 122.6 L34.6 164.08 L67.24 190.51 L106.45 175.46 L113.02 133.98 Z"/><path d="M172.76 122.18 L133.55 137.23 L126.98 178.71 L159.62 205.14 L198.83 190.09 L205.4 148.61 Z"/></g></svg><b>mesh</b></a>
+  <nav class="topnav-links">
+    <a class="navlink" href="#theo">Theo</a>
+    <a class="navlink" href="evidence.html">Evidence</a>
+    <a class="signin" href="start.html">Get started</a>
+  </nav>
+</header>
 <div class="hero-wrap">
-<canvas id="field" aria-hidden="true"></canvas>
 <header class="hero">
-  <span class="mark"><svg viewBox="0 0 48 48" fill="none" aria-hidden="true"><path d="M8 14c10 0 10 10 20 10h12" stroke="#2864A5" stroke-width="3.5" stroke-linecap="round"/><path d="M8 34c10 0 10-10 20-10" stroke="#2864A5" stroke-width="3.5" stroke-linecap="round" opacity=".75"/><circle cx="41" cy="24" r="4" fill="#9DD9F5"/></svg></span>
-  <a class="signin" href="start.html">Get started</a>
   <div class="col">
-    <h1><span class="in">Less in.</span><span class="out">More out.</span></h1>
-    <p class="sub">FLUX removes the junk from your AI requests before you pay for it. Same answers by default, smaller bill &mdash; and you can check every number yourself.</p>
-    <div class="actions">
-      <a class="btn" href="start.html">Get started</a>
+    <h1 class="rise">A smaller AI bill<span class="dot">.</span></h1>
+    <p class="sub rise">Same answers &mdash; MESH sits in front of your LLM traffic and strips out wasted tokens without changing a single reply. You pay 1% of the savings, verified on the provider&rsquo;s own usage, never our estimate.</p>
+    <div class="actions rise">
+      <a class="btn-download" href="#install"><svg class="arrow" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 3v11m0 0l-4.5-4.5M12 14l4.5-4.5M5 20h14" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>Install MESH</a>
       <a class="arrowlink" href="evidence.html">See the evidence</a>
     </div>
+    <p class="cta-note rise">One command &middot; keep your own key &middot; <b>verify every number yourself</b></p>
   </div>
+  <aside class="hero-proof rise">
+    <p class="lbl"><span class="pct">22.0<span>%</span></span> net savings on our last live export &mdash; verified on the provider&rsquo;s own usage, recomputable from a ledger you hold.</p>
+  </aside>
 </header>
 </div>
 
+<section id="install" aria-label="Install MESH" class="install-sect">
+  <h2 class="rise">Install in one command.</h2>
+  <div class="os-tabs rise" role="tablist" aria-label="Choose your platform">
+    <button class="os-tab" type="button" role="tab" data-os="unix" aria-selected="true">macOS &amp; Linux</button>
+    <button class="os-tab" type="button" role="tab" data-os="npm" aria-selected="false">npm</button>
+    <button class="os-tab" type="button" role="tab" disabled title="Windows support is coming">Windows &middot; soon</button>
+  </div>
+  <div class="install-cmd rise" data-os-panel="unix"><span class="prompt">$</span><code>curl -fsSL https://www.mesh-technology.com/install.sh | sh</code><button class="copy" type="button" data-copy="curl -fsSL https://www.mesh-technology.com/install.sh | sh">copy</button></div>
+  <div class="install-cmd rise" data-os-panel="npm" hidden><span class="prompt">$</span><code>npx @mesh-ai/mesh start</code><button class="copy" type="button" data-copy="npx @mesh-ai/mesh start">copy</button></div>
+  <p class="install-note rise">Then <code>mesh start</code> &middot; needs Node 22+ &middot; <b>your key never leaves Claude Code</b> &middot; <a href="start.html">full setup guide</a></p>
+</section>
+
 <section aria-label="Measured bands" class="bands">
+  <h2 class="rise">Measured savings.</h2>
   <div class="bandrow rise">
     <div class="band"><div class="n">45<span>&ndash;73%</span></div><p>off repetitive API calls &mdash; the top of the range when they can wait a few seconds</p></div>
     <div class="band"><div class="n">57.7<span>%</span></div><p>off background work that can wait a few extra seconds</p></div>
@@ -266,8 +366,8 @@ section h2::after{content:"";position:absolute;left:50%;transform:translateX(-50
 </section>
 
 <section aria-label="Works with every provider" class="works">
+  <div class="sec-head"><h2>Works with what you already use.</h2><span class="sec-tag">keep your own key</span></div>
   <div class="works-row rise">
-    <span class="works-lede">Works with</span>
     <span class="wlogo"><svg aria-hidden="true" fill="#ffffff" role="img" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Anthropic</title><path d="M17.3041 3.541h-3.6718l6.696 16.918H24Zm-10.6082 0L0 20.459h3.7442l1.3693-3.5527h7.0052l1.3693 3.5528h3.7442L10.5363 3.5409Zm-.3712 10.2232 2.2914-5.9456 2.2914 5.9456Z"/></svg><span>Claude</span></span>
     <span class="wlogo wordmark"><span>OpenAI</span></span>
     <span class="wlogo"><svg aria-hidden="true" fill="#ffffff" role="img" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Google Gemini</title><path d="M11.04 19.32Q12 21.51 12 24q0-2.49.93-4.68.96-2.19 2.58-3.81t3.81-2.55Q21.51 12 24 12q-2.49 0-4.68-.93a12.3 12.3 0 0 1-3.81-2.58 12.3 12.3 0 0 1-2.58-3.81Q12 2.49 12 0q0 2.49-.96 4.68-.93 2.19-2.55 3.81a12.3 12.3 0 0 1-3.81 2.58Q2.49 12 0 12q2.49 0 4.68.96 2.19.93 3.81 2.55t2.55 3.81"/></svg><span>Gemini*</span></span>
@@ -276,12 +376,12 @@ section h2::after{content:"";position:absolute;left:50%;transform:translateX(-50
     <span class="wlogo"><svg aria-hidden="true" fill="#ffffff" role="img" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Mistral AI</title><path d="M17.143 3.429v3.428h-3.429v3.429h-3.428V6.857H6.857V3.43H3.43v13.714H0v3.428h10.286v-3.428H6.857v-3.429h3.429v3.429h3.429v-3.429h3.428v3.429h-3.428v3.428H24v-3.428h-3.43V3.429z"/></svg><span>Mistral</span></span>
     <span class="wlogo"><svg aria-hidden="true" fill="#ffffff" role="img" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>DeepSeek</title><path d="M23.748 4.651c-.254-.124-.364.113-.512.233-.051.04-.094.09-.137.137-.372.397-.806.657-1.373.626-.829-.046-1.537.214-2.163.848-.133-.782-.575-1.248-1.247-1.548-.352-.155-.708-.311-.955-.65-.172-.24-.219-.509-.305-.774-.055-.16-.11-.323-.293-.35-.2-.031-.278.136-.356.276-.313.572-.434 1.202-.422 1.84.027 1.436.633 2.58 1.838 3.393.137.094.172.187.129.323-.082.28-.18.553-.266.833-.055.179-.137.218-.328.14a5.5 5.5 0 0 1-1.737-1.179c-.857-.828-1.631-1.743-2.597-2.46a12 12 0 0 0-.689-.47c-.985-.957.13-1.743.387-1.836.27-.098.094-.433-.778-.428-.872.003-1.67.295-2.687.685a3 3 0 0 1-.465.136 9.6 9.6 0 0 0-2.883-.101c-1.885.21-3.39 1.1-4.497 2.622C.082 8.776-.231 10.854.152 13.02c.403 2.284 1.568 4.175 3.36 5.653 1.857 1.533 3.997 2.284 6.438 2.14 1.482-.085 3.132-.284 4.994-1.86.47.234.962.328 1.78.398.629.058 1.235-.031 1.705-.129.735-.155.684-.836.418-.961-2.155-1.004-1.682-.595-2.112-.926 1.095-1.295 2.768-3.598 3.284-6.733.05-.346.115-.834.108-1.114-.004-.171.035-.238.23-.257a4.2 4.2 0 0 0 1.545-.475c1.397-.763 1.96-2.016 2.093-3.517.02-.23-.004-.467-.247-.588M11.58 18.168c-2.088-1.642-3.101-2.183-3.52-2.16-.39.024-.32.472-.234.763.09.288.207.487.371.74.114.167.192.416-.113.603-.673.416-1.842-.14-1.897-.168-1.361-.801-2.5-1.86-3.301-3.306-.775-1.393-1.225-2.888-1.299-4.482-.02-.385.094-.522.477-.592a4.7 4.7 0 0 1 1.53-.038c2.131.311 3.946 1.264 5.467 2.774.868.86 1.525 1.887 2.202 2.89.72 1.066 1.494 2.082 2.48 2.915.348.291.626.513.892.677-.802.09-2.14.109-3.055-.615zm1.001-6.44a.306.306 0 0 1 .415-.287.3.3 0 0 1 .113.074.3.3 0 0 1 .086.214c0 .17-.136.307-.308.307a.303.303 0 0 1-.306-.307m3.11 1.596c-.2.081-.4.151-.591.16a1.25 1.25 0 0 1-.798-.254c-.274-.23-.47-.358-.551-.758a1.7 1.7 0 0 1 .015-.588c.07-.327-.007-.537-.238-.727-.188-.156-.426-.199-.689-.199a.6.6 0 0 1-.254-.078.253.253 0 0 1-.114-.358 1 1 0 0 1 .192-.21c.356-.202.767-.136 1.146.016.352.144.618.408 1.001.782.392.451.462.576.685.915.176.264.336.536.446.848.066.194-.02.353-.25.45"/></svg><span>DeepSeek</span></span>
   </div>
-  <p class="works-cap rise">Point it at whatever you already use. FLUX speaks Anthropic and OpenAI natively, plus anything with an OpenAI-style API &mdash; Grok, Llama, Mistral, DeepSeek and more. Full savings verification is live for Claude and GPT today; other models are reduced and recorded while their price tables land. <em>*Gemini via its OpenAI-compatible endpoint.</em></p>
+  <p class="works-cap rise">Point it at whatever you already use. MESH speaks Anthropic and OpenAI natively, plus anything with an OpenAI-style API &mdash; Grok, Llama, Mistral, DeepSeek and more. Full savings verification is live for Claude, GPT and DeepSeek today; other models are reduced and recorded while their price tables land. <em>*Gemini via its OpenAI-compatible endpoint.</em></p>
 </section>
 
 <section aria-label="The reduction, performed" class="demo-sect">
   <div class="axis-col-wide">
-  <h2 class="rise">Watch a request lose its waste.</h2>
+  <div class="sec-head"><h2>Watch a request lose its waste.</h2><span class="sec-tag">counts built from the sample</span></div>
   <div data-ui id="reducer" class="rise">
     <div class="bar"><span>reducer &mdash; a busy agent&rsquo;s turn 5</span>
       <span class="pill"><span id="tok-count">1102</span> tokens &middot; $<span id="cost-count">0.00220</span></span></div>
@@ -307,26 +407,26 @@ section h2::after{content:"";position:absolute;left:50%;transform:translateX(-50
 
 <section aria-label="How it works">
   <div class="axis-col">
-  <h2 class="rise">One URL. Three exchanges.</h2>
+  <div class="sec-head"><h2>One URL. Three exchanges.</h2><span class="sec-tag">your code stays the same</span></div>
 
   <div class="exchange rise">
     <p class="lead">First, point your client at it.</p>
-    <div class="call"><button class="copy" type="button" data-copy="npx -y -p @flux-ai/sdk flux-proxy">copy</button><pre style="margin:0;padding:20px;font:13px/1.65 ui-monospace,Menlo,monospace;overflow-x:auto"><code>$ npx -y -p @flux-ai/sdk flux-proxy
-<span style="color:#9FB3C8"># then one line in your app &mdash; keep your own key</span>
-baseURL: <span style="color:#9DD9F5">"http://127.0.0.1:8787"</span></code></pre></div>
+    <div class="call"><button class="copy" type="button" data-copy="npx -y -p @mesh-ai/sdk mesh-proxy">copy</button><pre style="margin:0;padding:20px;font:13px/1.65 ui-monospace,Menlo,monospace;overflow-x:auto"><code>$ npx -y -p @mesh-ai/sdk mesh-proxy
+<span style="color:#57534E"># then one line in your app &mdash; keep your own key</span>
+baseURL: <span style="color:#1D4ED8">"http://127.0.0.1:8787"</span></code></pre></div>
     <div class="response" data-ui>
-      <div class="bar"><span>flux-proxy</span><span class="pill">running</span></div>
-      <pre>FLUX proxy listening on http://127.0.0.1:8787
-Ledger spools: ./flux-ledger <span class="tok">(one hash-chained JSONL per app + provider)</span>
+      <div class="bar"><span>mesh-proxy</span><span class="pill">running</span></div>
+      <pre>MESH proxy listening on http://127.0.0.1:8787
+Ledger spools: ./mesh-ledger <span class="tok">(one hash-chained JSONL per app + provider)</span>
 Anthropic SDK: new Anthropic({ baseURL: "http://127.0.0.1:8787" })</pre>
     </div>
   </div>
 
   <div class="exchange rise">
     <p class="lead">Then run your traffic as normal.</p>
-    <div class="call"><pre style="margin:0;padding:20px;font:13px/1.65 ui-monospace,Menlo,monospace;overflow-x:auto"><code>await anthropic.messages.create({ model, system, messages })  <span style="color:#9FB3C8">// unchanged</span></code></pre></div>
+    <div class="call"><pre style="margin:0;padding:20px;font:13px/1.65 ui-monospace,Menlo,monospace;overflow-x:auto"><code>await anthropic.messages.create({ model, system, messages })  <span style="color:#57534E">// unchanged</span></code></pre></div>
     <div class="response" data-ui>
-      <div class="bar"><span>flux-ledger/my-app-anthropic.jsonl</span><span class="pill">hash-chained</span></div>
+      <div class="bar"><span>mesh-ledger/my-app-anthropic.jsonl</span><span class="pill">hash-chained</span></div>
       <pre>{"seq":0,"prevHash":"000&hellip;0","event":{"requestId":"a1f2&hellip;","model":"claude-sonnet-5-5",
   "usage":{"inputTokens":1695,"outputTokens":412},"levers":[{"leverId":"duplicate-context-removal",
   "kind":"lossless","savedUsd":0.00130,<span class="key">"basis":"estimated-baseline"</span>}],"status":"succeeded"}}</pre>
@@ -335,7 +435,7 @@ Anthropic SDK: new Anthropic({ baseURL: "http://127.0.0.1:8787" })</pre>
 
   <div class="exchange rise">
     <p class="lead">Last, recompute the invoice yourself.</p>
-    <div class="call"><button class="copy" type="button" data-copy="node --import tsx evals/run-invoice.ts flux-ledger/my-app-anthropic.jsonl">copy</button><pre style="margin:0;padding:20px;font:13px/1.65 ui-monospace,Menlo,monospace;overflow-x:auto"><code>$ node --import tsx evals/run-invoice.ts flux-ledger/my-app-anthropic.jsonl</code></pre></div>
+    <div class="call"><button class="copy" type="button" data-copy="node --import tsx evals/run-invoice.ts mesh-ledger/my-app-anthropic.jsonl">copy</button><pre style="margin:0;padding:20px;font:13px/1.65 ui-monospace,Menlo,monospace;overflow-x:auto"><code>$ node --import tsx evals/run-invoice.ts mesh-ledger/my-app-anthropic.jsonl</code></pre></div>
     <div class="response breakout" data-ui>
       <div class="bar"><span>invoice &mdash; recomputed from your spool</span><span class="pill">verdict: charge</span></div>
       <div class="tblwrap"><table>
@@ -362,7 +462,7 @@ Anthropic SDK: new Anthropic({ baseURL: "http://127.0.0.1:8787" })</pre>
       <p class="cap">saved by a single lever &mdash; switching Claude&rsquo;s cache on &mdash; measured both ways on identical prompts, answers unchanged. The receipt beside is our latest small live run: 22.0% of real spend saved and billing on every active agent, the cache lever earning live. The full measured range is 26&ndash;73% by traffic type &rarr; <a href="evidence.html">evidence</a>.</p>
     </div>
     <div class="slip rise in-self" aria-label="The export, row by row">
-      <h3>FLUX &mdash; LIVE EXPORT</h3>
+      <h3>MESH &mdash; LIVE EXPORT</h3>
       <p class="meta">Second export &middot; 2026-10-19 &middot; claude-sonnet-5-5 &middot; 30 requests &middot; 5 hash chains verified</p>
       <p class="grp">SPEND, BY AGENT</p>
       <div class="row"><span class="desc">coding-agent</span><span class="lead-dots"></span><span class="val">$0.0691</span></div>
@@ -381,15 +481,35 @@ Anthropic SDK: new Anthropic({ baseURL: "http://127.0.0.1:8787" })</pre>
   </div>
 </section>
 
+<section id="theo" aria-label="Theo, your token engineer" class="theo-sect">
+  <div class="theo-wrap">
+    <div class="theo-avatar rise"><svg viewBox="0 0 120 124" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Theo, the MESH token-engineer bot">
+<line x1="60" y1="34" x2="60" y2="22" stroke="#0B0F14" stroke-width="3.5" stroke-linecap="round"/>
+<circle class="theo-signal" cx="60" cy="15" r="5.5" fill="#2563EB"/>
+<rect x="24" y="34" width="72" height="56" rx="18" fill="#ffffff" stroke="#0B0F14" stroke-width="3.5"/>
+<rect x="16.5" y="54" width="6" height="16" rx="3" fill="#0B0F14"/>
+<rect x="97.5" y="54" width="6" height="16" rx="3" fill="#0B0F14"/>
+<circle class="theo-eye" cx="47" cy="58" r="6" fill="#0B0F14"/>
+<circle class="theo-eye" cx="73" cy="58" r="6" fill="#0B0F14"/>
+<path d="M48 73 q12 9 24 0" stroke="#0B0F14" stroke-width="3.5" stroke-linecap="round" fill="none"/>
+<rect x="52" y="90" width="16" height="7" fill="#0B0F14"/>
+<rect x="38" y="97" width="44" height="7" rx="3.5" fill="#E7E5E4"/>
+</svg></div>
+    <h2 class="rise">Meet Theo, your token engineer.</h2>
+    <p class="theo-lead rise">Theo ships with MESH. He studies your own traffic, finds new waste to cut, and only ever tunes MESH &mdash; never your prompts, never your answers.</p>
+    <p class="theo-note rise">When he finds a saving he tells you what it is and what it might cost in quality, then waits for your yes. Anything that could touch an answer stays off until a replay of your own traffic proves it safe &mdash; and once a month he reports his own honesty: what he tried, what he saved, and where he held back.</p>
+  </div>
+</section>
+
 <section aria-label="Pricing" class="field-ocean">
   <div class="price-wrap">
     <div class="price-side rise">
       <h2>One price.</h2>
-      <p>No subscription. No seats. No minimum. You pay a slice of what FLUX actually saved you &mdash; and you can recheck the maths behind every invoice yourself.</p>
+      <p>No subscription. No seats. No minimum. You pay a slice of what MESH actually saved you &mdash; and you can recheck the maths behind every invoice yourself.</p>
     </div>
     <div class="price-figure rise">
       <div class="fig">1<sup>%</sup></div>
-      <span class="overlap"><svg viewBox="0 0 48 48" fill="none" aria-hidden="true"><path d="M8 14c10 0 10 10 20 10h12" stroke="#2864A5" stroke-width="3.5" stroke-linecap="round"/><path d="M8 34c10 0 10-10 20-10" stroke="#2864A5" stroke-width="3.5" stroke-linecap="round" opacity=".75"/><circle cx="41" cy="24" r="4" fill="#9DD9F5"/></svg></span>
+      <span class="overlap"><svg viewBox="0 0 240 240" fill="none" aria-hidden="true"><g stroke="currentColor" stroke-width="16" stroke-linejoin="round" stroke-linecap="round"><path d="M139.24 34.86 L100.03 49.91 L93.46 91.39 L126.1 117.82 L165.31 102.77 L171.88 61.29 Z"/><path d="M80.38 107.54 L41.17 122.6 L34.6 164.08 L67.24 190.51 L106.45 175.46 L113.02 133.98 Z"/><path d="M172.76 122.18 L133.55 137.23 L126.98 178.71 L159.62 205.14 L198.83 190.09 L205.4 148.61 Z"/></g></svg></span>
       <p class="per">of verified savings, monthly &mdash; nothing else</p>
       <ul>
         <li>Savings counted per finished task, from your provider&rsquo;s own numbers</li>
@@ -406,11 +526,11 @@ Anthropic SDK: new Anthropic({ baseURL: "http://127.0.0.1:8787" })</pre>
   <div class="faq-wrap">
     <h2 class="rise">The catch, printed.</h2>
     <div class="faq rise">
-      <details name="faq" open><summary>Can FLUX break my app?<span class="plus"></span></summary><div class="answer-wrap"><div class="answer">The default levers are lossless: compacted schemas decode identically, removed duplicates are exact, prefix repair reorders without deleting, and the reducer never throws &mdash; a failure returns your request untouched. Lossy levers stay off until a replay gate proves on your own recorded requests that quality held. <a href="faq.html">Full answer</a></div></div></details>
+      <details name="faq" open><summary>Can MESH break my app?<span class="plus"></span></summary><div class="answer-wrap"><div class="answer">The default levers are lossless: compacted schemas decode identically, removed duplicates are exact, prefix repair reorders without deleting, and the reducer never throws &mdash; a failure returns your request untouched. Lossy levers stay off until a replay gate proves on your own recorded requests that quality held. <a href="faq.html">Full answer</a></div></div></details>
       <details name="faq"><summary>Why a range and not one number?<span class="plus"></span></summary><div class="answer-wrap"><div class="answer">Savings depend on your traffic&rsquo;s shape. The quote comes from your own export and names your segment; sometimes the verdict is literally do not pay us. <a href="segments.html">The bands, by segment</a></div></div></details>
       <details name="faq"><summary>How can you bill for money I didn&rsquo;t spend?<span class="plus"></span></summary><div class="answer-wrap"><div class="answer">The way energy performance contracts have done it since 1995: a defined baseline, provider-verbatim measurements, an agreed adjustment method. Every request writes an append-only hash-chained event; the invoice is a pure function over those events. <a href="methodology.html">Methodology</a></div></div></details>
       <details name="faq"><summary>What do you do with my prompts?<span class="plus"></span></summary><div class="answer-wrap"><div class="answer">Analysis runs locally; prompts never leave your machine. The ledger records usage numbers, lever names and hashes &mdash; not content. Your API key passes through the proxy verbatim and is never stored.</div></div></details>
-      <details name="faq"><summary>Where does FLUX lose?<span class="plus"></span></summary><div class="answer-wrap"><div class="answer">Busy interactive agents cap around 29% before cache enablement; already-optimised stacks get 0&ndash;5% and a do-not-pay-us verdict; a free trimmer may be all you need if you don&rsquo;t need the saving verified. <a href="comparison.html">The honest comparison</a></div></div></details>
+      <details name="faq"><summary>Where does MESH lose?<span class="plus"></span></summary><div class="answer-wrap"><div class="answer">Busy interactive agents cap around 29% before cache enablement; already-optimised stacks get 0&ndash;5% and a do-not-pay-us verdict; a free trimmer may be all you need if you don&rsquo;t need the saving verified. <a href="comparison.html">The honest comparison</a></div></div></details>
       <details name="faq"><summary>Are these numbers real?<span class="plus"></span></summary><div class="answer-wrap"><div class="answer">Every figure traces to a runnable command and a commit. The bands are simulator-measured at published provider prices and labelled so; the 22.0% receipt above is real traffic. Your pilot replaces all of it with your own number before any fee exists. <a href="evidence.html">Evidence</a></div></div></details>
     </div>
   </div>
@@ -421,7 +541,7 @@ Anthropic SDK: new Anthropic({ baseURL: "http://127.0.0.1:8787" })</pre>
     <div class="cta-flat" aria-hidden="true"></div>
     <div class="cta-main">
       <h2>Start with one URL.</h2>
-      <p>Point your app&rsquo;s baseURL at FLUX and keep your own key. Five minutes later you have a tamper-evident record of what you spend &mdash; and what you stopped spending. No signup; the source is public.</p>
+      <p>Point your app&rsquo;s baseURL at MESH and keep your own key. Five minutes later you have a tamper-evident record of what you spend &mdash; and what you stopped spending. No signup; the source is public.</p>
       <a class="btn" href="start.html">Start in five minutes</a>
     </div>
     <div class="xfade" aria-hidden="true">
@@ -433,111 +553,16 @@ Anthropic SDK: new Anthropic({ baseURL: "http://127.0.0.1:8787" })</pre>
 </section>
 
 <footer class="quiet-foot">
-  <span>flux &mdash; verified LLM cost reduction</span>
-  <span class="links"><a href="overview.html">Overview</a><a href="segments.html">Savings</a><a href="methodology.html">Methodology</a><a href="evidence.html">Evidence</a><a href="comparison.html">Comparison</a><a href="start.html">Get started</a><a href="faq.html">FAQ</a><a href="https://github.com/Harrym1707/Flux">GitHub</a><a href="llms.txt">llms.txt</a></span>
+  <span>mesh &mdash; verified LLM cost reduction</span>
+  <span class="links"><a href="overview.html">Overview</a><a href="segments.html">Savings</a><a href="methodology.html">Methodology</a><a href="evidence.html">Evidence</a><a href="comparison.html">Comparison</a><a href="start.html">Get started</a><a href="faq.html">FAQ</a><a href="https://github.com/Harrym1707/Mesh">GitHub</a><a href="llms.txt">llms.txt</a></span>
   <span class="right">2026 &middot; BUSL-1.1</span>
-  <span class="legal">Flux AI Technologies Limited &middot; registered in England and Wales &middot; company no. 17543982</span>
+  <span class="legal">Mesh AI Technologies Limited &middot; registered in England and Wales &middot; company no. 17543982</span>
 </footer>
 
 <script>
 (function () {
-  var canvas = document.getElementById("field");
-  if (!canvas || !canvas.getContext) return;
   var reduced = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  var ctx = canvas.getContext("2d");
-  var wrap = canvas.parentElement;
-  var dpr = Math.min(window.devicePixelRatio || 1, 1.75);
-  var W = 0, H = 0;
-  function resize() {
-    W = wrap.clientWidth; H = wrap.clientHeight;
-    canvas.width = W * dpr; canvas.height = H * dpr;
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  }
-  resize();
-  var rt; window.addEventListener("resize", function(){ clearTimeout(rt); rt = setTimeout(resize, 150); });
-
-  // Three particle wave surfaces layered down the page: ink on paper. Each
-  // layer is a perspective-projected grid on its own rolling height field,
-  // with its own drift speed, so the layers slide over one another. Every
-  // row runs the full width of the viewport (the world x is derived from the
-  // screen x, so perspective still compresses the far rows), the surfaces
-  // are deep enough to touch, and the cursor pushes a swell through
-  // whichever surface it is near.
-  var LAYERS = [
-    { horizon: 0.02, cam: 0.35, drift: 0.7,  phase: 0.0, dark: 0.50 },
-    { horizon: 0.28, cam: 0.37, drift: 1.0,  phase: 2.1, dark: 0.85 },
-    { horizon: 0.55, cam: 0.36, drift: 0.55, phase: 4.4, dark: 0.66 },
-  ];
-  var COLS = 130, ROWSZ = 30, FOV = 300;
-  var mx = -9999, my = -9999, smx = -9999, smy = -9999;
-  window.addEventListener("pointermove", function (e) {
-    var b = wrap.getBoundingClientRect();
-    mx = e.clientX - b.left; my = e.clientY - b.top;
-  }, { passive: true });
-  window.addEventListener("pointerleave", function(){ mx = -9999; my = -9999; });
-
-  function drawLayer(L, t) {
-    var cx = W / 2, horizon = H * L.horizon, camY = L.cam * H;
-    for (var zi = ROWSZ - 1; zi >= 0; zi--) {
-      var z = 40 + zi * 26;
-      var scale = FOV / (FOV + z);
-      var rowAlpha = (0.15 + 0.35 * scale) * L.dark;
-      var size = Math.max(1.2, 2.8 * scale);
-      // far rows ocean-blue, near rows midnight ink
-      var mixv = Math.min(1, scale * 1.3);
-      var r = Math.round(40 + (16 - 40) * mixv);
-      var g = Math.round(100 + (42 - 100) * mixv);
-      var b2 = Math.round(165 + (67 - 165) * mixv);
-      ctx.fillStyle = "rgba(" + r + "," + g + "," + b2 + "," + rowAlpha + ")";
-      var stag = (zi * 0.381966) % 1;
-      for (var xi = 0; xi < COLS; xi++) {
-        var sx = ((xi + stag) / (COLS - 1)) * W;
-        var xw = (sx - cx) / scale;
-        var amp = 30 + 42 * (1 - scale);
-        var tt = t * L.drift + L.phase;
-        var h =
-          Math.sin(xw * 0.0042 + tt * 1.1 + z * 0.012) * amp * 0.5 +
-          Math.sin(xw * 0.0095 - tt * 0.7 + z * 0.02) * amp * 0.3 +
-          Math.sin(xw * 0.021 + tt * 1.9) * amp * 0.14 +
-          Math.sin(xw * 0.0016 + z * 0.004 - tt * 0.35) * amp * 0.45;
-        var sy = horizon + (camY - h) * scale;
-        var ddx = sx - smx, ddy = sy - smy;
-        var pulse = Math.exp(-(ddx * ddx + ddy * ddy) / (2 * 150 * 150));
-        if (pulse > 0.03) {
-          sy -= pulse * 24 * scale;
-          ctx.fillStyle = "rgba(16,42,67," + Math.min(0.9, rowAlpha + pulse * 0.6) + ")";
-          ctx.fillRect(sx, sy, size + pulse * 1.4, size + pulse * 1.4);
-          ctx.fillStyle = "rgba(" + r + "," + g + "," + b2 + "," + rowAlpha + ")";
-        } else if (h > amp * 0.55) {
-          ctx.fillStyle = "rgba(40,100,165," + Math.min(0.8, rowAlpha + 0.18) + ")";
-          ctx.fillRect(sx, sy, size, size);
-          ctx.fillStyle = "rgba(" + r + "," + g + "," + b2 + "," + rowAlpha + ")";
-        } else {
-          ctx.fillRect(sx, sy, size, size);
-        }
-      }
-    }
-  }
-  function draw(t) {
-    ctx.clearRect(0, 0, W, H);
-    for (var i = 0; i < LAYERS.length; i++) drawLayer(LAYERS[i], t);
-  }
-  if (reduced) { draw(21.0); return; }
-  var vis = true;
-  new IntersectionObserver(function (es) { es.forEach(function (e) { vis = e.isIntersecting; }); }).observe(wrap);
-  var lastF = 0;
-  (function frame(now) {
-    requestAnimationFrame(frame);
-    if (document.hidden || !vis || now - lastF < 28) return;
-    lastF = now;
-    smx += (mx - smx) * 0.08; smy += (my - smy) * 0.08;
-    draw(now / 1000);
-  })(0);
-})();</script>
-<script>
-(function () {
-  var reduced = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  // The performance: when the panel scrolls into view, FLUX passes over the
+  // The performance: when the panel scrolls into view, MESH passes over the
   // request — each fold collapses, a chip names the lever, and the token and
   // cost meters run down. Counts come from the panel's own bytes. Loops.
   var panel = document.getElementById("reducer");
@@ -678,6 +703,39 @@ Anthropic SDK: new Anthropic({ baseURL: "http://127.0.0.1:8787" })</pre>
       b.textContent = "copied"; setTimeout(function () { b.textContent = "copy"; }, 1200);
     });
   });
+
+  // Install section: switch the command shown by platform tab. Degrades to the
+  // default (curl) command with JS off, since the npm panel starts [hidden].
+  var osTabs = document.querySelectorAll(".os-tab[data-os]");
+  if (osTabs.length) {
+    var showOs = function (os) {
+      document.querySelectorAll(".os-tab[data-os]").forEach(function (t) {
+        t.setAttribute("aria-selected", String(t.getAttribute("data-os") === os));
+      });
+      document.querySelectorAll("[data-os-panel]").forEach(function (p) {
+        p.hidden = p.getAttribute("data-os-panel") !== os;
+      });
+    };
+    osTabs.forEach(function (t) {
+      t.addEventListener("click", function () { showOs(t.getAttribute("data-os")); });
+    });
+  }
 })();</script>
+<script>
+(function(){
+  var dp=document.querySelector(".dotpaper"); if(!dp) return;
+  if(window.matchMedia&&window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  var x=0,y=0,pending=false;
+  window.addEventListener("pointermove",function(e){
+    x=e.clientX; y=e.clientY;
+    if(!pending){ pending=true; requestAnimationFrame(function(){
+      dp.style.setProperty("--mx",x+"px"); dp.style.setProperty("--my",y+"px");
+      if(!dp.classList.contains("lit")) dp.classList.add("lit");
+      pending=false;
+    }); }
+  },{passive:true});
+  window.addEventListener("pointerleave",function(){ dp.classList.remove("lit"); });
+})();
+</script>
 </body>
 </html>

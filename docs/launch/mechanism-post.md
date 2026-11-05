@@ -14,14 +14,14 @@ marketing goes to lie. Independent replays keep finding the gap: trimmers
 claiming 60–90% delivered a combined 3.7% on a 614M-token corpus of real
 coding sessions; a modelled 77% schema saving measured 13% in production.
 
-We build FLUX, a local proxy that cuts Claude/OpenAI request costs, and we
+We build MESH, a local proxy that cuts Claude/OpenAI request costs, and we
 bill 1% of verified savings. Billing on a counterfactual forced us to solve
 the verification problem for real, and the solution turned out to be the
 interesting part of the product. Here is the whole mechanism.
 
 ## 1. The baseline must be deterministic, not estimated
 
-FLUX reduces each request before the provider sees it: tool schemas compacted
+MESH reduces each request before the provider sees it: tool schemas compacted
 so they decode identically, exact duplicate context removed, the per-request
 timestamp that silently breaks the provider's prompt cache relocated out of
 the cacheable prefix, and `cache_control` placed on the stable text only.
@@ -91,7 +91,7 @@ and buys the only thing a counterfactual biller can sell: being checkable.
 - The proxy's own cost: **~22ms p50** added per request, measurement script in
   the repo
 
-Try the whole loop without an API key (`npx -y -p @flux-ai/sdk flux-demo`
+Try the whole loop without an API key (`npx -y -p @mesh-ai/sdk mesh-demo`
 runs proxy → ledger → independent recompute against a local stub in ten
 seconds), or the real thing with your own key and one baseURL change.
-Everything above traces to a runnable command: https://www.fluxtoken.dev/evidence.html
+Everything above traces to a runnable command: https://www.mesh-technology.com/evidence.html

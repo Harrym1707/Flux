@@ -10,9 +10,9 @@ import {
   verifyLedgerChain,
   type LedgerRecord,
 } from "../../core/dist/src/index.js";
-import { withFlux } from "./openai.js";
+import { withMesh } from "./openai.js";
 import { billableEventFromRequest, createSavingsLedger } from "./savings-ledger.js";
-import type { FluxRequestEvent } from "./types.js";
+import type { MeshRequestEvent } from "./types.js";
 
 type AnyObject = Record<string, any>;
 
@@ -34,7 +34,7 @@ const flexResponse = {
   },
 };
 
-function requestEvent(overrides: Partial<FluxRequestEvent>): FluxRequestEvent {
+function requestEvent(overrides: Partial<MeshRequestEvent>): MeshRequestEvent {
   return {
     requestId: "req-1",
     applicationId: "app",
@@ -52,11 +52,11 @@ function requestEvent(overrides: Partial<FluxRequestEvent>): FluxRequestEvent {
   };
 }
 
-describe("createSavingsLedger wired into withFlux", () => {
+describe("createSavingsLedger wired into withMesh", () => {
   it("appends one hash-chained billable event per request, priced from the RESPONSE tier", async () => {
-    const dir = mkdtempSync(join(tmpdir(), "flux-ledger-"));
+    const dir = mkdtempSync(join(tmpdir(), "mesh-ledger-"));
     const path = join(dir, "ledger.jsonl");
-    const client = withFlux(stubClient(flexResponse), {
+    const client = withMesh(stubClient(flexResponse), {
       applicationId: "meter-test",
       ledger: { path, provider: "openai" },
     });
@@ -82,10 +82,10 @@ describe("createSavingsLedger wired into withFlux", () => {
   });
 
   it("resumes the chain across ledger instances instead of restarting at genesis", async () => {
-    const dir = mkdtempSync(join(tmpdir(), "flux-ledger-"));
+    const dir = mkdtempSync(join(tmpdir(), "mesh-ledger-"));
     const path = join(dir, "ledger.jsonl");
     for (let run = 0; run < 2; run += 1) {
-      const client = withFlux(stubClient(flexResponse), {
+      const client = withMesh(stubClient(flexResponse), {
         applicationId: "meter-test",
         ledger: { path, provider: "openai" },
       });
@@ -99,10 +99,10 @@ describe("createSavingsLedger wired into withFlux", () => {
   });
 
   it("never throws into the request path: an unwritable spool leaves the response untouched", async () => {
-    const dir = mkdtempSync(join(tmpdir(), "flux-ledger-"));
+    const dir = mkdtempSync(join(tmpdir(), "mesh-ledger-"));
     const blocker = join(dir, "not-a-directory");
     writeFileSync(blocker, "occupied", "utf8");
-    const client = withFlux(stubClient(flexResponse), {
+    const client = withMesh(stubClient(flexResponse), {
       applicationId: "meter-test",
       // Parent "directory" is a regular file, so every append fails.
       ledger: { path: join(blocker, "ledger.jsonl") },
@@ -112,7 +112,7 @@ describe("createSavingsLedger wired into withFlux", () => {
   });
 
   it("goes quiet rather than extending a corrupt chain", () => {
-    const dir = mkdtempSync(join(tmpdir(), "flux-ledger-"));
+    const dir = mkdtempSync(join(tmpdir(), "mesh-ledger-"));
     const path = join(dir, "ledger.jsonl");
     writeFileSync(path, "{not json\n", "utf8");
     const ledger = createSavingsLedger({ path });
@@ -174,7 +174,7 @@ describe("billableEventFromRequest", () => {
       publishedModelPrices,
       version,
     );
-    // No TTL split reported on a FLUX-placed stamp: every write prices at the
+    // No TTL split reported on a MESH-placed stamp: every write prices at the
     // 1h premium (Sonnet 5.5: 4/M vs input 2/M), the dispute-safe reading.
     expect(billed.levers).toContainEqual({ leverId: "cache-ttl-1h", kind: "provider_cache", savedUsd: -2 });
     expect(recomputeInvoice([billed]).netVerifiedSavingsUsd).toBeCloseTo(-2, 10);
@@ -243,7 +243,7 @@ describe("billableEventFromRequest", () => {
 describe("estimated-baseline billing for token-reduction levers", () => {
   const version = catalogueVersion(publishedModelPrices);
   // gpt-6-astra standard input is 10 USD/M. The event's provider-verbatim input
-  // is 800k uncached tokens; FLUX's own counter says it removed 200k of a 1M
+  // is 800k uncached tokens; MESH's own counter says it removed 200k of a 1M
   // request (fraction 0.2), so baseline input = 800k / 0.8 = 1M, saved = 200k,
   // valued at the realized input rate 10 USD/M => 2 USD, split 3:1 by lever.
   const reducedEvent = (losslessCap: boolean) => requestEvent({
@@ -323,7 +323,7 @@ describe("estimated-baseline billing for token-reduction levers", () => {
 describe("5m cacheTtl stamp billing", () => {
   const version = catalogueVersion(publishedModelPrices);
 
-  it("prices FLUX-placed 5m writes at the 5m premium when the provider reports no split", () => {
+  it("prices MESH-placed 5m writes at the 5m premium when the provider reports no split", () => {
     const billed = billableEventFromRequest(
       requestEvent({
         model: "claude-sonnet-5-5-20260514",
@@ -339,7 +339,7 @@ describe("5m cacheTtl stamp billing", () => {
       version,
     );
     // A 5m stamp can only have produced 5m writes: 1M at Sonnet 5.5's 2.5/M,
-    // never the 1h 4/M that a FLUX-placed 1h stamp conservatively assumes.
+    // never the 1h 4/M that a MESH-placed 1h stamp conservatively assumes.
     expect(billed.actualUsd).toBeCloseTo(2.5, 10);
     const lever = billed.levers.find((l) => l.leverId === "cache-ttl-5m")!;
     expect(lever.kind).toBe("provider_cache");

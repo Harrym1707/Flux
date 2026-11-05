@@ -1,8 +1,8 @@
-# FLUX --- Technical Architecture
+# MESH --- Technical Architecture
 
 ## 1. Runtime model
 
-FLUX has two planes.
+MESH has two planes.
 
 ### Data plane
 
@@ -347,10 +347,10 @@ decisions.
 
 ## 11. Failure behaviour
 
-If FLUX control plane is unavailable:
+If MESH control plane is unavailable:
 
 ``` text
-FLUX SDK
+MESH SDK
    |
    v
 cached policy?
@@ -365,7 +365,7 @@ baseline provider
 
 The application should continue working.
 
-FLUX should fail open to the customer's baseline unless the customer
+MESH should fail open to the customer's baseline unless the customer
 explicitly chooses fail-closed behaviour.
 
 ------------------------------------------------------------------------
@@ -420,4 +420,4 @@ EVALUATE
 100%
 ```
 
-This loop is the core FLUX product.
+This loop is the core MESH product.

@@ -1,18 +1,13 @@
-import {
-  anthropicCacheableMinimumTokens,
-  approximateTokenCount,
-  dedupeRepeatedBlocks,
-  dedupeRepeatedLeadingBlock,
-  minifyToolSchemas,
-  publishedModelPrices,
-  resolveModelId,
-  type TokenCounter,
-} from "../../core/dist/src/index.js";
+// Specific core modules, not the barrel — see the note in proxy.ts.
+import { anthropicCacheableMinimumTokens, publishedModelPrices } from "../../core/dist/src/model-prices.js";
+import { approximateTokenCount, dedupeRepeatedBlocks, dedupeRepeatedLeadingBlock, type TokenCounter } from "../../core/dist/src/token-reduction.js";
+import { minifyToolSchemas } from "../../core/dist/src/tool-schema.js";
+import { resolveModelId } from "../../core/dist/src/price-catalogue.js";
 
 /**
  * Reduce a request before it is sent.
  *
- * This is the part of FLUX that actually lowers a bill rather than measuring how
+ * This is the part of MESH that actually lowers a bill rather than measuring how
  * much it could be lowered. It runs on every request, independent of model
  * routing: the levers here spend fewer tokens on the model the caller already
  * chose, so coupling them to a model swap would be backwards.
@@ -26,27 +21,30 @@ import {
  * Nothing here may break a request. Any failure returns the original untouched.
  */
 
-export type FluxReductionChange = {
+export type MeshReductionChange = {
   lever: string;
   lossless: boolean;
   estimatedTokensSaved: number;
   detail: string;
 };
 
-export type FluxReductionSummary = {
-  /** Estimated input tokens before reduction, by FLUX's own counter. */
+/** Reasoning/output effort levels Anthropic's `output_config.effort` accepts. */
+export type MeshOutputEffort = "low" | "medium" | "high" | "xhigh" | "max";
+
+export type MeshReductionSummary = {
+  /** Estimated input tokens before reduction, by MESH's own counter. */
   estimatedTokensBefore: number;
   estimatedTokensAfter: number;
   estimatedTokensSaved: number;
   /** Of the above, the share from transforms that cannot change the answer. */
   estimatedLosslessTokensSaved: number;
-  changes: FluxReductionChange[];
+  changes: MeshReductionChange[];
   /** True when reduction was attempted but the request was returned unchanged. */
   skipped: boolean;
   skippedReason?: string;
 };
 
-export type FluxHistoryCompactionConfig = {
+export type MeshHistoryCompactionConfig = {
   /**
    * Compaction starts once the conversation has at least this many user turns.
    * Short conversations are left alone: there is nothing stale to compact.
@@ -62,7 +60,7 @@ export type FluxHistoryCompactionConfig = {
   epochTurns?: number;
 };
 
-export type FluxTokenReductionConfig = {
+export type MeshTokenReductionConfig = {
   /**
    * Tool and MCP schema minification. `true` applies the lossless tier only.
    * Pass an object to opt into description trimming, which is a behaviour change.
@@ -88,7 +86,7 @@ export type FluxTokenReductionConfig = {
    * history byte-identically and the provider cache re-writes once per epoch,
    * never once per turn. `true` uses the defaults; pass an object to tune.
    */
-  historyCompaction?: boolean | FluxHistoryCompactionConfig;
+  historyCompaction?: boolean | MeshHistoryCompactionConfig;
   /**
    * Replace a repeated LEADING block in same-role messages after the first
    * with a short reference marker, keeping each message's differing
@@ -118,7 +116,7 @@ export type FluxTokenReductionConfig = {
    * send. A fresh oversized result is billed once at the FULL input rate and
    * only its cached rebills are discounted, so this reaches tokens that
    * history compaction (which touches already-cached turns) never can. The
-   * headline sentence, error mentions, file paths and FLUX's own markers
+   * headline sentence, error mentions, file paths and MESH's own markers
    * survive verbatim; the rest collapses to a char-count marker. Pure,
    * deterministic and idempotent, so consecutive requests re-emit identical
    * bytes and the provider cache keeps matching. Lossy by definition and
@@ -134,6 +132,33 @@ export type FluxTokenReductionConfig = {
    * caller's required value). Output is the dearer half of the bill.
    */
   maxOutputTokens?: number;
+  /**
+   * Output effort governor: Anthropic's `output_config.effort`
+   * ("low" | "medium" | "high" | "xhigh" | "max"; default "high"). The one
+   * output-side lever that is PROVIDER-SANCTIONED rather than a prompt hack — a
+   * lower effort makes the model think less and answer terser (less preamble,
+   * fewer and more-consolidated tool calls), cutting the dearest half of the
+   * bill: output tokens price 4-8x input. This is MESH's honest equivalent of a
+   * competitor that "trims the model's replies": the model decides how to be
+   * briefer, we do not truncate or rewrite its words.
+   *
+   * It is a TOP-LEVEL request field, outside the cached prefix (tools -> system
+   * -> messages), so a STABLE value never invalidates a prompt cache — unlike
+   * editing the system prompt to beg for brevity, which rewrites the cached
+   * prefix every turn. (A value that CHANGED between turns would invalidate the
+   * messages cache, so this is a per-workload setting, never flipped mid-run.)
+   *
+   * LOSSY: it changes the answer's depth and length, so it is off by default,
+   * must clear a TASK-COMPLETION replay gate before any saving is billed
+   * (exactTextGrader is meaningless here — a terser answer is different text by
+   * definition), and is only ever the caller's per-workload flag. Applied only
+   * on Claude models whose published effort range includes the requested level
+   * (an unsupported level is a 400, and this reducer must never break a
+   * request); an unsupported pairing is recorded and skipped, never stamped. A
+   * caller who set `output_config.effort` themselves is left untouched. The
+   * OpenAI `reasoning.effort` sibling is a planned follow-on, not wired here.
+   */
+  outputEffort?: MeshOutputEffort;
   /**
    * Execution tier for requests the caller has flagged latency-tolerant.
    * "flex" sets OpenAI's service_tier on the request (batch-level pricing, 50%
@@ -177,12 +202,12 @@ export type FluxTokenReductionConfig = {
    * and cannot see that a conversation's prefix churns between turns; the
    * guard can, and a churning prefix turns the stamp into pure write premium
    * (the second live export measured exactly that loss). The proxy and
-   * withFlux install one automatically whenever cacheTtl is set; it is
+   * withMesh install one automatically whenever cacheTtl is set; it is
    * consulted with the RAW request before any stamp is placed.
    */
   cacheVolatilityGuard?: { observe(request: unknown): { stamp: boolean; reason?: string } };
   countTokens?: TokenCounter;
-  onReduction?: (summary: FluxReductionSummary) => void;
+  onReduction?: (summary: MeshReductionSummary) => void;
 };
 
 type AnyObject = Record<string, unknown>;
@@ -195,6 +220,37 @@ const PREFIX_BREAKERS: RegExp[] = [
 
 function isPlainObject(value: unknown): value is AnyObject {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/**
+ * The `output_config.effort` levels a given Claude model accepts, conservatively.
+ *
+ * An effort value the model does not support is rejected at the wire with a 400,
+ * and the reducer's prime rule is that it may never break a request. So this is
+ * a DENY-by-default allow-list keyed off the model id: a model (or level) not
+ * positively known to support effort returns an empty set, and the governor
+ * then records why and leaves the request untouched rather than risk a 400.
+ * Kept deliberately narrow and dated (claude-api skill, 2026-06): widen it only
+ * against a provider source, never by guessing a newer id supports a level.
+ */
+function anthropicEffortSupport(model: string): Set<MeshOutputEffort> {
+  const m = model.toLowerCase();
+  if (!m.includes("claude")) return new Set();
+  // Full range including xhigh: Fable 5 / Mythos 5 / Opus 5 / Opus 4.8 / 4.7 /
+  // Sonnet 5. (xhigh arrived with Opus 4.7.)
+  if (m.includes("opus-5") || m.includes("opus-4-8") || m.includes("opus-4-7") ||
+      m.includes("sonnet-5") || m.includes("fable-5") || m.includes("mythos-5")) {
+    return new Set<MeshOutputEffort>(["low", "medium", "high", "xhigh", "max"]);
+  }
+  // Effort but no xhigh: Opus 4.6 / Sonnet 4.6.
+  if (m.includes("opus-4-6") || m.includes("sonnet-4-6")) {
+    return new Set<MeshOutputEffort>(["low", "medium", "high", "max"]);
+  }
+  // Opus 4.5: low/medium/high only (no xhigh, no max).
+  if (m.includes("opus-4-5")) return new Set<MeshOutputEffort>(["low", "medium", "high"]);
+  // Sonnet 4.5, every Haiku, 3.x, and anything unrecognised: effort errors or is
+  // unknown -> never stamp.
+  return new Set();
 }
 
 /**
@@ -231,12 +287,12 @@ const STALE_BODY_FILE_PATH =
   /(?:^|[\s"'`(=[])((?:\/|\.{1,2}\/|~\/|[A-Za-z]:\\)[\w.\\/-]+|[\w.-]+\/[\w./-]+|[\w-]+\.(?:ts|tsx|js|jsx|mjs|cjs|py|json|jsonl|md|yml|yaml|toml|txt|csv|tsv|html|css|go|rs|java|rb|sh|sql|log|xml|lock))\b/;
 
 /**
- * FLUX's own digest/cap markers. Both the fresh-result capper and the stale
+ * MESH's own digest/cap markers. Both the fresh-result capper and the stale
  * compactor keep segments carrying one, so a body either lever has already
  * reduced passes through the other byte-identically: the two levers are
  * byte-stable together and the provider's exact-prefix cache keeps matching.
  */
-const FLUX_MARKER = /\[flux: \d+ chars of [\w -]+\]/;
+const MESH_MARKER = /\[mesh: \d+ chars of [\w -]+\]/;
 
 /**
  * Digest one stale body. Pure function of the text, so every later request in
@@ -257,12 +313,12 @@ export function digestStaleBody(text: string): string {
     const keep = index === 0 ||
       STALE_BODY_MUST_KEEP.test(segment) ||
       STALE_BODY_FILE_PATH.test(segment) ||
-      FLUX_MARKER.test(segment);
+      MESH_MARKER.test(segment);
     if (keep) kept.push(segment);
     else droppedChars += segment.length;
   }
   if (droppedChars === 0) return text;
-  const digest = `${kept.join(" ")} [flux: ${droppedChars} chars of stale detail compacted]`;
+  const digest = `${kept.join(" ")} [mesh: ${droppedChars} chars of stale detail compacted]`;
   return digest.length < text.length ? digest : text;
 }
 
@@ -275,7 +331,7 @@ export function digestStaleBody(text: string): string {
  * Pure and idempotent: a body at or under `maximumTokens` is returned
  * untouched (identity, no marker), and capping a capped body changes nothing,
  * because every surviving segment - the headline, error mentions, file paths
- * and FLUX's own markers - is a keeper on the second pass too. The same keep
+ * and MESH's own markers - is a keeper on the second pass too. The same keep
  * rules as stale compaction apply, so later turns still find the reference
  * they depend on; a capper that lost the latest result's headline would fail
  * tasks, which is exactly the quality bar working.
@@ -297,12 +353,12 @@ export function capToolResultBody(
     const keep = index === 0 ||
       STALE_BODY_MUST_KEEP.test(segment) ||
       STALE_BODY_FILE_PATH.test(segment) ||
-      FLUX_MARKER.test(segment);
+      MESH_MARKER.test(segment);
     if (keep) kept.push(segment);
     else droppedChars += segment.length;
   }
   if (droppedChars === 0) return text;
-  const capped = `${kept.join(" ")} [flux: ${droppedChars} chars of fresh tool-result detail capped]`;
+  const capped = `${kept.join(" ")} [mesh: ${droppedChars} chars of fresh tool-result detail capped]`;
   return capped.length < text.length ? capped : text;
 }
 
@@ -405,7 +461,7 @@ function capFreshToolResults(
   input: unknown[],
   maximumTokens: number,
   countTokens: TokenCounter,
-  changes: FluxReductionChange[],
+  changes: MeshReductionChange[],
 ): unknown[] {
   const cap = (text: string): string => capToolResultBody(text, maximumTokens, countTokens);
   const state = { bodies: 0 };
@@ -453,7 +509,7 @@ function capFreshToolResults(
     lossless: false,
     estimatedTokensSaved: savedTokens,
     detail: `Capped ${state.bodies} oversized tool-result/assistant body(ies) above ${maximumTokens} tokens at ` +
-      "injection, before first send (headlines, errors, file paths and FLUX markers kept verbatim). These " +
+      "injection, before first send (headlines, errors, file paths and MESH markers kept verbatim). These " +
       "tokens would have been billed once at the FULL input rate; history compaction only reaches their " +
       "cached rebills.",
   });
@@ -472,9 +528,9 @@ function capFreshToolResults(
  */
 function compactStaleHistory(
   input: unknown[],
-  options: FluxHistoryCompactionConfig,
+  options: MeshHistoryCompactionConfig,
   countTokens: TokenCounter,
-  changes: FluxReductionChange[],
+  changes: MeshReductionChange[],
 ): unknown[] {
   const minimumTurns = options.minimumTurns ?? 3;
   const keepRecentTurns = options.keepRecentTurns ?? 2;
@@ -581,7 +637,7 @@ function dedupeMemoryAcrossTurns(
   input: unknown[],
   options: { minimumBlockTokens?: number },
   countTokens: TokenCounter,
-  changes: FluxReductionChange[],
+  changes: MeshReductionChange[],
 ): unknown[] {
   const minimumBlockTokens = options.minimumBlockTokens ?? 64;
   if (!Number.isInteger(minimumBlockTokens) || minimumBlockTokens < 1) {
@@ -621,9 +677,9 @@ function dedupeMemoryAcrossTurns(
 
 function reduceText(
   text: string,
-  config: FluxTokenReductionConfig,
+  config: MeshTokenReductionConfig,
   countTokens: TokenCounter,
-  changes: FluxReductionChange[],
+  changes: MeshReductionChange[],
   label: string,
 ): string {
   let current = text;
@@ -647,9 +703,9 @@ function reduceText(
 /** Collect the text of a Responses-style message, leaving structure untouched. */
 function reduceMessageContent(
   content: unknown,
-  config: FluxTokenReductionConfig,
+  config: MeshTokenReductionConfig,
   countTokens: TokenCounter,
-  changes: FluxReductionChange[],
+  changes: MeshReductionChange[],
 ): unknown {
   if (typeof content === "string") return reduceText(content, config, countTokens, changes, "a message");
   if (Array.isArray(content)) {
@@ -698,7 +754,7 @@ function reduceMessageContent(
  *   provider-side no-op. Each candidate breakpoint is measured against that
  *   minimum over the FULL prefix it would cover (tools + system for the
  *   system breakpoint; tools + system + every message up to and including
- *   the last one for the message breakpoint) before it is placed, so FLUX
+ *   the last one for the message breakpoint) before it is placed, so MESH
  *   never records a cache-TTL saving for a breakpoint that could never be
  *   read back.
  */
@@ -725,7 +781,7 @@ function stampAnthropicCacheTtl(
   }
 
   // Calibration (docs/rnd/knowledge/2026-10-25-acquired-knowledge.md §3):
-  // FLUX's approximate counter overcounts prose by up to 1.28x, so a prefix
+  // MESH's approximate counter overcounts prose by up to 1.28x, so a prefix
   // the counter scores at the documented minimum can be well below it in the
   // provider's own tokens — a silent no-op stamp. Require the approximate
   // count to clear the minimum with a 1.30x margin; a boundary stamp earns
@@ -865,12 +921,12 @@ function stampAnthropicCacheTtl(
  */
 export function reduceRequest(
   request: unknown,
-  config: FluxTokenReductionConfig = {},
-): { request: unknown; summary: FluxReductionSummary } {
+  config: MeshTokenReductionConfig = {},
+): { request: unknown; summary: MeshReductionSummary } {
   const countTokens = config.countTokens ?? approximateTokenCount;
-  const changes: FluxReductionChange[] = [];
+  const changes: MeshReductionChange[] = [];
 
-  const unchanged = (reason: string): { request: unknown; summary: FluxReductionSummary } => ({
+  const unchanged = (reason: string): { request: unknown; summary: MeshReductionSummary } => ({
     request,
     summary: {
       estimatedTokensBefore: 0,
@@ -967,7 +1023,7 @@ export function reduceRequest(
 
     // Fresh tool-result capping, BEFORE history compaction: the cap targets
     // full-rate tokens at injection, and compaction then sees already-capped
-    // bodies it keeps byte-identical (both levers keep FLUX markers).
+    // bodies it keeps byte-identical (both levers keep MESH markers).
     if (config.freshToolResultCap) {
       const capOptions = isPlainObject(config.freshToolResultCap) ? config.freshToolResultCap : {};
       const threshold = capOptions.maximumTokens === undefined ? 600 : capOptions.maximumTokens;
@@ -1058,7 +1114,7 @@ export function reduceRequest(
     // prompt: the same bytes are cached for an hour at a 2x write premium.
     if (config.cacheTtl === "5m" || config.cacheTtl === "1h") {
       const ttl = config.cacheTtl;
-      // The guard sees the RAW request: FLUX's own deterministic levers must
+      // The guard sees the RAW request: MESH's own deterministic levers must
       // never be mistaken for client-side churn.
       const decision = config.cacheVolatilityGuard?.observe(request) ?? { stamp: true };
       const result = decision.stamp
@@ -1080,7 +1136,7 @@ export function reduceRequest(
           // Nothing was changed; this records WHY no stamp was placed.
           estimatedTokensSaved: 0,
           detail: `Cache stamp withheld: the stable prefix measures ${result.belowMinimum.measuredTokens} token(s) ` +
-            `by FLUX's approximate counter, under the ${result.belowMinimum.minimumTokens}-token threshold FLUX ` +
+            `by MESH's approximate counter, under the ${result.belowMinimum.minimumTokens}-token threshold MESH ` +
             `requires — the model's documented ${anthropicCacheableMinimumTokens(typeof next.model === "string" ? next.model : "")}-token cacheable minimum ` +
             "with a 1.30x margin for the counter's calibrated overcount on prose. Anthropic processes a prefix " +
             "under its minimum without caching at all — a provider-side no-op — so a breakpoint here would buy " +
@@ -1119,7 +1175,7 @@ export function reduceRequest(
       if (claudeModel && messagesShaped &&
           typeof next.max_tokens === "number" && Number.isFinite(next.max_tokens)) {
         // Anthropic Messages REQUIRES max_tokens, so a real request always
-        // carries the caller's own choice: FLUX may only tighten it downward,
+        // carries the caller's own choice: MESH may only tighten it downward,
         // never loosen or replace it. (A claude-shaped request WITHOUT
         // max_tokens is not sendable to the real API; it falls through to the
         // generic branch below unchanged, which keeps simulator-shaped traffic
@@ -1164,10 +1220,48 @@ export function reduceRequest(
       }
     }
 
+    // Output effort governor (Anthropic output_config.effort). A rate/behaviour
+    // change on the dearest tokens, not a prompt edit: set only when the caller
+    // chose no effort of their own, only on a Claude model whose range includes
+    // the requested level, and never stamped on a level the model would 400.
+    if (config.outputEffort !== undefined) {
+      const level = config.outputEffort;
+      const model = typeof next.model === "string" ? next.model : "";
+      const claudeMessagesShaped = model.toLowerCase().includes("claude") && Array.isArray(next.messages);
+      const existingConfig = isPlainObject(next.output_config) ? next.output_config : undefined;
+      const callerSetEffort = existingConfig !== undefined && "effort" in existingConfig;
+      if (claudeMessagesShaped && !callerSetEffort) {
+        if (anthropicEffortSupport(model).has(level)) {
+          next.output_config = { ...(existingConfig ?? {}), effort: level };
+          changes.push({
+            lever: `output-effort-${level}`,
+            lossless: false,
+            // The saving is fewer output tokens the model chooses to emit, read
+            // from provider usage by the gate, not an input-token count here.
+            estimatedTokensSaved: 0,
+            detail: `Set output_config.effort to '${level}'. The model thinks less and answers terser, cutting ` +
+              "output tokens (the dearer half of the bill). A top-level field outside the cached prefix, so a " +
+              "stable value never invalidates caching. Lossy — it changes the answer's depth, so it needs a " +
+              "task-completion replay-gate pass on the caller's own traffic before the saving may be billed.",
+          });
+        } else {
+          changes.push({
+            lever: "output-effort-suppressed",
+            lossless: true,
+            // Nothing was changed; this records WHY no effort was set.
+            estimatedTokensSaved: 0,
+            detail: `Effort '${level}' withheld: model '${model || "(none)"}' is not in MESH's dated allow-list of ` +
+              "Claude models known to accept that level. An unsupported effort value is a 400, and the reducer " +
+              "never risks breaking a request, so it is left as the caller sent it.",
+          });
+        }
+      }
+    }
+
     const after = measure(next.instructions) + measure(next.system) + measure(next.input) +
       measure(next.messages) + measure(next.tools);
 
-    const summary: FluxReductionSummary = {
+    const summary: MeshReductionSummary = {
       estimatedTokensBefore: before,
       estimatedTokensAfter: after,
       estimatedTokensSaved: Math.max(0, before - after),

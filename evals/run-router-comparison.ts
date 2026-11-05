@@ -64,7 +64,7 @@ function parse(argv: string[]): Args {
     maximumQualityDrop: numberOption("maximum-quality-drop", 0.02),
     minimumValidationGroups: numberOption("minimum-validation-groups", 100),
     bootstrapSamples: numberOption("bootstrap-samples", 2_000),
-    seed: values.seed ?? "flux-router-comparison-v1",
+    seed: values.seed ?? "mesh-router-comparison-v1",
     out: resolve(values.out ?? `reports/routers-${values.dataset}.json`),
   };
 }
@@ -107,7 +107,7 @@ const routerOptions = {
   seed: args.seed,
 };
 
-const fluxSelections: ContextualRouterSelection[] = (["cost", "tokens", "cost_and_tokens"] as const)
+const meshSelections: ContextualRouterSelection[] = (["cost", "tokens", "cost_and_tokens"] as const)
   .map((objective) => learnContextualRouter(
     partition.train, partition.validation, partition.test, objective, routerOptions));
 
@@ -127,7 +127,7 @@ const oracles = (["best_quality", "cheapest_correct", "cheapest_within_budget"] 
   }));
 
 const allDecisions = [
-  ...fluxSelections.flatMap((selection) => decisions(selection.router, selection.choiceByCaseId, partition.test)),
+  ...meshSelections.flatMap((selection) => decisions(selection.router, selection.choiceByCaseId, partition.test)),
   ...decisions(carrot.router, carrot.choiceByCaseId, partition.test),
   ...oracles.flatMap((oracle) => decisions(oracle.router, oracle.choiceByCaseId, partition.test)),
 ];
@@ -176,7 +176,7 @@ const report = {
     validationGroups: new Set(partition.validation.map((row) => row.groupId)).size,
     testGroups: new Set(partition.test.map((row) => row.groupId)).size,
   },
-  selections: { flux: fluxSelections, carrot },
+  selections: { mesh: meshSelections, carrot },
   oracleCapturePercent: capture,
   comparison,
 };
@@ -201,7 +201,7 @@ const markdown = [
   "",
   "## Configuration selected on validation",
   "",
-  ...fluxSelections.map((selection) => selection.fellBackToBestSingle
+  ...meshSelections.map((selection) => selection.fellBackToBestSingle
     ? `- \`${selection.router}\`: fell back to the best single model (${selection.fallbackReason}; ${selection.validationGroups}/${selection.minimumValidationGroups} validation groups)`
     : `- \`${selection.router}\`: k=${selection.selectedK}, local-weight=${selection.selectedLocalWeight}, validation quality lower 95% ${(selection.validationLower95QualityDelta * 100).toFixed(2)} pp`),
   carrot.fellBackToBestSingle

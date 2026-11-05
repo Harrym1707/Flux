@@ -17,7 +17,7 @@ import { type TokenPrice } from "./cost.js";
  * saving. It is never the basis of a realised-saving claim: those come from the
  * provider's own reported usage, priced through the catalogue. A deployment
  * should pass the tokenizer matching its model via `countTokens`, because a
- * tokenizer pinned inside FLUX would drift from the provider's own counting.
+ * tokenizer pinned inside MESH would drift from the provider's own counting.
  */
 export type TokenCounter = (text: string) => number;
 /**

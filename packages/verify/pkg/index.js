@@ -209,7 +209,7 @@ function priceLedgerUsage(catalogue, input) {
       reason: `Cache-write TTL split (5m ${split5m ?? 0} + 1h ${split1h ?? 0}) does not sum to cacheWriteInputTokens ${input.usage.cacheWriteInputTokens}.`
     };
   }
-  const write1hForPricing = splitReported ? split1h ?? 0 : input.fluxPlacedCacheControl && input.fluxPlacedTtl !== "5m" ? input.usage.cacheWriteInputTokens : 0;
+  const write1hForPricing = splitReported ? split1h ?? 0 : input.meshPlacedCacheControl && input.meshPlacedTtl !== "5m" ? input.usage.cacheWriteInputTokens : 0;
   const pricingUsage = {
     inputTokens: input.usage.inputTokens,
     outputTokens: input.usage.outputTokens,
@@ -245,7 +245,7 @@ function priceLedgerUsage(catalogue, input) {
     actualUsd: actual.costUsd,
     inputUsd: actualInputOnly.costUsd,
     ...input.executionMode === "standard" ? {} : { tierSavedUsd: standardWithCache.costUsd - actual.costUsd },
-    ...hasCacheTraffic ? input.fluxPlacedCacheControl ? { cacheAttributedUsd: cacheDeltaUsd } : { providerCacheAlreadyOwnedUsd: cacheDeltaUsd } : {}
+    ...hasCacheTraffic ? input.meshPlacedCacheControl ? { cacheAttributedUsd: cacheDeltaUsd } : { providerCacheAlreadyOwnedUsd: cacheDeltaUsd } : {}
   };
 }
 function auditEventPricing(event, catalogue) {
@@ -257,16 +257,16 @@ function auditEventPricing(event, catalogue) {
     return event.actualUsd === void 0 ? { status: "verified" } : { status: "mismatch", field: "actualUsd", storedUsd: event.actualUsd, recomputedUsd: Number.NaN };
   }
   const cacheLever = event.levers.find((lever) => lever.kind === "provider_cache");
-  const fluxPlacedCacheControl = cacheLever !== void 0;
-  const fluxPlacedTtl = cacheLever?.leverId === "cache-ttl-5m" ? "5m" : cacheLever?.leverId === "cache-ttl-1h" ? "1h" : void 0;
+  const meshPlacedCacheControl = cacheLever !== void 0;
+  const meshPlacedTtl = cacheLever?.leverId === "cache-ttl-5m" ? "5m" : cacheLever?.leverId === "cache-ttl-1h" ? "1h" : void 0;
   const priced = priceLedgerUsage(catalogue, {
     provider: event.provider,
     model: event.model,
     at: event.timestamp.slice(0, 10),
     executionMode: event.executionMode,
     usage: event.usage,
-    fluxPlacedCacheControl,
-    ...fluxPlacedTtl === void 0 ? {} : { fluxPlacedTtl }
+    meshPlacedCacheControl,
+    ...meshPlacedTtl === void 0 ? {} : { meshPlacedTtl }
   });
   if (priced.pricingStatus === "unpriced") {
     return event.pricingStatus === "unpriced" ? { status: "verified" } : { status: "unpriced", reason: priced.reason };
@@ -391,8 +391,15 @@ ${lever.leverId}`;
   const recordedUnbilled = [...unbilledMap.values()].sort((left, right) => left.leverId < right.leverId ? -1 : left.leverId > right.leverId ? 1 : 0);
   const netVerifiedSavingsUsd = lineItems.reduce((sum, line) => sum + line.savedUsd, 0);
   const netVerifiedSavingsCents = Math.round(netVerifiedSavingsUsd * 100);
-  const verdict = netVerifiedSavingsCents > 0 ? "charge" : "do_not_charge";
-  const amountDueUsd = options.feePercent === void 0 ? void 0 : verdict === "charge" ? netVerifiedSavingsUsd * options.feePercent / 100 : 0;
+  const carryIn = options.carryForwardDeficitUsd ?? 0;
+  if (carryIn < 0 || !Number.isFinite(carryIn)) {
+    throw new Error("carryForwardDeficitUsd must be a non-negative, finite USD amount.");
+  }
+  const netAfterCarryUsd = netVerifiedSavingsUsd - carryIn;
+  const carryOutUsd = Math.max(0, -netAfterCarryUsd);
+  const billableCents = Math.round(netAfterCarryUsd * 100);
+  const verdict = billableCents > 0 ? "charge" : "do_not_charge";
+  const amountDueUsd = options.feePercent === void 0 ? void 0 : verdict === "charge" ? netAfterCarryUsd * options.feePercent / 100 : 0;
   const invoice = {
     schemaVersion: 1,
     period: options.period ?? null,
@@ -410,6 +417,8 @@ ${lever.leverId}`;
     },
     netVerifiedSavingsUsd,
     netVerifiedSavingsCents,
+    ...options.carryForwardDeficitUsd === void 0 ? {} : { carryForwardDeficitInUsd: carryIn },
+    ...carryOutUsd > 0 ? { carryForwardDeficitOutUsd: carryOutUsd } : {},
     verdict,
     ...options.feePercent === void 0 ? {} : {
       feePercent: options.feePercent,

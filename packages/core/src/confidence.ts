@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 /**
  * Confidence bounds for savings claims.
  *
- * Homed in core because every part of FLUX that asserts "quality held" needs the
+ * Homed in core because every part of MESH that asserts "quality held" needs the
  * same bound: the offline benchmark, and the replay gate that decides whether a
  * lossy reduction may be switched on for real traffic. One implementation, so
  * the statistics behind an invoice cannot drift from the statistics behind a

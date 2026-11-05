@@ -1,4 +1,4 @@
-# FLUX --- Build Roadmap
+# MESH --- Build Roadmap
 
 ## Stage 0 --- Repository foundation
 
@@ -43,7 +43,7 @@ new OpenAI()
 with:
 
 ``` ts
-withFlux(new OpenAI())
+withMesh(new OpenAI())
 ```
 
 without changing application behaviour.
@@ -112,7 +112,7 @@ Baseline: frontier model
 Candidate: cheaper model
 ```
 
-FLUX runs candidate traffic in shadow.
+MESH runs candidate traffic in shadow.
 
 Dashboard:
 
@@ -250,7 +250,7 @@ Install GitHub App
 Detect AI provider usage
       |
       v
-Create FLUX config
+Create MESH config
       |
       v
 Open optimisation report
@@ -284,7 +284,7 @@ Keep pages technically useful rather than keyword-stuffed.
 
 ------------------------------------------------------------------------
 
-# Stage 12 --- FLUX Signal
+# Stage 12 --- MESH Signal
 
 Create the AI visibility measurement system.
 
@@ -306,7 +306,7 @@ runs.
 
 Publish the first:
 
-# FLUX Inference Economics Benchmark
+# MESH Inference Economics Benchmark
 
 Methodology must be reproducible.
 
@@ -380,8 +380,8 @@ Do not try to build "autonomous AI optimisation" immediately.
 
 The first milestone is:
 
-> A developer installs FLUX, connects one provider, replays real
+> A developer installs MESH, connects one provider, replays real
 > requests against a cheaper model, and receives statistically
 > defensible evidence that the cheaper path meets their quality policy.
 
-Once that works reliably, the rest of the FLUX product has a foundation.
+Once that works reliably, the rest of the MESH product has a foundation.

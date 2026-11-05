@@ -1,0 +1,38 @@
+{
+ "note": "Distribution of WildChat-1M (verbose chat) on this sample; tiktoken o200k_base. Not a counterfactual.",
+ "dataset": "allenai/WildChat-1M",
+ "lang_filter": "English",
+ "convos": 2500,
+ "single_turn_convos": 1499,
+ "multi_turn_convos": 1001,
+ "assistant_turns": 5843,
+ "tokens": {
+  "user_input_tok": 1023952,
+  "assistant_output_tok": 1808096,
+  "output_share_of_io": 0.6384411563645814
+ },
+ "per_turn_output": {
+  "n": 5843,
+  "mean": 309.44651720006846,
+  "p10": 33.0,
+  "p50": 262.0,
+  "p90": 630.0,
+  "p99": 1209.6399999999994,
+  "max": 4043,
+  "sum": 1808096,
+  "top10pct_turns_output_share": 0.2808457073075766
+ },
+ "reemission": {
+  "code_reemit_tok": 51858,
+  "prose_reemit_tok": 24201,
+  "code_reemit_frac_of_output": 0.02868099923897846,
+  "prose_reemit_frac_of_output": 0.013384798152310497,
+  "total_reemit_frac_of_output": 0.04206579739128896
+ },
+ "preamble": {
+  "turns_with_preamble": 539,
+  "preamble_turn_frac": 0.09224713332192366,
+  "preamble_tok_total": 7719,
+  "preamble_frac_of_output": 0.004269131727518893
+ }
+}

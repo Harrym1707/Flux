@@ -1,12 +1,12 @@
 import type { Invoice } from "./savings-ledger.js";
 
 /**
- * Turning a recomputed FLUX invoice into a Stripe charge — the honest way.
+ * Turning a recomputed MESH invoice into a Stripe charge — the honest way.
  *
  * This module is PURE: it converts an `Invoice` (the output of
  * `recomputeInvoice`, itself a pure function over the customer's own
  * hash-chained ledger) into a `StripeInvoicePlan` — the exact set of Stripe API
- * calls that would bill it. No network here; the executor (flux-bill script)
+ * calls that would bill it. No network here; the executor (mesh-bill script)
  * runs the plan. Keeping it pure means the billing arithmetic is unit-tested
  * without touching Stripe, and the plan can be shown to a human before anything
  * is created.
@@ -27,7 +27,7 @@ import type { Invoice } from "./savings-ledger.js";
 export type StripeBillingOptions = {
   /** Stripe customer id (cus_…) the fee is billed to. */
   stripeCustomerId: string;
-  /** Currency for the invoice. FLUX fees are USD-denominated. */
+  /** Currency for the invoice. MESH fees are USD-denominated. */
   currency?: string;
   /**
    * Whether to finalize+send the invoice or leave it as a reviewable DRAFT.
@@ -93,9 +93,17 @@ export function buildStripeInvoicePlan(
 
   if (invoice.verdict !== "charge" || invoice.amountDueCents <= 0) {
     const carried = invoice.carryForwardDeficitOutUsd ?? 0;
-    const reason = carried > 0
-      ? `do_not_charge: $${carried.toFixed(4)} verified-savings deficit carries forward; fees resume only after it is recovered.`
-      : "do_not_charge: the period's net verified savings were not positive, so nothing is billed.";
+    let reason: string;
+    if (carried > 0) {
+      reason = `do_not_charge: $${carried.toFixed(4)} verified-savings deficit carries forward; fees resume only after it is recovered.`;
+    } else if (invoice.verdict === "charge" && invoice.netVerifiedSavingsUsd > 0) {
+      // Savings ARE positive, but the fee on them rounds below one cent — the
+      // smallest amount Stripe can bill — so nothing is billed yet. (Distinct
+      // from the zero/negative-savings case below, which this used to conflate.)
+      reason = `do_not_charge: the ${invoice.feePercent}% fee on $${invoice.netVerifiedSavingsUsd.toFixed(4)} net verified savings rounds below one cent, so nothing is billed yet.`;
+    } else {
+      reason = "do_not_charge: the period's net verified savings were not positive, so nothing is billed.";
+    }
     return { action: "do_not_bill", reason, chainUnverified: false };
   }
 
@@ -106,9 +114,9 @@ export function buildStripeInvoicePlan(
   const label = options.customerLabel ?? options.stripeCustomerId;
 
   const description =
-    `FLUX fee — ${invoice.feePercent}% of $${(net - carryIn).toFixed(2)} net verified savings` +
+    `MESH fee — ${invoice.feePercent}% of $${(net - carryIn).toFixed(2)} net verified savings` +
     `${carryIn > 0 ? ` (after $${carryIn.toFixed(2)} deficit carried in)` : ""}, period ${period}. ` +
-    `Recompute: npx -y -p @flux-ai/verify flux-verify <your spool>. If your recomputation disagrees, yours wins.`;
+    `Recompute: npx -y -p @mesh-ai/verify mesh-verify <your spool>. If your recomputation disagrees, yours wins.`;
 
   return {
     action: "bill",
@@ -116,14 +124,14 @@ export function buildStripeInvoicePlan(
     amountCents: invoice.amountDueCents,
     currency,
     description,
-    idempotencyKey: `flux-${options.stripeCustomerId}-${period}-${invoice.amountDueCents}`,
+    idempotencyKey: `mesh-${options.stripeCustomerId}-${period}-${invoice.amountDueCents}`,
     finalize: options.mode === "finalize",
     metadata: {
-      flux_period: period,
-      flux_fee_percent: String(invoice.feePercent),
-      flux_net_verified_savings_usd: net.toFixed(4),
-      flux_events_billed: String(invoice.eventsBilled),
-      flux_customer_label: label,
+      mesh_period: period,
+      mesh_fee_percent: String(invoice.feePercent),
+      mesh_net_verified_savings_usd: net.toFixed(4),
+      mesh_events_billed: String(invoice.eventsBilled),
+      mesh_customer_label: label,
     },
   };
 }

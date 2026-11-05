@@ -10,7 +10,7 @@ import { classifySegment, quoteForSegment, type SegmentQuote } from "./triage.js
  * The pre-contract quote, built from a design partner's OWN gateway export.
  *
  * One file of their real traffic in; one shareable report out: which customer
- * shape each stream is, what FLUX is honestly worth on it, what their own
+ * shape each stream is, what MESH is honestly worth on it, what their own
  * gateway already saves them (credited, never billed), and -- when nothing is
  * worth charging for -- the explicit "do not pay us" answer. Every band in the
  * report cites the measurement it is an analogue of; nothing here invents a
@@ -106,7 +106,7 @@ export function buildQuoteReport(
 /** Render the report for a human: bands, caveats, credits and verdicts. */
 export function renderQuoteReport(report: QuoteReport): string {
   const lines: string[] = [];
-  lines.push(`=== FLUX quote from your ${report.format} export ===`);
+  lines.push(`=== MESH quote from your ${report.format} export ===`);
   lines.push(`${report.rows.accepted} provider calls, ${report.rows.gatewayCacheHits} gateway cache hits, ` +
     `${report.rows.unreadable} unreadable rows (reported, never dropped silently)`);
   lines.push(`rates: catalogue ${report.catalogueVersion} on ${report.at}; ` +

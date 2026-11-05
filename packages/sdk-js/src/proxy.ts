@@ -1,27 +1,28 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import { createHash, randomUUID } from "node:crypto";
+import { appendFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
-import {
-  collectRequestText,
-  measureOutputReEmission,
-  normalizeProviderUsage,
-  responseServiceTier,
-} from "../../core/dist/src/index.js";
+// Import the specific core modules, not the package barrel: the barrel
+// re-exports the whole library (router, triage, observability adapters,
+// billing), which would all bundle into anything that depends on the proxy.
+import { collectRequestText, measureOutputReEmission } from "../../core/dist/src/output-diagnostics.js";
+import { normalizeProviderUsage, responseServiceTier } from "../../core/dist/src/provider-usage.js";
 import { responseText } from "./replay-gate.js";
 import { CachePrefixVolatilityGuard } from "./cache-volatility-guard.js";
-import { reduceRequest, type FluxTokenReductionConfig } from "./reduce-request.js";
+import { reduceRequest, type MeshTokenReductionConfig } from "./reduce-request.js";
+import { extractBlindFeatures } from "./blind-features.js";
 import { createSavingsLedger, type SavingsLedger } from "./savings-ledger.js";
-import type { FluxRequestEvent } from "./types.js";
+import type { MeshRequestEvent } from "./types.js";
 
 /**
- * FLUX proxy mode: point an application's base_url here instead of changing
+ * MESH proxy mode: point an application's base_url here instead of changing
  * its code. The proxy applies the configured token reduction to each request,
  * forwards it to the real provider with the CALLER's own credentials, returns
  * the provider's bytes untouched, and appends one hash-chained ledger event
  * per completed request — the same recomputable record the SDK wrapper writes.
  *
  * The contract, enforced rather than promised:
- * - FLUX never holds keys. Auth headers pass through verbatim; nothing is
+ * - MESH never holds keys. Auth headers pass through verbatim; nothing is
  *   stored. Prompts are analysed in-process and never written anywhere — the
  *   ledger records usage numbers, lever names and hashes, not content.
  * - Nothing here may break a request. Reduction never throws (a failure
@@ -38,25 +39,33 @@ import type { FluxRequestEvent } from "./types.js";
 
 type AnyObject = Record<string, unknown>;
 
-export type FluxProxyOptions = {
+export type MeshProxyOptions = {
   /** Port to listen on; 0 picks a free one (reported by start()). */
   port?: number;
   /** Directory for the hash-chained ledger spools (one per app + provider). */
   ledgerDirectory: string;
   /** Reduction config applied to every proxied request. Lossless-only default. */
-  tokenReduction?: FluxTokenReductionConfig;
+  tokenReduction?: MeshTokenReductionConfig;
   /** Override upstreams, e.g. a mock in tests or an OpenAI-compatible host. */
   anthropicUpstream?: string;
   openaiUpstream?: string;
+  /**
+   * Enable the provably-blind learning stream: when set, each request also
+   * appends an IRREVERSIBLE feature record (keyed HMAC hashes + structural
+   * counts, never any prompt content) to a `<app>-<provider>.features.jsonl`
+   * spool. This is the hmac key; it must live only in the gateway (ideally
+   * sealed inside an enclave). Off when unset — no features are computed.
+   */
+  blindFeaturesKey?: string;
 };
 
-export type FluxProxy = {
+export type MeshProxy = {
   port: number;
   url: string;
   close: () => Promise<void>;
 };
 
-const LOSSLESS_DEFAULT: FluxTokenReductionConfig = {
+const LOSSLESS_DEFAULT: MeshTokenReductionConfig = {
   toolSchemas: true,
   duplicateContext: true,
   repairCachePrefix: true,
@@ -75,7 +84,7 @@ const HOP_HEADERS = new Set([
  * have the off-provider key ride along. x-api-key is Anthropic's header and
  * never goes to OpenAI; Authorization is dropped for Anthropic exactly when
  * an x-api-key is present (Anthropic's own OAuth users carry Authorization
- * WITHOUT x-api-key, and that must keep working). FLUX's own routing header
+ * WITHOUT x-api-key, and that must keep working). MESH's own routing header
  * never leaves the machine.
  */
 function forwardHeaders(req: IncomingMessage, provider: "anthropic" | "openai"): Record<string, string> {
@@ -84,7 +93,7 @@ function forwardHeaders(req: IncomingMessage, provider: "anthropic" | "openai"):
     if (HOP_HEADERS.has(name.toLowerCase()) || value === undefined) continue;
     out[name.toLowerCase()] = Array.isArray(value) ? value.join(", ") : value;
   }
-  delete out["x-flux-application"];
+  delete out["x-mesh-application"];
   if (provider === "openai") {
     delete out["x-api-key"];
   } else if (out["x-api-key"] !== undefined) {
@@ -217,8 +226,8 @@ export function outputTextFromSse(provider: "anthropic" | "openai", sseText: str
   return parts.join("");
 }
 
-/** Start the FLUX proxy. Resolves once the server is listening. */
-export function startFluxProxy(options: FluxProxyOptions): Promise<FluxProxy> {
+/** Start the MESH proxy. Resolves once the server is listening. */
+export function startMeshProxy(options: MeshProxyOptions): Promise<MeshProxy> {
   const baseReduction = options.tokenReduction ?? LOSSLESS_DEFAULT;
   // The proxy is long-lived, so it can watch conversations across requests:
   // with the cache stamp enabled, a volatility guard suppresses stamping of
@@ -266,6 +275,18 @@ export function startFluxProxy(options: FluxProxyOptions): Promise<FluxProxy> {
     return ledger;
   };
 
+  // The blind learning stream: irreversible features beside the content-free
+  // ledger. Best-effort and fully isolated — a features write can never affect
+  // the request path (it runs inside the ledger try/catch that already swallows
+  // failures). Only enabled when a per-deployment hmac key is supplied.
+  const blindFeaturesKey = options.blindFeaturesKey;
+  const writeBlindFeatures = (applicationId: string, provider: "anthropic" | "openai", record: unknown): void => {
+    const safeApp = applicationId.replace(/[^A-Za-z0-9._-]/g, "_").slice(0, 64) || "proxy";
+    // Private to the user: metadata + keyed hashes only, but not world-readable.
+    mkdirSync(options.ledgerDirectory, { recursive: true, mode: 0o700 });
+    appendFileSync(join(options.ledgerDirectory, `${safeApp}-${provider}.features.jsonl`), `${JSON.stringify(record)}\n`, { mode: 0o600 });
+  };
+
   const handle = async (req: IncomingMessage, res: ServerResponse): Promise<void> => {
     const path = (req.url ?? "").split("?")[0]!;
 
@@ -273,7 +294,21 @@ export function startFluxProxy(options: FluxProxyOptions): Promise<FluxProxy> {
     // be able to drive the proxy.
     if (!hostAllowed(req)) {
       res.writeHead(403, { "content-type": "application/json" });
-      res.end(JSON.stringify({ error: "FLUX proxy serves loopback clients only." }));
+      res.end(JSON.stringify({ error: "MESH proxy serves loopback clients only." }));
+      return;
+    }
+
+    // CSRF-to-localhost defense. A web page in the user's browser can reach this
+    // loopback port, but when it drives a cross-origin request the browser
+    // attaches Sec-Fetch-Site: cross-site / same-site (and the page cannot forge
+    // it). A real local CLI client (Claude Code, an SDK) sends no Sec-Fetch
+    // headers at all. Reject the browser cross-origin case; it can only ever be
+    // forced noise/DoS (the proxy injects no credentials, so no key/quota is at
+    // stake), but it has no legitimate use.
+    const fetchSite = req.headers["sec-fetch-site"];
+    if (fetchSite === "cross-site" || fetchSite === "same-site") {
+      res.writeHead(403, { "content-type": "application/json" });
+      res.end(JSON.stringify({ error: "MESH proxy does not serve cross-origin browser requests." }));
       return;
     }
 
@@ -308,7 +343,7 @@ export function startFluxProxy(options: FluxProxyOptions): Promise<FluxProxy> {
     if (surface === undefined) {
       res.writeHead(404, { "content-type": "application/json" });
       res.end(JSON.stringify({
-        error: "FLUX proxy forwards POST /v1/messages (Anthropic), /v1/responses and " +
+        error: "MESH proxy forwards POST /v1/messages (Anthropic), /v1/responses and " +
           "/v1/chat/completions (OpenAI-compatible). Point your client's base_url at this server.",
       }));
       return;
@@ -339,7 +374,7 @@ export function startFluxProxy(options: FluxProxyOptions): Promise<FluxProxy> {
     // Reduce. reduceRequest never throws; a failure returns the original.
     const { request: reducedRequest, summary } = reduceRequest(body, reduction);
     const sendBody = JSON.stringify(reducedRequest);
-    const applicationIdHeader = req.headers["x-flux-application"];
+    const applicationIdHeader = req.headers["x-mesh-application"];
     const applicationId = ((Array.isArray(applicationIdHeader) ? applicationIdHeader[0] : applicationIdHeader) ?? "proxy").slice(0, 128);
     const headers = forwardHeaders(req, surface.provider);
     headers["content-type"] = "application/json";
@@ -456,6 +491,16 @@ export function startFluxProxy(options: FluxProxyOptions): Promise<FluxProxy> {
     try {
       const text = Buffer.concat(chunks).toString("utf8");
       const contentType = upstreamResponse.headers.get("content-type") ?? "";
+      // Opt-in diagnostic (MESH_PROXY_DEBUG=1): on a non-2xx upstream, log the status,
+      // the model and beta header the client sent, and a snippet of the error body
+      // (an API error description, never prompt content). Never logs credentials.
+      if (process.env.MESH_PROXY_DEBUG === "1" && !upstreamResponse.ok) {
+        console.warn(
+          `[mesh-debug] upstream ${upstreamResponse.status} model=${JSON.stringify(body.model)} path=${path} ` +
+          `anthropic-beta=${JSON.stringify(req.headers["anthropic-beta"] ?? null)} ` +
+          `errbody=${text.slice(0, 500)}`,
+        );
+      }
       let responseShaped: AnyObject | undefined;
       if (contentType.includes("text/event-stream")) {
         responseShaped = usageFromSse(surface.provider, text);
@@ -482,7 +527,7 @@ export function startFluxProxy(options: FluxProxyOptions): Promise<FluxProxy> {
           outputDiagnostics = measureOutputReEmission(collectRequestText(body), outputText);
         }
       }
-      const event: FluxRequestEvent = {
+      const event: MeshRequestEvent = {
         requestId,
         applicationId,
         provider: `${surface.provider}-compatible`,
@@ -507,6 +552,20 @@ export function startFluxProxy(options: FluxProxyOptions): Promise<FluxProxy> {
         ...(duplicateOfRequestId === undefined ? {} : { duplicateOfRequestId }),
       };
       ledgerFor(applicationId, surface.provider).emit(event);
+
+      // Blind learning stream: features of the ORIGINAL request (what the
+      // customer actually sent), reduced to irreversible keyed hashes + counts.
+      // No prompt content is ever written. Inside this try/catch, so a features
+      // failure is as harmless to the request as a ledger failure.
+      if (blindFeaturesKey !== undefined) {
+        const features = extractBlindFeatures(body, { hmacKey: blindFeaturesKey });
+        writeBlindFeatures(applicationId, surface.provider, {
+          requestId,
+          applicationId,
+          timestamp: event.timestamp,
+          features,
+        });
+      }
     } catch {
       // The meter must never affect the request path.
     }
@@ -516,12 +575,15 @@ export function startFluxProxy(options: FluxProxyOptions): Promise<FluxProxy> {
     handle(req, res).catch(() => {
       if (!res.headersSent) {
         res.writeHead(500, { "content-type": "application/json" });
-        res.end(JSON.stringify({ error: "FLUX proxy internal error." }));
+        res.end(JSON.stringify({ error: "MESH proxy internal error." }));
       } else {
         res.end();
       }
     });
   });
+  // Bound concurrency: each in-flight request may buffer up to the 64MB body
+  // cap, so cap simultaneous connections to keep worst-case memory bounded.
+  server.maxConnections = 256;
 
   return new Promise((resolve, reject) => {
     server.once("error", reject);

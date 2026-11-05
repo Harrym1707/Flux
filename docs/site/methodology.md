@@ -1,11 +1,11 @@
-# Methodology — how every FLUX number is made
+# Methodology — how every MESH number is made
 
 The LLM cost-saving market has a measurement problem, documented by independent
 work rather than by us: three popular open-source token trimmers claiming
 60–90% savings delivered **3.7%** when independently replayed over 614M tokens
 of real traffic; a prompt-slimming technique modelled at ~77% measured **~13%**
 in production. The gap comes from measuring per *request* instead of per
-*completed task*, and from ignoring provider cache economics. FLUX's method
+*completed task*, and from ignoring provider cache economics. MESH's method
 exists to be immune to both.
 
 ## The rules every published number passes
@@ -23,8 +23,8 @@ exists to be immune to both.
    write premiums. Our simulator can and does show caching as a **net loss**
    on unfavourable traffic — that case has a unit test.
 4. **The provider's existing contribution is never claimed.** On busy agent
-   traffic, the provider's cache alone saves 35–40% before FLUX does anything.
-   That figure is printed separately and excluded from every FLUX claim.
+   traffic, the provider's cache alone saves 35–40% before MESH does anything.
+   That figure is printed separately and excluded from every MESH claim.
 5. **Tier savings are billed at the tier actually served.** Discounted-tier
    requests can be bounced back to full price under load; the published async
    figure (57.7%) is net of assumed fallback rates, and per-request billing
@@ -57,5 +57,5 @@ Known open items we publish rather than hide: per-model cacheable minimums are
 not yet in the simulator (the sparse-traffic 34.3% may overstate on some
 models). Anthropic batch rates ARE now catalogued (2026-10-27, from the page's
 definitive "Save 50% with batch processing"), so async-eligible Claude traffic
-prices natively at half standard and FLUX picks batch-routing or caching per
+prices natively at half standard and MESH picks batch-routing or caching per
 shape, whichever is cheaper; tracked in [evidence](evidence.md).

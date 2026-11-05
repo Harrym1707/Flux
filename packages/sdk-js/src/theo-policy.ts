@@ -1,0 +1,297 @@
+import type { MeshTokenReductionConfig, MeshOutputEffort } from "./reduce-request.js";
+
+/**
+ * Theo's per-user policy — the control mechanism between Theo and MESH.
+ *
+ * Theo never sits in the request path. His ONLY action is to publish a new version
+ * of this document; the proxy reads it and enforces it synchronously. A policy is
+ * self-documenting: every lossy lever carries the gate proof (measured saving + the
+ * measured quality delta Y + the grader) that justifies it.
+ *
+ * The load-bearing safety property is in `policyToReductionConfig`: a lossy lever is
+ * applied ONLY if it carries a passing gate proof within the route's quality ceiling.
+ * A policy therefore CANNOT enable a saving Theo has not proven — the "never degrade
+ * the product" rule is enforced here, in code, not by trust.
+ *
+ * Pure and dependency-free (no node:*), so it loads in any JavaScript runtime.
+ */
+
+export type TheoLeverClass = "lossless" | "lossy";
+
+/** The gate proof for a lossy lever: measured on the user's OWN traffic. */
+export type TheoGateProof = {
+  /** Measured saving on the user's traffic, from provider-reported usage. */
+  savingPercent: number;
+  /** Measured quality delta Y (<= 0; e.g. -0.3 = a 0.3% drop). */
+  qualityDeltaPercent: number;
+  /** What graded quality: "task-completion" | "tests" | "behavioural" | a custom name. */
+  grader: string;
+  provenAt: string;
+};
+
+export type TheoLever = {
+  /** The reducer lever id (e.g. "tool-schema-compaction", "cache-ttl-5m", "output-effort-low"). */
+  lever: string;
+  class: TheoLeverClass;
+  /** Required for a lossy lever before it can be enforced; absent for lossless. */
+  gate?: TheoGateProof;
+  /** Lever-specific params (e.g. { maximumTokens: 600 }, { maximumDescriptionTokens: 40 }). */
+  params?: Record<string, unknown>;
+};
+
+export type TheoPolicy = {
+  schemaVersion: 1;
+  user: string;
+  /** Optional per-route policy; a default route when omitted. */
+  route?: string;
+  /** Monotonic — publishing a new version is Theo's only action. Rollback = publish a prior one. */
+  version: number;
+  /** Max quality drop (percent) this route tolerates. Default STRICT; loosened only by the user. */
+  qualityCeilingPercent: number;
+  levers: TheoLever[];
+  updatedAt: string;
+};
+
+/** Why a lever in the policy is NOT currently enforced — for Theo's transparency to the user. */
+export type WithheldLever = { lever: string; reason: string };
+
+function num(value: unknown, fallback: number): number {
+  return typeof value === "number" && Number.isFinite(value) ? value : fallback;
+}
+
+/** Whether a lossy lever's proof clears the route's quality ceiling. */
+function proofClearsCeiling(lever: TheoLever, ceilingPercent: number): boolean {
+  if (lever.gate === undefined) return false;
+  const y = lever.gate.qualityDeltaPercent;
+  return Number.isFinite(y) && Math.abs(y) <= ceilingPercent;
+}
+
+/** Map one lever id (+ params) onto the reducer config. Unknown ids are ignored. */
+function applyLever(config: MeshTokenReductionConfig, lever: TheoLever): void {
+  const p = lever.params ?? {};
+  switch (lever.lever) {
+    case "tool-schema-compaction":
+      // Lossless tier only (keep descriptions).
+      if (config.toolSchemas === undefined) config.toolSchemas = true;
+      return;
+    case "tool-schema-description-trim":
+      config.toolSchemas = {
+        descriptions: "truncate",
+        ...(typeof p.maximumDescriptionTokens === "number" ? { maximumDescriptionTokens: p.maximumDescriptionTokens } : {}),
+      };
+      return;
+    case "duplicate-context-removal":
+      config.duplicateContext = true;
+      return;
+    case "cache-prefix-repair":
+      config.repairCachePrefix = true;
+      return;
+    case "stale-history-compaction":
+      config.historyCompaction = true;
+      return;
+    case "cross-turn-memory-dedup":
+      config.crossTurnMemoryDedup = true;
+      return;
+    case "fresh-tool-result-cap":
+      config.freshToolResultCap = typeof p.maximumTokens === "number" ? { maximumTokens: p.maximumTokens } : true;
+      return;
+    case "output-cap":
+      if (typeof p.maxOutputTokens === "number") config.maxOutputTokens = p.maxOutputTokens;
+      return;
+    case "execution-tier-flex":
+      config.executionTier = "flex";
+      return;
+    case "cache-ttl-5m":
+      config.cacheTtl = "5m";
+      return;
+    case "cache-ttl-1h":
+      config.cacheTtl = "1h";
+      return;
+    case "output-effort-low":
+    case "output-effort-medium":
+    case "output-effort-high":
+    case "output-effort-xhigh":
+    case "output-effort-max":
+      config.outputEffort = lever.lever.replace("output-effort-", "") as MeshOutputEffort;
+      return;
+    default:
+      return; // unknown lever id: ignore, never guess.
+  }
+}
+
+/**
+ * Turn a policy into the reduction config the proxy enforces.
+ *
+ * Lossless levers apply unconditionally (they cannot change the answer). A lossy
+ * lever applies ONLY if it carries a gate proof whose measured quality delta is
+ * within the route's ceiling; otherwise it is silently withheld. This is the
+ * enforcement point of "never enable a saving we have not proven within budget."
+ */
+export function policyToReductionConfig(policy: TheoPolicy): MeshTokenReductionConfig {
+  const config: MeshTokenReductionConfig = {};
+  for (const lever of policy.levers) {
+    if (lever.class === "lossy" && !proofClearsCeiling(lever, policy.qualityCeilingPercent)) continue;
+    applyLever(config, lever);
+  }
+  return config;
+}
+
+/** The lossy levers present in the policy but NOT enforced, with the reason — for Theo's UX. */
+export function withheldLevers(policy: TheoPolicy): WithheldLever[] {
+  const out: WithheldLever[] = [];
+  for (const lever of policy.levers) {
+    if (lever.class !== "lossy") continue;
+    if (lever.gate === undefined) {
+      out.push({ lever: lever.lever, reason: "no gate proof yet — queued for the live gate" });
+    } else if (!proofClearsCeiling(lever, policy.qualityCeilingPercent)) {
+      out.push({
+        lever: lever.lever,
+        reason: `measured quality drop ${Math.abs(lever.gate.qualityDeltaPercent).toFixed(2)}% exceeds the ` +
+          `${policy.qualityCeilingPercent}% ceiling for this route`,
+      });
+    }
+  }
+  return out;
+}
+
+/**
+ * Publish a lever into a policy, returning a NEW version (never mutating the input).
+ * A lossless lever is added as-is; a lossy lever must carry a gate proof. The version
+ * bumps and updatedAt is set by the caller's clock (passed in, so this stays pure).
+ */
+export function publishLever(policy: TheoPolicy, lever: TheoLever, at: string): TheoPolicy {
+  if (lever.class === "lossy" && lever.gate === undefined) {
+    throw new Error(`Refusing to publish lossy lever '${lever.lever}' without a gate proof.`);
+  }
+  const levers = policy.levers.filter((existing) => existing.lever !== lever.lever);
+  levers.push(lever);
+  return { ...policy, levers, version: policy.version + 1, updatedAt: at };
+}
+
+/** A fresh, STRICT default policy for a new user — lossless-only until Theo proves more. */
+export function defaultPolicy(user: string, at: string): TheoPolicy {
+  return {
+    schemaVersion: 1,
+    user,
+    version: 1,
+    qualityCeilingPercent: 2, // strict by default; loosened only by the user's revealed preference
+    levers: [
+      { lever: "tool-schema-compaction", class: "lossless" },
+      { lever: "duplicate-context-removal", class: "lossless" },
+      { lever: "cache-prefix-repair", class: "lossless" },
+    ],
+    updatedAt: at,
+  };
+}
+
+/** The reducer-lever ids Theo can enforce. */
+export function knownLeverIds(): string[] {
+  return [
+    "tool-schema-compaction", "tool-schema-description-trim", "duplicate-context-removal",
+    "cache-prefix-repair", "stale-history-compaction", "cross-turn-memory-dedup",
+    "fresh-tool-result-cap", "output-cap", "execution-tier-flex",
+    "cache-ttl-5m", "cache-ttl-1h",
+    "output-effort-low", "output-effort-medium", "output-effort-high", "output-effort-xhigh", "output-effort-max",
+  ];
+}
+
+export type EnforceableLever = { id: string; label: string; members: readonly string[] };
+
+/**
+ * The levers the proxy can enforce, grouped so mutually-exclusive variants count
+ * once: a policy cannot run output-effort-low AND output-effort-high, nor both
+ * cache TTLs, so counting each id separately would understate coverage. Every id
+ * in knownLeverIds() belongs to exactly one group here, and vice versa — the test
+ * `ENFORCEABLE_LEVERS stays in sync with knownLeverIds` holds the two together.
+ */
+export const ENFORCEABLE_LEVERS: readonly EnforceableLever[] = [
+  { id: "tool-schema-compaction", label: "Tool-schema compaction", members: ["tool-schema-compaction"] },
+  { id: "tool-schema-description-trim", label: "Tool-schema description trim", members: ["tool-schema-description-trim"] },
+  { id: "duplicate-context-removal", label: "Duplicate-context removal", members: ["duplicate-context-removal"] },
+  { id: "cache-prefix-repair", label: "Cache-prefix repair", members: ["cache-prefix-repair"] },
+  { id: "stale-history-compaction", label: "Stale-history compaction", members: ["stale-history-compaction"] },
+  { id: "cross-turn-memory-dedup", label: "Cross-turn memory dedup", members: ["cross-turn-memory-dedup"] },
+  { id: "fresh-tool-result-cap", label: "Fresh tool-result cap", members: ["fresh-tool-result-cap"] },
+  { id: "output-cap", label: "Output cap", members: ["output-cap"] },
+  { id: "execution-tier-flex", label: "Execution-tier flex", members: ["execution-tier-flex"] },
+  { id: "cache-ttl", label: "Cache TTL", members: ["cache-ttl-5m", "cache-ttl-1h"] },
+  {
+    id: "output-effort",
+    label: "Output effort",
+    members: ["output-effort-low", "output-effort-medium", "output-effort-high", "output-effort-xhigh", "output-effort-max"],
+  },
+];
+
+/**
+ * Where an enforceable lever stands for this user right now:
+ * - `active`:    Theo is enforcing it (lossless, or lossy with a proof within the ceiling).
+ * - `held`:      it is in the policy but a lossy proof does not yet clear the ceiling.
+ * - `available`: Theo can enforce it but has not adopted it yet — a candidate for the live gate.
+ */
+export type LeverStandState = "active" | "held" | "available";
+
+export type LeverStand = {
+  lever: string;
+  label: string;
+  state: LeverStandState;
+  class?: TheoLeverClass;
+  reason?: string;
+};
+
+export type PolicyCoverage = {
+  /** Enforceable levers in the repertoire (grouped). */
+  enforceableCount: number;
+  activeCount: number;
+  heldCount: number;
+  availableCount: number;
+  /** activeCount / enforceableCount * 100 — the share of the repertoire live right now. */
+  activeCoveragePercent: number;
+  stands: LeverStand[];
+};
+
+/**
+ * How much of the proxy's enforceable repertoire Theo is actually using for this
+ * user. The honest denominator for the live dashboard: it shows not just the
+ * levers Theo applies and holds, but every lever he COULD apply and has not
+ * adopted yet — so a user can see how complete the coverage is, not only what is
+ * on. Pure: the same policy always yields the same coverage.
+ */
+export function policyCoverage(policy: TheoPolicy): PolicyCoverage {
+  const byId = new Map(policy.levers.map((lever) => [lever.lever, lever]));
+  const heldById = new Map(withheldLevers(policy).map((withheld) => [withheld.lever, withheld.reason]));
+
+  const stands: LeverStand[] = ENFORCEABLE_LEVERS.map((group) => {
+    let state: LeverStandState = "available";
+    let reason: string | undefined;
+    let leverClass: TheoLeverClass | undefined;
+    for (const member of group.members) {
+      const lever = byId.get(member);
+      if (lever === undefined) continue;
+      leverClass = lever.class;
+      const enforced = lever.class === "lossless" || proofClearsCeiling(lever, policy.qualityCeilingPercent);
+      if (enforced) { state = "active"; reason = undefined; break; }
+      state = "held";
+      reason = heldById.get(member);
+    }
+    return {
+      lever: group.id,
+      label: group.label,
+      state,
+      ...(leverClass ? { class: leverClass } : {}),
+      ...(reason ? { reason } : {}),
+    };
+  });
+
+  const activeCount = stands.filter((stand) => stand.state === "active").length;
+  const heldCount = stands.filter((stand) => stand.state === "held").length;
+  const availableCount = stands.filter((stand) => stand.state === "available").length;
+  const enforceableCount = ENFORCEABLE_LEVERS.length;
+  return {
+    enforceableCount,
+    activeCount,
+    heldCount,
+    availableCount,
+    activeCoveragePercent: enforceableCount === 0 ? 0 : (activeCount / enforceableCount) * 100,
+    stands,
+  };
+}

@@ -1,6 +1,6 @@
 # Price catalogue
 
-FLUX does not read prices out of the traffic it audits. A cost figure is only as
+MESH does not read prices out of the traffic it audits. A cost figure is only as
 trustworthy as the rate behind it, so rates live in a catalogue with dates and a
 published source, and a missing rate is reported as missing.
 
@@ -52,7 +52,7 @@ assuming a key matches the string your SDK sends.
 ## Usage
 
 ```ts
-import { publishedModelPrices, priceUsage, repriceUsage } from "@flux/core";
+import { publishedModelPrices, priceUsage, repriceUsage } from "@mesh-ai/core";
 
 const cost = priceUsage(
   publishedModelPrices,

@@ -6,17 +6,17 @@ to the code path that enforces it.
 
 ## Short version
 
-FLUX runs entirely on your machines. The quote tool reads one export file
+MESH runs entirely on your machines. The quote tool reads one export file
 locally and writes one JSON report locally. The SDK wrapper runs in your
 process, and the billing ledger it appends contains **token counts, model IDs,
 timestamps, and hashes — never prompt or completion content**. There are no
-network calls to FLUX: no telemetry endpoint, no hosted service, and the
+network calls to MESH: no telemetry endpoint, no hosted service, and the
 Stripe metering sink is a local file projection. The package has never been
 published to a public registry; pilots install from a tarball we hand you.
 
 ## The quote path (pre-contract, read-only)
 
-- `flux-quote <export> --format litellm|helicone|langfuse` is a packaged Node
+- `mesh-quote <export> --format litellm|helicone|langfuse` is a packaged Node
   bin that parses your gateway export, prices it against a bundled catalogue,
   and writes `quote.json`. It is pure and deterministic
   (`packages/core/src/quote-report.ts`); it makes no network requests.
@@ -34,8 +34,8 @@ published to a public registry; pilots install from a tarball we hand you.
 
 ## The SDK path (in-pilot)
 
-- `withFlux` wraps your existing provider client in-process. Your requests go
-  to the provider exactly as before (reduced, when a lever applies); FLUX is
+- `withMesh` wraps your existing provider client in-process. Your requests go
+  to the provider exactly as before (reduced, when a lever applies); MESH is
   not a proxy and your API key is never shared with us.
 - Each completed request appends one `BillableEvent` to a local, append-only,
   hash-chained ledger (`packages/core/src/savings-ledger.ts`). The event schema
@@ -54,10 +54,10 @@ published to a public registry; pilots install from a tarball we hand you.
 
 Replaying a sample of your traffic to verify a lossy lever does send those
 sampled requests to **your own provider** under your key — the same place they
-already went. FLUX never sees them; the gate verdict (approved/rejected) is
+already went. MESH never sees them; the gate verdict (approved/rejected) is
 what lands in the ledger.
 
-## What FLUX retains after a pilot
+## What MESH retains after a pilot
 
 Nothing, structurally: all artifacts (export, quote, ledger, invoice) live on
 your side. The invoice is a pure function — `recomputeInvoice(events,
@@ -67,7 +67,7 @@ database."
 ## Honest limitations
 
 - These guarantees are enforced by code you can read, not by a SOC 2 report:
-  FLUX has no compliance certifications yet (pre-revenue, zero customers).
+  MESH has no compliance certifications yet (pre-revenue, zero customers).
 - The package is installed from a tarball; `npm publish` has never been run,
   which you can verify against the public registry.
 - If you need a DPA or security questionnaire, the honest answer today is that

@@ -1,4 +1,4 @@
-# FLUX Sprint — Day 4 EOD (2026-10-13)
+# MESH Sprint — Day 4 EOD (2026-10-13)
 
 **Theme:** SDK surface and billable completeness — Chat Completions and Anthropic SDK through the same reduce+ledger path, cache-write TTL split on billable events, ledger projected into a local Stripe meter sink.
 
@@ -23,7 +23,7 @@ The day-4 brief was load-bearing: all three repo-verified breakers it named (Res
 
 ## Engineering (grade: B)
 
-Six commits, HEAD 4e9e774, tree clean: shared provider-usage normaliser in core (one parser for Responses/Chat/Anthropic with sum-checked 5m/1h split); TTL split billable (5m 1.25x / 1h 2x; mismatched split → UNPRICED, never repaired; splitless FLUX-placed writes priced at 2x so FLUX can only under-claim); reducer preconditions per surface including the Anthropic tool_result traversal fix; both new surfaces wrapped through the ONE shared withFlux handler on a single hash chain; local network-free Stripe meter sink sharing billability selection with the invoice (doubled spool → byte-identical rows). Independently verified: 320 tests, 27/27 gates, harness matrix unchanged, both surfaces smoked from the installed tarball (ESM). B not A because: a stale day-3 pkg/ bundle sat on disk with no freshness gate (verifier caught it), CJS mode was not re-executed at HEAD, and the builder's new surface tests were run by the verifier, not the builder. Deliberately cut: replay-gate convenience API (founder item 5).
+Six commits, HEAD 4e9e774, tree clean: shared provider-usage normaliser in core (one parser for Responses/Chat/Anthropic with sum-checked 5m/1h split); TTL split billable (5m 1.25x / 1h 2x; mismatched split → UNPRICED, never repaired; splitless MESH-placed writes priced at 2x so MESH can only under-claim); reducer preconditions per surface including the Anthropic tool_result traversal fix; both new surfaces wrapped through the ONE shared withMesh handler on a single hash chain; local network-free Stripe meter sink sharing billability selection with the invoice (doubled spool → byte-identical rows). Independently verified: 320 tests, 27/27 gates, harness matrix unchanged, both surfaces smoked from the installed tarball (ESM). B not A because: a stale day-3 pkg/ bundle sat on disk with no freshness gate (verifier caught it), CJS mode was not re-executed at HEAD, and the builder's new surface tests were run by the verifier, not the builder. Deliberately cut: replay-gate convenience API (founder item 5).
 
 ## Commercial (grade: A)
 

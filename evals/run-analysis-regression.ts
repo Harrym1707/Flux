@@ -178,7 +178,7 @@ gates.push({
 // 7. The product has to be worth buying on its target workload. These are the
 //    only gates about size, and both are on the risk-free share alone.
 //
-//    Two of them, because there are two offers. As-is covers what FLUX can do
+//    Two of them, because there are two offers. As-is covers what MESH can do
 //    without touching the application's prompts. With prefix repair covers
 //    moving per-request values out of the prompt prefix, which is lossless (the
 //    same content, reordered) but needs a change on the customer's side.

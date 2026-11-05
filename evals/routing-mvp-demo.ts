@@ -1,8 +1,8 @@
 import { evaluateReplay } from "../packages/core/src/replay.js";
 import type { ReplayPolicy, ReplayRecord } from "../packages/core/src/types.js";
-import { withFlux } from "../packages/sdk-js/src/openai.js";
+import { withMesh } from "../packages/sdk-js/src/openai.js";
 import { chooseRoute } from "../packages/sdk-js/src/routing.js";
-import type { FluxRequestEvent, FluxRoutingPolicy } from "../packages/sdk-js/src/types.js";
+import type { MeshRequestEvent, MeshRoutingPolicy } from "../packages/sdk-js/src/types.js";
 
 const baselineModel = "baseline-model";
 const candidateModel = "lower-cost-model";
@@ -31,7 +31,7 @@ if (!report.eligibleForReview || report.baselineCostUsd === null || report.candi
   throw new Error("Demo replay failed its routing eligibility gates.");
 }
 
-const routingPolicy: FluxRoutingPolicy = {
+const routingPolicy: MeshRoutingPolicy = {
   id: "local-demo-v1",
   taskClass: "classification",
   baselineModel,
@@ -67,7 +67,7 @@ const liveDriftId = records.find((record) => chooseRoute(
   "classification",
 ).model === candidateModel)?.id;
 if (!liveDriftId) throw new Error("Demo could not find a request in the candidate cohort.");
-const events: FluxRequestEvent[] = [];
+const events: MeshRequestEvent[] = [];
 let fallbackOutputLimit: number | undefined;
 const rawClient = {
   responses: {
@@ -83,8 +83,8 @@ const rawClient = {
     },
   },
 };
-const client = withFlux(rawClient, {
-  applicationId: "flux-routing-demo",
+const client = withMesh(rawClient, {
+  applicationId: "mesh-routing-demo",
   classify: () => "classification",
   pricingByModel: {
     [baselineModel]: { inputPerMillion: 2, cachedInputPerMillion: 0.2, outputPerMillion: 8 },
@@ -133,7 +133,7 @@ const providerCachedTokens = events.reduce((sum, event) => sum + (event.cachedIn
 const allBaselineSpend = events.length * ((300 / 1_000_000) * 2 + (200 / 1_000_000) * 0.2 + (10 / 1_000_000) * 8);
 const actualSavingsPercent = allBaselineSpend > 0 ? (1 - actualSpend / allBaselineSpend) * 100 : 0;
 
-console.log("FLUX cost-quality routing MVP · all data is synthetic · no model/API calls\n");
+console.log("MESH cost-quality routing MVP · all data is synthetic · no model/API calls\n");
 console.log(`Offline quality: ${(report.candidateAccuracy * 100).toFixed(1)}% candidate vs ${(report.baselineAccuracy * 100).toFixed(1)}% baseline`);
 console.log(`Candidate 95% lower bound: ${(report.candidateAccuracyLower95 * 100).toFixed(1)}% (floor ${(replayPolicy.minimumCandidateAccuracy * 100).toFixed(1)}%)`);
 console.log(`Replay cost: $${report.baselineCostUsd.toFixed(3)} -> $${report.candidateCostUsd.toFixed(3)} (${report.costSavingsPercent?.toFixed(1)}% lower)`);

@@ -8,7 +8,7 @@ import {
   verifyLedgerChain,
   type LedgerRecord,
 } from "../../core/dist/src/index.js";
-import { startFluxProxy, usageFromSse, type FluxProxy } from "./proxy.js";
+import { startMeshProxy, usageFromSse, type MeshProxy } from "./proxy.js";
 
 type AnyObject = Record<string, any>;
 
@@ -67,16 +67,16 @@ function stubUpstream(seen: AnyObject[]): Promise<{ server: Server; url: string 
   });
 }
 
-describe("FLUX proxy mode", () => {
+describe("MESH proxy mode", () => {
   const seen: AnyObject[] = [];
   let upstream: { server: Server; url: string };
-  let proxy: FluxProxy;
+  let proxy: MeshProxy;
   let ledgerDir: string;
 
   beforeAll(async () => {
     upstream = await stubUpstream(seen);
-    ledgerDir = mkdtempSync(join(tmpdir(), "flux-proxy-"));
-    proxy = await startFluxProxy({
+    ledgerDir = mkdtempSync(join(tmpdir(), "mesh-proxy-"));
+    proxy = await startMeshProxy({
       ledgerDirectory: ledgerDir,
       anthropicUpstream: upstream.url,
       openaiUpstream: upstream.url,
@@ -93,7 +93,7 @@ describe("FLUX proxy mode", () => {
   it("reduces the request before forwarding and returns the provider's bytes untouched", async () => {
     const res = await fetch(`${proxy.url}/v1/messages`, {
       method: "POST",
-      headers: { "content-type": "application/json", "x-api-key": "caller-key", "x-flux-application": "app-a" },
+      headers: { "content-type": "application/json", "x-api-key": "caller-key", "x-mesh-application": "app-a" },
       body: JSON.stringify({
         model: "claude-sonnet-5-5-20260514",
         max_tokens: 100,
@@ -107,9 +107,9 @@ describe("FLUX proxy mode", () => {
     expect(body.content[0].text).toBe("ok");
 
     const sent = seen[seen.length - 1]!;
-    // The caller's own credentials passed through verbatim; FLUX added nothing.
+    // The caller's own credentials passed through verbatim; MESH added nothing.
     expect(sent.headers["x-api-key"]).toBe("caller-key");
-    expect(sent.headers["x-flux-application"]).toBeUndefined();
+    expect(sent.headers["x-mesh-application"]).toBeUndefined();
     // The duplicate block was removed before the provider saw the request.
     const wire = JSON.stringify(sent.body);
     expect(wire.split("Clause 4471").length - 1).toBeLessThan(6);
@@ -130,7 +130,7 @@ describe("FLUX proxy mode", () => {
   it("streams SSE through and prices the event from the stream's own usage", async () => {
     const res = await fetch(`${proxy.url}/v1/messages`, {
       method: "POST",
-      headers: { "content-type": "application/json", "x-api-key": "caller-key", "x-flux-application": "app-b" },
+      headers: { "content-type": "application/json", "x-api-key": "caller-key", "x-mesh-application": "app-b" },
       body: JSON.stringify({
         model: "claude-sonnet-5-5-20260514",
         max_tokens: 100,
@@ -197,16 +197,16 @@ describe("usageFromSse", () => {
   });
 });
 
-describe("FLUX proxy hardening (pre-launch security review)", () => {
+describe("MESH proxy hardening (pre-launch security review)", () => {
   const seen: Array<Record<string, any>> = [];
   let upstream: { server: Server; url: string };
-  let proxy: FluxProxy;
+  let proxy: MeshProxy;
   let ledgerDir: string;
 
   beforeAll(async () => {
     upstream = await stubUpstream(seen);
-    ledgerDir = mkdtempSync(join(tmpdir(), "flux-proxy-sec-"));
-    proxy = await startFluxProxy({
+    ledgerDir = mkdtempSync(join(tmpdir(), "mesh-proxy-sec-"));
+    proxy = await startMeshProxy({
       ledgerDirectory: ledgerDir,
       anthropicUpstream: upstream.url,
       openaiUpstream: upstream.url,
@@ -225,14 +225,14 @@ describe("FLUX proxy hardening (pre-launch security review)", () => {
         "content-type": "application/json",
         "x-api-key": "sk-ant-demo",
         "authorization": "Bearer sk-openai-demo",
-        "x-flux-application": "scoping-test",
+        "x-mesh-application": "scoping-test",
       },
       body: JSON.stringify({ model: "claude-sonnet-5-5", max_tokens: 16, messages: [{ role: "user", content: "hi" }] }),
     });
     const anthropicCall = seen.find((s) => s.path === "/v1/messages")!;
     expect(anthropicCall.headers["x-api-key"]).toBe("sk-ant-demo");
     expect(anthropicCall.headers.authorization).toBeUndefined();
-    expect(anthropicCall.headers["x-flux-application"]).toBeUndefined();
+    expect(anthropicCall.headers["x-mesh-application"]).toBeUndefined();
 
     seen.length = 0;
     await fetch(`${proxy.url}/v1/chat/completions`, {
@@ -287,11 +287,24 @@ describe("FLUX proxy hardening (pre-launch security review)", () => {
     expect(status).toBe(403);
   });
 
+  it("rejects cross-origin browser requests (CSRF-to-localhost)", async () => {
+    // A browser driving a cross-origin request attaches Sec-Fetch-Site; a CLI
+    // client sends none. Both same-site and cross-site must be refused.
+    for (const site of ["cross-site", "same-site"]) {
+      const response = await fetch(`${proxy.url}/v1/messages`, {
+        method: "POST",
+        headers: { "content-type": "application/json", "sec-fetch-site": site },
+        body: JSON.stringify({ model: "claude-sonnet-5-5", max_tokens: 16, messages: [{ role: "user", content: "hi" }] }),
+      });
+      expect(response.status).toBe(403);
+    }
+  });
+
   it("shares one ledger (one chain) between raw app ids that sanitize alike", async () => {
     for (const raw of ["app one", "app_one"]) {
       await fetch(`${proxy.url}/v1/messages`, {
         method: "POST",
-        headers: { "content-type": "application/json", "x-flux-application": raw },
+        headers: { "content-type": "application/json", "x-mesh-application": raw },
         body: JSON.stringify({ model: "claude-sonnet-5-5", max_tokens: 16, messages: [{ role: "user", content: "hi" }] }),
       });
     }
@@ -348,8 +361,8 @@ describe("output-waste metering in the proxy", () => {
     });
     await new Promise<void>((ready) => echoServer.listen(0, "127.0.0.1", () => ready()));
     const echoUrl = `http://127.0.0.1:${(echoServer.address() as { port: number }).port}`;
-    const dir = mkdtempSync(join(tmpdir(), "flux-waste-"));
-    const wasteProxy = await startFluxProxy({ ledgerDirectory: dir, anthropicUpstream: echoUrl });
+    const dir = mkdtempSync(join(tmpdir(), "mesh-waste-"));
+    const wasteProxy = await startMeshProxy({ ledgerDirectory: dir, anthropicUpstream: echoUrl });
 
     const body = JSON.stringify({
       model: "claude-sonnet-5-5", max_tokens: 400,
@@ -359,7 +372,7 @@ describe("output-waste metering in the proxy", () => {
     for (let round = 0; round < 2; round += 1) {
       await fetch(`${wasteProxy.url}/v1/messages`, {
         method: "POST",
-        headers: { "content-type": "application/json", "x-flux-application": "waste-test" },
+        headers: { "content-type": "application/json", "x-mesh-application": "waste-test" },
         body,
       });
     }
@@ -379,5 +392,71 @@ describe("output-waste metering in the proxy", () => {
     expect(first.duplicateOfRequestId).toBeUndefined();
     expect(second.duplicateOfRequestId).toBe(first.requestId);
     expect(verifyLedgerChain(records).ok).toBe(true);
+  });
+});
+
+describe("MESH proxy — provably-blind learning stream", () => {
+  const seen: AnyObject[] = [];
+  let upstream: { server: Server; url: string };
+  let proxy: MeshProxy;
+  let ledgerDir: string;
+
+  beforeAll(async () => {
+    upstream = await stubUpstream(seen);
+    ledgerDir = mkdtempSync(join(tmpdir(), "mesh-blind-"));
+    proxy = await startMeshProxy({
+      ledgerDirectory: ledgerDir,
+      anthropicUpstream: upstream.url,
+      openaiUpstream: upstream.url,
+      blindFeaturesKey: "enclave-sealed-secret",
+    });
+  });
+
+  afterAll(async () => {
+    await proxy.close();
+    upstream.server.close();
+  });
+
+  const SECRET = "PATIENT JANE DOE acute lymphoblastic leukaemia treatment plan";
+
+  it("writes a features record that learns the structure but contains NO prompt content", async () => {
+    const res = await fetch(`${proxy.url}/v1/messages`, {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-api-key": "caller-key", "x-mesh-application": "blind-app" },
+      body: JSON.stringify({
+        model: "claude-sonnet-5-5-20260514",
+        max_tokens: 100,
+        system: "You are a careful clinical assistant.",
+        messages: [{ role: "user", content: SECRET }],
+      }),
+    });
+    expect(res.status).toBe(200);
+
+    const raw = readFileSync(join(ledgerDir, "blind-app-anthropic.features.jsonl"), "utf8").trim();
+    // The sensitive prompt must appear NOWHERE in what the gateway persisted.
+    expect(raw).not.toContain("JANE DOE");
+    expect(raw.toLowerCase()).not.toContain("lymphoblastic");
+    expect(raw).not.toContain("clinical assistant");
+
+    const record = JSON.parse(raw.split("\n").at(-1)!) as AnyObject;
+    // ...but the structure needed to calibrate levers is there.
+    expect(record.features.provider).toBe("anthropic");
+    expect(record.features.messageCount).toBe(1);
+    expect(record.features.inputTokensApprox).toBeGreaterThan(0);
+    expect(Array.isArray(record.features.blockHashes)).toBe(true);
+    expect(record.features.blockHashes.length).toBeGreaterThan(0);
+  });
+
+  it("does not write any features file when no key is configured", async () => {
+    // A second proxy with blind features OFF must produce no features spool.
+    const dir = mkdtempSync(join(tmpdir(), "mesh-noblind-"));
+    const p = await startMeshProxy({ ledgerDirectory: dir, anthropicUpstream: upstream.url, openaiUpstream: upstream.url });
+    await fetch(`${p.url}/v1/messages`, {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-api-key": "k", "x-mesh-application": "plain" },
+      body: JSON.stringify({ model: "claude-sonnet-5-5-20260514", max_tokens: 10, messages: [{ role: "user", content: "hi" }] }),
+    });
+    await p.close();
+    expect(() => readFileSync(join(dir, "plain-anthropic.features.jsonl"), "utf8")).toThrow();
   });
 });

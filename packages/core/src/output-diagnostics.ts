@@ -11,7 +11,7 @@ import { approximateTokenCount, type TokenCounter } from "./token-reduction.js";
  * shows the same shape on later turns (p90 re-emission 61% on turn-2+
  * responses in WildChat).
  *
- * FLUX will not mutate model output — that is the deepest lossy territory
+ * MESH will not mutate model output — that is the deepest lossy territory
  * there is — but it CAN measure the waste per request and put the number in
  * front of the customer: the ledger records how many of a completion's
  * tokens were re-emissions of its own context, and the statement shows what

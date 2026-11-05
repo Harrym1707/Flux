@@ -2,7 +2,7 @@ import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { attachRouterChoices, compareBenchmark, loadLLMRouterBenchPartition, normalizeFluxCaptures, partitionBenchmarkRows, partitionBenchmarkRowsThreeWay } from "./benchmark.js";
+import { attachRouterChoices, compareBenchmark, loadLLMRouterBenchPartition, normalizeMeshCaptures, partitionBenchmarkRows, partitionBenchmarkRowsThreeWay } from "./benchmark.js";
 import { learnContextualRouter } from "./contextual-router.js";
 import type { BenchmarkCase } from "./benchmark.js";
 
@@ -38,7 +38,7 @@ function cases(count: number, split: string): BenchmarkCase[] {
 
 describe("offline routing benchmark", () => {
   it("loads mixed bench-release layouts and validates embedded dataset metadata", async () => {
-    const root = await mkdtemp(join(tmpdir(), "flux-bench-release-"));
+    const root = await mkdtemp(join(tmpdir(), "mesh-bench-release-"));
     try {
       for (const model of ["strong", "cheap"]) {
         const modelDir = join(root, "fixture", model);
@@ -84,7 +84,7 @@ describe("offline routing benchmark", () => {
   });
 
   it("keeps valid score/cost data while marking invalid source token usage missing", async () => {
-    const root = await mkdtemp(join(tmpdir(), "flux-bench-usage-"));
+    const root = await mkdtemp(join(tmpdir(), "mesh-bench-usage-"));
     try {
       for (const model of ["good", "bad-usage"]) {
         const modelDir = join(root, "fixture", "test", model);
@@ -120,13 +120,13 @@ describe("offline routing benchmark", () => {
     });
     expect(report.learned.bestSingleModel).toBe("strong");
     expect(report.learned.cheapestStaticModel).toBe("cheap");
-    expect(report.learned.fluxModelByWorkflow).toEqual({ complex: "strong", simple: "cheap" });
+    expect(report.learned.meshModelByWorkflow).toEqual({ complex: "strong", simple: "cheap" });
     expect(report.learned.policies[0]!.candidates[0]!.approved).toBe(false);
-    const flux = report.results.find((result) => result.name === "flux_quality_gated")!;
-    expect(flux.selectedModels).toEqual({ cheap: 10, strong: 10 });
-    expect(flux.totalCostUsd).toBeCloseTo(0.11);
-    expect(flux.meanQuality).toBeCloseTo(0.945);
-    expect(flux.costSavingsVsBestSinglePercent).toBeCloseTo(45);
+    const mesh = report.results.find((result) => result.name === "mesh_quality_gated")!;
+    expect(mesh.selectedModels).toEqual({ cheap: 10, strong: 10 });
+    expect(mesh.totalCostUsd).toBeCloseTo(0.11);
+    expect(mesh.meanQuality).toBeCloseTo(0.945);
+    expect(mesh.costSavingsVsBestSinglePercent).toBeCloseTo(45);
   });
 
   it("excludes a model recorded at $0 with real token usage as unpriced, not free", () => {
@@ -248,7 +248,7 @@ describe("offline routing benchmark", () => {
       workflow: "support.reply",
       attempts: [{ model, response: { output_text: "accepted" }, score: 1, inputTokens: 10, outputTokens: 3, costUsd: 0.0001 }],
     }));
-    const normalized = normalizeFluxCaptures(records, "support", "test");
+    const normalized = normalizeMeshCaptures(records, "support", "test");
     expect(Object.keys(normalized[0]!.predictions).sort()).toEqual(["cheap", "strong"]);
     expect(normalized[0]!.groupId).toBe("sha256-prompt-hash");
   });
@@ -278,8 +278,8 @@ describe("offline routing benchmark", () => {
       bootstrapSamples: 300,
     });
     expect(report.learned.bestSingleModel).toBe("gpt-model");
-    expect(report.learned.fluxModelByWorkflow["support.reply"]).toBe("gpt-model");
-    expect(report.learned.fluxChoiceByWorkflow["support.reply"]).toBe("gpt-model::context:compact-v1");
+    expect(report.learned.meshModelByWorkflow["support.reply"]).toBe("gpt-model");
+    expect(report.learned.meshChoiceByWorkflow["support.reply"]).toBe("gpt-model::context:compact-v1");
     expect(report.learned.policies[0]!.candidates[0]!.contextProfileId).toBe("compact-v1");
     expect(report.results[2]!.costSavingsVsBestSinglePercent).toBeCloseTo(50);
   });

@@ -7,7 +7,7 @@ import {
   approximateTokenCount,
   type SimulatedRequest,
 } from "../packages/core/src/index.js";
-import { reduceRequest, type FluxTokenReductionConfig } from "../packages/sdk-js/src/index.js";
+import { reduceRequest, type MeshTokenReductionConfig } from "../packages/sdk-js/src/index.js";
 import { answer, buildAnthropicRequest, wirePrompt, TASKS, TURNS_PER_TASK } from "./agent-fixture.js";
 
 /**
@@ -17,7 +17,7 @@ import { answer, buildAnthropicRequest, wirePrompt, TASKS, TURNS_PER_TASK } from
  *   row 1 — cache contribution, clean: the SAME J prompt stack, stamped 5m
  *            vs unstamped-on-no-cache. Identical prompts, identical answers,
  *            identical clean counts by construction: the delta is purely the
- *            provider's cache pricing that FLUX switched on.
+ *            provider's cache pricing that MESH switched on.
  *   row 2 — full stack vs raw uncached baseline (what arm M reports):
  *            includes J's token levers AND their quality cost (J runs 38/40
  *            vs the raw baseline's 40/40), so it is a different claim and is
@@ -26,7 +26,7 @@ import { answer, buildAnthropicRequest, wirePrompt, TASKS, TURNS_PER_TASK } from
  * Busy multi-turn spacing: tasks 30s apart, turns 3s apart.
  */
 
-const J_CONFIG: FluxTokenReductionConfig = {
+const J_CONFIG: MeshTokenReductionConfig = {
   toolSchemas: { descriptions: "truncate", maximumDescriptionTokens: 40 },
   duplicateContext: true,
   repairCachePrefix: true,
@@ -41,7 +41,7 @@ if (price.status !== "priced") throw new Error("price lookup failed");
 
 type AnyObject = Record<string, unknown>;
 
-function runArm(config: FluxTokenReductionConfig | undefined, spacing: number): {
+function runArm(config: MeshTokenReductionConfig | undefined, spacing: number): {
   costUsd: number; clean: number; hitRate: number; stamped: number; total: number;
 } {
   const simulated: SimulatedRequest[] = [];

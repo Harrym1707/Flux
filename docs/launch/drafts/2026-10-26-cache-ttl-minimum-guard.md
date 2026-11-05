@@ -8,7 +8,7 @@ breakpoint wasn't there. No signal comes back. The only way to know is to
 already know the number and check your own prefix length against it before
 you send.
 
-FLUX's proxy wasn't doing that check. `stampAnthropicCacheTtl`, the function
+MESH's proxy wasn't doing that check. `stampAnthropicCacheTtl`, the function
 in `packages/sdk-js/src/reduce-request.ts` that actually places
 `cache_control` on real customer requests, placed a breakpoint on any stable
 prefix it found and recorded a `cache-ttl-5m` (or `cache-ttl-1h`) lever every

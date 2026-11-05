@@ -1,5 +1,5 @@
 /**
- * Measure what the FLUX proxy ADDS to a request's latency — the first
+ * Measure what the MESH proxy ADDS to a request's latency — the first
  * question every engineer asks before putting anything in their request path.
  *
  *   node --import tsx evals/run-proxy-overhead.ts
@@ -7,30 +7,30 @@
  * Method, stated so the number can be checked:
  * - A stub upstream on loopback answers every POST with a realistic Anthropic
  *   Messages response, instantly. Provider and network latency are therefore
- *   EXCLUDED by construction: what remains is FLUX's own per-request work
+ *   EXCLUDED by construction: what remains is MESH's own per-request work
  *   (parse, reduce, forward, re-serialize, ledger append).
  * - Two arms run the SAME realistic agent traffic (the measurement fixture's
  *   multi-turn requests: sizeable system prompt, 12 tool schemas, growing
  *   history) at pinned concurrency against the SAME stub:
  *     direct  — client -> stub
- *     proxied — client -> FLUX proxy (full lossless stack + 5m cache stamp) -> stub
+ *     proxied — client -> MESH proxy (full lossless stack + 5m cache stamp) -> stub
  * - Overhead at each percentile is proxied minus direct. Warmup requests are
  *   excluded. Results are from THIS machine's loopback; absolute values vary
  *   by hardware, but the overhead is the honest quantity either way.
  *
- *   FLUX_OVERHEAD_REQUESTS     requests per arm (default 400)
- *   FLUX_OVERHEAD_CONCURRENCY  in-flight cap (default 8)
+ *   MESH_OVERHEAD_REQUESTS     requests per arm (default 400)
+ *   MESH_OVERHEAD_CONCURRENCY  in-flight cap (default 8)
  */
 import { createServer, type Server } from "node:http";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { performance } from "node:perf_hooks";
-import { startFluxProxy } from "../packages/sdk-js/src/index.js";
+import { startMeshProxy } from "../packages/sdk-js/src/index.js";
 import { buildAnthropicRequest } from "./agent-fixture.js";
 
-const REQUESTS = Number(process.env.FLUX_OVERHEAD_REQUESTS ?? 400);
-const CONCURRENCY = Number(process.env.FLUX_OVERHEAD_CONCURRENCY ?? 8);
+const REQUESTS = Number(process.env.MESH_OVERHEAD_REQUESTS ?? 400);
+const CONCURRENCY = Number(process.env.MESH_OVERHEAD_CONCURRENCY ?? 8);
 const WARMUP = 25;
 
 const STUB_RESPONSE = JSON.stringify({
@@ -107,8 +107,8 @@ const summarize = (durations: number[]) => {
 };
 
 const stub = await startStub();
-const ledgerDirectory = mkdtempSync(join(tmpdir(), "flux-overhead-"));
-const proxy = await startFluxProxy({
+const ledgerDirectory = mkdtempSync(join(tmpdir(), "mesh-overhead-"));
+const proxy = await startMeshProxy({
   port: 0,
   ledgerDirectory,
   anthropicUpstream: stub.url,
@@ -132,7 +132,7 @@ const direct = summarize([...directA, ...directB]);
 const proxied = summarize([...proxiedA, ...proxiedB]);
 
 const sampleBytes = Buffer.byteLength(trafficBody(3));
-console.log(`FLUX proxy overhead — ${REQUESTS * 2} requests/arm (+${WARMUP * 2} warmup), concurrency ${CONCURRENCY}, ~${(sampleBytes / 1024).toFixed(1)} KB request bodies`);
+console.log(`MESH proxy overhead — ${REQUESTS * 2} requests/arm (+${WARMUP * 2} warmup), concurrency ${CONCURRENCY}, ~${(sampleBytes / 1024).toFixed(1)} KB request bodies`);
 console.log(`stub upstream on loopback (instant): provider/network latency excluded by construction`);
 console.log(`node ${process.version} · ${process.platform}/${process.arch} · ${new Date().toISOString().slice(0, 10)}`);
 console.log("");
@@ -142,7 +142,7 @@ const row = (label: string, s: ReturnType<typeof summarize>) =>
 row("direct", direct);
 row("proxied", proxied);
 console.log("");
-console.log(`FLUX adds: p50 ${(proxied.p50 - direct.p50).toFixed(2)} ms · p95 ${(proxied.p95 - direct.p95).toFixed(2)} ms · p99 ${(proxied.p99 - direct.p99).toFixed(2)} ms · mean ${(proxied.mean - direct.mean).toFixed(2)} ms`);
+console.log(`MESH adds: p50 ${(proxied.p50 - direct.p50).toFixed(2)} ms · p95 ${(proxied.p95 - direct.p95).toFixed(2)} ms · p99 ${(proxied.p99 - direct.p99).toFixed(2)} ms · mean ${(proxied.mean - direct.mean).toFixed(2)} ms`);
 console.log("");
 console.log("Provable-savings statement: this run measures added latency only; it bills nothing and claims no savings.");
 

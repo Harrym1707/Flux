@@ -2,7 +2,7 @@
 
 ## Runtime context layer
 
-FLUX receives `taskClass`, `workflow`, `difficulty`, and `riskLevel` from the host application through `getContext`. These should be cheap, trusted facts the application already knows. A routing policy can match any subset of workflow, difficulty, and risk; unmatched traffic remains on the configured baseline.
+MESH receives `taskClass`, `workflow`, `difficulty`, and `riskLevel` from the host application through `getContext`. These should be cheap, trusted facts the application already knows. A routing policy can match any subset of workflow, difficulty, and risk; unmatched traffic remains on the configured baseline.
 
 Candidates can reference a versioned `contextProfileId`. Register that ID in `contextProfiles` with a synchronous transformation and optional exact context match. The transform may shorten history, remove duplicate/tool output, or select the task-relevant request fields. It runs only on the candidate route. Missing profiles, context mismatches, transform exceptions, and failed quality checks retry the untouched request on baseline.
 
@@ -21,7 +21,7 @@ The fixed-seed fixture routes 180 requests through three model price/quality tie
 Each context profile physically trims the synthetic input fixture while preserving its first and last portions; the synthetic provider checks that the resulting word count matches the simulated input usage. The console separates units removed by those transforms from net input units saved after retries, against one full-context baseline call per request. It also shows candidate-only quality, delivered answer quality after fallback, cost and fallbacks per workflow. To save the complete model/profile matrix and workflow report:
 
 ```bash
-corepack pnpm context:simulate -- --out /tmp/flux-context-report.json
+corepack pnpm context:simulate -- --out /tmp/mesh-context-report.json
 ```
 
 All rates, outputs and quality errors in this simulation are authored fixtures. It makes no model/API calls and does not establish real model quality or savings. The synthetic word units are not provider token counts. For product decisions, replace the synthetic fixtures with labeled requests and paired outputs from each actual model, then use replay and the same quality gates before approving a route.

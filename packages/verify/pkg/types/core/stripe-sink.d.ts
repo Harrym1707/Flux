@@ -41,7 +41,7 @@ export type StripeMeterEventRow = {
     };
 };
 export type StripeMeterProjectionOptions = Pick<InvoiceOptions, "period" | "gateVerdictOverrides" | "failedTaskIds"> & {
-    /** Meter event name. Default "flux_net_verified_savings_usd". */
+    /** Meter event name. Default "mesh_net_verified_savings_usd". */
     eventName?: string;
     /** Map an applicationId to the Stripe customer id. Default: identity. */
     customerIdOf?: (applicationId: string) => string;

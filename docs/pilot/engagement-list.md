@@ -6,7 +6,7 @@ Posting is the founder's act.** Every thread was re-verified by fetch on
 
 ## Why these threads
 
-FLUX's wedge claim — "your proxy's spend number and your provider's invoice
+MESH's wedge claim — "your proxy's spend number and your provider's invoice
 disagree, and the drift is cache-token pricing" — is not our assertion. LiteLLM
 operators measured it themselves, in public, with numbers. These threads are
 the proof-of-pain and the audience list.
@@ -19,7 +19,7 @@ the proof-of-pain and the audience list.
   a ~10.9x overcharge on high-cache-hit traffic; "makes accurate cost
   monitoring impossible" (reporter's words).
 - Relevance: the oldest and starkest case that gateway-reported spend is not an
-  invoice. FLUX's answer: price from a dated, sourced catalogue; cached tokens
+  invoice. MESH's answer: price from a dated, sourced catalogue; cached tokens
   priced at their actual rates; drift reported as reconciliation, not hidden.
 
 ### 2. Issue #33772 — "OpenAI cache-write tokens dropped from cost calculation"
@@ -28,15 +28,15 @@ the proof-of-pain and the audience list.
   reporter confirmed proxy-reported spend **materially below** OpenAI invoices
   on cache-heavy traffic. Also notes tiered/flex pricing keys missing.
 - Relevance: under-counting, the opposite direction of #19681 — the drift is
-  structural, not a single bug. FLUX's ledger prices the cache-write TTL split
-  from provider-verbatim usage, and prices splitless FLUX-placed writes at the
+  structural, not a single bug. MESH's ledger prices the cache-write TTL split
+  from provider-verbatim usage, and prices splitless MESH-placed writes at the
   2x premium so any error under-claims.
 
 ### 3. Issue #34801 — "gpt-5.6 prompt caching: cache-read tokens under-counted vs OpenAI billed usage (~8.5%)"
 - **Verified 2026-10-13: CLOSED.** Opened 2026-07-27.
 - Reporter reconciled 40 requests against OpenAI billing: 65,304 cached tokens
   billed by OpenAI vs 49,563 recorded by LiteLLM; ~8.5% spend overstatement.
-- Relevance: this reporter did, by hand, exactly what `flux-quote`'s
+- Relevance: this reporter did, by hand, exactly what `mesh-quote`'s
   reconciliation section automates. The most qualified design-partner profile
   on this list.
 
