@@ -10,12 +10,14 @@ import { approximateTokenCount, type TokenCounter } from "./token-reduction.js";
  * Minification is split into two tiers and the distinction is not cosmetic.
  *
  *   Lossless (billable): schema plumbing the model does not read ($schema, $id,
- *   $comment) and `title` fields that only restate the property name — content
- *   the provider tokenises, so removing it is a real saving, billable without a
- *   quality gate. Whitespace / JSON formatting is NOT in this tier: the provider
- *   tokenises the PARSED structure, not the byte formatting (verified against
- *   Anthropic count_tokens — pretty vs compact tools return an identical count),
- *   so MESH compacts it as hygiene but never claims it as a saving.
+ *   $comment, and `$defs` when nothing `$ref`s into it — a referenced `$defs`
+ *   is load-bearing, not plumbing, and is kept) and `title` fields that only
+ *   restate the property name — content the provider tokenises, so removing
+ *   it is a real saving, billable without a quality gate. Whitespace / JSON
+ *   formatting is NOT in this tier: the provider tokenises the PARSED
+ *   structure, not the byte formatting (verified against Anthropic
+ *   count_tokens — pretty vs compact tools return an identical count), so
+ *   MESH compacts it as hygiene but never claims it as a saving.
  *
  *   Lossy: descriptions, examples, and dropping tools. Descriptions are how the
  *   model decides which tool to call, so trimming them is a behaviour change,
@@ -29,7 +31,38 @@ import { approximateTokenCount, type TokenCounter } from "./token-reduction.js";
  */
 
 /** Keys the provider's schema validator reads but the model never sees as prose. */
-const PLUMBING_KEYS = new Set(["$schema", "$id", "$comment", "$defs"]);
+const PLUMBING_KEYS = new Set(["$schema", "$id", "$comment"]);
+
+/**
+ * `$defs` is schema plumbing only when nothing in the tool resolves into it.
+ * Pydantic (and other JSON-Schema generators) routinely emit `$defs` with
+ * `$ref` pointers reaching into it for nested/recursive types, and an
+ * unconditional strip leaves those `$ref`s dangling: the model sees a
+ * pointer to a definition that no longer exists, which is a behaviour
+ * change dressed up as formatting. `$defs` is dropped only when the tool
+ * contains no `$ref` into it at all, in which case it was dead weight the
+ * generator emitted regardless of use.
+ */
+function collectRefTargets(node: unknown, found: Set<string>): void {
+  if (Array.isArray(node)) {
+    for (const item of node) collectRefTargets(item, found);
+    return;
+  }
+  if (typeof node !== "object" || node === null) return;
+  for (const [key, value] of Object.entries(node as Record<string, unknown>)) {
+    if (key === "$ref" && typeof value === "string") found.add(value);
+    else collectRefTargets(value, found);
+  }
+}
+
+function refersIntoDefs(tool: unknown): boolean {
+  const refs = new Set<string>();
+  collectRefTargets(tool, refs);
+  for (const ref of refs) {
+    if (ref === "#/$defs" || ref.startsWith("#/$defs/")) return true;
+  }
+  return false;
+}
 
 export type MinifyOptions = {
   /**
@@ -137,15 +170,25 @@ export function minifyToolSchemas(tools: unknown[], options: MinifyOptions = {})
       });
       return;
     }
-    retained.push(prune(tool, name));
+    retained.push(prune(tool, name, refersIntoDefs(tool)));
   });
 
-  function prune(node: unknown, path: string): unknown {
-    if (Array.isArray(node)) return node.map((item, index) => prune(item, `${path}[${index}]`));
+  function prune(node: unknown, path: string, defsReferenced: boolean): unknown {
+    if (Array.isArray(node)) return node.map((item, index) => prune(item, `${path}[${index}]`, defsReferenced));
     if (typeof node !== "object" || node === null) return node;
     const row = node as Record<string, unknown>;
     const output: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(row)) {
+      if (key === "$defs" && !defsReferenced) {
+        changes.push({
+          kind: "plumbing",
+          lossless: true,
+          at: `${path}.${key}`,
+          tokensSaved: countTokens(JSON.stringify({ [key]: value })),
+          detail: `Removed ${key}, which the model never reads.`,
+        });
+        continue;
+      }
       if (PLUMBING_KEYS.has(key)) {
         changes.push({
           kind: "plumbing",
@@ -204,7 +247,7 @@ export function minifyToolSchemas(tools: unknown[], options: MinifyOptions = {})
         output[key] = trimmed;
         continue;
       }
-      output[key] = prune(value, `${path}.${key}`);
+      output[key] = prune(value, `${path}.${key}`, defsReferenced);
     }
     return output;
   }
