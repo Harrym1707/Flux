@@ -1,0 +1,73 @@
+{
+  "iteration": 0,
+  "timestamp": "2026-11-05T21:24:22.211Z",
+  "composite": {
+    "corpusSize": 5,
+    "medianAutoSafePct": 5.96,
+    "medianRealisablePct": 57.89,
+    "dormantCount": 0,
+    "answerEquivalenceMeasured": false
+  },
+  "workloads": [
+    {
+      "workload": "coding-agent",
+      "baselineUsd": 0.09856000000000001,
+      "autoSafePct": 6.9805194805194635,
+      "gatedUpsidePct": 57.94480519480521,
+      "coveragePct": 77.77777777777779,
+      "applicable": 9,
+      "applied": 7,
+      "uncapturedPct": 47.72727272727272,
+      "status": "saving"
+    },
+    {
+      "workload": "rag-docqa",
+      "baselineUsd": 0.3272,
+      "autoSafePct": 7.823960880195603,
+      "gatedUpsidePct": 66.89486552567236,
+      "coveragePct": 100,
+      "applicable": 5,
+      "applied": 5,
+      "uncapturedPct": 0,
+      "status": "saving"
+    },
+    {
+      "workload": "support-chat",
+      "baselineUsd": 0.20400000000000001,
+      "autoSafePct": 5.955882352941173,
+      "gatedUpsidePct": 51.93529411764706,
+      "coveragePct": 77.77777777777779,
+      "applicable": 9,
+      "applied": 7,
+      "uncapturedPct": 22.411764705882362,
+      "status": "saving"
+    },
+    {
+      "workload": "batch-classifier",
+      "baselineUsd": 0.08,
+      "autoSafePct": 0,
+      "gatedUpsidePct": 7.500000000000007,
+      "coveragePct": 100,
+      "applicable": 1,
+      "applied": 1,
+      "uncapturedPct": 0,
+      "status": "needs-gate"
+    },
+    {
+      "workload": "already-lean",
+      "baselineUsd": 0.0148,
+      "autoSafePct": 0,
+      "gatedUpsidePct": 48.648648648648646,
+      "coveragePct": 100,
+      "applicable": 1,
+      "applied": 1,
+      "uncapturedPct": 0,
+      "status": "needs-gate"
+    }
+  ],
+  "blockers": [
+    "SAFETY: answer-equivalence not measured yet (wire a replay quality check across the corpus)",
+    "CORPUS: only 5/8 workload types",
+    "AUTONOMY: pipeline not yet wired to run on a real ledger spool unattended"
+  ]
+}
