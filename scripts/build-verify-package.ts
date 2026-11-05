@@ -1,6 +1,6 @@
 /**
- * Build the publishable @mesh-ai/verify artifact into packages/verify/pkg:
- *   - index.js / index.cjs  (bundles; the needed @mesh-ai/core sources inlined)
+ * Build the publishable @harrym1707/verify artifact into packages/verify/pkg:
+ *   - index.js / index.cjs  (bundles; the needed @harrym1707/core sources inlined)
  *   - types/                (hand-rolled entry + copied core declarations)
  *   - bin/mesh-verify.mjs   (chain-verify + recompute an invoice from a spool)
  *   - LICENSE               (MIT — deliberately, see below)
@@ -151,7 +151,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 `, "utf8");
 
-writeFileSync(path.join(outDir, "README.md"), `# @mesh-ai/verify
+writeFileSync(path.join(outDir, "README.md"), `# @harrym1707/verify
 
 The verification half of [MESH](https://www.mesh-technology.com), under MIT.
 
@@ -163,7 +163,7 @@ access. The MESH product itself is source-available under BUSL-1.1; this
 package is not, on purpose.
 
 \`\`\`bash
-npx -y -p @mesh-ai/verify mesh-verify mesh-ledger/proxy-anthropic.jsonl
+npx -y -p @harrym1707/verify mesh-verify mesh-ledger/proxy-anthropic.jsonl
 \`\`\`
 
 verifies every hash link in the spool and recomputes the invoice from its
@@ -173,14 +173,14 @@ wins — that is the contract.
 Library use:
 
 \`\`\`js
-import { verifyLedgerChain, recomputeInvoice } from "@mesh-ai/verify";
+import { verifyLedgerChain, recomputeInvoice } from "@harrym1707/verify";
 \`\`\`
 
 Ledger format and methodology: https://www.mesh-technology.com/methodology.html
 `, "utf8");
 
 const manifest = {
-  name: "@mesh-ai/verify",
+  name: "@harrym1707/verify",
   version: "0.1.0",
   description: "Independently verify a MESH savings ledger: hash-chain verification and invoice recomputation, MIT-licensed, zero dependencies.",
   license: "MIT",

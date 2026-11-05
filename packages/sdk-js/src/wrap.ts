@@ -12,7 +12,7 @@ import type { MeshTokenReductionConfig } from "./reduce-request.js";
  * wrapMesh — the one-line drop-in for an existing provider client.
  *
  *   import OpenAI from "openai";
- *   import { wrapMesh } from "@mesh-ai/sdk";
+ *   import { wrapMesh } from "@harrym1707/sdk";
  *   const openai = wrapMesh(new OpenAI());   // <- the only change
  *   // ...use `openai` exactly as before...
  *   console.log(openai.mesh.savings());      // { requests, savedUsd, ... }

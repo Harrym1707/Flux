@@ -100,6 +100,6 @@ for (const spool of readdirSync(ledgerDirectory).sort()) {
   console.log(`${spool}: ${records.length} event(s), chain ${chain.ok ? "VERIFIED" : "BROKEN"} — verdict ${invoice.verdict}, net verified savings $${invoice.netVerifiedSavingsUsd.toFixed(4)}`);
 }
 console.log(`\nThe spools live at ${ledgerDirectory} — inspect them, or re-verify independently with the MIT verifier:`);
-console.log(`  npx -y -p @mesh-ai/verify mesh-verify ${join(ledgerDirectory, "demo-agent-anthropic.jsonl")}`);
+console.log(`  npx -y -p @harrym1707/verify mesh-verify ${join(ledgerDirectory, "demo-agent-anthropic.jsonl")}`);
 console.log("\nDemo traffic only: these numbers describe this synthetic run, never your workload.");
 console.log("Real traffic is one line: point your client baseURL at mesh-proxy and keep your own key.");

@@ -1,7 +1,7 @@
 # FAQ — built from the caveats we already print
 
 **How do I install MESH?**
-One command: `npx -y -p @mesh-ai/sdk mesh-proxy` starts a local proxy with a
+One command: `npx -y -p @harrym1707/sdk mesh-proxy` starts a local proxy with a
 hash-chained ledger — then set your client's `baseURL` to
 `http://127.0.0.1:8787` (Anthropic) or `http://127.0.0.1:8787/v1` (OpenAI).
 No signup, no account, and your API key passes through without being stored.

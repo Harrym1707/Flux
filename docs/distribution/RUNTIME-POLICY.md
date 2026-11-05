@@ -22,11 +22,11 @@ Each of these must move together to `node22` / `>=22`:
 | File | What it encodes | Current value |
 |---|---|---|
 | `scripts/build-cli-package.ts:52` | esbuild `target` for bootstrap + runtime | `node20` |
-| `scripts/build-cli-package.ts:88` | `@mesh-ai/mesh` `engines.node` | `>=20` |
+| `scripts/build-cli-package.ts:88` | `@harrym1707/mesh` `engines.node` | `>=20` |
 | `scripts/build-sdk-package.ts:108` | esbuild `target` for the SDK bundles | `node18` |
-| `scripts/build-sdk-package.ts:264` | `@mesh-ai/sdk` `engines.node` | `>=18` |
+| `scripts/build-sdk-package.ts:264` | `@harrym1707/sdk` `engines.node` | `>=18` |
 | `scripts/build-verify-package.ts:60` | esbuild `target` for the verify bundles | `node18` |
-| `scripts/build-verify-package.ts:197` | `@mesh-ai/verify` `engines.node` | `>=18` |
+| `scripts/build-verify-package.ts:197` | `@harrym1707/verify` `engines.node` | `>=18` |
 | `docs/site/install.sh:13-16` | the Node requirement message | "Node.js 20+" |
 | `docs/site/start.md:5,11` | the documented requirement | "Node 20+" |
 

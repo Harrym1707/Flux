@@ -1,4 +1,4 @@
-# @mesh-ai/verify
+# @harrym1707/verify
 
 The verification half of [MESH](https://www.mesh-technology.com), under MIT.
 
@@ -10,7 +10,7 @@ access. The MESH product itself is source-available under BUSL-1.1; this
 package is not, on purpose.
 
 ```bash
-npx -y -p @mesh-ai/verify mesh-verify mesh-ledger/proxy-anthropic.jsonl
+npx -y -p @harrym1707/verify mesh-verify mesh-ledger/proxy-anthropic.jsonl
 ```
 
 verifies every hash link in the spool and recomputes the invoice from its
@@ -20,7 +20,7 @@ wins — that is the contract.
 Library use:
 
 ```js
-import { verifyLedgerChain, recomputeInvoice } from "@mesh-ai/verify";
+import { verifyLedgerChain, recomputeInvoice } from "@harrym1707/verify";
 ```
 
 Ledger format and methodology: https://www.mesh-technology.com/methodology.html

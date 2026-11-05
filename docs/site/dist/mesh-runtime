@@ -3364,7 +3364,7 @@ var init_start = __esm({
     init_proxy();
     init_theo_policy();
     init_update();
-    BUILD_COMMIT = true ? "6ad530d" : process.env.MESH_BUILD_COMMIT ?? "dev";
+    BUILD_COMMIT = true ? "c8378ea" : process.env.MESH_BUILD_COMMIT ?? "dev";
     MESH_HOME = join3(homedir2(), ".mesh");
     CLAUDE_SETTINGS = join3(homedir2(), ".claude", "settings.json");
     DEFAULT_PORT = 8787;

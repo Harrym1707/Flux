@@ -44,4 +44,4 @@ writeFileSync(out, html, "utf8");
 const verdict = html.includes("DO NOT PAY") ? "DO NOT PAY (chain broken)"
   : html.includes("do_not_charge") ? "do_not_charge" : "charge";
 console.log(`statement written: ${out} (${spools.length} spool(s), verdict: ${verdict})`);
-console.log("Verify independently: npx -y -p @mesh-ai/verify mesh-verify <spool.jsonl>");
+console.log("Verify independently: npx -y -p @harrym1707/verify mesh-verify <spool.jsonl>");

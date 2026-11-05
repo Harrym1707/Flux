@@ -64,7 +64,7 @@ jobs:
           ~/.mesh/bin/mesh version
           ~/.mesh/bin/mesh verify
 
-  # Route 2 — the agent / CI route: `npx @mesh-ai/mesh`. The npm package ships
+  # Route 2 — the agent / CI route: `npx @harrym1707/mesh`. The npm package ships
   # the self-contained runtime, so this runs fully offline and covers Windows,
   # where the shell installer does not apply.
   npx-package:

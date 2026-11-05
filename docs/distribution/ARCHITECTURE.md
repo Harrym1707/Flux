@@ -14,9 +14,9 @@ those bytes are trusted.
 
 Two packages publish from `release.yml` on a `v*` tag push:
 
-- **`@mesh-ai/sdk`** — the library and the `mesh-proxy` / `mesh-quote` /
+- **`@harrym1707/sdk`** — the library and the `mesh-proxy` / `mesh-quote` /
   `mesh-demo` / `mesh-report` bins. Built by `scripts/build-sdk-package.ts`.
-- **`@mesh-ai/mesh`** — the downloadable CLI. Its `mesh` bin is the
+- **`@harrym1707/mesh`** — the downloadable CLI. Its `mesh` bin is the
   **self-contained runtime**, not the bootstrap: npm already versions the
   package, so there is no CDN/bootstrap indirection on this path
   (`scripts/build-cli-package.ts:78-92`).
@@ -30,7 +30,7 @@ bundle (`release.yml:40-49`). `npm audit signatures` verifies the attestation;
 `SECURITY.md` documents this as the answer to "you're asking me to pipe my key
 through an unaudited package."
 
-A third package, **`@mesh-ai/verify`** (`scripts/build-verify-package.ts`), is
+A third package, **`@harrym1707/verify`** (`scripts/build-verify-package.ts`), is
 published separately under MIT — the independent chain-verify + invoice-recompute
 tool. It is part of the trust story, not a delivery channel for the runtime.
 
@@ -101,7 +101,7 @@ users — `./.mesh/<app>.jsonl` in the app's own cwd
 ## The build scripts
 
 - **`scripts/build-cli-package.ts`** produces all three website artifacts plus
-  the npm `@mesh-ai/mesh` manifest. It bundles `mesh-runtime.ts` and
+  the npm `@harrym1707/mesh` manifest. It bundles `mesh-runtime.ts` and
   `bootstrap.ts` with esbuild (`target: node20`, `build-cli-package.ts:52`),
   stamps the runtime with the git commit (`__MESH_BUILD_COMMIT__`, line 64),
   computes the sha256, writes the manifest, and **smoke-tests the runtime by
@@ -129,13 +129,13 @@ uploads bytes that were already checked locally
 The two channels are deployed by different mechanisms, and only one is
 automated from a tag:
 
-- **npm** is tag-automated: `release.yml` rebuilds `@mesh-ai/mesh` from source at
+- **npm** is tag-automated: `release.yml` rebuilds `@harrym1707/mesh` from source at
   the tagged commit and publishes with provenance. The published runtime
   provably matches the tag.
 - **the website runtime is hand-committed**: `/mesh-runtime` and its
   `/mesh-version.json` are whatever a human last built and committed into
   `docs/site/dist`. Nothing enforces that this equals the latest tag, the
-  `@mesh-ai/mesh` runtime, or even `packages/cli/pkg`. A forgotten rebuild ships
+  `@harrym1707/mesh` runtime, or even `packages/cli/pkg`. A forgotten rebuild ships
   a stale runtime to curl users while npm users get the new one; the manifest's
   `version` (a commit hash) is the only signal, and it is only as fresh as
   whoever ran the build.

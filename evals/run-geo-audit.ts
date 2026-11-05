@@ -81,18 +81,18 @@ check("Organization schema present", ldTypes.includes("Organization"));
 
 const start = await fetchText("/start.html");
 check("start page served", start.status === 200);
-check("start page carries the one-line install", start.text.includes("npx -y -p @mesh-ai/sdk mesh-proxy"));
+check("start page carries the one-line install", start.text.includes("npx -y -p @harrym1707/sdk mesh-proxy"));
 check("start page has HowTo structured data", start.text.includes('"@type":"HowTo"'));
 check("start page states the honest verdict", start.text.includes("do_not_charge"));
-check("llms.txt carries the one-line install", llms.text.includes("npx -y -p @mesh-ai/sdk mesh-proxy"));
+check("llms.txt carries the one-line install", llms.text.includes("npx -y -p @harrym1707/sdk mesh-proxy"));
 
 // --- The npm package answer engines will recommend must actually exist -----
 try {
-  const npmRes = await fetch("https://registry.npmjs.org/@mesh-ai/sdk", { signal: AbortSignal.timeout(20_000) });
+  const npmRes = await fetch("https://registry.npmjs.org/@harrym1707/sdk", { signal: AbortSignal.timeout(20_000) });
   const npmJson = (await npmRes.json()) as { "dist-tags"?: { latest?: string } };
-  check("@mesh-ai/sdk resolves on the npm registry", npmRes.status === 200 && typeof npmJson["dist-tags"]?.latest === "string", npmJson["dist-tags"]?.latest);
+  check("@harrym1707/sdk resolves on the npm registry", npmRes.status === 200 && typeof npmJson["dist-tags"]?.latest === "string", npmJson["dist-tags"]?.latest);
 } catch {
-  check("@mesh-ai/sdk resolves on the npm registry", false, "registry unreachable");
+  check("@harrym1707/sdk resolves on the npm registry", false, "registry unreachable");
 }
 
 const comparison = await fetchText("/comparison.html");

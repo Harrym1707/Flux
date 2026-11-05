@@ -29,7 +29,7 @@ The installer drops one tiny launcher that fetches and checksum-verifies the
 runtime; it never touches your API key. Read it first if you like:
 `curl -fsSL https://www.mesh-technology.com/install.sh | less`.
 
-**Other ways in:** once `@mesh-ai/mesh` is published, `npx @mesh-ai/mesh start`
+**Other ways in:** once `@harrym1707/mesh` is published, `npx @harrym1707/mesh start`
 works with no install. Or grab the launcher directly:
 `curl -fsSL https://www.mesh-technology.com/mesh -o mesh && chmod +x mesh && ./mesh start`.
 
@@ -40,7 +40,7 @@ The rest of this page is the manual setup for any other app or language.
 One command, nothing to clone:
 
 ```bash
-npx -y -p @mesh-ai/sdk mesh-proxy
+npx -y -p @harrym1707/sdk mesh-proxy
 ```
 
 You'll see:
@@ -52,7 +52,7 @@ Ledger spools: ./mesh-ledger
 
 To switch on the Claude prompt-cache lever too (our single biggest measured
 saver, 37.9% on multi-turn traffic), start it as
-`MESH_PROXY_CACHE_TTL=5m npx -y -p @mesh-ai/sdk mesh-proxy`.
+`MESH_PROXY_CACHE_TTL=5m npx -y -p @harrym1707/sdk mesh-proxy`.
 
 ## Step 2 — point your app at it
 
@@ -87,7 +87,7 @@ published package:
 ```bash
 node -e '
 const { readFileSync } = require("node:fs");
-const { verifyLedgerChain, recomputeInvoice } = require("@mesh-ai/sdk");
+const { verifyLedgerChain, recomputeInvoice } = require("@harrym1707/sdk");
 const records = readFileSync(process.argv[1], "utf8").trim().split(/\n/).map(JSON.parse);
 const chain = verifyLedgerChain(records);
 if (!chain.ok) throw new Error("chain broken at seq " + chain.seq);
@@ -106,7 +106,7 @@ You don't need to route any traffic to get a quote. Export your existing logs
 and run them through the quote tool — the verdict can be "do not pay us":
 
 ```bash
-npx -y -p @mesh-ai/sdk mesh-quote your-export.jsonl --format litellm
+npx -y -p @harrym1707/sdk mesh-quote your-export.jsonl --format litellm
 ```
 
 ## What it costs

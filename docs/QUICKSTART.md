@@ -5,7 +5,7 @@
 > and on [www.mesh-technology.com](https://www.mesh-technology.com). Short version:
 
 ```bash
-npx -y -p @mesh-ai/sdk mesh-proxy
+npx -y -p @harrym1707/sdk mesh-proxy
 ```
 
 Then point your client at it, keeping your own key:

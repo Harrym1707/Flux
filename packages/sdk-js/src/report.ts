@@ -197,7 +197,7 @@ ${sectionHtml}
 Every figure on this statement is recomputed from ledger files on YOUR machine —
 usage numbers from the provider's own responses, never prompt content. Verify it
 independently, without MESH and without accepting any terms:
-<code>npx -y -p @mesh-ai/verify mesh-verify &lt;spool.jsonl&gt;</code> — if your
+<code>npx -y -p @harrym1707/verify mesh-verify &lt;spool.jsonl&gt;</code> — if your
 recomputation disagrees with this statement, yours wins. Negative levers are
 shown negative and reduce the bill; savings you already had are itemised above
 and never billed. Methodology: https://www.mesh-technology.com/methodology.html<br>

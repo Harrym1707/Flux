@@ -1,5 +1,5 @@
 /**
- * Cold-install smoke for the packaged @mesh-ai/sdk artifact.
+ * Cold-install smoke for the packaged @harrym1707/sdk artifact.
  *
  *   node --import tsx scripts/build-sdk-package.ts && node --import tsx scripts/smoke-sdk-package.ts
  *
@@ -41,7 +41,7 @@ console.log("cold install ok");
 
 // 3. CJS require: the entry loads and the core surface is present.
 const cjsCheck = `
-const sdk = require("@mesh-ai/sdk");
+const sdk = require("@harrym1707/sdk");
 const needed = ["withMesh", "startMeshProxy", "reduceRequest", "recomputeInvoice", "verifyLedgerChain", "createSavingsLedger"];
 for (const name of needed) {
   if (typeof sdk[name] !== "function") { console.error("missing export " + name); process.exit(1); }
@@ -57,7 +57,7 @@ const esmCheck = `
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { reduceRequest, startMeshProxy, recomputeInvoice } from "@mesh-ai/sdk";
+import { reduceRequest, startMeshProxy, recomputeInvoice } from "@harrym1707/sdk";
 
 const block = "Clause 4471 applies to every refund older than thirty days and must be cited in full. ".repeat(3);
 const { summary } = reduceRequest({

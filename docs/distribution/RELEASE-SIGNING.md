@@ -24,8 +24,8 @@ authenticity**:
   happily move to any version the manifest names, including an older one served
   by a rollback attacker.
 
-By contrast the npm channel already has authenticity: `@mesh-ai/sdk` and
-`@mesh-ai/mesh` publish with OIDC provenance and no long-lived token
+By contrast the npm channel already has authenticity: `@harrym1707/sdk` and
+`@harrym1707/mesh` publish with OIDC provenance and no long-lived token
 (`.github/workflows/release.yml:17-49`). The website channel should match that
 posture.
 

@@ -5,7 +5,7 @@ lasts hours; a broken first impression lasts.
 
 ## Product readiness (verify the morning of)
 
-- [ ] `npx -y -p @mesh-ai/sdk mesh-proxy` works from a clean machine (no repo,
+- [ ] `npx -y -p @harrym1707/sdk mesh-proxy` works from a clean machine (no repo,
       no login) — this is the first thing every visitor will run
 - [ ] www.mesh-technology.com loads fast; /start.html renders; GEO audit green
       (`MESH_SITE_ORIGIN=https://www.mesh-technology.com node --import tsx evals/run-geo-audit.ts`)

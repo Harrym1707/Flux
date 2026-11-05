@@ -1,4 +1,4 @@
-import { withMesh } from "@mesh-ai/sdk";
+import { withMesh } from "@harrym1707/sdk";
 
 const inputPrice = process.env.MESH_INPUT_PRICE_PER_MILLION;
 const outputPrice = process.env.MESH_OUTPUT_PRICE_PER_MILLION;

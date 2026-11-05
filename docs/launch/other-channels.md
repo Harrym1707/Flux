@@ -14,7 +14,7 @@ Subject: Mesh — local LLM cost proxy with a customer-recomputable savings ledg
 > entirely self-service (one command, no signup, no sales call), and the docs
 > lead with runnable commands.
 >
-> `npx -y -p @mesh-ai/sdk mesh-proxy` starts a local proxy; point your
+> `npx -y -p @harrym1707/sdk mesh-proxy` starts a local proxy; point your
 > Anthropic/OpenAI client's baseURL at it and it reduces each request before
 > the provider sees it (lossless-only by default), then writes a hash-chained
 > ledger of provider-verbatim usage to your disk. The differentiator is
@@ -42,7 +42,7 @@ five-turn coding agent re-paying full input rate for its ENTIRE history every
 turn — zero cache traffic. That's the default state of most agent loops
 running right now.
 
-2/ So we built Mesh: a local proxy. `npx -y -p @mesh-ai/sdk mesh-proxy`,
+2/ So we built Mesh: a local proxy. `npx -y -p @harrym1707/sdk mesh-proxy`,
 point baseURL at it, keep your own key. Requests get reduced losslessly
 before the provider sees them; responses come back byte-identical.
 

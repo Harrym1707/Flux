@@ -52,7 +52,7 @@ assuming a key matches the string your SDK sends.
 ## Usage
 
 ```ts
-import { publishedModelPrices, priceUsage, repriceUsage } from "@mesh-ai/core";
+import { publishedModelPrices, priceUsage, repriceUsage } from "@harrym1707/core";
 
 const cost = priceUsage(
   publishedModelPrices,

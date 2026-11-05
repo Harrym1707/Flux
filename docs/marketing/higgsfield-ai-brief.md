@@ -54,7 +54,7 @@ not a tone here, it is the product.
 ## 2. Objective & KPIs
 
 Primary objective: get qualified developers and founders to run the one-command
-pilot (`npx -y -p @mesh-ai/sdk mesh-proxy`) and quote themselves from their own
+pilot (`npx -y -p @harrym1707/sdk mesh-proxy`) and quote themselves from their own
 logs.
 
 North-star metric: **pilot starts** (proxy run or export submitted), tracked per

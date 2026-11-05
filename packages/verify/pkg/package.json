@@ -1,5 +1,5 @@
 {
-  "name": "@mesh-ai/verify",
+  "name": "@harrym1707/verify",
   "version": "0.1.0",
   "description": "Independently verify a MESH savings ledger: hash-chain verification and invoice recomputation, MIT-licensed, zero dependencies.",
   "license": "MIT",

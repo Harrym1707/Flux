@@ -1,10 +1,10 @@
 /**
- * Build the npm-pack-able @mesh-ai/sdk artifact.
+ * Build the npm-pack-able @harrym1707/sdk artifact.
  *
  *   node --import tsx scripts/build-sdk-package.ts
  *
  * Produces packages/sdk-js/pkg/ containing:
- *   - index.js  (ESM bundle, @mesh-ai/core inlined)
+ *   - index.js  (ESM bundle, @harrym1707/core inlined)
  *   - index.cjs (CJS bundle, same sources)
  *   - types/    (the package's .d.ts plus the core .d.ts it re-exports,
  *                with the workspace-relative core import rewritten)
@@ -266,7 +266,7 @@ const manifest = {
 writeFileSync(path.join(outDir, "package.json"), `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
 copyFileSync(path.join(root, "LICENSE"), path.join(outDir, "LICENSE"));
 
-writeFileSync(path.join(outDir, "README.md"), `# @mesh-ai/sdk
+writeFileSync(path.join(outDir, "README.md"), `# @harrym1707/sdk
 
 Cut LLM API costs on Claude (Anthropic), OpenAI, and OpenAI-compatible APIs.
 MESH reduces each request losslessly before it is sent and meters VERIFIED
@@ -293,7 +293,7 @@ numbers, lever names and hashes, not content.
 ## SDK mode: one line
 
 \`\`\`js
-import { withMesh } from "@mesh-ai/sdk"; // or require("@mesh-ai/sdk")
+import { withMesh } from "@harrym1707/sdk"; // or require("@harrym1707/sdk")
 
 const client = withMesh(anthropic, {
   applicationId: "my-app",

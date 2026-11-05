@@ -1,12 +1,12 @@
-# Publishes @mesh-ai/sdk AND @mesh-ai/mesh (the CLI users download) with npm
+# Publishes @harrym1707/sdk AND @harrym1707/mesh (the CLI users download) with npm
 # provenance: a cryptographic attestation that each tarball was built from this
 # public repo by this workflow — the direct answer to "you're asking me to pipe
 # my API key through an unaudited npx package." Uses OIDC trusted publishing (no
 # long-lived npm token to steal; the LiteLLM compromise was exactly that
 # credential class).
 #
-# One-time founder setup on npmjs.com, for EACH package (@mesh-ai/sdk and
-# @mesh-ai/mesh): package -> Settings -> Trusted Publisher -> GitHub Actions,
+# One-time founder setup on npmjs.com, for EACH package (@harrym1707/sdk and
+# @harrym1707/mesh): package -> Settings -> Trusted Publisher -> GitHub Actions,
 # repository Harrym1707/Mesh, workflow release.yml. Then publishing is: bump the
 # version, tag v<version>, push the tag.
 name: release

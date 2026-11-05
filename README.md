@@ -37,7 +37,7 @@ own recorded requests — a failed task voids its savings.
 ## Quick start: proxy mode (no code changes)
 
 ```bash
-npx -y -p @mesh-ai/sdk mesh-proxy
+npx -y -p @harrym1707/sdk mesh-proxy
 ```
 
 (Prefer building from source? `git clone https://github.com/Harrym1707/Mesh && cd Mesh`,
@@ -62,7 +62,7 @@ proves on your own traffic that quality held.
 ## Quick start: SDK mode (one line)
 
 ```js
-import { withMesh } from "@mesh-ai/sdk"; // npm install @mesh-ai/sdk
+import { withMesh } from "@harrym1707/sdk"; // npm install @harrym1707/sdk
 
 const client = withMesh(new Anthropic(), {
   applicationId: "my-app",
@@ -111,7 +111,7 @@ You are one file export away from a quote, including the honest
 "do not pay us" verdict:
 
 ```bash
-npx -y -p @mesh-ai/sdk mesh-quote your-export.jsonl --format litellm
+npx -y -p @harrym1707/sdk mesh-quote your-export.jsonl --format litellm
 ```
 
 ## Reproduce every number

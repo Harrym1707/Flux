@@ -11,7 +11,7 @@
  *                          the bootstrap checks and verifies against.
  *
  * Hosting: /mesh = bootstrap, /mesh-runtime = runtime, /mesh-version.json.
- * npm: @mesh-ai/mesh ships the self-contained runtime as its `mesh` bin (npm
+ * npm: @harrym1707/mesh ships the self-contained runtime as its `mesh` bin (npm
  * handles versioning there, so no bootstrap/CDN dependency on that path).
  *
  * Nothing here contacts a registry; it smoke-tests the runtime by running
@@ -78,7 +78,7 @@ writeFileSync(
 // npm manifest: ship the SELF-CONTAINED runtime as the `mesh` bin (npm versions
 // it, so no CDN/bootstrap there). The website download is the bootstrap.
 writeFileSync(path.join(outDir, "package.json"), `${JSON.stringify({
-  name: "@mesh-ai/mesh",
+  name: "@harrym1707/mesh",
   version,
   description: "Cut your LLM bill, verified on your own usage. One command points Claude Code at MESH and runs Theo alongside you.",
   type: "module",
@@ -107,7 +107,7 @@ curl -fsSL https://www.mesh-technology.com/mesh -o mesh && chmod +x mesh && ./me
 …or with npm:
 
 \`\`\`sh
-npx @mesh-ai/mesh start
+npx @harrym1707/mesh start
 \`\`\`
 
 ## Commands

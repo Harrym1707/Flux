@@ -68,7 +68,7 @@ th{background:var(--signal-soft);font-weight:700}
 ul{padding-left:1.2rem}
 li{margin:.3rem 0}
 footer{border-top:2px solid var(--signal);margin-top:3rem;padding-top:1rem;font-size:.85rem;color:var(--muted)}</style>
-<script type="application/ld+json">{"@context":"https://schema.org","@type":"HowTo","name":"Cut your LLM API bill with MESH in five minutes","description":"Run the MESH proxy with one npx command, point your app's baseURL at it, and recompute the verified-savings invoice yourself from the hash-chained ledger you hold.","totalTime":"PT5M","tool":[{"@type":"HowToTool","name":"@mesh-ai/sdk (npm)"}],"step":[{"@type":"HowToStep","name":"Run the proxy","text":"npx -y -p @mesh-ai/sdk mesh-proxy — starts a local proxy on http://127.0.0.1:8787 with a hash-chained ledger in ./mesh-ledger. No signup; your API key passes through and is never stored."},{"@type":"HowToStep","name":"Point your app at it","text":"Change one line: new Anthropic({ baseURL: \"http://127.0.0.1:8787\" }) or new OpenAI({ baseURL: \"http://127.0.0.1:8787/v1\" }). Any language and any OpenAI-compatible endpoint work."},{"@type":"HowToStep","name":"Run traffic as normal","text":"Responses return byte-identical, streaming included. Reduction is lossless-only by default; each request appends one hash-chained event recording usage numbers and lever names, never prompt content."},{"@type":"HowToStep","name":"Recompute the invoice yourself","text":"Use verifyLedgerChain and recomputeInvoice from @mesh-ai/sdk on your own ledger file. If MESH saved nothing the verdict reads do_not_charge. The fee is 1% of verified savings, monthly, nothing else."}]}</script>
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"HowTo","name":"Cut your LLM API bill with MESH in five minutes","description":"Run the MESH proxy with one npx command, point your app's baseURL at it, and recompute the verified-savings invoice yourself from the hash-chained ledger you hold.","totalTime":"PT5M","tool":[{"@type":"HowToTool","name":"@harrym1707/sdk (npm)"}],"step":[{"@type":"HowToStep","name":"Run the proxy","text":"npx -y -p @harrym1707/sdk mesh-proxy — starts a local proxy on http://127.0.0.1:8787 with a hash-chained ledger in ./mesh-ledger. No signup; your API key passes through and is never stored."},{"@type":"HowToStep","name":"Point your app at it","text":"Change one line: new Anthropic({ baseURL: \"http://127.0.0.1:8787\" }) or new OpenAI({ baseURL: \"http://127.0.0.1:8787/v1\" }). Any language and any OpenAI-compatible endpoint work."},{"@type":"HowToStep","name":"Run traffic as normal","text":"Responses return byte-identical, streaming included. Reduction is lossless-only by default; each request appends one hash-chained event recording usage numbers and lever names, never prompt content."},{"@type":"HowToStep","name":"Recompute the invoice yourself","text":"Use verifyLedgerChain and recomputeInvoice from @harrym1707/sdk on your own ledger file. If MESH saved nothing the verdict reads do_not_charge. The fee is 1% of verified savings, monthly, nothing else."}]}</script>
 </head>
 <body>
 <nav><a class="brand" href="index.html">mesh</a><span class="tagline">Less in. More out.</span><a href="index.html">Home</a><a href="start.html" class="active">Get started</a><a href="overview.html">Overview</a><a href="segments.html">Savings by segment</a><a href="methodology.html">Methodology</a><a href="evidence.html">Evidence</a><a href="comparison.html">Honest comparison</a><a href="faq.html">FAQ</a></nav>
@@ -82,15 +82,15 @@ footer{border-top:2px solid var(--signal);margin-top:3rem;padding-top:1rem;font-
 <pre class="block"><code>mesh start</code></pre>
 <p>That points Claude Code at MESH and runs <strong>Theo</strong> — your token engineer — alongside you. Use Claude Code exactly as normal; press Ctrl+C to stop and Claude Code reverts cleanly. Check your own verified number any time with <code>mesh verify</code>.</p>
 <p>The installer drops one tiny launcher that fetches and checksum-verifies the runtime; it never touches your API key. Read it first if you like: <code>curl -fsSL https://www.mesh-technology.com/install.sh | less</code>.</p>
-<p><strong>Other ways in:</strong> once <code>@mesh-ai/mesh</code> is published, <code>npx @mesh-ai/mesh start</code> works with no install. Or grab the launcher directly: <code>curl -fsSL https://www.mesh-technology.com/mesh -o mesh &amp;&amp; chmod +x mesh &amp;&amp; ./mesh start</code>.</p>
+<p><strong>Other ways in:</strong> once <code>@harrym1707/mesh</code> is published, <code>npx @harrym1707/mesh start</code> works with no install. Or grab the launcher directly: <code>curl -fsSL https://www.mesh-technology.com/mesh -o mesh &amp;&amp; chmod +x mesh &amp;&amp; ./mesh start</code>.</p>
 <p>The rest of this page is the manual setup for any other app or language.</p>
 <h2>Step 1 — run the proxy</h2>
 <p>One command, nothing to clone:</p>
-<pre class="block"><code>npx -y -p @mesh-ai/sdk mesh-proxy</code></pre>
+<pre class="block"><code>npx -y -p @harrym1707/sdk mesh-proxy</code></pre>
 <p>You'll see:</p>
 <pre class="block"><code>MESH proxy listening on http://127.0.0.1:8787
 Ledger spools: ./mesh-ledger</code></pre>
-<p>To switch on the Claude prompt-cache lever too (our single biggest measured saver, 37.9% on multi-turn traffic), start it as <code>MESH_PROXY_CACHE_TTL=5m npx -y -p @mesh-ai/sdk mesh-proxy</code>.</p>
+<p>To switch on the Claude prompt-cache lever too (our single biggest measured saver, 37.9% on multi-turn traffic), start it as <code>MESH_PROXY_CACHE_TTL=5m npx -y -p @harrym1707/sdk mesh-proxy</code>.</p>
 <h2>Step 2 — point your app at it</h2>
 <p>Change one line. Keep your own API key — MESH passes it through verbatim.</p>
 <pre class="block"><code>// Anthropic SDK
@@ -105,7 +105,7 @@ const openai = new OpenAI({ baseURL: &quot;http://127.0.0.1:8787/v1&quot; });</c
 <p>This is the part no other cost tool offers: the invoice is a pure function of a ledger file <strong>you</strong> hold. Verify the chain and recompute it with the same published package:</p>
 <pre class="block"><code>node -e '
 const { readFileSync } = require(&quot;node:fs&quot;);
-const { verifyLedgerChain, recomputeInvoice } = require(&quot;@mesh-ai/sdk&quot;);
+const { verifyLedgerChain, recomputeInvoice } = require(&quot;@harrym1707/sdk&quot;);
 const records = readFileSync(process.argv[1], &quot;utf8&quot;).trim().split(/\n/).map(JSON.parse);
 const chain = verifyLedgerChain(records);
 if (!chain.ok) throw new Error(&quot;chain broken at seq &quot; + chain.seq);
@@ -115,7 +115,7 @@ console.log(JSON.stringify(recomputeInvoice(records.map(r =&gt; r.event)), null,
 <p>If MESH saved you nothing, the verdict line literally reads <code>&quot;verdict&quot;: &quot;do_not_charge&quot;</code> — that is the honest outcome on traffic that is already lean, and we publish it as such.</p>
 <h2>Already measuring with LiteLLM, Helicone or Langfuse?</h2>
 <p>You don't need to route any traffic to get a quote. Export your existing logs and run them through the quote tool — the verdict can be &quot;do not pay us&quot;:</p>
-<pre class="block"><code>npx -y -p @mesh-ai/sdk mesh-quote your-export.jsonl --format litellm</code></pre>
+<pre class="block"><code>npx -y -p @harrym1707/sdk mesh-quote your-export.jsonl --format litellm</code></pre>
 <h2>What it costs</h2>
 <p><strong>1% of verified savings, monthly — nothing else.</strong> No subscription, no seats, no minimum. Savings are measured per completed task from the provider's own reported usage; a month that saved nothing bills nothing. The measurement rules are published in full in the <a href="methodology.html">methodology</a>, and every number we quote traces to a command and a commit on the <a href="evidence.html">evidence</a> page.</p>
 <h2>What MESH never does</h2>

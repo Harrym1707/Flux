@@ -116,7 +116,7 @@ export function buildStripeInvoicePlan(
   const description =
     `MESH fee — ${invoice.feePercent}% of $${(net - carryIn).toFixed(2)} net verified savings` +
     `${carryIn > 0 ? ` (after $${carryIn.toFixed(2)} deficit carried in)` : ""}, period ${period}. ` +
-    `Recompute: npx -y -p @mesh-ai/verify mesh-verify <your spool>. If your recomputation disagrees, yours wins.`;
+    `Recompute: npx -y -p @harrym1707/verify mesh-verify <your spool>. If your recomputation disagrees, yours wins.`;
 
   return {
     action: "bill",

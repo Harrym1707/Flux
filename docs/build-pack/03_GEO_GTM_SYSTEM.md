@@ -179,7 +179,7 @@ Core capabilities:
 - automatic rollback
 
 Primary SDK:
-@mesh-ai/sdk
+@harrym1707/sdk
 
 Website:
 mesh.[domain]

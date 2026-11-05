@@ -91,7 +91,7 @@ and buys the only thing a counterfactual biller can sell: being checkable.
 - The proxy's own cost: **~22ms p50** added per request, measurement script in
   the repo
 
-Try the whole loop without an API key (`npx -y -p @mesh-ai/sdk mesh-demo`
+Try the whole loop without an API key (`npx -y -p @harrym1707/sdk mesh-demo`
 runs proxy → ledger → independent recompute against a local stub in ten
 seconds), or the real thing with your own key and one baseURL change.
 Everything above traces to a runnable command: https://www.mesh-technology.com/evidence.html

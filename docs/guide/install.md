@@ -54,14 +54,14 @@ and no changes to your PATH or shell profile — the best route for agents, CI
 jobs, containers and Windows:
 
 ```bash
-npx @mesh-ai/mesh start
+npx @harrym1707/mesh start
 ```
 
 For a headless setup that wires nothing up for you, start the proxy without
 touching Claude Code's config and point your client at it yourself:
 
 ```bash
-npx @mesh-ai/mesh start --no-install     # prints the proxy URL
+npx @harrym1707/mesh start --no-install     # prints the proxy URL
 # then set ANTHROPIC_BASE_URL=http://127.0.0.1:8787 in your environment
 ```
 

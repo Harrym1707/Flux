@@ -24,7 +24,7 @@ Load the reviewed policy into your SDK setup. Define `classify` using cheap, tru
 
 ```ts
 import { readFile } from "node:fs/promises";
-import type { MeshRoutingPolicy } from "@mesh-ai/sdk";
+import type { MeshRoutingPolicy } from "@harrym1707/sdk";
 
 const routingPolicy = JSON.parse(
   await readFile("mesh-routing-policy.json", "utf8"),

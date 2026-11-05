@@ -1,6 +1,6 @@
 # GEO visibility metrics
 
-MESH can aggregate manually collected answer-engine observations with the helper exported from `@mesh-ai/core` as `calculateGeoVisibilityMetrics`. The helper only calculates rates; it does not query answer engines or imply that a result is stable across prompts or dates.
+MESH can aggregate manually collected answer-engine observations with the helper exported from `@harrym1707/core` as `calculateGeoVisibilityMetrics`. The helper only calculates rates; it does not query answer engines or imply that a result is stable across prompts or dates.
 
 - Mention, citation and link rates use all observations as the denominator.
 - Correct-description and category-association rates use only observations where MESH was mentioned.

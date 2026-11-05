@@ -22,7 +22,7 @@ cache traffic. The cache just… wasn't on, because nobody turns it on.
 
 So I built mesh — a local proxy. One command, no signup:
 
-    npx -y -p @mesh-ai/sdk mesh-proxy
+    npx -y -p @harrym1707/sdk mesh-proxy
 
 (or read the source first: github.com/Harrym1707/Mesh — it's your API key
 going through it, you should.)

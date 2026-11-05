@@ -73,7 +73,7 @@ The SDK capture is off by default. It stores prompt/response content only if `ev
 
 ```ts
 import { createHash } from "node:crypto";
-import { createLocalJsonlCapture, withMesh } from "@mesh-ai/sdk";
+import { createLocalJsonlCapture, withMesh } from "@harrym1707/sdk";
 
 const fixtureMetadata = new WeakMap<object, { caseId: string; groupId: string; expected: unknown }>();
 function registerFixture(request: object, caseId: string, expected: unknown, normalizedInput: string) {

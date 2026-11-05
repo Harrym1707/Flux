@@ -1,5 +1,5 @@
 /**
- * @mesh-ai/verify — the verification half of MESH, under MIT.
+ * @harrym1707/verify — the verification half of MESH, under MIT.
  *
  * An honesty claim you cannot independently check is worthless, so the tools
  * that CHECK MESH's numbers are deliberately licensed apart from the product:

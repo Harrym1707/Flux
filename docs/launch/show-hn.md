@@ -29,7 +29,7 @@ and it's a lot of money nobody meant to spend.
 
 Mesh is a local proxy. One command, no signup, no account:
 
-    npx -y -p @mesh-ai/sdk mesh-proxy
+    npx -y -p @harrym1707/sdk mesh-proxy
 
 Point your client's baseURL at it (`http://127.0.0.1:8787`) and keep your own
 API key — it passes through verbatim and is never stored. Requests are

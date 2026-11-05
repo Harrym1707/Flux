@@ -499,7 +499,7 @@ Ideal integration:
 
 ``` ts
 import OpenAI from "openai";
-import { withMesh } from "@mesh-ai/sdk";
+import { withMesh } from "@harrym1707/sdk";
 
 const openai = withMesh(new OpenAI());
 

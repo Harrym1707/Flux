@@ -261,12 +261,12 @@ function startJsonLd(): string {
     name: "Cut your LLM API bill with MESH in five minutes",
     description: "Run the MESH proxy with one npx command, point your app's baseURL at it, and recompute the verified-savings invoice yourself from the hash-chained ledger you hold.",
     totalTime: "PT5M",
-    tool: [{ "@type": "HowToTool", name: "@mesh-ai/sdk (npm)" }],
+    tool: [{ "@type": "HowToTool", name: "@harrym1707/sdk (npm)" }],
     step: [
-      { "@type": "HowToStep", name: "Run the proxy", text: "npx -y -p @mesh-ai/sdk mesh-proxy — starts a local proxy on http://127.0.0.1:8787 with a hash-chained ledger in ./mesh-ledger. No signup; your API key passes through and is never stored." },
+      { "@type": "HowToStep", name: "Run the proxy", text: "npx -y -p @harrym1707/sdk mesh-proxy — starts a local proxy on http://127.0.0.1:8787 with a hash-chained ledger in ./mesh-ledger. No signup; your API key passes through and is never stored." },
       { "@type": "HowToStep", name: "Point your app at it", text: "Change one line: new Anthropic({ baseURL: \"http://127.0.0.1:8787\" }) or new OpenAI({ baseURL: \"http://127.0.0.1:8787/v1\" }). Any language and any OpenAI-compatible endpoint work." },
       { "@type": "HowToStep", name: "Run traffic as normal", text: "Responses return byte-identical, streaming included. Reduction is lossless-only by default; each request appends one hash-chained event recording usage numbers and lever names, never prompt content." },
-      { "@type": "HowToStep", name: "Recompute the invoice yourself", text: "Use verifyLedgerChain and recomputeInvoice from @mesh-ai/sdk on your own ledger file. If MESH saved nothing the verdict reads do_not_charge. The fee is 1% of verified savings, monthly, nothing else." },
+      { "@type": "HowToStep", name: "Recompute the invoice yourself", text: "Use verifyLedgerChain and recomputeInvoice from @harrym1707/sdk on your own ledger file. If MESH saved nothing the verdict reads do_not_charge. The fee is 1% of verified savings, monthly, nothing else." },
     ],
   };
   return `<script type="application/ld+json">${JSON.stringify(data)}</script>\n`;
@@ -341,7 +341,7 @@ for (const [marker, why] of [
   ["A smaller AI bill", "hero promise missing"],
   ['id="install"', "install section missing"],
   ["install.sh | sh", "install command missing"],
-  ["npx -y -p @mesh-ai/sdk mesh-proxy", "the install command missing"],
+  ["npx -y -p @harrym1707/sdk mesh-proxy", "the install command missing"],
   ["do not pay us", "the do-not-pay-us admission missing"],
   ["evidence.html", "evidence link missing"],
   ["SoftwareApplication", "structured data missing"],
@@ -378,7 +378,7 @@ const llmsFull = readFileSync(path.join(outDir, "llms-full.txt"), "utf8");
 if (llmsFull.length < 5000 || !llmsFull.includes("37.9%")) failures.push("llms-full.txt: missing or missing the numbers");
 if (!landing.includes('property="og:title"')) failures.push("index.html: missing OpenGraph metadata");
 const startHtml = readFileSync(path.join(outDir, "start.html"), "utf8");
-if (!startHtml.includes("npx -y -p @mesh-ai/sdk mesh-proxy")) failures.push("start.html: install command missing");
+if (!startHtml.includes("npx -y -p @harrym1707/sdk mesh-proxy")) failures.push("start.html: install command missing");
 if (!startHtml.includes('"@type":"HowTo"')) failures.push("start.html: HowTo structured data missing");
 if (!startHtml.includes("do_not_charge")) failures.push("start.html: the honest verdict missing");
 const faqHtml = readFileSync(path.join(outDir, "faq.html"), "utf8");
