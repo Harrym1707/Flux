@@ -27,6 +27,8 @@ import {
   type WorkloadSegment,
   type TokenPrice,
 } from "../packages/core/src/index.js";
+import { reduceRequest } from "../packages/sdk-js/src/index.js";
+import { sampleCodingWorkload } from "./theo-loop.js";
 
 // Catalogued Claude Sonnet 5.5 rate (USD / million tokens).
 const PRICE: TokenPrice = {
@@ -99,27 +101,62 @@ function median(xs: number[]): number {
   return s.length % 2 ? s[m]! : (s[m - 1]! + s[m]!) / 2;
 }
 
+const LOSSLESS = { toolSchemas: true as const, duplicateContext: true as const, repairCachePrefix: true as const };
+
+/** Measure answer-equivalence of the AUTO (lossless) reduction on a real sample:
+ *  the live-now config must apply only lossless changes — anything else can move
+ *  an answer and is a safety failure the loop must fix. Also returns the MEASURED
+ *  auto-safe %, a cross-check on the coverage model's projection. */
+function measureEquivalence(): { workload: string; samples: number; allLossless: boolean; measuredAutoSafePct: number; lossyLeaks: string[] } {
+  const samples = sampleCodingWorkload();
+  let before = 0;
+  let saved = 0;
+  const lossyLeaks: string[] = [];
+  for (const s of samples) {
+    const r = reduceRequest(s.request, LOSSLESS);
+    before += r.summary.estimatedTokensBefore;
+    saved += r.summary.estimatedLosslessTokensSaved;
+    for (const c of r.summary.changes) if (!c.lossless) lossyLeaks.push(c.lever);
+  }
+  return {
+    workload: "coding-agent",
+    samples: samples.length,
+    allLossless: lossyLeaks.length === 0,
+    measuredAutoSafePct: before > 0 ? Number(((saved / before) * 100).toFixed(2)) : 0,
+    lossyLeaks: [...new Set(lossyLeaks)],
+  };
+}
+
 function main(): void {
   const rows = CORPUS.map(scoreWorkload);
   const withWaste = rows.filter((r) => r.autoSafePct + r.gatedUpsidePct + r.uncapturedPct >= 1);
   const dormant = rows.filter((r) => r.status === "DORMANT");
 
+  const equiv = measureEquivalence();
   const composite = {
     corpusSize: rows.length,
     medianAutoSafePct: Number(median(withWaste.map((r) => r.autoSafePct)).toFixed(2)),
     medianRealisablePct: Number(median(withWaste.map((r) => r.autoSafePct + r.gatedUpsidePct)).toFixed(2)),
     dormantCount: dormant.length,
-    answerEquivalenceMeasured: false, // iteration 0: not yet wired
+    answerEquivalenceMeasured: true,
+    answerEquivalence: {
+      measuredWorkloads: 1,
+      ofCorpus: rows.length,
+      allLossless: equiv.allLossless,
+      measuredAutoSafePct: equiv.measuredAutoSafePct,
+      lossyLeaks: equiv.lossyLeaks,
+    },
   };
 
   // Blockers vs the done-criteria.
   const blockers: string[] = [];
-  if (!composite.answerEquivalenceMeasured) blockers.push("SAFETY: answer-equivalence not measured yet (wire a replay quality check across the corpus)");
+  if (!equiv.allLossless) blockers.push(`SAFETY FAILURE: the auto (live-now) config applied lossy lever(s) on coding-agent — ${equiv.lossyLeaks.join(", ")}`);
+  else blockers.push(`SAFETY: answer-equivalence verified on coding-agent (auto reduction 100% lossless, measured ${equiv.measuredAutoSafePct}%); extend to the other ${rows.length - 1} workloads`);
   if (composite.corpusSize < 8) blockers.push(`CORPUS: only ${composite.corpusSize}/8 workload types`);
   if (composite.dormantCount > 0) blockers.push(`DORMANCY: ${composite.dormantCount} workload(s) with uncaptured waste and no saving — ${dormant.map((d) => d.workload).join(", ")}`);
   blockers.push("AUTONOMY: pipeline not yet wired to run on a real ledger spool unattended");
 
-  const result = { iteration: 1, timestamp: new Date().toISOString(), composite, workloads: rows, blockers };
+  const result = { iteration: 2, timestamp: new Date().toISOString(), composite, workloads: rows, blockers };
   writeFileSync("evals/results/theo-readiness.json", `${JSON.stringify(result, null, 2)}\n`, "utf8");
 
   const pct = (n: number): string => `${n >= 0 ? "" : ""}${n.toFixed(1)}%`;
@@ -133,6 +170,11 @@ function main(): void {
   console.log(
     `\ncorpus ${composite.corpusSize} · median auto-safe ${pct(composite.medianAutoSafePct)} · ` +
       `median realisable ${pct(composite.medianRealisablePct)} · dormant ${composite.dormantCount}`,
+  );
+  console.log(
+    `answer-equivalence (coding-agent, ${equiv.samples} samples): ` +
+      `${equiv.allLossless ? "all-lossless ✓" : `LOSSY LEAK ✗ ${equiv.lossyLeaks.join(", ")}`} · ` +
+      `measured auto-safe ${equiv.measuredAutoSafePct}%`,
   );
   console.log("\nBlockers to ready:");
   for (const b of blockers) console.log(`  - ${b}`);

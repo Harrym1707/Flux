@@ -1,12 +1,19 @@
 {
-  "iteration": 1,
-  "timestamp": "2026-11-05T21:47:48.799Z",
+  "iteration": 2,
+  "timestamp": "2026-11-05T22:12:14.303Z",
   "composite": {
     "corpusSize": 9,
     "medianAutoSafePct": 6.75,
     "medianRealisablePct": 60.07,
     "dormantCount": 0,
-    "answerEquivalenceMeasured": false
+    "answerEquivalenceMeasured": true,
+    "answerEquivalence": {
+      "measuredWorkloads": 1,
+      "ofCorpus": 9,
+      "allLossless": true,
+      "measuredAutoSafePct": 6.12,
+      "lossyLeaks": []
+    }
   },
   "workloads": [
     {
@@ -110,7 +117,7 @@
     }
   ],
   "blockers": [
-    "SAFETY: answer-equivalence not measured yet (wire a replay quality check across the corpus)",
+    "SAFETY: answer-equivalence verified on coding-agent (auto reduction 100% lossless, measured 6.12%); extend to the other 8 workloads",
     "AUTONOMY: pipeline not yet wired to run on a real ledger spool unattended"
   ]
 }

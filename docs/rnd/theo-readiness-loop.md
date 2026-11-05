@@ -58,3 +58,14 @@ Lead for next: `batch-classifier`, `already-lean`, `translation` all show ~0%
 auto-safe but large gated upside — lossless levers don't bite without structural
 redundancy, so their *safe* savings hinge entirely on the gate. The top remaining
 blocker is now SAFETY: wire an answer-equivalence measurement across the corpus.
+
+### Iteration 2 — wire the answer-equivalence (safety) measurement
+Hypothesis: safety was *asserted*, not *measured* — the top blocker. Wire it: run
+the real lossless reducer (`reduceRequest`) on the coding-agent sample and assert
+the auto / live-now config applies **only** lossless changes (a lossy change
+leaking into the auto path = safety failure the loop must catch).
+Delta: **all-lossless ✓** across 8 samples; measured auto-safe 6.12% (vs 7.0%
+projected — a sane reducer-vs-model cross-check). Safety now *verified* on 1/9
+workloads; no regression (corpus 9, dormant 0). **Kept.**
+Next: extend answer-equivalence to the other 8 workloads (needs a per-profile
+request synthesiser), then the AUTONOMY blocker (run on a real ledger spool).
