@@ -1,10 +1,10 @@
 {
-  "iteration": 0,
-  "timestamp": "2026-11-05T21:24:22.211Z",
+  "iteration": 1,
+  "timestamp": "2026-11-05T21:47:48.799Z",
   "composite": {
-    "corpusSize": 5,
-    "medianAutoSafePct": 5.96,
-    "medianRealisablePct": 57.89,
+    "corpusSize": 9,
+    "medianAutoSafePct": 6.75,
+    "medianRealisablePct": 60.07,
     "dormantCount": 0,
     "answerEquivalenceMeasured": false
   },
@@ -63,11 +63,54 @@
       "applied": 1,
       "uncapturedPct": 0,
       "status": "needs-gate"
+    },
+    {
+      "workload": "long-context-summarize",
+      "baselineUsd": 0.36719999999999997,
+      "autoSafePct": 8.33333333333334,
+      "gatedUpsidePct": 67.69607843137254,
+      "coveragePct": 100,
+      "applicable": 5,
+      "applied": 5,
+      "uncapturedPct": 0,
+      "status": "saving"
+    },
+    {
+      "workload": "tool-heavy-agent",
+      "baselineUsd": 0.16008,
+      "autoSafePct": 23.450074962518762,
+      "gatedUpsidePct": 57.02248875562216,
+      "coveragePct": 77.77777777777779,
+      "applicable": 9,
+      "applied": 7,
+      "uncapturedPct": 95.59970014992504,
+      "status": "saving"
+    },
+    {
+      "workload": "chatbot-memory",
+      "baselineUsd": 0.3556,
+      "autoSafePct": 6.749156355455574,
+      "gatedUpsidePct": 53.318335208098986,
+      "coveragePct": 100,
+      "applicable": 4,
+      "applied": 4,
+      "uncapturedPct": 0,
+      "status": "saving"
+    },
+    {
+      "workload": "translation",
+      "baselineUsd": 0.25099999999999995,
+      "autoSafePct": 0,
+      "gatedUpsidePct": 49.00398406374501,
+      "coveragePct": 100,
+      "applicable": 1,
+      "applied": 1,
+      "uncapturedPct": 0,
+      "status": "needs-gate"
     }
   ],
   "blockers": [
     "SAFETY: answer-equivalence not measured yet (wire a replay quality check across the corpus)",
-    "CORPUS: only 5/8 workload types",
     "AUTONOMY: pipeline not yet wired to run on a real ledger spool unattended"
   ]
 }

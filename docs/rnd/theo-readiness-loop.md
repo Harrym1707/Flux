@@ -47,3 +47,14 @@ corpus. Baseline numbers and the first blockers are recorded in
 `evals/results/theo-readiness.json`. No Theo logic changed yet — this iteration
 only makes "ready" measurable. See the next iterations for the first
 reward-driven improvements.
+
+### Iteration 1 — corpus 5 → 9 (clear the CORPUS blocker)
+Hypothesis: a bigger, more diverse corpus clears the `CORPUS 5/8` blocker and
+surfaces more behaviour for later iterations. Added `long-context-summarize`,
+`tool-heavy-agent`, `chatbot-memory`, `translation`.
+Delta: corpus 5→9 · median auto-safe 5.96%→6.8% · median realisable
+57.89%→60.1% · dormant 0 · no safety regression. **Kept.**
+Lead for next: `batch-classifier`, `already-lean`, `translation` all show ~0%
+auto-safe but large gated upside — lossless levers don't bite without structural
+redundancy, so their *safe* savings hinge entirely on the gate. The top remaining
+blocker is now SAFETY: wire an answer-equivalence measurement across the corpus.

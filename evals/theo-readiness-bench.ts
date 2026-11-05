@@ -48,6 +48,10 @@ const CORPUS: WorkloadProfile[] = [
   profile("support-chat", 30, { toolSchemas: 150, systemPrompt: 500, history: 1800, userTurn: 50, output: 180 }, ["systemPrompt", "toolSchemas"]),
   profile("batch-classifier", 50, { systemPrompt: 400, userTurn: 300, output: 20 }, ["systemPrompt"]),
   profile("already-lean", 10, { systemPrompt: 80, userTurn: 60, output: 120 }, []),
+  profile("long-context-summarize", 15, { systemPrompt: 250, retrievedContext: 9000, history: 1200, userTurn: 40, output: 350 }, ["systemPrompt"]),
+  profile("tool-heavy-agent", 12, { toolSchemas: 3200, systemPrompt: 400, history: 1500, userTurn: 70, output: 300 }, ["toolSchemas", "systemPrompt"]),
+  profile("chatbot-memory", 40, { systemPrompt: 600, history: 3000, userTurn: 45, output: 160 }, ["systemPrompt"]),
+  profile("translation", 25, { systemPrompt: 120, userTurn: 800, output: 820 }, ["systemPrompt"]),
 ];
 
 type Row = {
@@ -115,7 +119,7 @@ function main(): void {
   if (composite.dormantCount > 0) blockers.push(`DORMANCY: ${composite.dormantCount} workload(s) with uncaptured waste and no saving — ${dormant.map((d) => d.workload).join(", ")}`);
   blockers.push("AUTONOMY: pipeline not yet wired to run on a real ledger spool unattended");
 
-  const result = { iteration: 0, timestamp: new Date().toISOString(), composite, workloads: rows, blockers };
+  const result = { iteration: 1, timestamp: new Date().toISOString(), composite, workloads: rows, blockers };
   writeFileSync("evals/results/theo-readiness.json", `${JSON.stringify(result, null, 2)}\n`, "utf8");
 
   const pct = (n: number): string => `${n >= 0 ? "" : ""}${n.toFixed(1)}%`;
