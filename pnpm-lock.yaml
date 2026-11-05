@@ -11,7 +11,7 @@ importers:
 
   .:
     dependencies:
-      '@flux-ai/sdk':
+      '@mesh-ai/sdk':
         specifier: workspace:*
         version: link:packages/sdk-js
       openai:
