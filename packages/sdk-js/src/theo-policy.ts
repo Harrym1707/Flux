@@ -114,6 +114,13 @@ function applyLever(config: MeshTokenReductionConfig, lever: TheoLever): void {
     case "output-effort-max":
       config.outputEffort = lever.lever.replace("output-effort-", "") as MeshOutputEffort;
       return;
+    case "tool-search-defer":
+      config.toolSearch = {
+        ...(p.variant === "regex" || p.variant === "bm25" ? { variant: p.variant } : {}),
+        ...(typeof p.residentTools === "number" ? { residentTools: p.residentTools } : {}),
+        ...(typeof p.minTools === "number" ? { minTools: p.minTools } : {}),
+      };
+      return;
     default:
       return; // unknown lever id: ignore, never guess.
   }
@@ -192,6 +199,7 @@ export function knownLeverIds(): string[] {
     "fresh-tool-result-cap", "output-cap", "execution-tier-flex",
     "cache-ttl-5m", "cache-ttl-1h",
     "output-effort-low", "output-effort-medium", "output-effort-high", "output-effort-xhigh", "output-effort-max",
+    "tool-search-defer",
   ];
 }
 
@@ -220,6 +228,7 @@ export const ENFORCEABLE_LEVERS: readonly EnforceableLever[] = [
     label: "Output effort",
     members: ["output-effort-low", "output-effort-medium", "output-effort-high", "output-effort-xhigh", "output-effort-max"],
   },
+  { id: "tool-search-defer", label: "Tool Search deferral", members: ["tool-search-defer"] },
 ];
 
 /**
