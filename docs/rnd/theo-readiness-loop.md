@@ -84,3 +84,31 @@ for rag-docqa / long-context-summarize / chatbot-memory, while the coverage
 a real dedup/cache signal (likely — repeated whole messages may not dedup) or the
 model over-projects lossless savings. Reconcile reducer-vs-model before trusting
 the projection. Remaining hard blocker: AUTONOMY (run on a real ledger spool).
+
+### Iteration 4 — reconcile reducer-vs-model; report REALISED vs projected auto-safe
+Hypothesis (from iteration 3's lead): the auto-safe headline was the coverage
+*model's* projection, not what the shipping lossless reducer actually removes.
+Root cause found: the model credits `duplicate-context-removal` as a flat 10%
+*deterministic* saving on any workload with `history`/`retrievedContext`, but the
+shipping reducer's lossless dedup (`dedupeRepeatedBlocks`) only removes exact
+blocks repeated *within one message body* — it never compares across turns. So
+cross-turn redundancy (repeated memory / re-sent context) is modelled as auto-safe
+while the code can only remove it *lossily* (the gated `cross-turn-memory-dedup`).
+Change: the bench now plants duplication in the shape the lossless reducer can
+actually catch (one exact overlapping chunk *inside* the retrieved-context
+message; history left as distinct turns), measures auto-safe through the real
+reducer per workload, and reports **realised** (reducer) alongside **projected**
+(model), raising a SAVINGS blocker wherever projected − realised > 2pts.
+Delta: median auto-safe **realised 0.9%** vs model-projected 6.8% — the honest
+number is far lower. Over-projection confirmed on support-chat (6.0%→0.9%),
+tool-heavy-agent (23.5%→6.5%), chatbot-memory (6.7%→0.0%). coding-agent realised
+6.1% vs projected 7.0% (real sample, close). Safety held (all 9 lossless ✓),
+dormant 0, corpus 9, tests 523/523. **Kept** — a lower-but-true headline is the
+reward improving (honesty gate), and it surfaced a real over-projection.
+Caveat: realised % for rag-docqa/long-context (20%+) is driven by the synthesiser's
+chosen overlap geometry, not a claim about real traffic — only the cross-turn
+over-projection and coding-agent's real sample are load-bearing here.
+Lead for next: the auto-safe (lossless) tier is genuinely small; Mesh's value sits
+in the GATED tier (median realisable ~60%). The next blocker is to *prove the
+gated savings by replay* — verify the lossy levers hold answer-equivalence on real
+output — and then AUTONOMY (run the pipeline on a real ledger spool unattended).

@@ -1,9 +1,10 @@
 {
-  "iteration": 3,
-  "timestamp": "2026-11-05T22:35:07.069Z",
+  "iteration": 4,
+  "timestamp": "2026-11-06T18:19:21.785Z",
   "composite": {
     "corpusSize": 9,
-    "medianAutoSafePct": 6.75,
+    "realisedMedianAutoSafePct": 0.88,
+    "projectedMedianAutoSafePct": 6.75,
     "medianRealisablePct": 60.07,
     "dormantCount": 0,
     "answerEquivalenceMeasured": true,
@@ -12,7 +13,24 @@
       "ofCorpus": 9,
       "allLossless": true,
       "workloadsWithLeak": []
-    }
+    },
+    "autoSafeOverProjection": [
+      {
+        "workload": "support-chat",
+        "projected": 5.955882352941173,
+        "realised": 0.88
+      },
+      {
+        "workload": "tool-heavy-agent",
+        "projected": 23.450074962518762,
+        "realised": 6.47
+      },
+      {
+        "workload": "chatbot-memory",
+        "projected": 6.749156355455574,
+        "realised": 0
+      }
+    ]
   },
   "workloads": [
     {
@@ -117,6 +135,7 @@
   ],
   "blockers": [
     "SAFETY: answer-equivalence verified across all 9 workloads (auto reduction 100% lossless)",
+    "SAVINGS: model over-projects auto-safe on 3 workload(s) — support-chat (model 6.0% vs reducer 0.9%), tool-heavy-agent (model 23.5% vs reducer 6.5%), chatbot-memory (model 6.7% vs reducer 0.0%). duplicate-context-removal is credited as deterministic on cross-turn redundancy the shipping lossless reducer only removes WITHIN one message; cross-turn dedup is lossy/gated.",
     "AUTONOMY: pipeline not yet wired to run on a real ledger spool unattended"
   ],
   "equivalence": [
@@ -129,13 +148,13 @@
     {
       "workload": "rag-docqa",
       "allLossless": true,
-      "measuredAutoSafePct": 0,
+      "measuredAutoSafePct": 20.84,
       "lossyLeaks": []
     },
     {
       "workload": "support-chat",
       "allLossless": true,
-      "measuredAutoSafePct": 0.44,
+      "measuredAutoSafePct": 0.88,
       "lossyLeaks": []
     },
     {
@@ -153,13 +172,13 @@
     {
       "workload": "long-context-summarize",
       "allLossless": true,
-      "measuredAutoSafePct": 0,
+      "measuredAutoSafePct": 20.73,
       "lossyLeaks": []
     },
     {
       "workload": "tool-heavy-agent",
       "allLossless": true,
-      "measuredAutoSafePct": 3.38,
+      "measuredAutoSafePct": 6.47,
       "lossyLeaks": []
     },
     {

@@ -114,9 +114,17 @@ function sized(unit: string, tok: number): string {
   return s.slice(0, target);
 }
 
-/** Synthesise a representative request that exercises a profile's structure:
- *  verbose tool schemas (schema compaction), a verbatim block re-sent each turn
- *  (duplicate-context dedup), a stable system+tools prefix (cache repair). */
+/** Synthesise a representative request that exercises a profile's structure.
+ *
+ *  The redundancy is planted in the exact shape the shipping *lossless* reducer
+ *  can catch: `duplicate-context-removal` runs `dedupeRepeatedBlocks` over ONE
+ *  message body at a time, so the only duplication it removes without changing
+ *  meaning is an exact block repeated *within* a single message — the lever's
+ *  own documented case, "overlapping retrieval chunks". We plant exactly one
+ *  such overlap in the retrieved-context message and nowhere else. Cross-turn
+ *  memory redundancy (repeated whole turns in `history`) is deliberately left
+ *  as distinct turns: the reducer cannot remove it losslessly, so crediting it
+ *  to the auto path would be dishonest — that is the gated, lossy lever's job. */
 function requestFor(p: WorkloadProfile): Record<string, unknown> {
   const s = p.segments;
   const toolCount = s.toolSchemas > 0 ? Math.max(1, Math.round(s.toolSchemas / 350)) : 0;
@@ -134,13 +142,21 @@ function requestFor(p: WorkloadProfile): Record<string, unknown> {
     },
   }));
   const system = sized("You are a careful, precise assistant. ", s.systemPrompt);
-  const dupBlock = sized("reference block alpha; records nominal; ", Math.min(Math.max(s.history, s.retrievedContext), 900));
   const messages: Array<Record<string, unknown>> = [];
   const turns = Math.min(6, Math.max(1, p.requests));
   for (let t = 0; t < turns; t += 1) {
     messages.push({ role: "user", content: sized(`step ${t}: continue. `, s.userTurn) });
-    if (s.history > 0) messages.push({ role: "assistant", content: dupBlock });
-    if (s.retrievedContext > 0) messages.push({ role: "tool", content: dupBlock });
+    // Distinct history turns — no within-message duplicate to catch losslessly.
+    if (s.history > 0) messages.push({ role: "assistant", content: sized(`turn ${t} notes: `, Math.round(s.history / turns)) });
+  }
+  if (s.retrievedContext > 0) {
+    // Retrieved context as chunks, with ONE exact overlap (chunk A re-appears).
+    const chunkTok = Math.max(60, Math.round(s.retrievedContext / 5));
+    const chunkA = sized("retrieved passage A: facts, figures, provenance; ", chunkTok);
+    const chunkB = sized("retrieved passage B: unrelated background notes; ", chunkTok);
+    const chunkC = sized("retrieved passage C: supporting detail and caveats; ", chunkTok);
+    const context = [chunkA, chunkB, chunkA, chunkC].join("\n\n");
+    messages.push({ role: "user", content: context });
   }
   return { model: "claude-sonnet-5-5", max_tokens: Math.max(16, s.output), system, tools, messages };
 }
@@ -175,11 +191,25 @@ function main(): void {
   const dormant = rows.filter((r) => r.status === "DORMANT");
 
   const equivRows = CORPUS.map(equivalenceFor);
+  const equivByName = new Map(equivRows.map((e) => [e.workload, e]));
   const equivLeaks = equivRows.filter((e) => !e.allLossless);
   const equivAllLossless = equivLeaks.length === 0;
+
+  // Realised (what the shipping lossless reducer actually removes) vs projected
+  // (what the coverage model assumes). The done-criteria gate on REALISED; the
+  // projection is kept only to surface where the model gets ahead of the code.
+  const realisedOf = (name: string): number => equivByName.get(name)?.measuredAutoSafePct ?? 0;
+  const GAP_TOLERANCE = 2; // percentage points
+  const overProjected = rows
+    .map((r) => ({ workload: r.workload, projected: r.autoSafePct, realised: realisedOf(r.workload) }))
+    .filter((g) => g.projected >= 1 && g.projected - g.realised > GAP_TOLERANCE);
+
   const composite = {
     corpusSize: rows.length,
-    medianAutoSafePct: Number(median(withWaste.map((r) => r.autoSafePct)).toFixed(2)),
+    // Auto-safe, measured on the real lossless reducer — the honest headline.
+    realisedMedianAutoSafePct: Number(median(withWaste.map((r) => realisedOf(r.workload))).toFixed(2)),
+    // Auto-safe the coverage model projects (assumption-based; may exceed realised).
+    projectedMedianAutoSafePct: Number(median(withWaste.map((r) => r.autoSafePct)).toFixed(2)),
     medianRealisablePct: Number(median(withWaste.map((r) => r.autoSafePct + r.gatedUpsidePct)).toFixed(2)),
     dormantCount: dormant.length,
     answerEquivalenceMeasured: true,
@@ -189,6 +219,7 @@ function main(): void {
       allLossless: equivAllLossless,
       workloadsWithLeak: equivLeaks.map((e) => e.workload),
     },
+    autoSafeOverProjection: overProjected,
   };
 
   // Blockers vs the done-criteria.
@@ -197,22 +228,29 @@ function main(): void {
   else blockers.push(`SAFETY: answer-equivalence verified across all ${equivRows.length} workloads (auto reduction 100% lossless)`);
   if (composite.corpusSize < 8) blockers.push(`CORPUS: only ${composite.corpusSize}/8 workload types`);
   if (composite.dormantCount > 0) blockers.push(`DORMANCY: ${composite.dormantCount} workload(s) with uncaptured waste and no saving — ${dormant.map((d) => d.workload).join(", ")}`);
+  if (overProjected.length > 0) {
+    blockers.push(
+      `SAVINGS: model over-projects auto-safe on ${overProjected.length} workload(s) — ` +
+        `${overProjected.map((g) => `${g.workload} (model ${g.projected.toFixed(1)}% vs reducer ${g.realised.toFixed(1)}%)`).join(", ")}. ` +
+        "duplicate-context-removal is credited as deterministic on cross-turn redundancy the shipping lossless reducer only removes WITHIN one message; cross-turn dedup is lossy/gated.",
+    );
+  }
   blockers.push("AUTONOMY: pipeline not yet wired to run on a real ledger spool unattended");
 
-  const result = { iteration: 3, timestamp: new Date().toISOString(), composite, workloads: rows, blockers, equivalence: equivRows };
+  const result = { iteration: 4, timestamp: new Date().toISOString(), composite, workloads: rows, blockers, equivalence: equivRows };
   writeFileSync("evals/results/theo-readiness.json", `${JSON.stringify(result, null, 2)}\n`, "utf8");
 
   const pct = (n: number): string => `${n >= 0 ? "" : ""}${n.toFixed(1)}%`;
   console.log("=== THEO READINESS BENCHMARK ===\n");
-  console.log("workload           base$     auto-safe  gated   coverage   status");
+  console.log("workload           base$    realised  projected  gated   coverage   status");
   for (const r of rows) {
     console.log(
-      `${r.workload.padEnd(18)} ${r.baselineUsd.toFixed(4).padStart(8)}  ${pct(r.autoSafePct).padStart(8)}  ${pct(r.gatedUpsidePct).padStart(6)}  ${`${r.applied}/${r.applicable} ${pct(r.coveragePct)}`.padStart(12)}   ${r.status}`,
+      `${r.workload.padEnd(18)} ${r.baselineUsd.toFixed(4).padStart(8)}  ${pct(realisedOf(r.workload)).padStart(7)}  ${pct(r.autoSafePct).padStart(8)}  ${pct(r.gatedUpsidePct).padStart(6)}  ${`${r.applied}/${r.applicable} ${pct(r.coveragePct)}`.padStart(12)}   ${r.status}`,
     );
   }
   console.log(
-    `\ncorpus ${composite.corpusSize} · median auto-safe ${pct(composite.medianAutoSafePct)} · ` +
-      `median realisable ${pct(composite.medianRealisablePct)} · dormant ${composite.dormantCount}`,
+    `\ncorpus ${composite.corpusSize} · median auto-safe realised ${pct(composite.realisedMedianAutoSafePct)} ` +
+      `(model projects ${pct(composite.projectedMedianAutoSafePct)}) · median realisable ${pct(composite.medianRealisablePct)} · dormant ${composite.dormantCount}`,
   );
   console.log(
     `answer-equivalence: ${equivAllLossless ? `all ${equivRows.length} workloads lossless ✓` : `LOSSY LEAK ✗ ${equivLeaks.map((e) => e.workload).join(", ")}`}`,
