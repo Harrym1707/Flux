@@ -137,3 +137,33 @@ as it can go. The single highest-value next move is AUTONOMY: wire the pipeline 
 a real (or recorded) ledger spool and run the replay gate on it unattended. That is
 no longer a "smallest code tweak" iteration — it needs a design step (recorded-trace
 fixtures or a live key), so the next tick should scope that, not nudge the bench.
+
+### Iteration 6 — AUTONOMY plumbing: an unattended end-to-end pipeline runner
+Hypothesis: the hard blocker is AUTONOMY, and most of it is buildable offline —
+the one true external dependency is a provider `call` to verify quality. Build the
+pipeline that runs unattended: read a spool of real requests → reduce each →
+replay-gate the lossless and gated candidates → emit a verdict → exit 0.
+Built `evals/theo-pipeline-run.ts`. The spool defaults to the recorded coding-agent
+sample (or a JSON array at `MESH_SPOOL`). The model seam is a content-faithful
+local stub whose reported usage equals the TRUE token count of the prompt it is
+handed, so baseline-vs-candidate savings are measured and real; its "answer" is the
+request's answer-bearing content (system + last user turn), which every shipping
+lever preserves. The readiness bench now reads `evals/results/theo-pipeline.json`
+and splits AUTONOMY into plumbing (done) and verification (pending).
+Delta: pipeline runs end-to-end unattended on 8 real requests, 24 provider calls,
+both candidates APPROVED by the stub grader (quality Δ 0, as the levers preserve
+answer-bearing content), **gated-full measured saving 33.8%** input tokens on the
+real sample (≈ 6% auto + 28% gated). AUTONOMY blocker split: plumbing ✓,
+verification ✗ (needs a real `call`). Safety held (all 9 lossless ✓), dormant 0,
+corpus 9, tests 523/523, build clean. **Kept.**
+Honesty: the 33.8% is a real *token* saving; the APPROVED verdict is stub-derived,
+NOT a quality proof — a real verdict needs `call` pointed at the customer's
+provider (an API key/endpoint), which is a configuration, not more code.
+Lead for next: the loop has now driven every offline-provable criterion as far as
+code allows — SAFETY ✓, SAVINGS measured (and honestly bounded), AUTONOMY plumbing
+✓. The ONE remaining gate is real-provider quality verification, which needs a
+key/endpoint or recorded real request+response traces from the user. Options for
+the next tick: (a) add a thin real-provider adapter behind an env var (so the day a
+key exists it verifies with no code change), (b) add a recorded-trace spool loader
+if/when the user supplies traces, or (c) harden the runner (grouping, cost report,
+CLI flags). Absent real traffic, (a) is the highest-value, smallest step.

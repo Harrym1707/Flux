@@ -1,6 +1,6 @@
 {
-  "iteration": 5,
-  "timestamp": "2026-11-06T22:05:48.886Z",
+  "iteration": 6,
+  "timestamp": "2026-11-06T22:36:06.723Z",
   "composite": {
     "corpusSize": 9,
     "realisedMedianAutoSafePct": 0.88,
@@ -140,7 +140,8 @@
     "SAFETY: answer-equivalence verified across all 9 workloads (auto reduction 100% lossless)",
     "SAVINGS: model over-projects auto-safe on 3 workload(s) — support-chat (model 6.0% vs reducer 0.9%), tool-heavy-agent (model 23.5% vs reducer 6.5%), chatbot-memory (model 6.7% vs reducer 0.0%). duplicate-context-removal is credited as deterministic on cross-turn redundancy the shipping lossless reducer only removes WITHIN one message; cross-turn dedup is lossy/gated.",
     "GATED: the lossy tier removes a measured 0.0% median input (model projects 53.3%), but its quality-hold is UNVERIFIED — replay-gate.ts proves answer-equivalence only against a real model, so this needs live traffic (see AUTONOMY).",
-    "AUTONOMY: pipeline not yet wired to run on a real ledger spool unattended (also the only way to verify the gated tier's quality)"
+    "AUTONOMY (plumbing): pipeline runs end-to-end unattended on a spool ✓ — approved \"gated-full\", measured saving 33.8% on the spool",
+    "AUTONOMY (verification): the pipeline's quality verdict is from a local stub — point `call` at a real provider (API key/endpoint) to verify quality on real traffic"
   ],
   "equivalence": [
     {
@@ -206,5 +207,38 @@
       "measuredGatedReductionPct": 0,
       "lossyLeaks": []
     }
-  ]
+  ],
+  "pipeline": {
+    "ranAt": "2026-11-06T22:35:39.522Z",
+    "spoolSize": 8,
+    "unattendedRun": true,
+    "qualityVerifiedAgainstRealModel": false,
+    "providerCalls": 24,
+    "maximumQualityDrop": 0.02,
+    "approvedCandidate": "gated-full",
+    "candidates": [
+      {
+        "label": "lossless-auto",
+        "approved": true,
+        "meanQualityDelta": 0,
+        "lower95QualityDelta": 0,
+        "tokenSavingPercent": 5.78,
+        "costSavingPercent": 5.22,
+        "rejectionReason": null
+      },
+      {
+        "label": "gated-full",
+        "approved": true,
+        "meanQualityDelta": 0,
+        "lower95QualityDelta": 0,
+        "tokenSavingPercent": 33.82,
+        "costSavingPercent": 30.53,
+        "rejectionReason": null
+      }
+    ],
+    "notes": [
+      "LOCAL STUB MODEL: token savings are measured and real; the quality verdict is plumbing-only.",
+      "Point `call` at the customer's provider (API key/endpoint) for a real quality verdict — no code change."
+    ]
+  }
 }

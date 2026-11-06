@@ -19,7 +19,7 @@
  * levers are lossless by construction, but a replay-based quality check across
  * the corpus is a named blocker below, to be wired by a later iteration.
  */
-import { writeFileSync } from "node:fs";
+import { writeFileSync, readFileSync, existsSync } from "node:fs";
 import {
   coverageForProfile,
   type CoverageReport,
@@ -273,9 +273,25 @@ function main(): void {
       `(model projects ${composite.projectedMedianGatedPct.toFixed(1)}%), but its quality-hold is UNVERIFIED — ` +
       "replay-gate.ts proves answer-equivalence only against a real model, so this needs live traffic (see AUTONOMY).",
   );
-  blockers.push("AUTONOMY: pipeline not yet wired to run on a real ledger spool unattended (also the only way to verify the gated tier's quality)");
+  // AUTONOMY, read from the end-to-end pipeline runner's last unattended run.
+  let pipeline: Record<string, unknown> | undefined;
+  if (existsSync("evals/results/theo-pipeline.json")) {
+    try { pipeline = JSON.parse(readFileSync("evals/results/theo-pipeline.json", "utf8")) as Record<string, unknown>; } catch { pipeline = undefined; }
+  }
+  if (pipeline?.unattendedRun === true) {
+    const approved = typeof pipeline.approvedCandidate === "string" ? pipeline.approvedCandidate : "none";
+    const cands = Array.isArray(pipeline.candidates) ? pipeline.candidates as Array<Record<string, unknown>> : [];
+    const gated = cands.find((c) => c.label === "gated-full");
+    const save = gated && typeof gated.tokenSavingPercent === "number" ? `${gated.tokenSavingPercent.toFixed(1)}%` : "n/a";
+    blockers.push(`AUTONOMY (plumbing): pipeline runs end-to-end unattended on a spool ✓ — approved "${approved}", measured saving ${save} on the spool`);
+    if (pipeline.qualityVerifiedAgainstRealModel !== true) {
+      blockers.push("AUTONOMY (verification): the pipeline's quality verdict is from a local stub — point `call` at a real provider (API key/endpoint) to verify quality on real traffic");
+    }
+  } else {
+    blockers.push("AUTONOMY: pipeline runner has not produced an unattended run (run evals/theo-pipeline-run.ts)");
+  }
 
-  const result = { iteration: 5, timestamp: new Date().toISOString(), composite, workloads: rows, blockers, equivalence: equivRows };
+  const result = { iteration: 6, timestamp: new Date().toISOString(), composite, workloads: rows, blockers, equivalence: equivRows, pipeline: pipeline ?? null };
   writeFileSync("evals/results/theo-readiness.json", `${JSON.stringify(result, null, 2)}\n`, "utf8");
 
   const pct = (n: number): string => `${n >= 0 ? "" : ""}${n.toFixed(1)}%`;
