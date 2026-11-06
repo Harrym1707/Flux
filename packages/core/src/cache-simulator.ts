@@ -110,7 +110,7 @@ export type SimulatedCall = {
   outputTokens: number;
   costUsd: number;
   /** Why nothing was cached, when nothing was. */
-  missReason?: "below-minimum" | "no-matching-prefix" | "expired" | "first-request";
+  missReason?: "below-minimum" | "no-matching-prefix" | "expired" | "first-request" | "commit-lag";
 };
 
 export type SimulationResult = {
@@ -129,7 +129,7 @@ export type SimulationResult = {
   missReasons: Record<string, number>;
 };
 
-type Entry = { prompt: string; lastUsedAt: number };
+type Entry = { prompt: string; lastUsedAt: number; availableAt: number };
 
 function commonPrefixLength(left: string, right: string): number {
   const limit = Math.min(left.length, right.length);
@@ -144,18 +144,35 @@ function commonPrefixLength(left: string, right: string): number {
  * Deliberately pessimistic where the published behaviour is a range: the
  * shorter documented TTL is used, and a prefix must clear the minimum AFTER
  * being rounded down to the policy's increment.
+ *
+ * `cacheCommitLatencySeconds` (default 0, so every existing call site and
+ * every previously-measured number is unaffected) models that a cache WRITE
+ * is not instantly readable by other requests: the provider only has
+ * something to match against once the writing call's response has actually
+ * come back. Requests processed in strict sequence (one turn after the
+ * previous turn's reply) already have that latency baked into their real
+ * `atSeconds` gap, so they are unaffected either way. It matters for
+ * requests DISPATCHED concurrently — a fan-out of parallel calls that share
+ * an identical prefix — where several requests can be in flight to the
+ * provider before any of their writes have committed, so none of them can
+ * read a sibling's write. Modelling that race is the whole point of
+ * `evals/run-multiagent-fanout.ts`.
  */
 export function simulateCache(
   requests: SimulatedRequest[],
   policy: CachePolicy,
   price: TokenPrice,
-  options: { countTokens?: TokenCounter } = {},
+  options: { countTokens?: TokenCounter; cacheCommitLatencySeconds?: number } = {},
 ): SimulationResult {
   if (requests.length === 0) throw new Error("A cache simulation needs at least one request.");
   if (policy.minimumCacheableTokens < 1 || policy.incrementTokens < 1) {
     throw new Error("Cache policy minimums and increments must be at least 1 token.");
   }
+  if ((options.cacheCommitLatencySeconds ?? 0) < 0) {
+    throw new Error("cacheCommitLatencySeconds cannot be negative.");
+  }
   const countTokens = options.countTokens ?? approximateTokenCount;
+  const commitLatencySeconds = options.cacheCommitLatencySeconds ?? 0;
 
   // The policy's read and write rates are derived from the base input rate, so
   // a catalogue that already carries cached rates stays consistent with it.
@@ -185,14 +202,22 @@ export function simulateCache(
     if (entries.length === 0) {
       missReason = calls.length === 0 ? "first-request" : "expired";
     } else {
-      // Longest exact prefix across live entries, as the providers describe.
+      // Longest exact prefix across entries whose write has actually committed
+      // by this request's dispatch time, as the providers describe.
       let bestChars = 0;
       let bestEntry: Entry | undefined;
+      // The best prefix among entries NOT yet committed, tracked separately so
+      // a race-caused miss can be told apart from a genuinely absent prefix.
+      let bestInFlightChars = 0;
       for (const entry of entries) {
         const shared = commonPrefixLength(entry.prompt, request.prompt);
-        if (shared > bestChars) {
-          bestChars = shared;
-          bestEntry = entry;
+        if (entry.availableAt <= request.atSeconds) {
+          if (shared > bestChars) {
+            bestChars = shared;
+            bestEntry = entry;
+          }
+        } else if (shared > bestInFlightChars) {
+          bestInFlightChars = shared;
         }
       }
       const sharedTokens = bestChars === 0 ? 0 : countTokens(request.prompt.slice(0, bestChars));
@@ -202,7 +227,14 @@ export function simulateCache(
         cachedInputTokens = Math.min(granted, totalInputTokens);
         bestEntry!.lastUsedAt = request.atSeconds;
       } else {
-        missReason = granted === 0 ? "no-matching-prefix" : "below-minimum";
+        const inFlightTokens = bestInFlightChars === 0 ? 0 : countTokens(request.prompt.slice(0, bestInFlightChars));
+        const inFlightGranted = Math.floor(inFlightTokens / policy.incrementTokens) * policy.incrementTokens;
+        missReason = inFlightGranted >= policy.minimumCacheableTokens && inFlightGranted > granted
+          // A sibling write exists that would have matched at least as well, but
+          // it was still in flight (not yet committed) when this request was
+          // dispatched: a genuine concurrent-fan-out race, not an empty cache.
+          ? "commit-lag"
+          : granted === 0 ? "no-matching-prefix" : "below-minimum";
       }
     }
 
@@ -232,7 +264,11 @@ export function simulateCache(
       ...(missReason === undefined ? {} : { missReason }),
     });
 
-    entries.push({ prompt: request.prompt, lastUsedAt: request.atSeconds });
+    entries.push({
+      prompt: request.prompt,
+      lastUsedAt: request.atSeconds,
+      availableAt: request.atSeconds + commitLatencySeconds,
+    });
     // Providers keep a bounded cache; holding every prompt forever would
     // overstate hit rates on long runs.
     if (entries.length > 64) entries.shift();

@@ -146,6 +146,55 @@ describe("cache simulator", () => {
     expect(() => simulateCache([], OPENAI_CACHE, price)).toThrow(/at least one request/);
     expect(() => simulateCache(stream([filler(100)]), { ...OPENAI_CACHE, incrementTokens: 0 }, price))
       .toThrow(/at least 1 token/);
+    expect(() => simulateCache(stream([filler(100)]), OPENAI_CACHE, price, { cacheCommitLatencySeconds: -1 }))
+      .toThrow(/cannot be negative/);
+  });
+
+  describe("cache commit latency (concurrent fan-out races)", () => {
+    it("defaults to 0: a sibling write is immediately readable, as before this option existed", () => {
+      const prefix = filler(3_000);
+      const requests: SimulatedRequest[] = [
+        { atSeconds: 0, prompt: `${prefix}\none`, outputTokens: 10 },
+        { atSeconds: 0, prompt: `${prefix}\ntwo`, outputTokens: 10 },
+      ];
+      const result = simulateCache(requests, OPENAI_CACHE, price);
+      expect(result.calls[1]!.cachedInputTokens).toBeGreaterThan(0);
+      expect(result.calls[1]!.missReason).toBeUndefined();
+    });
+
+    it("with commit latency, two requests dispatched before either commits both miss (commit-lag)", () => {
+      const prefix = filler(3_000);
+      // Three sub-agents fanned out 0.1s apart from an orchestrator: far closer
+      // together than the 2s it takes the first call's response (and so its
+      // cache write) to come back.
+      const requests: SimulatedRequest[] = [
+        { atSeconds: 0.0, prompt: `${prefix}\none`, outputTokens: 10 },
+        { atSeconds: 0.1, prompt: `${prefix}\ntwo`, outputTokens: 10 },
+        { atSeconds: 0.2, prompt: `${prefix}\nthree`, outputTokens: 10 },
+      ];
+      const result = simulateCache(requests, OPENAI_CACHE, price, { cacheCommitLatencySeconds: 2 });
+      expect(result.calls[0]!.missReason).toBe("first-request");
+      expect(result.calls[1]!.cachedInputTokens).toBe(0);
+      expect(result.calls[1]!.missReason).toBe("commit-lag");
+      expect(result.calls[2]!.cachedInputTokens).toBe(0);
+      expect(result.calls[2]!.missReason).toBe("commit-lag");
+      // All three paid the write premium for the identical shared prefix.
+      expect(result.calls[0]!.writtenInputTokens).toBeGreaterThan(0);
+      expect(result.calls[1]!.writtenInputTokens).toBeGreaterThan(0);
+      expect(result.calls[2]!.writtenInputTokens).toBeGreaterThan(0);
+    });
+
+    it("a request dispatched after the commit latency elapses reads the warm cache", () => {
+      const prefix = filler(3_000);
+      const requests: SimulatedRequest[] = [
+        { atSeconds: 0, prompt: `${prefix}\none`, outputTokens: 10 },
+        // Dispatched well after the 2s commit latency: the pre-warm pattern.
+        { atSeconds: 3, prompt: `${prefix}\ntwo`, outputTokens: 10 },
+      ];
+      const result = simulateCache(requests, OPENAI_CACHE, price, { cacheCommitLatencySeconds: 2 });
+      expect(result.calls[1]!.cachedInputTokens).toBeGreaterThan(0);
+      expect(result.calls[1]!.missReason).toBeUndefined();
+    });
   });
 });
 
