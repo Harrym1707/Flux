@@ -103,7 +103,25 @@ function median(xs: number[]): number {
 
 const LOSSLESS = { toolSchemas: true as const, duplicateContext: true as const, repairCachePrefix: true as const };
 
-type EquivResult = { workload: string; allLossless: boolean; measuredAutoSafePct: number; lossyLeaks: string[] };
+// Every request-side lever, lossless + lossy. Used only to MEASURE how many
+// input tokens the gated levers actually remove — never as the auto path. The
+// quality-hold of these levers is NOT provable here: that needs replay against
+// a real model (see replay-gate.ts), which is the AUTONOMY blocker.
+const FULL = {
+  ...LOSSLESS,
+  historyCompaction: true as const,
+  crossTurnMemoryDedup: true as const,
+  freshToolResultCap: true as const,
+};
+
+type EquivResult = {
+  workload: string;
+  allLossless: boolean;
+  measuredAutoSafePct: number;
+  /** Extra input-token reduction the LOSSY levers add, measured by the reducer. */
+  measuredGatedReductionPct: number;
+  lossyLeaks: string[];
+};
 
 /** A string of roughly `tok` tokens (~4 chars/token). */
 function sized(unit: string, tok: number): string {
@@ -169,18 +187,25 @@ function equivalenceFor(p: WorkloadProfile): EquivResult {
     ? sampleCodingWorkload().map((s) => s.request)
     : [requestFor(p)];
   let before = 0;
-  let saved = 0;
+  let losslessSaved = 0;
+  let gatedExtraSaved = 0;
   const lossyLeaks: string[] = [];
   for (const req of reqs) {
-    const r = reduceRequest(req, LOSSLESS);
-    before += r.summary.estimatedTokensBefore;
-    saved += r.summary.estimatedLosslessTokensSaved;
-    for (const c of r.summary.changes) if (!c.lossless) lossyLeaks.push(c.lever);
+    // AUTO path (lossless only): what goes live immediately, and the safety check.
+    const auto = reduceRequest(req, LOSSLESS);
+    before += auto.summary.estimatedTokensBefore;
+    losslessSaved += auto.summary.estimatedLosslessTokensSaved;
+    for (const c of auto.summary.changes) if (!c.lossless) lossyLeaks.push(c.lever);
+    // FULL path (lossy levers on): the EXTRA input tokens the gated levers remove.
+    // This is a measured token reduction, not a quality verdict — quality needs replay.
+    const full = reduceRequest(req, FULL);
+    gatedExtraSaved += Math.max(0, full.summary.estimatedTokensSaved - auto.summary.estimatedLosslessTokensSaved);
   }
   return {
     workload: p.name,
     allLossless: lossyLeaks.length === 0,
-    measuredAutoSafePct: before > 0 ? Number(((saved / before) * 100).toFixed(2)) : 0,
+    measuredAutoSafePct: before > 0 ? Number(((losslessSaved / before) * 100).toFixed(2)) : 0,
+    measuredGatedReductionPct: before > 0 ? Number(((gatedExtraSaved / before) * 100).toFixed(2)) : 0,
     lossyLeaks: [...new Set(lossyLeaks)],
   };
 }
@@ -199,6 +224,7 @@ function main(): void {
   // (what the coverage model assumes). The done-criteria gate on REALISED; the
   // projection is kept only to surface where the model gets ahead of the code.
   const realisedOf = (name: string): number => equivByName.get(name)?.measuredAutoSafePct ?? 0;
+  const gatedRealisedOf = (name: string): number => equivByName.get(name)?.measuredGatedReductionPct ?? 0;
   const GAP_TOLERANCE = 2; // percentage points
   const overProjected = rows
     .map((r) => ({ workload: r.workload, projected: r.autoSafePct, realised: realisedOf(r.workload) }))
@@ -210,6 +236,13 @@ function main(): void {
     realisedMedianAutoSafePct: Number(median(withWaste.map((r) => realisedOf(r.workload))).toFixed(2)),
     // Auto-safe the coverage model projects (assumption-based; may exceed realised).
     projectedMedianAutoSafePct: Number(median(withWaste.map((r) => r.autoSafePct)).toFixed(2)),
+    // Gated tier, measured two ways: the input-token reduction the lossy levers
+    // actually remove (realised), and what the model projects. The realised
+    // figure is a measured REDUCTION, not a verified saving — its quality-hold
+    // is unproven until replay runs against a real model (AUTONOMY).
+    realisedMedianGatedReductionPct: Number(median(withWaste.map((r) => gatedRealisedOf(r.workload))).toFixed(2)),
+    projectedMedianGatedPct: Number(median(withWaste.map((r) => r.gatedUpsidePct)).toFixed(2)),
+    gatedQualityVerified: false,
     medianRealisablePct: Number(median(withWaste.map((r) => r.autoSafePct + r.gatedUpsidePct)).toFixed(2)),
     dormantCount: dormant.length,
     answerEquivalenceMeasured: true,
@@ -235,22 +268,30 @@ function main(): void {
         "duplicate-context-removal is credited as deterministic on cross-turn redundancy the shipping lossless reducer only removes WITHIN one message; cross-turn dedup is lossy/gated.",
     );
   }
-  blockers.push("AUTONOMY: pipeline not yet wired to run on a real ledger spool unattended");
+  blockers.push(
+    `GATED: the lossy tier removes a measured ${composite.realisedMedianGatedReductionPct.toFixed(1)}% median input ` +
+      `(model projects ${composite.projectedMedianGatedPct.toFixed(1)}%), but its quality-hold is UNVERIFIED — ` +
+      "replay-gate.ts proves answer-equivalence only against a real model, so this needs live traffic (see AUTONOMY).",
+  );
+  blockers.push("AUTONOMY: pipeline not yet wired to run on a real ledger spool unattended (also the only way to verify the gated tier's quality)");
 
-  const result = { iteration: 4, timestamp: new Date().toISOString(), composite, workloads: rows, blockers, equivalence: equivRows };
+  const result = { iteration: 5, timestamp: new Date().toISOString(), composite, workloads: rows, blockers, equivalence: equivRows };
   writeFileSync("evals/results/theo-readiness.json", `${JSON.stringify(result, null, 2)}\n`, "utf8");
 
   const pct = (n: number): string => `${n >= 0 ? "" : ""}${n.toFixed(1)}%`;
   console.log("=== THEO READINESS BENCHMARK ===\n");
-  console.log("workload           base$    realised  projected  gated   coverage   status");
+  console.log("workload           base$    auto(real/proj)  gated(real/proj)  coverage   status");
   for (const r of rows) {
+    const auto = `${pct(realisedOf(r.workload))}/${pct(r.autoSafePct)}`;
+    const gated = `${pct(gatedRealisedOf(r.workload))}/${pct(r.gatedUpsidePct)}`;
     console.log(
-      `${r.workload.padEnd(18)} ${r.baselineUsd.toFixed(4).padStart(8)}  ${pct(realisedOf(r.workload)).padStart(7)}  ${pct(r.autoSafePct).padStart(8)}  ${pct(r.gatedUpsidePct).padStart(6)}  ${`${r.applied}/${r.applicable} ${pct(r.coveragePct)}`.padStart(12)}   ${r.status}`,
+      `${r.workload.padEnd(18)} ${r.baselineUsd.toFixed(4).padStart(8)}  ${auto.padStart(14)}  ${gated.padStart(15)}  ${`${r.applied}/${r.applicable} ${pct(r.coveragePct)}`.padStart(12)}   ${r.status}`,
     );
   }
   console.log(
-    `\ncorpus ${composite.corpusSize} · median auto-safe realised ${pct(composite.realisedMedianAutoSafePct)} ` +
-      `(model projects ${pct(composite.projectedMedianAutoSafePct)}) · median realisable ${pct(composite.medianRealisablePct)} · dormant ${composite.dormantCount}`,
+    `\ncorpus ${composite.corpusSize} · auto-safe realised ${pct(composite.realisedMedianAutoSafePct)} ` +
+      `(proj ${pct(composite.projectedMedianAutoSafePct)}) · gated realised ${pct(composite.realisedMedianGatedReductionPct)} ` +
+      `(proj ${pct(composite.projectedMedianGatedPct)}, quality UNVERIFIED) · dormant ${composite.dormantCount}`,
   );
   console.log(
     `answer-equivalence: ${equivAllLossless ? `all ${equivRows.length} workloads lossless ✓` : `LOSSY LEAK ✗ ${equivLeaks.map((e) => e.workload).join(", ")}`}`,

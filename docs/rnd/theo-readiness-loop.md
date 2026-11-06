@@ -112,3 +112,28 @@ Lead for next: the auto-safe (lossless) tier is genuinely small; Mesh's value si
 in the GATED tier (median realisable ~60%). The next blocker is to *prove the
 gated savings by replay* — verify the lossy levers hold answer-equivalence on real
 output — and then AUTONOMY (run the pipeline on a real ledger spool unattended).
+
+### Iteration 5 — ground the GATED tier: realised reduction vs projected, quality unproven
+Hypothesis: the "median realisable ~60%" headline is the *gated* (lossy) tier, and
+like auto-safe in iteration 4 it was the coverage *model's* projection, not what
+the shipping reducer delivers. Measure it: run the reducer with all lossy levers on
+(`FULL`) and report the EXTRA input-token reduction they remove (realised) beside
+the model's projection; mark quality-hold explicitly.
+Finding (important): on 8/9 synthetic workloads the lossy levers realise **0%** —
+the synthetic profiles don't carry the structure the levers need (stale history to
+compact, repeated leading blocks to dedup, oversized tool results to cap). The ONE
+real trace (coding-agent) realises **29.2% gated** reduction (+6.1% auto ≈ 35%
+total). So the model's 53–67% gated projection is uncorroborated by the shipping
+code except on real traffic. Crucially, the realised figure is a measured token
+REDUCTION, not a verified saving: `replay-gate.ts` proves the lossy levers hold
+answer-equivalence only by replaying against a REAL model — impossible offline.
+Delta: added realised-gated measurement + a GATED blocker; safety held (all 9
+lossless ✓), dormant 0, corpus 9, tests 523/523. **Kept** (honesty gate: a true
+"unverified" beats a projected 60%).
+Conclusion the loop has now reached: both open savings gaps (corroborating the
+headline, and verifying gated quality) collapse into ONE need — **real traffic
+through the replay gate**. Synthetic profiles have taken the reward signal as far
+as it can go. The single highest-value next move is AUTONOMY: wire the pipeline to
+a real (or recorded) ledger spool and run the replay gate on it unattended. That is
+no longer a "smallest code tweak" iteration — it needs a design step (recorded-trace
+fixtures or a live key), so the next tick should scope that, not nudge the bench.

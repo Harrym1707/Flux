@@ -1,10 +1,13 @@
 {
-  "iteration": 4,
-  "timestamp": "2026-11-06T18:19:21.785Z",
+  "iteration": 5,
+  "timestamp": "2026-11-06T22:05:48.886Z",
   "composite": {
     "corpusSize": 9,
     "realisedMedianAutoSafePct": 0.88,
     "projectedMedianAutoSafePct": 6.75,
+    "realisedMedianGatedReductionPct": 0,
+    "projectedMedianGatedPct": 53.32,
+    "gatedQualityVerified": false,
     "medianRealisablePct": 60.07,
     "dormantCount": 0,
     "answerEquivalenceMeasured": true,
@@ -136,61 +139,71 @@
   "blockers": [
     "SAFETY: answer-equivalence verified across all 9 workloads (auto reduction 100% lossless)",
     "SAVINGS: model over-projects auto-safe on 3 workload(s) — support-chat (model 6.0% vs reducer 0.9%), tool-heavy-agent (model 23.5% vs reducer 6.5%), chatbot-memory (model 6.7% vs reducer 0.0%). duplicate-context-removal is credited as deterministic on cross-turn redundancy the shipping lossless reducer only removes WITHIN one message; cross-turn dedup is lossy/gated.",
-    "AUTONOMY: pipeline not yet wired to run on a real ledger spool unattended"
+    "GATED: the lossy tier removes a measured 0.0% median input (model projects 53.3%), but its quality-hold is UNVERIFIED — replay-gate.ts proves answer-equivalence only against a real model, so this needs live traffic (see AUTONOMY).",
+    "AUTONOMY: pipeline not yet wired to run on a real ledger spool unattended (also the only way to verify the gated tier's quality)"
   ],
   "equivalence": [
     {
       "workload": "coding-agent",
       "allLossless": true,
       "measuredAutoSafePct": 6.12,
+      "measuredGatedReductionPct": 29.22,
       "lossyLeaks": []
     },
     {
       "workload": "rag-docqa",
       "allLossless": true,
       "measuredAutoSafePct": 20.84,
+      "measuredGatedReductionPct": 0.03,
       "lossyLeaks": []
     },
     {
       "workload": "support-chat",
       "allLossless": true,
       "measuredAutoSafePct": 0.88,
+      "measuredGatedReductionPct": 0,
       "lossyLeaks": []
     },
     {
       "workload": "batch-classifier",
       "allLossless": true,
       "measuredAutoSafePct": 0,
+      "measuredGatedReductionPct": 0,
       "lossyLeaks": []
     },
     {
       "workload": "already-lean",
       "allLossless": true,
       "measuredAutoSafePct": 0,
+      "measuredGatedReductionPct": 0,
       "lossyLeaks": []
     },
     {
       "workload": "long-context-summarize",
       "allLossless": true,
       "measuredAutoSafePct": 20.73,
+      "measuredGatedReductionPct": 0.02,
       "lossyLeaks": []
     },
     {
       "workload": "tool-heavy-agent",
       "allLossless": true,
       "measuredAutoSafePct": 6.47,
+      "measuredGatedReductionPct": 0,
       "lossyLeaks": []
     },
     {
       "workload": "chatbot-memory",
       "allLossless": true,
       "measuredAutoSafePct": 0,
+      "measuredGatedReductionPct": 0,
       "lossyLeaks": []
     },
     {
       "workload": "translation",
       "allLossless": true,
       "measuredAutoSafePct": 0,
+      "measuredGatedReductionPct": 0,
       "lossyLeaks": []
     }
   ]
