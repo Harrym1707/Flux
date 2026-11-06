@@ -70,6 +70,7 @@ export type {
   SemanticCompactor,
 } from "./semantic-compaction.js";
 export { CachePrefixVolatilityGuard, type CacheStampDecision } from "./cache-volatility-guard.js";
+export { planFanoutPrewarm, type FanoutPrewarmOptions, type FanoutPrewarmPlan } from "./fanout-prewarm.js";
 export { renderLedgerReport, type LedgerReportOptions, type LedgerReportSpool } from "./report.js";
 export type {
   MeshHistoryCompactionConfig,

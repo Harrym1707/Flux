@@ -270,3 +270,27 @@ Deeper pull (Mooncake full trace, Azure full week n≈2.9M, SWE-rebench n=2,000 
   the heaviest single component; always >1024/2048 so independently cacheable.
 - **Dedup ceiling ~7-9%, history gates 3/2: CONFIRMED.** Output-side levers de-prioritized
   for Tier-1 (Azure out:in ≤0.05 median over 2.9M requests).
+
+## Multi-agent fan-out cache races — SHIPPED (planner) + negative-result logged (2026-11-06)
+
+New workload shape (full writeup: `docs/rnd/2026-11-06-NOTES.md`). Concurrent sub-agent
+fan-out shares an identical system+tools prefix across siblings, but a cache WRITE isn't
+readable until the writing call's response returns — dispatched together, no sibling can
+read another's not-yet-committed write. **Naively turning MESH's cache stamp on for this
+shape with no sequencing fix is a measured LOSS (-11.1% vs no caching at all)**: every
+sibling independently pays the write premium, none ever reads it back. Logged honestly,
+not hidden — do not default cache stamping on for fan-out-shaped traffic.
+
+SHIPPED: `planFanoutPrewarm` (`packages/sdk-js/src/fanout-prewarm.ts`) — a pure planner that
+detects a batch sharing one exact cacheable prefix and returns a single minimal pre-warm
+request to await before the real dispatch. Lossless by construction (never touches the N
+real requests). Measured **28.4% vs no caching, 35.6% vs naive stamping**, stable across a
+0.5s-10s commit-latency sensitivity sweep. `packages/core/src/cache-simulator.ts` gained an
+off-by-default `cacheCommitLatencySeconds` option (+ `missReason: "commit-lag"`) to model the
+race at all; default 0 keeps every prior measured number byte-identical (523/523 tests,
+both regression evals re-verified unchanged).
+
+FOLLOW-ON (not shipped): no framework adapter awaits the planner's output yet — this is the
+planning primitive, not a wired-in behaviour. A LangGraph/CrewAI/Claude-Agent-SDK adapter
+that calls it against real concurrent HTTP traffic would upgrade this from simulator-measured
+to live-measured, same bar every other shipped lever here is eventually held to.
