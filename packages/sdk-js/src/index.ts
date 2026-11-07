@@ -105,7 +105,8 @@ export type {
 export {
   agentGrader,
   compositeGrader,
+  taskCompletionGrader,
   textSimilarityGrader,
   truncationAwareGrader,
 } from "./graders.js";
-export type { TruncationOptions, WeightedGrader } from "./graders.js";
+export type { TaskCompletionOptions, TruncationOptions, WeightedGrader } from "./graders.js";

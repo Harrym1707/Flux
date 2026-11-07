@@ -52,6 +52,12 @@ export type ToolSearchGateOptions = {
   minTools?: number;
   /** Quality grader. Default toolSelectionGrader — the grader whose risk matches this lever. */
   grade?: ReplayGrader;
+  /**
+   * Name recorded on the proof for what graded it. Defaults to "tool-selection"
+   * with the default grader, else "custom". Pass "task-completion" when supplying
+   * taskCompletionGrader so the proof says honestly how quality was judged.
+   */
+  graderLabel?: string;
   /** Recorded baseline responses, to avoid paying for the baseline run again. */
   baselineResponses?: unknown[];
   /** Clears provider cache state between runs (see the cold-turn note above). */
@@ -123,9 +129,9 @@ export async function toolSearchGate(options: ToolSearchGateOptions): Promise<To
   }
 
   const at = (options.now ?? (() => new Date().toISOString()))();
-  // Only the default grader is the tool-selection grader; a caller-supplied one
-  // is labelled honestly so the proof records what actually graded it.
-  const graderLabel = options.grade ? "custom" : "tool-selection";
+  // The proof records what actually graded it: the caller's explicit label if
+  // given, else the default grader's name, else "custom" for a supplied grader.
+  const graderLabel = options.graderLabel ?? (options.grade ? "custom" : "tool-selection");
   const proof = result.approved ? gateProofFrom(result.approved, { grader: graderLabel, at }) : undefined;
   const approvedResidentTools = result.approved ? residentToolsOf(result.approved.config) : undefined;
 

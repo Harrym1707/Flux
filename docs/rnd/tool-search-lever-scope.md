@@ -1,11 +1,11 @@
 # Lever scope — `tool-search-defer` (Anthropic Tool Search / `defer_loading`)
 
 **Status:** scoped 2026-11-06. R&D shortlist item **S1** (`docs/rnd/cost-reduction-rnd-2026-11-04.md`),
-the highest-value next lever. On branch `theo/tool-search-lever`: **Phase 1 done** (the pure
-transform + tests), **Phase 3 done** (catalogue + policy wiring), **Phase 4 done** (measurement +
-replay-gate harness). Phase 5 (a dedicated task-completion verifier) is the only piece left — and
-Phase 4 already uses the tool-selection grader as the verifier for the proof, so Phase 5 is an
-enhancement, not a blocker.
+the highest-value next lever. On branch `theo/tool-search-lever`, **all phases done**: Phase 1 (the
+pure transform + tests), Phase 3 (catalogue + policy wiring), Phase 4 (measurement + replay-gate
+harness + the generic gate→proof bridge), Phase 5 (the `taskCompletionGrader` verifier). The lever
+runs end-to-end — transform → surfaced in coverage → gated on real traffic → publishable proof →
+enforced — and stays correctly held until a customer-traffic gate run passes.
 
 This document is the design the build follows. It is grounded in two things: the Mesh
 reducer pipeline as it stands (`packages/sdk-js/src/reduce-request.ts`) and the Anthropic
@@ -166,9 +166,13 @@ search match a whole group, which improves recall on large aggregated catalogues
    `TheoGateProof` via the new generic `gateProofFrom` bridge (the missing seam between a gate
    result and a policy). `responseToolCalls` was taught the Anthropic `tool_use` shape so the grader
    is not blind on tool-search traffic.
-5. **Verify (enhancement)** — Phase 4 uses `toolSelectionGrader` as the verifier. A richer
-   task-completion grader (end-to-end task success, not just the first tool call) would strengthen
-   the proof on multi-step agents; not a blocker for billing.
+5. **[DONE] Verify** — `taskCompletionGrader` (`graders.ts`): scores the RECALL of the baseline's
+   actions, so a benign search-detour step (which deferral legitimately causes on a multi-step
+   agent) is not failed the way the Jaccard `toolSelectionGrader` fails it, while a missed or wrong
+   required call still fails. Optional `requireAnswer` stops a do-nothing run from passing.
+   `toolSearchGate` takes it via `grade` + `graderLabel: "task-completion"`, so the proof records how
+   quality was judged. `toolSelectionGrader` remains the strict default; task-completion is the
+   lens for multi-step agents.
 
 ---
 

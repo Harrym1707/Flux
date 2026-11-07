@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { toolSearchGate } from "./tool-search-gate.js";
 import { responseToolCalls, toolSelectionGrader } from "./replay-gate.js";
+import { taskCompletionGrader } from "./graders.js";
 import { defaultPolicy, publishLever, policyToReductionConfig, policyCoverage } from "./theo-policy.js";
 
 const AT = "2026-11-07T00:00:00.000Z";
@@ -129,5 +130,41 @@ describe("toolSearchGate", () => {
   it("flags the cold-turn caveat when no cache reset was supplied", async () => {
     const outcome = await toolSearchGate({ requests: coldCorpus, call: fakeCall(), seed: "test-note" });
     expect(outcome.result.notes.some((n) => /cold-turn saving/.test(n))).toBe(true);
+  });
+
+  it("phase 5: a search-detour trajectory is rejected by tool-selection but approved by task-completion", async () => {
+    // The candidate makes the needed call (lookup_7) AND an extra exploratory
+    // call (lookup_3) — the shape a deferral lever produces when the model
+    // searches before acting. The task still completed.
+    const detourCall = async (request: unknown): Promise<unknown> => {
+      const tools = (request as { tools?: unknown[] }).tools ?? [];
+      const deferred = tools.filter((t) => (t as { defer_loading?: unknown }).defer_loading === true).length;
+      const calls = deferred > 0
+        ? [{ type: "tool_use", name: "lookup_7", input: { accountId: "1" } },
+           { type: "tool_use", name: "lookup_3", input: { accountId: "1" } }]
+        : [{ type: "tool_use", name: "lookup_7", input: { accountId: "1" } }];
+      return { usage: { input_tokens: 8000 - deferred * 500, output_tokens: 50 }, content: calls };
+    };
+
+    // Strict tool-selection (Jaccard) sees the extra call as a 0.5 mismatch and rejects.
+    const strict = await toolSearchGate({ requests: coldCorpus, call: detourCall, qualityCeilingPercent: 2, seed: "p5" });
+    expect(strict.proof).toBeUndefined();
+    expect(strict.result.candidates[0]!.approved).toBe(false);
+
+    // Task-completion credits the reproduced action, tolerates the detour, approves —
+    // and the proof honestly records which grader judged it.
+    const lenient = await toolSearchGate({
+      requests: coldCorpus,
+      call: detourCall,
+      grade: taskCompletionGrader(),
+      graderLabel: "task-completion",
+      qualityCeilingPercent: 2,
+      seed: "p5",
+      now: () => AT,
+    });
+    expect(lenient.proof).toBeDefined();
+    expect(lenient.proof!.grader).toBe("task-completion");
+    expect(lenient.proof!.savingPercent).toBeGreaterThan(0);
+    expect(lenient.approvedResidentTools).toBe(4);
   });
 });
