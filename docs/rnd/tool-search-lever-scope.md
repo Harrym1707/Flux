@@ -1,8 +1,11 @@
 # Lever scope — `tool-search-defer` (Anthropic Tool Search / `defer_loading`)
 
 **Status:** scoped 2026-11-06. R&D shortlist item **S1** (`docs/rnd/cost-reduction-rnd-2026-11-04.md`),
-the highest-value next lever. Phase 1 (the pure transform + tests) is being built on
-branch `theo/tool-search-lever`; phases 3–5 are not yet started.
+the highest-value next lever. On branch `theo/tool-search-lever`: **Phase 1 done** (the pure
+transform + tests), **Phase 3 done** (catalogue + policy wiring), **Phase 4 done** (measurement +
+replay-gate harness). Phase 5 (a dedicated task-completion verifier) is the only piece left — and
+Phase 4 already uses the tool-selection grader as the verifier for the proof, so Phase 5 is an
+enhancement, not a blocker.
 
 This document is the design the build follows. It is grounded in two things: the Mesh
 reducer pipeline as it stands (`packages/sdk-js/src/reduce-request.ts`) and the Anthropic
@@ -149,18 +152,23 @@ search match a whole group, which improves recall on large aggregated catalogues
 
 ## 7. Phased build plan
 
-1. **Transform + unit tests** (this phase) — `applyToolSearchDefer` (pure): injects the search
-   tool, defers the tail honouring all six constraints, idempotent, no-op when unsupported. Plus
-   the `toolSearch?` config field and wiring into `reduceRequest`.
-2. **Cache-stamp interaction test** — a request with both `toolSearch` and `cacheTtl`, and a
-   caller-placed `cache_control` on one tool: assert that tool stays resident and the result is a
-   valid request (no deferred tool carries `cache_control`).
-3. **Catalogue + policy wiring** — `PUBLISHED_LEVERS` entry, `applyLever` / `knownLeverIds` /
-   `ENFORCEABLE_LEVERS`; coverage surfaces it.
-4. **Measurement + gate** — shadow/replay harness measuring the cold-turn input-token drop from
-   provider usage; feed the replay-gate.
-5. **Verify** — a tool-selection / task-completion grader: does Claude still find and call the
-   deferred tools correctly?
+1. **[DONE] Transform + unit tests** — `applyToolSearchDefer` (pure): injects the search tool,
+   defers the tail honouring all six constraints, idempotent, no-op when unsupported. Plus the
+   `toolSearch?` config field and wiring into `reduceRequest`.
+2. **[DONE] Cache-stamp interaction test** — a request with both `toolSearch` and `cacheTtl`, and a
+   caller-placed `cache_control` on one tool: that tool stays resident, and no deferred tool carries
+   `cache_control`.
+3. **[DONE] Catalogue + policy wiring** — `PUBLISHED_LEVERS` entry, `applyLever` / `knownLeverIds` /
+   `ENFORCEABLE_LEVERS`; coverage surfaces it (as a "held for the gate" lever).
+4. **[DONE] Measurement + gate** — `toolSearchGate` (`tool-search-gate.ts`) replays a cold-turn
+   corpus both ways through the existing `replayGate`, reads the realised input-token drop from
+   provider usage, grades with `toolSelectionGrader`, and on approval emits a publishable
+   `TheoGateProof` via the new generic `gateProofFrom` bridge (the missing seam between a gate
+   result and a policy). `responseToolCalls` was taught the Anthropic `tool_use` shape so the grader
+   is not blind on tool-search traffic.
+5. **Verify (enhancement)** — Phase 4 uses `toolSelectionGrader` as the verifier. A richer
+   task-completion grader (end-to-end task success, not just the first tool call) would strengthen
+   the proof on multi-step agents; not a blocker for billing.
 
 ---
 

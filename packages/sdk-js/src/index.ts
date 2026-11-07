@@ -55,6 +55,7 @@ export {
   policyToReductionConfig,
   withheldLevers,
   publishLever,
+  gateProofFrom,
   defaultPolicy,
   knownLeverIds,
   type TheoPolicy,
@@ -63,6 +64,11 @@ export {
   type TheoLeverClass,
   type WithheldLever,
 } from "./theo-policy.js";
+export {
+  toolSearchGate,
+  type ToolSearchGateOptions,
+  type ToolSearchGateOutcome,
+} from "./tool-search-gate.js";
 export { compactStaleContext, reduceRequestAsync } from "./semantic-compaction.js";
 export type {
   SemanticCompactionConfig,

@@ -1,4 +1,5 @@
 import type { MeshTokenReductionConfig, MeshOutputEffort } from "./reduce-request.js";
+import type { ReplayCandidateResult } from "./replay-gate.js";
 
 /**
  * Theo's per-user policy — the control mechanism between Theo and MESH.
@@ -173,6 +174,35 @@ export function publishLever(policy: TheoPolicy, lever: TheoLever, at: string): 
   const levers = policy.levers.filter((existing) => existing.lever !== lever.lever);
   levers.push(lever);
   return { ...policy, levers, version: policy.version + 1, updatedAt: at };
+}
+
+/**
+ * Turn an APPROVED replay-gate candidate into the proof a policy needs to enable
+ * a lossy lever. This is the seam between measurement and enforcement: the gate
+ * measures on the user's own traffic (saving from provider-reported usage, a
+ * quality lower bound from a grader), and this packages that verdict as the
+ * TheoGateProof `publishLever` requires. Returns undefined for a candidate the
+ * gate did not approve, so a rejected lever can never be published.
+ *
+ * The proof carries the gate's CONSERVATIVE lower-bound quality delta, not the
+ * mean: proofClearsCeiling re-checks |Y| against the route ceiling, and it must
+ * re-check the same figure the gate approved on, so the two can never disagree.
+ */
+export function gateProofFrom(
+  result: ReplayCandidateResult,
+  options: { grader: string; at: string },
+): TheoGateProof | undefined {
+  if (!result.approved) return undefined;
+  return {
+    // The money saving where the price was known, else the token saving — the
+    // same precedence the gate uses to rank approved candidates.
+    savingPercent: result.costSavingPercent ?? result.tokenSavingPercent,
+    // Already <= 0 when quality fell; clamped so a candidate that scored BETTER
+    // than baseline never records a positive "drop".
+    qualityDeltaPercent: Math.min(0, result.lower95QualityDelta * 100),
+    grader: options.grader,
+    provenAt: options.at,
+  };
 }
 
 /** A fresh, STRICT default policy for a new user — lossless-only until Theo proves more. */
