@@ -102,7 +102,7 @@ export function verifyRolloutHistory(records: readonly RolloutRecord[]): ChainVe
   return verifyChain(records);
 }
 
-export type RolloutState = {
+export type RolloutHistoryState = {
   policyId: string;
   /** Digest currently exposed (from the latest transition that set one). */
   policyDigest: string;
@@ -125,11 +125,11 @@ export type RolloutState = {
  *
  * Returns undefined for an empty history (no rollout has begun).
  */
-export function currentRolloutState(records: readonly RolloutRecord[]): RolloutState | undefined {
+export function currentRolloutState(records: readonly RolloutRecord[]): RolloutHistoryState | undefined {
   if (records.length === 0) return undefined;
   let percentage = 0;
   let policyDigest = "";
-  let status: RolloutState["status"] = "active";
+  let status: RolloutHistoryState["status"] = "active";
   const first = records[0]!.entry;
 
   for (const record of records) {
