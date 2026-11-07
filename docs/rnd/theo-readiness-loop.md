@@ -188,3 +188,30 @@ real traffic. The final criterion is gated on an input only the user can provide
 a provider key (set `ANTHROPIC_API_KEY` and re-run `evals/theo-pipeline-run.ts`) or
 recorded real request+response traces. This is no longer a code gap, so the loop
 pauses here rather than churn — it resumes the moment real traffic is available.
+
+### Iteration 8 — measure the gated tier corpus-wide (realistic-waste fixtures)
+Hypothesis: the SAVINGS criterion was weak because the gated levers only fired on
+the one real trace (coding-agent) — the synthetic workloads realised 0% gated, not
+because the levers fail but because the fixtures didn't carry the waste real traffic
+carries. Make each synthetic request carry its type's real waste, in the exact shape
+each lever acts on: a persona/memory block re-sent as the lead of every user turn
+(cross-turn-memory-dedup), enough turns for history-compaction to have stale turns,
+and an oversized tool-result body over the 600-token cap (fresh-tool-result-cap).
+All of it is reachable only by the LOSSY config, so the lossless auto path and the
+answer-equivalence (safety) check are untouched.
+Delta: median gated realised **0.0% → 16.1%**, now measured across the corpus
+(coding 29.2%, support 28.7%, chatbot 27.1%, tool-heavy 25.8%, long-context 16.1%,
+rag 9.4%; lean/translation/batch correctly 0 — no such waste). Auto-safe realised
+dipped 0.9%→0.4% (larger, more realistic baselines dilute the lossless overlap's
+share — expected, not a regression). Safety held (all 9 lossless ✓), dormant 0,
+corpus 9, tests 523/523, build clean. **Kept.**
+Honesty unchanged: the 16.1% is a measured token REDUCTION; its quality-hold is
+still verified only against the stub — the real verdict needs a provider key
+(iteration 7's seam). What this iteration adds is that the *reduction* half of the
+gated tier is now honestly measured corpus-wide, not assumed.
+Lead for next: with the corpus now exercising every lever, the remaining gaps are
+exactly two and both need the user — (1) real-model quality verification (a key, or
+recorded traces), and (2) a defined savings TARGET to judge "above target" against.
+(2) is answerable without traffic: pick a target (e.g. median gated ≥ 15% on
+workloads with real waste) and the bench can grade pass/fail. Absent a key, the loop
+has again reached its offline limit; (2) is the last purely-offline step.

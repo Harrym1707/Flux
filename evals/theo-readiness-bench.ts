@@ -132,17 +132,22 @@ function sized(unit: string, tok: number): string {
   return s.slice(0, target);
 }
 
-/** Synthesise a representative request that exercises a profile's structure.
+/** Synthesise a representative request that carries the waste its real-world
+ *  equivalent carries, in the exact shape each lever acts on. This lets the
+ *  loop MEASURE what the reducer removes, per tier, instead of assuming it.
  *
- *  The redundancy is planted in the exact shape the shipping *lossless* reducer
- *  can catch: `duplicate-context-removal` runs `dedupeRepeatedBlocks` over ONE
- *  message body at a time, so the only duplication it removes without changing
- *  meaning is an exact block repeated *within* a single message — the lever's
- *  own documented case, "overlapping retrieval chunks". We plant exactly one
- *  such overlap in the retrieved-context message and nowhere else. Cross-turn
- *  memory redundancy (repeated whole turns in `history`) is deliberately left
- *  as distinct turns: the reducer cannot remove it losslessly, so crediting it
- *  to the auto path would be dishonest — that is the gated, lossy lever's job. */
+ *  Lossless (auto path, safety-critical):
+ *   • overlapping retrieval — one exact chunk repeated *within* the context
+ *     message, which `duplicate-context-removal` dedups per message body.
+ *  Lossy (gated path, measured only, never auto):
+ *   • re-sent state — a persona/memory block that leads every user turn, as a
+ *     chat/agent app re-injects each turn; `cross-turn-memory-dedup` removes it.
+ *   • stale history — enough turns that `history-compaction` can summarise the
+ *     older ones (keeps the most recent).
+ *   • bloated tool results — a tool-result body over the cap, which
+ *     `fresh-tool-result-cap` trims on first send.
+ *  None of the lossy waste is reachable by the lossless config, so the auto
+ *  path and the answer-equivalence (safety) check are unchanged by it. */
 function requestFor(p: WorkloadProfile): Record<string, unknown> {
   const s = p.segments;
   const toolCount = s.toolSchemas > 0 ? Math.max(1, Math.round(s.toolSchemas / 350)) : 0;
@@ -161,11 +166,19 @@ function requestFor(p: WorkloadProfile): Record<string, unknown> {
   }));
   const system = sized("You are a careful, precise assistant. ", s.systemPrompt);
   const messages: Array<Record<string, unknown>> = [];
-  const turns = Math.min(6, Math.max(1, p.requests));
+  // Re-sent state: a block the app prepends to every user turn (persona/memory).
+  const memoryTok = s.history > 0 ? Math.min(300, Math.max(80, Math.round(s.history * 0.3))) : 0;
+  const memoryBlock = memoryTok > 0 ? sized("persistent memory: user prefers concise answers; account tier gold; prior topics logged; ", memoryTok) : "";
+  // Enough turns for history-compaction to have stale turns to summarise.
+  const turns = s.history > 0 ? Math.min(8, Math.max(4, p.requests)) : Math.min(6, Math.max(1, p.requests));
   for (let t = 0; t < turns; t += 1) {
-    messages.push({ role: "user", content: sized(`step ${t}: continue. `, s.userTurn) });
-    // Distinct history turns — no within-message duplicate to catch losslessly.
+    const userTail = sized(`step ${t}: continue. `, s.userTurn);
+    messages.push({ role: "user", content: memoryBlock ? `${memoryBlock}\n${userTail}` : userTail });
     if (s.history > 0) messages.push({ role: "assistant", content: sized(`turn ${t} notes: `, Math.round(s.history / turns)) });
+  }
+  if (toolCount > 0) {
+    // One oversized tool result (> the 600-token cap), as agents routinely get.
+    messages.push({ role: "tool", content: sized("TOOL RESULT: rows=[", 900) });
   }
   if (s.retrievedContext > 0) {
     // Retrieved context as chunks, with ONE exact overlap (chunk A re-appears).
