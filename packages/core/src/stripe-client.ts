@@ -72,7 +72,7 @@ export interface StripeClient extends BillingStripe {
     currency: string;
     idempotencyKey?: string;
   }): Promise<StripeCheckoutSession>;
-  getCheckoutSession(sessionId: string): Promise<StripeCheckoutSession & { setup_intent: string | null }>;
+  getCheckoutSession(sessionId: string): Promise<StripeCheckoutSession & { setup_intent: string | null; customer: string | null }>;
   getSetupIntent(setupIntentId: string): Promise<StripeSetupIntent>;
   setDefaultPaymentMethod(customerId: string, paymentMethodId: string): Promise<void>;
   createRefund(params: { paymentIntentId: string; amountCents?: number; idempotencyKey?: string }): Promise<StripeRefund>;

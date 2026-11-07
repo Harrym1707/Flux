@@ -3,6 +3,7 @@ import type { ServerContext } from "./context.js";
 import { handleAuthRequest } from "./routes-auth.js";
 import { handleAccountRequest } from "./routes-account.js";
 import { handleLedgerRequest } from "./routes-ledger.js";
+import { handlePaymentRequest } from "./routes-payment.js";
 import { sendJson } from "./http-util.js";
 
 /**
@@ -16,7 +17,12 @@ import { sendJson } from "./http-util.js";
  */
 export type ApiHandler = (req: IncomingMessage, res: ServerResponse, url: URL, ctx: ServerContext) => Promise<boolean>;
 
-const HANDLERS: ApiHandler[] = [handleAuthRequest, handleAccountRequest, handleLedgerRequest];
+const HANDLERS: ApiHandler[] = [
+  handleAuthRequest,
+  handleAccountRequest,
+  handlePaymentRequest,
+  handleLedgerRequest,
+];
 
 export function createApiRouter(ctx: ServerContext) {
   return {

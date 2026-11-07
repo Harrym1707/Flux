@@ -39,7 +39,8 @@
     "test:watch": "vitest",
     "lint": "eslint .",
     "typecheck": "tsc -b --pretty false",
-    "build:cli": "node --import tsx scripts/build-cli-package.ts"
+    "build:cli": "node --import tsx scripts/build-cli-package.ts",
+    "bill:worker": "node --import tsx scripts/mesh-bill-worker.ts"
   },
   "dependencies": {
     "@harrym1707/sdk": "workspace:*",
