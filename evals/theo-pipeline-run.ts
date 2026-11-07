@@ -126,15 +126,67 @@ function makeCaller(): Caller {
             "x-api-key": anthropicKey,
             "anthropic-version": "2023-06-01",
           },
-          body: JSON.stringify(request),
+          body: JSON.stringify(toAnthropic(request)),
           signal: AbortSignal.timeout(60_000),
         });
-        if (!res.ok) throw new Error(`anthropic ${res.status}`);
+        if (!res.ok) {
+          const body = await res.text().catch(() => "");
+          throw new Error(`anthropic ${res.status}: ${body.slice(0, 400)}`);
+        }
         return await res.json();
       },
     };
   }
   return { provider: "local-stub", verifiesQuality: false, call: localModel };
+}
+
+/**
+ * Translate a request (which may be in the OpenAI/Responses shape the sample
+ * uses) into a valid Anthropic Messages call. Anthropic allows only user and
+ * assistant roles with string content, needs tools as {name, description,
+ * input_schema}, and wants the system prompt as a top-level string. We coalesce
+ * consecutive same-role turns (tool output folds into a user turn) so the
+ * message list alternates, as the API requires.
+ */
+function toAnthropic(request: unknown): Record<string, unknown> {
+  if (typeof request !== "object" || request === null) return { model: "claude-sonnet-5-5", max_tokens: 256, messages: [{ role: "user", content: String(request) }] };
+  const r = request as Record<string, unknown>;
+  const rawMessages = Array.isArray(r.messages) ? r.messages : Array.isArray(r.input) ? r.input : [];
+  const toText = (content: unknown): string => {
+    if (typeof content === "string") return content;
+    if (Array.isArray(content)) return content.map((p) => (typeof p === "object" && p !== null && typeof (p as Record<string, unknown>).text === "string" ? (p as Record<string, unknown>).text : JSON.stringify(p))).join("\n");
+    return content === undefined ? "" : JSON.stringify(content);
+  };
+  const coalesced: Array<{ role: "user" | "assistant"; content: string }> = [];
+  for (const m of rawMessages) {
+    if (typeof m !== "object" || m === null) continue;
+    const mm = m as Record<string, unknown>;
+    const role: "user" | "assistant" = mm.role === "assistant" ? "assistant" : "user"; // tool/function roles fold into user
+    const text = toText(mm.content ?? mm.output ?? "");
+    if (text.trim() === "") continue;
+    const last = coalesced[coalesced.length - 1];
+    if (last && last.role === role) last.content += `\n${text}`;
+    else coalesced.push({ role, content: text });
+  }
+  if (coalesced.length === 0 || coalesced[0]!.role !== "user") coalesced.unshift({ role: "user", content: "Continue." });
+  const out: Record<string, unknown> = {
+    model: typeof r.model === "string" ? r.model : "claude-sonnet-5-5",
+    max_tokens: typeof r.max_tokens === "number" ? r.max_tokens : 512,
+    messages: coalesced,
+  };
+  if (typeof r.system === "string" && r.system.trim() !== "") out.system = r.system;
+  if (Array.isArray(r.tools) && r.tools.length > 0) {
+    out.tools = r.tools.map((t) => {
+      const tt = t as Record<string, unknown>;
+      const fn = (tt.function ?? tt) as Record<string, unknown>;
+      return {
+        name: typeof fn.name === "string" ? fn.name : "tool",
+        description: typeof fn.description === "string" ? fn.description : undefined,
+        input_schema: fn.input_schema ?? fn.parameters ?? { type: "object", properties: {} },
+      };
+    });
+  }
+  return out;
 }
 
 async function main(): Promise<void> {
@@ -150,7 +202,29 @@ async function main(): Promise<void> {
     },
   ];
 
+  // Diagnostic: show how the first request is translated for Anthropic, without
+  // sending anything. Handy to eyeball shape before paying for a real run.
+  if (process.env.MESH_SHOW_TRANSLATION === "1") {
+    console.log(JSON.stringify(toAnthropic(requests[0]), null, 2));
+    return;
+  }
+
   const caller = makeCaller();
+
+  // Preflight one real call so a provider error surfaces with its status/body,
+  // instead of being swallowed by the gate into "no gradeable comparison".
+  if (caller.verifiesQuality && requests.length > 0) {
+    try {
+      const probe = await caller.call(requests[0]);
+      const text = responseText(probe);
+      console.log(`preflight: ${caller.provider} answered (${text.length} chars of text). Proceeding.\n`);
+    } catch (err) {
+      console.error(`PREFLIGHT FAILED against ${caller.provider}:\n  ${(err as Error).message}\n`);
+      console.error("The verification run needs a working provider call. Fix the above (often an auth/credit issue or a request-shape mismatch) and re-run. Nothing was written.");
+      process.exit(1);
+    }
+  }
+
   const result = await replayGate({
     requests,
     call: caller.call,
