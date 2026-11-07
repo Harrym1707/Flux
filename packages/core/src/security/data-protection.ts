@@ -28,8 +28,14 @@ export type DataClass =
   | "evaluation_datasets"
   | "traces";
 
-/** Symmetric ciphers MESH will accept for data at rest. Deny anything else. */
-const ALLOWED_AT_REST_ALGORITHMS = ["AES-256-GCM", "AES-256-CBC", "ChaCha20-Poly1305"] as const;
+/**
+ * Symmetric ciphers MESH will accept for data at rest. Deny anything else.
+ * AEAD-only: non-authenticated modes (e.g. AES-256-CBC) are excluded because
+ * they provide confidentiality without integrity and are a recurring source of
+ * padding-oracle and bit-flipping attacks — not acceptable for an at-rest
+ * posture an enterprise review will scrutinise.
+ */
+const ALLOWED_AT_REST_ALGORITHMS = ["AES-256-GCM", "ChaCha20-Poly1305"] as const;
 export type AtRestAlgorithm = (typeof ALLOWED_AT_REST_ALGORITHMS)[number];
 
 /** Minimum TLS version accepted for data in transit. */

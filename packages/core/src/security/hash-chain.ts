@@ -16,6 +16,16 @@ import { canonicalJson } from "../price-catalogue.js";
  *
  * `canonicalJson` gives stable key ordering, so the same entry always hashes
  * to the same digest regardless of how its object was constructed.
+ *
+ * TAMPER-EVIDENT, NOT TAMPER-PROOF. On its own a hash chain only proves
+ * INTERNAL consistency: anyone who can rewrite the whole stored array can
+ * recompute every hash and forge a self-consistent chain, and nothing here
+ * would detect it. Detection of wholesale rewrites needs an EXTERNAL anchor —
+ * a copy of the tip hash the attacker cannot also rewrite. `chain-anchor.ts`
+ * provides that anchor by Ed25519-signing the tip (length + tipHash): a
+ * verifier who trusts the signing key can then detect truncation or a rewrite
+ * the chain alone cannot. Anchor the tip periodically (and/or ship tips to an
+ * append-only external store) for a tamper-PROOF guarantee.
  */
 
 export const CHAIN_GENESIS_HASH = "0".repeat(64);

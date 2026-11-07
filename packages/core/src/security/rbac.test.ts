@@ -8,6 +8,7 @@ import {
 } from "./rbac.js";
 
 const owner: Subject = { id: "u-owner", tenantId: "t1", assignments: [{ role: "owner" }] };
+const admin: Subject = { id: "u-admin", tenantId: "t1", assignments: [{ role: "admin" }] };
 const viewer: Subject = { id: "u-viewer", tenantId: "t1", assignments: [{ role: "viewer" }] };
 const operator: Subject = { id: "u-op", tenantId: "t1", assignments: [{ role: "operator" }] };
 const analyst: Subject = { id: "u-an", tenantId: "t1", assignments: [{ role: "analyst" }] };
@@ -87,6 +88,52 @@ describe("rbac — permissions", () => {
     };
     const decision = authorize(dual, "rollout.write", { tenantId: "t1" });
     expect(decision).toEqual({ allowed: true, via: "operator" });
+  });
+});
+
+describe("rbac — data-governance operations (coverage gap regression)", () => {
+  // data.export / data.purge / config.change are declared AuditActions; they
+  // must be authorizable via RBAC, not denied unconditionally.
+  const dangerous = ["data.export", "data.purge", "config.change"] as const;
+
+  it("admin and owner are allowed every data-governance op", () => {
+    const res = { tenantId: "t1" };
+    for (const action of dangerous) {
+      expect(authorizeAction(owner, action, res).allowed).toBe(true);
+      expect(authorizeAction(admin, action, res).allowed).toBe(true);
+    }
+  });
+
+  it("operator, analyst and viewer are denied every data-governance op", () => {
+    const res = { tenantId: "t1" };
+    for (const action of dangerous) {
+      for (const subject of [operator, analyst, viewer]) {
+        expect(authorizeAction(subject, action, res)).toEqual({
+          allowed: false,
+          reason: "missing_permission",
+        });
+      }
+    }
+  });
+
+  it("the dangerous ops are still blocked across tenants", () => {
+    for (const action of dangerous) {
+      expect(authorizeAction(owner, action, { tenantId: "t2" })).toEqual({
+        allowed: false,
+        reason: "cross_tenant",
+      });
+    }
+  });
+});
+
+describe("rbac — via reports the highest role, not the first", () => {
+  it("picks owner over viewer regardless of assignment order", () => {
+    const res = { tenantId: "t1" };
+    const viewerFirst: Subject = { id: "u", tenantId: "t1", assignments: [{ role: "viewer" }, { role: "owner" }] };
+    const ownerFirst: Subject = { id: "u", tenantId: "t1", assignments: [{ role: "owner" }, { role: "viewer" }] };
+    // Both hold a role that grants policy.read; via must be owner either way.
+    expect(authorize(viewerFirst, "policy.read", res)).toEqual({ allowed: true, via: "owner" });
+    expect(authorize(ownerFirst, "policy.read", res)).toEqual({ allowed: true, via: "owner" });
   });
 });
 

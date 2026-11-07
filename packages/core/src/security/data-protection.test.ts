@@ -35,6 +35,26 @@ describe("validateDataProtectionPolicy", () => {
     expect(issues.some((i) => i.field === "encryption.atRest.algorithm")).toBe(true);
   });
 
+  it("rejects AES-256-CBC: at-rest ciphers are AEAD-only", () => {
+    const issues = validateDataProtectionPolicy(policy({
+      encryption: {
+        atRest: { enabled: true, algorithm: "AES-256-CBC" as never, keyRef: "k" },
+        inTransit: { minTlsVersion: "TLS1.3" },
+      },
+    }));
+    expect(issues.some((i) => i.field === "encryption.atRest.algorithm")).toBe(true);
+  });
+
+  it("accepts ChaCha20-Poly1305 (also AEAD)", () => {
+    const issues = validateDataProtectionPolicy(policy({
+      encryption: {
+        atRest: { enabled: true, algorithm: "ChaCha20-Poly1305", keyRef: "k" },
+        inTransit: { minTlsVersion: "TLS1.3" },
+      },
+    }));
+    expect(issues).toEqual([]);
+  });
+
   it("requires a key reference when at-rest encryption is enabled", () => {
     const issues = validateDataProtectionPolicy(policy({
       encryption: {

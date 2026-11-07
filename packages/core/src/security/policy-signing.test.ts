@@ -49,6 +49,25 @@ describe("policy signing", () => {
     expect(verifyPolicy(signed, rotated.verification)).toEqual({ valid: false, reason: "key_mismatch" });
   });
 
+  it("rejects a back/forward-dated signedAt (attribution is signed)", () => {
+    const { signing, verification } = generatePolicyKeyPair("k1");
+    const signed = signPolicy(policy, signing, at);
+    // Move the signing time without re-signing. The policy and its digest are
+    // untouched, so this would have verified valid when only the policy was
+    // signed — it must now fail because signedAt is inside the signature.
+    const backdated = { ...signed, signedAt: "2020-01-01T00:00:00.000Z" };
+    expect(verifyPolicy(backdated, verification)).toEqual({ valid: false, reason: "bad_signature" });
+    const postdated = { ...signed, signedAt: "2099-01-01T00:00:00.000Z" };
+    expect(verifyPolicy(postdated, verification)).toEqual({ valid: false, reason: "bad_signature" });
+  });
+
+  it("rejects a tampered algorithm label", () => {
+    const { signing, verification } = generatePolicyKeyPair("k1");
+    const signed = signPolicy(policy, signing, at);
+    const relabelled = { ...signed, algorithm: "rsa" as never };
+    expect(verifyPolicy(relabelled, verification)).toEqual({ valid: false, reason: "bad_signature" });
+  });
+
   it("does not leak the private key into the signed object", () => {
     const { signing } = generatePolicyKeyPair("k1");
     const signed = signPolicy(policy, signing, at);

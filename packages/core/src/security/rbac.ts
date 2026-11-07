@@ -30,7 +30,13 @@ export type Permission =
   | "audit.read"
   | "billing.read"
   | "member.read"
-  | "member.manage";
+  | "member.manage"
+  // Data-governance operations — the most dangerous acts in the system. Each
+  // has a dedicated permission so it is authorizable (and auditable) in its own
+  // right, never bundled under a coarser grant.
+  | "data.export"
+  | "data.purge"
+  | "config.change";
 
 /** The built-in roles. Each maps to a fixed permission set below. */
 export type Role = "owner" | "admin" | "operator" | "analyst" | "viewer";
@@ -45,7 +51,8 @@ export type Role = "owner" | "admin" | "operator" | "analyst" | "viewer";
  * - operator: runs rollouts — read/write/rollback rollouts and read policies —
  *   but cannot author or sign policies or manage members.
  * - admin: the full permission set; authors and signs policies, manages
- *   members, reads audit and billing.
+ *   members, reads audit and billing, and runs the data-governance ops
+ *   (export/purge/config.change).
  * - owner: the same full set as admin today. Kept as a distinct role for
  *   tenant-level ownership semantics (e.g. the principal that cannot be removed
  *   by an admin); the distinction lives in member-management policy, not in an
@@ -66,6 +73,9 @@ export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
     "billing.read",
     "member.read",
     "member.manage",
+    "data.export",
+    "data.purge",
+    "config.change",
   ],
   owner: [
     "policy.read",
@@ -78,7 +88,23 @@ export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
     "billing.read",
     "member.read",
     "member.manage",
+    "data.export",
+    "data.purge",
+    "config.change",
   ],
+};
+
+/**
+ * Privilege ordering, highest first, used only to report WHICH role authorized
+ * a decision when a subject holds several that would all grant it. It does not
+ * affect whether access is allowed — only the `via` label.
+ */
+export const ROLE_RANK: Record<Role, number> = {
+  owner: 4,
+  admin: 3,
+  operator: 2,
+  analyst: 1,
+  viewer: 0,
 };
 
 /**
@@ -125,6 +151,9 @@ const ACTION_PERMISSION: Record<string, Permission> = {
   "access.grant": "member.manage",
   "access.revoke": "member.manage",
   "member.read": "member.read",
+  "data.export": "data.export",
+  "data.purge": "data.purge",
+  "config.change": "config.change",
 };
 
 /** True when a role holds the permission. */
@@ -158,7 +187,11 @@ export function authorize(subject: Subject, permission: Permission, resource: Re
   if (inScope.length === 0) {
     return { allowed: false, reason: "out_of_scope" };
   }
-  const granting = inScope.find((a) => roleGrants(a.role, permission));
+  // Report the HIGHEST-privilege role that grants the permission, not merely the
+  // first one listed, so `via` is stable regardless of assignment order.
+  const granting = inScope
+    .filter((a) => roleGrants(a.role, permission))
+    .sort((left, right) => ROLE_RANK[right.role] - ROLE_RANK[left.role])[0];
   if (granting === undefined) {
     return { allowed: false, reason: "missing_permission" };
   }

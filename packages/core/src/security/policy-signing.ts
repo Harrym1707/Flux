@@ -64,21 +64,39 @@ export function policyDigest(policy: unknown): string {
 }
 
 /**
- * Sign a policy. The signature covers the canonical JSON, so it is independent
- * of how the policy object happened to be constructed — the same policy signs
- * to the same digest every time.
+ * The exact bytes an Ed25519 signature covers: the whole envelope, not just
+ * the policy. Signing only the policy would leave `signedAt`, `keyId`, and
+ * `algorithm` outside the signature, so a signed policy could be back- or
+ * forward-dated (or relabelled) and still verify — the attribution would be
+ * forgeable. Binding them all into one canonical payload closes that gap: any
+ * change to when/by-which-key/with-what-algorithm a policy was signed breaks
+ * verification. `digest` is included too, though it is derived from `policy`.
+ */
+function signedPayload(parts: {
+  policy: unknown;
+  digest: string;
+  keyId: string;
+  algorithm: "ed25519";
+  signedAt: string;
+}): Buffer {
+  return Buffer.from(canonicalJson(parts));
+}
+
+/**
+ * Sign a policy. The signature covers the full envelope (policy + digest +
+ * keyId + algorithm + signedAt) in canonical form, so it is independent of how
+ * the policy object happened to be constructed and tamper-evident across every
+ * attribution field, not just the policy body.
  */
 export function signPolicy<Policy>(policy: Policy, key: SigningKey, signedAt: string): SignedPolicy<Policy> {
-  const canonical = canonicalJson(policy);
-  const signature = sign(null, Buffer.from(canonical), key.privateKeyPem).toString("base64");
-  return {
-    policy,
-    digest: createHash("sha256").update(canonical).digest("hex"),
-    signature,
-    keyId: key.keyId,
-    algorithm: "ed25519",
-    signedAt,
-  };
+  const digest = createHash("sha256").update(canonicalJson(policy)).digest("hex");
+  const algorithm = "ed25519" as const;
+  const signature = sign(
+    null,
+    signedPayload({ policy, digest, keyId: key.keyId, algorithm, signedAt }),
+    key.privateKeyPem,
+  ).toString("base64");
+  return { policy, digest, signature, keyId: key.keyId, algorithm, signedAt };
 }
 
 export type PolicyVerification =
@@ -95,14 +113,23 @@ export function verifyPolicy<Policy>(signed: SignedPolicy<Policy>, key: Verifica
   if (signed.keyId !== key.keyId) {
     return { valid: false, reason: "key_mismatch" };
   }
-  const canonical = canonicalJson(signed.policy);
-  const digest = createHash("sha256").update(canonical).digest("hex");
+  const digest = createHash("sha256").update(canonicalJson(signed.policy)).digest("hex");
   if (digest !== signed.digest) {
     return { valid: false, reason: "digest_mismatch" };
   }
+  // Verify against the SAME envelope that was signed. A tampered signedAt,
+  // keyId, or algorithm changes these bytes and so fails verification, even
+  // though the policy body and its digest are untouched.
+  const payload = signedPayload({
+    policy: signed.policy,
+    digest: signed.digest,
+    keyId: signed.keyId,
+    algorithm: signed.algorithm,
+    signedAt: signed.signedAt,
+  });
   let ok = false;
   try {
-    ok = verify(null, Buffer.from(canonical), key.publicKeyPem, Buffer.from(signed.signature, "base64"));
+    ok = verify(null, payload, key.publicKeyPem, Buffer.from(signed.signature, "base64"));
   } catch {
     ok = false;
   }

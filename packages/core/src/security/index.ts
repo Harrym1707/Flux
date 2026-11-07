@@ -4,6 +4,7 @@
  * roadmap and which hardening items need external infrastructure instead.
  */
 export * from "./hash-chain.js";
+export * from "./chain-anchor.js";
 export * from "./audit-log.js";
 export * from "./rbac.js";
 export * from "./data-protection.js";
