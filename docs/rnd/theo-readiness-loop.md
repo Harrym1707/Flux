@@ -167,3 +167,24 @@ the next tick: (a) add a thin real-provider adapter behind an env var (so the da
 key exists it verifies with no code change), (b) add a recorded-trace spool loader
 if/when the user supplies traces, or (c) harden the runner (grouping, cost report,
 CLI flags). Absent real traffic, (a) is the highest-value, smallest step.
+
+### Iteration 7 — the real-provider seam (quality verification becomes a config switch)
+Hypothesis (iteration 6's lead, option a): the only thing between the pipeline and a
+real quality verdict is the `call` seam. Make it env-selectable so the day a key or
+endpoint exists, the gate replays against the real provider with no code change.
+Added `makeCaller()` to the pipeline runner: `MESH_REPLAY_ENDPOINT`+`MESH_REPLAY_API_KEY`
+→ POST the request as-is with Bearer auth; `ANTHROPIC_API_KEY` → Anthropic Messages
+API; nothing set → the local stub (plumbing only). The run now records which
+`provider` served it and sets `qualityVerifiedAgainstRealModel` true only for a real
+provider. No network is touched unless the user sets a key.
+Delta: pipeline still runs end-to-end unattended (provider `local-stub`, gated-full
+33.8% measured, both approved); the seam is in place and typechecks/builds. Safety
+held (all 9 lossless ✓), dormant 0, corpus 9, tests 523/523, build clean. **Kept.**
+State of the done-criteria: SAFETY ✓ · CORPUS 9 ✓ · DORMANCY 0 ✓ · pipeline runs
+end-to-end unattended ✓ · "median realised savings above target on workloads with
+real waste" — measured (33.8% on the real coding-agent sample) but its QUALITY is
+verified only against the stub. The loop has now built everything provable without
+real traffic. The final criterion is gated on an input only the user can provide:
+a provider key (set `ANTHROPIC_API_KEY` and re-run `evals/theo-pipeline-run.ts`) or
+recorded real request+response traces. This is no longer a code gap, so the loop
+pauses here rather than churn — it resumes the moment real traffic is available.

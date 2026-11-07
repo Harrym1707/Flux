@@ -81,6 +81,62 @@ function localModel(request: unknown): Promise<unknown> {
   return Promise.resolve({ output_text: answer, usage: { input_tokens: inputTokens, output_tokens: 64 } });
 }
 
+type Caller = { provider: string; verifiesQuality: boolean; call: (request: unknown) => Promise<unknown> };
+
+/**
+ * Choose the model seam from the environment. With a real key/endpoint set, the
+ * gate replays against the customer's own provider and the quality verdict is
+ * real. With nothing set, it falls back to the local stub (plumbing only). This
+ * is the ONE seam that turns the readiness pipeline from plumbing-proven into
+ * quality-verified — and it is a configuration, not a code change.
+ *
+ *   MESH_REPLAY_ENDPOINT + MESH_REPLAY_API_KEY   POST the request as-is, Bearer auth
+ *   ANTHROPIC_API_KEY                            Anthropic Messages API (claude-* models)
+ *   (none)                                       local stub
+ */
+function makeCaller(): Caller {
+  const endpoint = process.env.MESH_REPLAY_ENDPOINT;
+  const endpointKey = process.env.MESH_REPLAY_API_KEY;
+  if (endpoint && endpointKey) {
+    return {
+      provider: `custom-endpoint (${endpoint})`,
+      verifiesQuality: true,
+      call: async (request) => {
+        const res = await fetch(endpoint, {
+          method: "POST",
+          headers: { "content-type": "application/json", authorization: `Bearer ${endpointKey}` },
+          body: JSON.stringify(request),
+          signal: AbortSignal.timeout(60_000),
+        });
+        if (!res.ok) throw new Error(`provider ${res.status}`);
+        return await res.json();
+      },
+    };
+  }
+  const anthropicKey = process.env.ANTHROPIC_API_KEY;
+  if (anthropicKey) {
+    return {
+      provider: "anthropic-messages",
+      verifiesQuality: true,
+      call: async (request) => {
+        const res = await fetch("https://api.anthropic.com/v1/messages", {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            "x-api-key": anthropicKey,
+            "anthropic-version": "2023-06-01",
+          },
+          body: JSON.stringify(request),
+          signal: AbortSignal.timeout(60_000),
+        });
+        if (!res.ok) throw new Error(`anthropic ${res.status}`);
+        return await res.json();
+      },
+    };
+  }
+  return { provider: "local-stub", verifiesQuality: false, call: localModel };
+}
+
 async function main(): Promise<void> {
   const requests = loadSpool();
   const candidates: ReplayCandidate[] = [
@@ -94,21 +150,23 @@ async function main(): Promise<void> {
     },
   ];
 
+  const caller = makeCaller();
   const result = await replayGate({
     requests,
-    call: localModel,
+    call: caller.call,
     candidates,
     grade: exactTextGrader,
     maximumQualityDrop: 0.02,
     price: PRICE,
   });
 
-  const qualityVerifiedAgainstRealModel = false; // local stub — see header.
+  const qualityVerifiedAgainstRealModel = caller.verifiesQuality;
   const approved = result.approved;
   const out = {
     ranAt: new Date().toISOString(),
     spoolSize: requests.length,
     unattendedRun: true,
+    provider: caller.provider,
     qualityVerifiedAgainstRealModel,
     providerCalls: result.calls,
     maximumQualityDrop: result.maximumQualityDrop,
@@ -124,14 +182,15 @@ async function main(): Promise<void> {
     })),
     notes: [
       ...result.notes,
-      "LOCAL STUB MODEL: token savings are measured and real; the quality verdict is plumbing-only.",
-      "Point `call` at the customer's provider (API key/endpoint) for a real quality verdict — no code change.",
+      qualityVerifiedAgainstRealModel
+        ? `Quality verified against a real provider (${caller.provider}): savings AND answer-equivalence are both measured.`
+        : "LOCAL STUB MODEL: token savings are measured and real; the quality verdict is plumbing-only. Set ANTHROPIC_API_KEY or MESH_REPLAY_ENDPOINT+MESH_REPLAY_API_KEY to verify quality — no code change.",
     ],
   };
   writeFileSync("evals/results/theo-pipeline.json", `${JSON.stringify(out, null, 2)}\n`, "utf8");
 
   console.log("=== THEO PIPELINE (end-to-end, unattended) ===\n");
-  console.log(`spool: ${requests.length} request(s) · provider calls: ${result.calls}`);
+  console.log(`spool: ${requests.length} request(s) · provider: ${caller.provider} · provider calls: ${result.calls}`);
   for (const c of out.candidates) {
     console.log(
       `  ${c.label.padEnd(14)} saving ${String(c.tokenSavingPercent).padStart(6)}%  ` +
@@ -139,7 +198,7 @@ async function main(): Promise<void> {
     );
   }
   console.log(`\napproved candidate: ${out.approvedCandidate ?? "none"}`);
-  console.log(`quality verified against a REAL model: ${qualityVerifiedAgainstRealModel ? "yes" : "NO — local stub; set a provider call"}`);
+  console.log(`quality verified against a REAL model: ${qualityVerifiedAgainstRealModel ? `yes (${caller.provider})` : "NO — local stub; set a provider call"}`);
   console.log("\nwrote evals/results/theo-pipeline.json");
 }
 
