@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   CandidateSelector,
+  DEFAULT_MINIMUM_SAMPLES,
   EscalationManager,
   PolicyLoader,
   RolloutManager,
@@ -427,5 +428,112 @@ describe("routing telemetry", () => {
     expect(recorded).toHaveLength(2);
     expect(recorded[0]?.routeReason).toContain("candidate=small-model");
     expect(recorded[1]?.routeReason).toBe("no_active_policy");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Error-rate and latency ceilings (quality gate)
+// ---------------------------------------------------------------------------
+
+describe("Router enforces the error-rate and latency ceilings", () => {
+  const router = new Router();
+  const selector = new CandidateSelector();
+
+  it("refuses a candidate whose measured error rate breaches maxErrorRate", () => {
+    const c = candidate({
+      qualityPolicy: { minimumScore: 0.99, maxErrorRate: 0.02, minimumSamples: 200 },
+      evidence: { quality: { ...passingQuality, errorRate: 0.1 }, sampleSize: 500 },
+    });
+    expect(selector.select(c).qualified).toBe(false);
+    const p = atStage(ROLLOUT_LADDER_TOP, { candidate: c });
+    expect(candidateShare(p)).toBe(0); // zero candidate traffic even at 100%
+    expect(router.route(request("any"), p).isBaseline).toBe(true);
+  });
+
+  it("routes a candidate within the error-rate ceiling", () => {
+    const c = candidate({
+      qualityPolicy: { minimumScore: 0.99, maxErrorRate: 0.02, minimumSamples: 200 },
+      evidence: { quality: { ...passingQuality, errorRate: 0.005 }, sampleSize: 500 },
+    });
+    expect(selector.select(c).qualified).toBe(true);
+    expect(router.route(request("any"), atStage(ROLLOUT_LADDER_TOP, { candidate: c })).isBaseline).toBe(false);
+  });
+
+  it("refuses a candidate whose measured latency breaches maxLatencyMs", () => {
+    const c = candidate({
+      qualityPolicy: { minimumScore: 0.99, maxLatencyMs: 800, minimumSamples: 200 },
+      evidence: { quality: { ...passingQuality, latencyMs: 2_500 }, sampleSize: 500 },
+    });
+    expect(selector.select(c).qualified).toBe(false);
+    expect(candidateShare(atStage(ROLLOUT_LADDER_TOP, { candidate: c }))).toBe(0);
+  });
+
+  it("fails closed when a ceiling is configured but never measured", () => {
+    const c = candidate({
+      qualityPolicy: { minimumScore: 0.99, maxErrorRate: 0.02, minimumSamples: 200 },
+      evidence: { quality: passingQuality, sampleSize: 500 }, // no errorRate measured
+    });
+    expect(selector.select(c).qualified).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Default minimum-samples floor
+// ---------------------------------------------------------------------------
+
+describe("default minimum-samples floor", () => {
+  const selector = new CandidateSelector();
+
+  it("exposes a floor above one or two examples", () => {
+    expect(DEFAULT_MINIMUM_SAMPLES).toBeGreaterThan(2);
+  });
+
+  it("refuses a candidate that omits minimumSamples and rests on too few examples", () => {
+    const c = candidate({
+      qualityPolicy: { minimumScore: 0.99 }, // no minimumSamples -> floor applies
+      evidence: { quality: passingQuality, sampleSize: 3 },
+    });
+    expect(selector.select(c)).toMatchObject({ qualified: false, reason: "insufficient_samples" });
+  });
+
+  it("qualifies once the floor is cleared", () => {
+    const c = candidate({
+      qualityPolicy: { minimumScore: 0.99 },
+      evidence: { quality: passingQuality, sampleSize: DEFAULT_MINIMUM_SAMPLES },
+    });
+    expect(selector.select(c).qualified).toBe(true);
+  });
+
+  it("EscalationManager holds on a sub-floor signal by default", () => {
+    const manager = new EscalationManager();
+    const decision = manager.evaluate(atStage(1), { quality: passingQuality, sampleSize: 3 });
+    expect(decision.action).toBe("hold");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Rollback dwell guard (anti-flapping)
+// ---------------------------------------------------------------------------
+
+describe("RollbackManager dwell guard", () => {
+  const regressing = { ...passingQuality, passed: false, score: 0.3 };
+
+  it("does not roll back on a breach measured on too few samples", () => {
+    const manager = new RollbackManager("halt");
+    const decision = manager.decide(atStage(4), { quality: regressing, sampleSize: 2 });
+    expect(decision).toMatchObject({ triggered: false, reason: "insufficient_samples" });
+  });
+
+  it("rolls back on a breach once the sample floor is cleared", () => {
+    const manager = new RollbackManager("halt");
+    const decision = manager.decide(atStage(4), { quality: regressing, sampleSize: DEFAULT_MINIMUM_SAMPLES });
+    expect(decision.triggered).toBe(true);
+    expect(decision.rollout.status).toBe("halted");
+  });
+
+  it("honours a custom rollback dwell threshold", () => {
+    const manager = new RollbackManager("halt", new RolloutManager(), { minimumSamples: 100 });
+    expect(manager.decide(atStage(4), { quality: regressing, sampleSize: 50 }).triggered).toBe(false);
+    expect(manager.decide(atStage(4), { quality: regressing, sampleSize: 150 }).triggered).toBe(true);
   });
 });

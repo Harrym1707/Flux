@@ -8,6 +8,10 @@ export type QualityResult = {
   score?: number;
   checks: Record<string, boolean | number | string>;
   reason?: string;
+  /** Measured error rate (0..1) behind this result, checked against `maxErrorRate`. */
+  errorRate?: number;
+  /** Measured latency in ms behind this result, checked against `maxLatencyMs`. */
+  latencyMs?: number;
 };
 
 export type QualityPolicy = {
@@ -18,7 +22,8 @@ export type QualityPolicy = {
   /**
    * Minimum number of evaluation samples the quality measurement must rest on
    * before a candidate may take any traffic. A policy is never activated on one
-   * or two examples (Technical Architecture §6). Defaults to 1 when omitted.
+   * or two examples (Technical Architecture §6). Defaults to
+   * `DEFAULT_MINIMUM_SAMPLES` when omitted.
    */
   minimumSamples?: number;
 };

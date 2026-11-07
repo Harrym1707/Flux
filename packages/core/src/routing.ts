@@ -48,6 +48,14 @@ export const ROLLOUT_LADDER_TOP = ROLLOUT_LADDER.length - 1;
 export const ROLLOUT_HALTED_STAGE = -1;
 
 /**
+ * Default floor for evaluation/observation sample sizes when a policy omits its
+ * own. A candidate is never qualified, escalated, or rolled back on one or two
+ * examples (Technical Architecture §6); 30 is the smallest sample that carries
+ * any statistical signal.
+ */
+export const DEFAULT_MINIMUM_SAMPLES = 30;
+
+/**
  * Where a candidate sits on the ladder right now. `stageIndex` is an index into
  * `ROLLOUT_LADDER` while `status` is `"active"`; a `"halted"` rollout sends no
  * candidate traffic regardless of the index.
@@ -184,7 +192,7 @@ export class CandidateSelector {
     if (!candidate.approved) {
       return { qualified: false, reason: "candidate_not_approved", quality: evidence.quality };
     }
-    const minimumSamples = qualityPolicy.minimumSamples ?? 1;
+    const minimumSamples = qualityPolicy.minimumSamples ?? DEFAULT_MINIMUM_SAMPLES;
     if (!Number.isInteger(evidence.sampleSize) || evidence.sampleSize < minimumSamples) {
       return { qualified: false, reason: "insufficient_samples", quality: evidence.quality };
     }
@@ -321,10 +329,15 @@ export type RollbackDecision = {
  * signal breaches the candidate's quality bar and produces the reverted state.
  */
 export class RollbackManager {
+  private readonly minimumSamples: number;
+
   constructor(
     private readonly mode: RollbackMode = "halt",
     private readonly rolloutManager: RolloutManager = new RolloutManager(),
-  ) {}
+    options: { minimumSamples?: number } = {},
+  ) {
+    this.minimumSamples = options.minimumSamples ?? DEFAULT_MINIMUM_SAMPLES;
+  }
 
   /** True when live candidate quality no longer clears the candidate's policy. */
   shouldRollback(candidate: RolloutCandidate, signal: RolloutSignal): boolean {
@@ -339,8 +352,15 @@ export class RollbackManager {
     return { ...policy, rollout };
   }
 
-  /** Inspect a signal and, if it breaches quality, produce the reverted state. */
+  /**
+   * Inspect a signal and, if it breaches quality on enough samples, produce the
+   * reverted state. A breach measured on fewer than `minimumSamples` is held,
+   * not acted on, so the ladder does not flap on one or two bad examples.
+   */
   decide(policy: StagedRoutingPolicy, signal: RolloutSignal): RollbackDecision {
+    if (!Number.isInteger(signal.sampleSize) || signal.sampleSize < this.minimumSamples) {
+      return { triggered: false, rollout: policy.rollout, reason: "insufficient_samples" };
+    }
     if (!this.shouldRollback(policy.candidate, signal)) {
       return { triggered: false, rollout: policy.rollout, reason: "quality_holding" };
     }
@@ -379,7 +399,7 @@ export class EscalationManager {
     private readonly rolloutManager: RolloutManager = new RolloutManager(),
     private readonly rollbackManager: RollbackManager = new RollbackManager(),
   ) {
-    this.minimumSamplesPerStage = options.minimumSamplesPerStage ?? 1;
+    this.minimumSamplesPerStage = options.minimumSamplesPerStage ?? DEFAULT_MINIMUM_SAMPLES;
   }
 
   evaluate(policy: StagedRoutingPolicy, signal: RolloutSignal): EscalationDecision {
