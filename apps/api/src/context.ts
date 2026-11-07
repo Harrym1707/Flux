@@ -2,8 +2,10 @@ import { join } from "node:path";
 import {
   createStripeClient,
   openFileAccountStore,
+  openFileLedgerStore,
   type AccountStore,
   type GithubOAuthConfig,
+  type LedgerStore,
   type StripeClient,
 } from "../../../packages/core/dist/src/index.js";
 
@@ -20,6 +22,8 @@ import {
 
 export type ServerContext = {
   accounts: AccountStore;
+  /** Per-account hash-chained ledger spools the metering endpoint appends to. */
+  ledger: LedgerStore;
   /** The public origin the claim bridge and OAuth redirect are built from. */
   publicBaseUrl: string;
   /** Directory holding the account file and per-account ledger spools. */
@@ -67,6 +71,7 @@ export function buildContext(env: NodeJS.ProcessEnv = process.env): ServerContex
   const dataDir = env.MESH_DATA_DIR ?? join(process.cwd(), ".mesh-data");
   const publicBaseUrl = (env.MESH_PUBLIC_BASE_URL ?? "https://www.mesh-technology.com").replace(/\/$/, "");
   const accounts = openFileAccountStore(join(dataDir, "accounts.json"));
+  const ledger = openFileLedgerStore(join(dataDir, "ledger"));
 
   const clientId = env.MESH_GITHUB_CLIENT_ID;
   const clientSecret = env.MESH_GITHUB_CLIENT_SECRET;
@@ -86,6 +91,7 @@ export function buildContext(env: NodeJS.ProcessEnv = process.env): ServerContex
 
   return {
     accounts,
+    ledger,
     publicBaseUrl,
     dataDir,
     ...(githubOAuth === undefined ? {} : { githubOAuth }),
