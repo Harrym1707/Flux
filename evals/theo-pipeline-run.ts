@@ -119,13 +119,17 @@ function makeCaller(): Caller {
       provider: "anthropic-messages",
       verifiesQuality: true,
       call: async (request) => {
+        const headers: Record<string, string> = {
+          "content-type": "application/json",
+          "x-api-key": anthropicKey,
+          "anthropic-version": "2023-06-01",
+        };
+        // An unscoped key needs the workspace it should bill to.
+        const workspaceId = process.env.ANTHROPIC_WORKSPACE_ID;
+        if (workspaceId) headers["anthropic-workspace-id"] = workspaceId;
         const res = await fetch("https://api.anthropic.com/v1/messages", {
           method: "POST",
-          headers: {
-            "content-type": "application/json",
-            "x-api-key": anthropicKey,
-            "anthropic-version": "2023-06-01",
-          },
+          headers,
           body: JSON.stringify(toAnthropic(request)),
           signal: AbortSignal.timeout(60_000),
         });
