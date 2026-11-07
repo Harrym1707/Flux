@@ -15,6 +15,12 @@ export type QualityPolicy = {
   requiredChecks?: string[];
   maxErrorRate?: number;
   maxLatencyMs?: number;
+  /**
+   * Minimum number of evaluation samples the quality measurement must rest on
+   * before a candidate may take any traffic. A policy is never activated on one
+   * or two examples (Technical Architecture §6). Defaults to 1 when omitted.
+   */
+  minimumSamples?: number;
 };
 
 export type RoutingCandidate = {
