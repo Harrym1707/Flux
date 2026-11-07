@@ -42,6 +42,40 @@ function request(overrides: Record<string, unknown> = {}): Record<string, unknow
   };
 }
 
+describe("reduceRequest token-counting", () => {
+  it("never counts the exact same text twice in one call (duplicate-work regression guard)", () => {
+    const seen = new Map<string, number>();
+    const spy = (text: string): number => {
+      seen.set(text, (seen.get(text) ?? 0) + 1);
+      return approximateTokenCount(text);
+    };
+    reduceRequest(request({ tools: toolCatalogue(6) }), {
+      toolSchemas: true,
+      duplicateContext: true,
+      repairCachePrefix: true,
+      countTokens: spy,
+    });
+    const repeated = [...seen.entries()].filter(([, count]) => count > 1);
+    expect(repeated).toEqual([]);
+  });
+
+  it("produces the identical reduction whether or not the caller's counter is itself memoized", () => {
+    const plain = reduceRequest(request({ tools: toolCatalogue(6) }), { toolSchemas: true, duplicateContext: true });
+    const cache = new Map<string, number>();
+    const memoized = (text: string): number => {
+      if (!cache.has(text)) cache.set(text, approximateTokenCount(text));
+      return cache.get(text)!;
+    };
+    const withMemo = reduceRequest(request({ tools: toolCatalogue(6) }), {
+      toolSchemas: true,
+      duplicateContext: true,
+      countTokens: memoized,
+    });
+    expect(withMemo.summary).toEqual(plain.summary);
+    expect(withMemo.request).toEqual(plain.request);
+  });
+});
+
 describe("reduceRequest", () => {
   it("keeps tool descriptions by default, so the default path cannot change tool choice", () => {
     const { request: reduced, summary } = reduceRequest(request(), { toolSchemas: true });
