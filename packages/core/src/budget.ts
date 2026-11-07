@@ -126,8 +126,21 @@ export type BudgetDecision = {
   fractions: Record<BudgetDimension, number | null>;
   remaining: BudgetRemaining;
   reason: string;
-  /** Present only for `switch_model` / `compress_context`. */
+  /**
+   * The remedy to attempt, set whenever a remedy (`switch_model` /
+   * `compress_context`) was configured for this status. It stays present even
+   * when the action has fallen back to `stop` because the cap was already
+   * exceeded (see `remedyExhausted`): it names the remedy an orchestrator may
+   * apply before starting a fresh run.
+   */
   intent?: BudgetIntent;
+  /**
+   * True when the configured remedy (`switch_model` / `compress_context`) was
+   * chosen for an ALREADY-EXCEEDED cap and so cannot recover the overrun: the
+   * action falls back to `stop` and the run must halt. This is the explicit
+   * "remedy cannot help past the cap" terminal path.
+   */
+  remedyExhausted?: boolean;
   /** True for `stop` / `escalate`: the run must not continue automatically. */
   terminal: boolean;
 };
@@ -185,8 +198,10 @@ export function assertValidBudgetPolicy(policy: BudgetPolicy): void {
   for (const dimension of BUDGET_DIMENSIONS) {
     const limit = limitFor(limits, dimension);
     if (limit === undefined) continue;
-    if (typeof limit !== "number" || !Number.isFinite(limit) || limit <= 0) {
-      throw new Error(`Budget limit for ${DIMENSION_LABELS[dimension]} must be a finite number > 0.`);
+    // Zero is a legitimate "allow nothing" cap; only a negative or non-finite
+    // limit is rejected. A zero cap produces an immediate exceeded decision.
+    if (typeof limit !== "number" || !Number.isFinite(limit) || limit < 0) {
+      throw new Error(`Budget limit for ${DIMENSION_LABELS[dimension]} must be a finite number >= 0.`);
     }
   }
   const threshold = policy.warnThreshold;
@@ -225,7 +240,10 @@ export function evaluateBudget(usage: BudgetUsage, policy: BudgetPolicy): Budget
       continue;
     }
     const used = usedFor(usage, dimension);
-    const fraction = used / limit;
+    // A zero cap ("allow nothing") is legitimate: any usage exceeds it and zero
+    // usage sits exactly at it. Guard the division so the fraction stays finite
+    // and meaningful (1 at the cap, Infinity past it) instead of NaN.
+    const fraction = limit === 0 ? (used > 0 ? Infinity : 1) : used / limit;
     fractions[dimension] = fraction;
     const left = Math.max(0, limit - used);
     if (dimension === "cost") remaining.costUsd = left;
@@ -239,15 +257,28 @@ export function evaluateBudget(usage: BudgetUsage, policy: BudgetPolicy): Budget
 
   const status: BudgetStatus = exceeded.length > 0 ? "exceeded" : approaching.length > 0 ? "approaching" : "ok";
   const triggeredBy = status === "exceeded" ? exceeded : status === "approaching" ? approaching : [];
-  const action: BudgetAction =
+  const configuredAction: BudgetAction =
     status === "exceeded"
       ? policy.onExceeded ?? "stop"
       : status === "approaching"
         ? policy.onApproaching ?? "continue"
         : "continue";
 
+  // Safety net against runaway loops: a remedy (switch_model / compress_context)
+  // can lower the cost of FUTURE steps, but it cannot undo spend that has
+  // already passed a cap. So once a cap is EXCEEDED a remedy is not, on its own,
+  // a sufficient stop condition — if the Router / optimiser cannot act, the run
+  // would overrun forever. When a cap is exceeded and the configured action is a
+  // remedy, the controller halts (falls back to `stop`) but still surfaces the
+  // remedy as an intent, so an orchestrator can apply it and start a fresh,
+  // cheaper run rather than silently blowing the budget. A deliberate
+  // "monitor only" policy can still overrun on purpose via onExceeded:"continue".
+  const isRemedy = configuredAction === "switch_model" || configuredAction === "compress_context";
+  const remedyExhausted = status === "exceeded" && isRemedy;
+  const action: BudgetAction = remedyExhausted ? "stop" : configuredAction;
+
   const usageSnapshot: BudgetUsage = { ...usage };
-  const reason = buildReason(status, action, triggeredBy, usageSnapshot, policy.limits);
+  const reason = buildReason(status, configuredAction, action, triggeredBy, usageSnapshot, policy.limits);
 
   const decision: BudgetDecision = {
     status,
@@ -257,12 +288,15 @@ export function evaluateBudget(usage: BudgetUsage, policy: BudgetPolicy): Budget
     fractions,
     remaining,
     reason,
+    ...(remedyExhausted ? { remedyExhausted: true } : {}),
     terminal: isTerminalAction(action),
   };
 
-  if (action === "switch_model") {
+  // Attach the remedy intent whenever a remedy was configured for this status,
+  // even if the action fell back to stop — the intent names the remedy to try.
+  if (configuredAction === "switch_model") {
     decision.intent = { kind: "switch_model", triggeredBy, remaining, reason };
-  } else if (action === "compress_context") {
+  } else if (configuredAction === "compress_context") {
     decision.intent = { kind: "compress_context", triggeredBy, remaining, reason };
   }
 
@@ -271,6 +305,7 @@ export function evaluateBudget(usage: BudgetUsage, policy: BudgetPolicy): Budget
 
 function buildReason(
   status: BudgetStatus,
+  configuredAction: BudgetAction,
   action: BudgetAction,
   triggeredBy: BudgetDimension[],
   usage: BudgetUsage,
@@ -283,6 +318,9 @@ function buildReason(
     return `${DIMENSION_LABELS[dimension]} ${formatAmount(dimension, used)}/${formatAmount(dimension, limit)}`;
   });
   const verb = status === "exceeded" ? "exceeded" : "approaching";
+  if (action !== configuredAction) {
+    return `${verb} ${parts.join(", ")} -> ${configuredAction} cannot recover past cap, stopping`;
+  }
   return `${verb} ${parts.join(", ")} -> ${action}`;
 }
 
@@ -365,7 +403,12 @@ export function budgetInferenceEvent(event: BudgetDecisionEvent, currentTarget?:
     ...(event.taskClass === undefined ? {} : { taskClass: event.taskClass }),
     provider: currentTarget?.provider ?? BUDGET_TELEMETRY_PROVIDER,
     model: currentTarget?.model ?? BUDGET_TELEMETRY_MODEL,
-    costUsd: event.usage.costUsd,
+    // A budget decision is a MARKER on the shared pipe, not a provider call: the
+    // run's spend is already recorded on its own inference events. Putting the
+    // cumulative cost here (which grows every step) would double-count for any
+    // consumer that sums InferenceEvent.costUsd, so this marker carries zero
+    // spend. The cumulative total stays available on BudgetDecisionEvent.usage.
+    costUsd: 0,
     routeReason: `budget:${event.status}:${event.action}:${triggered}`,
     timestamp: event.timestamp,
   };

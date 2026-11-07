@@ -167,6 +167,74 @@ describe("evaluateBudget — each policy action", () => {
   });
 });
 
+describe("evaluateBudget — exceeded remedy falls back to stop (runaway safety net)", () => {
+  it("switch_model on an exceeded cap halts but still surfaces the remedy", () => {
+    const decision = evaluateBudget(usage({ costUsd: 2 }), policy({ maxCostUsd: 1 }, { onExceeded: "switch_model" }));
+    expect(decision.action).toBe("stop");
+    expect(decision.terminal).toBe(true);
+    expect(decision.remedyExhausted).toBe(true);
+    expect(decision.intent?.kind).toBe("switch_model");
+    expect(decision.reason).toContain("cannot recover past cap");
+  });
+
+  it("compress_context on an exceeded cap halts but still surfaces the remedy", () => {
+    const decision = evaluateBudget(usage({ tokens: 20 }), policy({ maxTokens: 10 }, { onExceeded: "compress_context" }));
+    expect(decision.action).toBe("stop");
+    expect(decision.terminal).toBe(true);
+    expect(decision.remedyExhausted).toBe(true);
+    expect(decision.intent?.kind).toBe("compress_context");
+  });
+
+  it("the same remedy as an approaching action still runs and is non-terminal", () => {
+    const decision = evaluateBudget(usage({ costUsd: 0.9 }), policy({ maxCostUsd: 1 }, { onApproaching: "switch_model" }));
+    expect(decision.action).toBe("switch_model");
+    expect(decision.terminal).toBe(false);
+    expect(decision.remedyExhausted).toBeUndefined();
+  });
+
+  it("escape hatch: onExceeded continue still overruns deliberately", () => {
+    const decision = evaluateBudget(usage({ costUsd: 5 }), policy({ maxCostUsd: 1 }, { onExceeded: "continue" }));
+    expect(decision.action).toBe("continue");
+    expect(decision.terminal).toBe(false);
+    expect(decision.remedyExhausted).toBeUndefined();
+  });
+
+  it("records the fallback through the sink as a stop carrying the remedy intent", () => {
+    const sink = new InMemoryBudgetSink();
+    const tracker = new BudgetTracker(
+      policy({ maxToolCalls: 1 }, { onExceeded: "switch_model" }),
+      { context: CONTEXT, sink, clock: () => "t" },
+    );
+    tracker.recordToolCall(); // toolCalls 1 -> exceeded -> switch_model falls back to stop
+    tracker.recordToolCall(); // toolCalls 2 -> still exceeded -> stop
+    expect(sink.events.map((event) => event.action)).toEqual(["stop", "stop"]);
+    expect(sink.events[0]?.intentKind).toBe("switch_model");
+  });
+});
+
+describe("evaluateBudget — zero-valued caps (allow nothing)", () => {
+  it("is exceeded immediately, even at zero usage", () => {
+    const decision = evaluateBudget(ZERO_BUDGET_USAGE, policy({ maxSteps: 0 }));
+    expect(decision.status).toBe("exceeded");
+    expect(decision.action).toBe("stop");
+    expect(decision.triggeredBy).toEqual(["steps"]);
+    expect(decision.fractions.steps).toBe(1);
+  });
+
+  it("reports an infinite fraction once anything is spent against a zero cost cap", () => {
+    const decision = evaluateBudget(usage({ costUsd: 0.01 }), policy({ maxCostUsd: 0 }));
+    expect(decision.status).toBe("exceeded");
+    expect(decision.fractions.cost).toBe(Infinity);
+    expect(decision.remaining.costUsd).toBe(0);
+  });
+
+  it("a tracker with a zero step cap stops before and on the first step", () => {
+    const tracker = new BudgetTracker(policy({ maxSteps: 0 }));
+    expect(tracker.peek().action).toBe("stop");
+    expect(tracker.recordStep().action).toBe("stop");
+  });
+});
+
 describe("isTerminalAction", () => {
   it("classifies actions", () => {
     const terminal: BudgetAction[] = ["stop", "escalate"];
@@ -177,9 +245,10 @@ describe("isTerminalAction", () => {
 });
 
 describe("assertValidBudgetPolicy", () => {
-  it("rejects a non-positive limit", () => {
-    expect(() => assertValidBudgetPolicy(policy({ maxCostUsd: 0 }))).toThrow(/> 0/);
-    expect(() => assertValidBudgetPolicy(policy({ maxSteps: -1 }))).toThrow(/> 0/);
+  it("rejects a negative or non-finite limit but accepts zero", () => {
+    expect(() => assertValidBudgetPolicy(policy({ maxSteps: -1 }))).toThrow(/>= 0/);
+    expect(() => assertValidBudgetPolicy(policy({ maxCostUsd: Number.POSITIVE_INFINITY }))).toThrow(/>= 0/);
+    expect(() => assertValidBudgetPolicy(policy({ maxCostUsd: 0, maxSteps: 0 }))).not.toThrow();
   });
 
   it("rejects a warn threshold outside (0, 1]", () => {
@@ -313,7 +382,7 @@ describe("BudgetTracker — telemetry", () => {
       taskClass: "research",
       provider: "openai",
       model: "gpt-4o",
-      costUsd: 2,
+      costUsd: 0,
       routeReason: "budget:exceeded:stop:cost",
       timestamp: "2026-11-07T12:00:00.000Z",
     });
