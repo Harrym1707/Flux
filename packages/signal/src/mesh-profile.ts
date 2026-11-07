@@ -11,7 +11,9 @@ import type { BrandProfile } from "./schema.js";
 export const MESH_BRAND_PROFILE: BrandProfile = {
   name: "MESH",
   aliases: ["mesh.ai", "@harrym1707/sdk", "MESH AI"],
-  ownedDomains: ["mesh-ai.dev", "github.com", "npmjs.com"],
+  // Path-qualified on shared hosts: only MESH's own repo/packages are "owned",
+  // not every github.com repo or every npm package.
+  ownedDomains: ["mesh-ai.dev", "github.com/harrym1707", "npmjs.com/package/@harrym1707"],
   categories: [
     {
       id: "ai-cost-engineering",
@@ -26,7 +28,9 @@ export const MESH_BRAND_PROFILE: BrandProfile = {
     {
       id: "llm-routing",
       label: "LLM routing",
-      keywords: ["llm routing", "model routing", "route between models", "routing"],
+      // Bare "routing" is too generic (network routing, etc.); require the
+      // qualified phrase so the association is specific to LLM/model routing.
+      keywords: ["llm routing", "model routing", "route between models", "inference routing"],
     },
     {
       id: "token-optimization",
@@ -56,7 +60,8 @@ export const MESH_BRAND_PROFILE: BrandProfile = {
     },
     {
       id: "mechanism",
-      supportedBy: ["model routing", "semantic caching", "context optimisation", "context optimization", "shadow", "progressive rollout", "automatic rollback"],
+      // Specific mechanism phrases only — bare "shadow" matched unrelated text.
+      supportedBy: ["model routing", "semantic caching", "context optimisation", "context optimization", "shadow testing", "shadow traffic", "progressive rollout", "automatic rollback"],
     },
   ],
   competitors: ["OpenRouter", "LiteLLM", "Helicone", "Portkey", "Martian", "Not Diamond", "Unify"],

@@ -83,11 +83,38 @@ describe("detectLink", () => {
   });
 });
 
+describe("path-aware owned sources (regression: shared-host over-counting)", () => {
+  // BRAND owns "https://github.com/org/mesh" — a path on a shared host, not all
+  // of github.com. A different repo on the same host must NOT count as owned.
+  const meshRepo = { url: "https://github.com/org/mesh/tree/main/packages" };
+  const otherRepo = { url: "https://github.com/someone-else/their-project" };
+
+  it("counts the brand's own repo as cited/linked", () => {
+    expect(detectCitation(sample({ citations: [meshRepo] }), BRAND)).toBe(true);
+    expect(detectLink(sample({ citations: [meshRepo] }), BRAND)).toBe(true);
+  });
+
+  it("does NOT count an unrelated repo on the same host as owned/cited/linked", () => {
+    expect(detectCitation(sample({ citations: [otherRepo] }), BRAND)).toBe(false);
+    expect(detectLink(sample({ citations: [otherRepo] }), BRAND)).toBe(false);
+    const overlap = scoreSourceOverlap(sample({ citations: [otherRepo] }), BRAND);
+    expect(overlap.citedDomains).toEqual(["github.com"]);
+    expect(overlap.ownedDomainsCited).toEqual([]); // host cited, but not an owned path
+    expect(overlap.overlapRatio).toBe(0);
+  });
+});
+
 describe("detectCategoryAssociations", () => {
   it("associates categories only when the brand is mentioned", () => {
     const s = sample({ text: "MESH does llm routing and semantic caching." });
     expect(detectCategoryAssociations(s, BRAND, true).sort()).toEqual(["caching", "routing"]);
     expect(detectCategoryAssociations(s, BRAND, false)).toEqual([]);
+  });
+
+  it("does not associate a keyword that sits far from any brand mention", () => {
+    // Keyword is >220 chars from the only mention -> not an association.
+    const far = `MESH is a tool. ${"filler ".repeat(60)} semantic caching is unrelated here.`;
+    expect(detectCategoryAssociations(sample({ text: far }), BRAND, true)).toEqual([]);
   });
 });
 

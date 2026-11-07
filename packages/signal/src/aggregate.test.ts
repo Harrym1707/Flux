@@ -51,6 +51,30 @@ describe("rateMeasurements", () => {
     expect(rates.correctDescriptionRate).toBeCloseTo(1 / 2, 6); // over descriptions present
   });
 
+  it("keeps conditional rates in [0,1] when citations occur without a mention (regression)", () => {
+    // 2 measurements: one mentions and cites; one cites but does NOT mention.
+    // Before the fix, citations(2) / mentions(1) = 2.0 — a rate above 1.
+    const rates = rateMeasurements([
+      measurement({ mentioned: true, cited: true, linked: true }),
+      measurement({ mentioned: false, cited: true, linked: true }),
+    ]);
+    expect(rates.mentions).toBe(1);
+    expect(rates.citations).toBe(1); // only the mention-positive citation counts
+    expect(rates.links).toBe(1);
+    expect(rates.citationRate).toBe(1); // not 2
+    expect(rates.linkRate).toBe(1);
+    expect(rates.citationRate).toBeLessThanOrEqual(1);
+    expect(rates.linkRate).toBeLessThanOrEqual(1);
+  });
+
+  it("ignores citations entirely in a run with zero mentions", () => {
+    const rates = rateMeasurements([measurement({ mentioned: false, cited: true, linked: true })]);
+    expect(rates.citations).toBe(0);
+    expect(rates.links).toBe(0);
+    expect(rates.citationRate).toBeNull(); // 0 mentions -> undefined, not inflated
+    expect(rates.linkRate).toBeNull();
+  });
+
   it("returns null rates when the denominator is zero", () => {
     const rates = rateMeasurements([measurement({ mentioned: false })]);
     expect(rates.mentionRate).toBe(0); // 0/1

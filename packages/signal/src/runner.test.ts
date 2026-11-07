@@ -125,7 +125,7 @@ describe("MESH_BRAND_PROFILE preset", () => {
     const backend = cannedBackend({
       "chatgpt:q-cost": {
         text: "MESH is an AI cost engineering platform. It does model routing and semantic caching without compromising quality.",
-        citations: [{ url: "https://mesh-ai.dev/docs" }, { url: "https://github.com/org/mesh" }],
+        citations: [{ url: "https://mesh-ai.dev/docs" }, { url: "https://github.com/harrym1707/mesh" }],
       },
     });
     const runs = await runMeasurements({

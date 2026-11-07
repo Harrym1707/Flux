@@ -14,6 +14,12 @@
  *   - descriptionPresentRate = descriptionsPresent / mentions
  *   - correctDescriptionRate = correctDescriptions / descriptionsPresent
  * A null rate means the denominator was zero (not enough signal to divide).
+ *
+ * The conditional rates (citation/link) count ONLY measurements that are also
+ * mention-positive, so the numerator is always a subset of the denominator and
+ * the rate stays in [0, 1]. A citation or link in a measurement where the brand
+ * was not mentioned does not count toward citationRate/linkRate — "of the
+ * answers that mentioned us, how many also cited/linked us?".
  */
 
 import type { MeasurementRun, SignalMeasurement } from "./schema.js";
@@ -23,8 +29,10 @@ export type SignalRates = {
   measurements: number;
   mentions: number;
   mentionRate: number | null;
+  /** Measurements that both mentioned AND cited the brand (numerator of citationRate). */
   citations: number;
   citationRate: number | null;
+  /** Measurements that both mentioned AND linked the brand (numerator of linkRate). */
   links: number;
   linkRate: number | null;
   descriptionsPresent: number;
@@ -107,9 +115,14 @@ export function rateMeasurements(measurements: SignalMeasurement[]): SignalRates
   let overlapCount = 0;
 
   for (const m of measurements) {
-    if (m.mentioned) mentions++;
-    if (m.cited) citations++;
-    if (m.linked) links++;
+    if (m.mentioned) {
+      mentions++;
+      // Conditional signals: only counted when the brand was also mentioned, so
+      // the numerator can never exceed `mentions` and the rate stays <= 1.
+      if (m.cited) citations++;
+      if (m.linked) links++;
+    }
+    // present/correct are already mention-gated by scoreFactualDescription.
     if (m.factualDescription.present) descriptionsPresent++;
     if (m.factualDescription.correct) correctDescriptions++;
     if (m.sourceOverlap.overlapRatio !== null) {
