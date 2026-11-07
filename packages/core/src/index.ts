@@ -1,5 +1,6 @@
 export * from "./types.js";
 export * from "./router.js";
+export * from "./routing.js";
 export * from "./evaluator.js";
 export * from "./cost.js";
 export * from "./confidence.js";
