@@ -24,11 +24,10 @@ import { join } from "node:path";
 import {
   createStripeClient,
   decideBilling,
+  invoiceForAccount,
   openFileAccountStore,
   openFileLedgerStore,
-  recomputeInvoice,
   runAccountBilling,
-  verifyLedgerChain,
   type Account,
 } from "../packages/core/dist/src/index.js";
 
@@ -74,26 +73,22 @@ async function main(): Promise<void> {
 
   for (const account of targets) {
     const records = ledger.readRecords(account.id);
-    const chain = verifyLedgerChain(records);
-    const invoice = recomputeInvoice(records.map((record) => record.event), {
-      ...(args.period ? { period: args.period } : {}),
-      feePercent: account.feePercent,
-    });
+    const { invoice, chainVerified } = invoiceForAccount(account, records, args.period);
     const label = `${account.githubLogin} (${account.id})`;
 
     if (args.dryRun) {
-      const decision = decideBilling(account, invoice, chain.ok);
+      const decision = decideBilling(account, invoice, chainVerified);
       if (decision.action === "skip") {
         console.log(`· ${label}: SKIP — ${decision.reason}`);
       } else {
         console.log(`· ${label}: WOULD BILL ${decision.amountCents} ${decision.currency} cents via ${decision.rail}` +
-          `${chain.ok ? "" : " [CHAIN BROKEN — would be blocked]"}`);
+          `${chainVerified ? "" : " [CHAIN BROKEN — would be blocked]"}`);
       }
       continue;
     }
 
     try {
-      const outcome = await runAccountBilling(stripe!, account, invoice, chain.ok, { mode: args.mode });
+      const outcome = await runAccountBilling(stripe!, account, invoice, chainVerified, { mode: args.mode });
       if (outcome.status === "skipped") {
         console.log(`· ${label}: SKIP — ${outcome.reason}`);
       } else if (outcome.status === "noticed") {

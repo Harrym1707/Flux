@@ -1,5 +1,5 @@
 import type { Account, PaymentChoice } from "./accounts.js";
-import type { Invoice } from "./savings-ledger.js";
+import { recomputeInvoice, verifyLedgerChain, type Invoice, type LedgerRecord } from "./savings-ledger.js";
 import { buildStripeInvoicePlan } from "./stripe-billing.js";
 import type { BillingStripe } from "./stripe-client.js";
 
@@ -26,6 +26,24 @@ import type { BillingStripe } from "./stripe-client.js";
  * The decision is a pure function (unit-tested without Stripe); the executor
  * performs the Stripe calls for whichever rail the decision selected.
  */
+
+/**
+ * Recompute one account's invoice from its stored ledger records, with the
+ * chain verified. The single path the worker and the admin API share, so a
+ * preview and the real run can never disagree about what an account owes.
+ */
+export function invoiceForAccount(
+  account: Account,
+  records: readonly LedgerRecord[],
+  period?: string,
+): { invoice: Invoice; chainVerified: boolean } {
+  const chain = verifyLedgerChain(records);
+  const invoice = recomputeInvoice(records.map((record) => record.event), {
+    ...(period === undefined ? {} : { period }),
+    feePercent: account.feePercent,
+  });
+  return { invoice, chainVerified: chain.ok };
+}
 
 /** The advance notice a variable-amount charge sends before it is pulled. */
 export type AdvanceChargeNotice = {

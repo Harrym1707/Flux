@@ -4,6 +4,8 @@ import { handleAuthRequest } from "./routes-auth.js";
 import { handleAccountRequest } from "./routes-account.js";
 import { handleLedgerRequest } from "./routes-ledger.js";
 import { handlePaymentRequest } from "./routes-payment.js";
+import { handleAdminRequest } from "./routes-admin.js";
+import { handleClaimRequest } from "./routes-claim.js";
 import { sendJson } from "./http-util.js";
 
 /**
@@ -18,10 +20,12 @@ import { sendJson } from "./http-util.js";
 export type ApiHandler = (req: IncomingMessage, res: ServerResponse, url: URL, ctx: ServerContext) => Promise<boolean>;
 
 const HANDLERS: ApiHandler[] = [
+  handleClaimRequest,
   handleAuthRequest,
   handleAccountRequest,
   handlePaymentRequest,
   handleLedgerRequest,
+  handleAdminRequest,
 ];
 
 export function createApiRouter(ctx: ServerContext) {
