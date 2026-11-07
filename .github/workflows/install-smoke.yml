@@ -92,7 +92,7 @@ jobs:
       - name: Pack the npm package and run it through npx
         run: |
           npm pack ./packages/cli/pkg
-          TARBALL=$(ls mesh-ai-mesh-*.tgz)
+          TARBALL=$(ls harrym1707-mesh-*.tgz)
           echo "packed: $TARBALL"
           npx -y "./$TARBALL" version
           npx -y "./$TARBALL" verify
